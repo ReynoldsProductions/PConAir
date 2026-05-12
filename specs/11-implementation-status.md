@@ -41,7 +41,7 @@ All backend API modules and the Admin SPA are complete. Spec 03 Gap 2 (latency) 
 | `src/main/server.ts` | Express + `ws` WebSocket server, companion detection, state broadcast |
 | `src/main/runtime-persistence.ts` | JSON file persistence for presets and L3 cues (load on boot, save on change) |
 | `src/main/displays.ts` | Electron display enumeration helper |
-| `src/main/action-dispatch.ts` | WebSocket action dispatcher (all modes; `set_display` is a 501 stub) |
+| `src/main/action-dispatch.ts` | WebSocket action dispatcher (all modes including `set_display`) |
 | `src/main/cli-options.ts` | CLI flag parsing (`--reset-admin-pin`, etc.) |
 | `src/main/reliability-store.ts` | In-memory reliability state (panic, show-lock arm/take) |
 
@@ -86,7 +86,7 @@ All backend API modules and the Admin SPA are complete. Spec 03 Gap 2 (latency) 
 - **CSS theme system**: `l3/theme-store.ts` — install/delete themes, serve `sample.css`, `GET /api/l3/themes`
 - **CSV bulk import**: `POST /api/l3/cues/import` — skips rows with missing required fields, defaults unknown themes to first available, returns per-row results; `GET /api/l3/cues/csv-sample` serves example CSV
 - **Image upload**: `POST /api/l3/cues/upload-image` — stores PNG/JPEG/GIF/WebP/SVG, creates Still Store cue with `sourceType: "image"`
-- **Cue export**: `GET /api/l3/cues/:id/export` — returns image bytes for `image`-type cues; 501 for `manual`-type (no render pipeline yet)
+- **Cue export**: `GET /api/l3/cues/:id/export` — returns image bytes for `image`-type cues; renders PNG via Electron offscreen for `manual`-type cues (`l3/cue-renderer.ts`)
 - **Media Library**: `media-library/item-store.ts` + `window-manager.ts` + `routes/media-library.ts` — CRUD, take/clear, download; `media-library` mode in `AppState`
 - **Tests**: `l3-themes.test.ts` (themes, CSV import, image upload, export), `media-library.test.ts`
 
@@ -104,7 +104,7 @@ All backend API modules and the Admin SPA are complete. Spec 03 Gap 2 (latency) 
 - A/B dual `BrowserWindow` with `session.fromPartition` per instance
 - `src/main/url/window-manager.ts` — subscribe-driven, no double-load race
 - `abState.instanceA/B` now includes `displayTarget` and `sessionMode` (per spec 10 fix)
-- `set_display` WS action is a 501 stub (no display routing logic)
+- `set_display` WS action routes the named instance to a specific Electron display via `applyDisplayTarget()` in `url/window-manager.ts`
 
 ### Spec 07 — Companion Module (`packages/companion-module-pconair/`)
 | File | Contents |
