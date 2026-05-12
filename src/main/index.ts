@@ -5,6 +5,7 @@ import { getStore } from './state';
 import { createAuthManager } from './auth';
 import { createPresetsStore } from './presets';
 import { createSlidesWindowManager } from './slides/window-manager';
+import { createUrlWindowManager } from './url/window-manager';
 
 const DEFAULT_PORT = parseInt(process.env.PCONAIR_PORT ?? '8080', 10);
 const OPERATOR_PIN = process.env.PCONAIR_OPERATOR_PIN ?? '0000';
@@ -42,6 +43,9 @@ async function main() {
 
   const slidesManager = createSlidesWindowManager({ store });
   slidesManager.initialize();
+
+  const urlManager = createUrlWindowManager({ store });
+  urlManager.initialize();
 
   const server = createServer({ store, auth, presets, port: DEFAULT_PORT });
   await server.listen();
