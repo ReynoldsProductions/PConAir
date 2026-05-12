@@ -781,7 +781,8 @@ async function renderL3Themes() {
     if (!fileInput.files || !fileInput.files[0]) { showError('Select a CSS file'); return; }
     const fd = new FormData();
     fd.append('name', name);
-    fd.append('file', fileInput.files[0]);
+    fd.append('displayName', name);
+    fd.append('cssFile', fileInput.files[0]);
     await api('POST', '/api/l3/themes', fd, true);
     showSuccess('Theme uploaded'); renderL3Themes();
   });
