@@ -159,7 +159,7 @@ export function createActionDispatcher(deps: {
         return {
           ok: false,
           status: 400,
-          error: { code: 'INVALID_MODE', message: `Unknown action_id: ${actionId}` },
+          error: { code: 'UNKNOWN_ACTION', message: `Unknown action_id: ${actionId}` },
         };
     }
   };
