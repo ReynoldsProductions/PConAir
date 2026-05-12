@@ -109,6 +109,7 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
         },
         trend,
       },
+      watchdog: state.watchdog,
     });
   });
 

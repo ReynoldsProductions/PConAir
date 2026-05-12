@@ -245,6 +245,60 @@
 
     .ab-btn.active { border-color: var(--accent); color: var(--accent); background: #1a2a3a; }
 
+    /* Watchdog banners */
+    #watchdog-banners {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      pointer-events: none;
+    }
+
+    .wd-banner {
+      display: none;
+      width: 100%;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      pointer-events: all;
+    }
+
+    .wd-banner.visible { display: flex; align-items: center; justify-content: center; gap: 12px; }
+
+    #wd-unresponsive-banner {
+      background: #b71c1c;
+      color: #fff;
+    }
+
+    #wd-memory-banner {
+      background: #f57f17;
+      color: #111;
+    }
+
+    #wd-restart-banner {
+      background: #1b5e20;
+      color: #fff;
+    }
+
+    .wd-force-reload-btn {
+      padding: 4px 12px;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.6);
+      background: transparent;
+      color: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .wd-force-reload-btn:hover { background: rgba(255,255,255,0.2); }
+
     #error-toast {
       position: fixed;
       bottom: 16px;
@@ -261,6 +315,22 @@
   </style>
 </head>
 <body>
+
+  <!-- Watchdog alert banners (spec 09 §6.2, §6.3, §6.5) -->
+  <div id="watchdog-banners">
+    <div id="wd-unresponsive-banner" class="wd-banner">
+      <span id="wd-unresponsive-text">⚠ Program Output Unresponsive</span>
+      <button class="wd-force-reload-btn" id="wd-force-reload-btn">Force Reload</button>
+    </div>
+    <div id="wd-memory-banner" class="wd-banner">
+      <span id="wd-memory-text">⚠ Memory Usage High</span>
+      <span>— Consider restarting app after this show —</span>
+      <a class="wd-force-reload-btn" href="/admin/health">View Health</a>
+    </div>
+    <div id="wd-restart-banner" class="wd-banner">
+      <span>&#10003; Program Output Restarted — State Restored</span>
+    </div>
+  </div>
 
   <div id="panic-banner">PANIC — OUTPUT HIDDEN · Click UN-PANIC or press P</div>
 

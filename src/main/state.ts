@@ -28,6 +28,15 @@ const INITIAL_STATE: AppState = {
     panicActive: false,
     panicSlate: { type: 'color', value: '#000000' },
   },
+  watchdog: {
+    programUnresponsive: false,
+    programUnresponsiveSecs: 0,
+    memoryPressure: false,
+    memoryPressurePct: 0,
+    memoryHeapUsedGb: 0,
+    memoryHeapTotalGb: 0,
+    lastRendererCrashAt: null,
+  },
 };
 
 type Subscriber = (patch: Partial<AppState>) => void;

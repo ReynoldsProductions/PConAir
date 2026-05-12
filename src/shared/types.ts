@@ -78,6 +78,17 @@ export interface ReliabilityRuntimeState {
   panicSlate: PanicSlateState;
 }
 
+/** Spec 09 §6.2 / §6.3 / §6.5 — watchdog runtime state. */
+export interface WatchdogState {
+  programUnresponsive: boolean;
+  programUnresponsiveSecs: number;
+  memoryPressure: boolean;
+  memoryPressurePct: number;
+  memoryHeapUsedGb: number;
+  memoryHeapTotalGb: number;
+  lastRendererCrashAt: string | null;
+}
+
 export interface AppState {
   currentMode: Mode;
   currentPreset: Preset | null;
@@ -90,6 +101,7 @@ export interface AppState {
   abState: ABState;
   connectionStatus: ConnectionStatus;
   reliability: ReliabilityRuntimeState;
+  watchdog: WatchdogState;
 }
 
 // ---- HTTP API types ----

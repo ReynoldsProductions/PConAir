@@ -139,6 +139,51 @@ function renderState(state: AppState): void {
   l3StackingUiLock = false;
 
   document.getElementById('state-dump')!.textContent = JSON.stringify(state, null, 2);
+
+  // ── Watchdog banners (spec 09 §6.2, §6.3, §6.5) ─────────────────
+  const wd = state.watchdog;
+
+  // §6.2 Unresponsive banner
+  const unrespBanner = document.getElementById('wd-unresponsive-banner');
+  const unrespText = document.getElementById('wd-unresponsive-text');
+  if (unrespBanner && unrespText) {
+    const show = wd?.programUnresponsive ?? false;
+    unrespBanner.classList.toggle('visible', show);
+    if (show) {
+      const secs = wd?.programUnresponsiveSecs ?? 0;
+      if (secs >= 15) {
+        unrespText.textContent = '⚠ Program output not responding. Force reload strongly recommended.';
+      } else {
+        unrespText.textContent = '⚠ Program Output Unresponsive';
+      }
+    }
+  }
+
+  // §6.3 Memory pressure banner
+  const memBanner = document.getElementById('wd-memory-banner');
+  const memText = document.getElementById('wd-memory-text');
+  if (memBanner && memText) {
+    const show = wd?.memoryPressure ?? false;
+    memBanner.classList.toggle('visible', show);
+    if (show) {
+      memText.textContent =
+        `⚠ Memory Usage High — ${wd.memoryPressurePct}% (${wd.memoryHeapUsedGb} GB / ${wd.memoryHeapTotalGb} GB)`;
+    }
+  }
+
+  // §6.5 Renderer-restart banner (auto-dismiss after 8 s)
+  const restartBanner = document.getElementById('wd-restart-banner');
+  if (restartBanner) {
+    const crashed = wd?.lastRendererCrashAt ?? null;
+    if (crashed) {
+      const age = Date.now() - new Date(crashed).getTime();
+      // Show for up to 8 seconds after crash
+      if (age < 8_000) {
+        restartBanner.classList.add('visible');
+        setTimeout(() => restartBanner.classList.remove('visible'), 8_000 - age);
+      }
+    }
+  }
 }
 
 // ── Error toast ───────────────────────────────────────────────────
@@ -202,6 +247,20 @@ function bindEvents(): void {
   on('l3-clear-btn', () => api.l3Clear());
 
   on('panic-btn', () => api.panicAction('toggle'));
+
+  // §6.2 Force-reload the on-air program output window
+  document.getElementById('wd-force-reload-btn')?.addEventListener('click', async () => {
+    try {
+      const state = store.getState();
+      // Reload the active (on-air) instance
+      const activeInst = state.abState.activeInstance;
+      await api.reloadInstance(activeInst === 'A' ? 'B' : 'A'); // reload off-air as fallback
+      // Best-effort: also try a hard URL reload on the active instance via urlReload
+      await api.urlReload();
+    } catch (e) {
+      showError((e as Error).message);
+    }
+  });
 
   document.addEventListener('keydown', (e) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
