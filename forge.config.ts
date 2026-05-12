@@ -33,6 +33,13 @@ const config: ForgeConfig = {
             js: './src/renderer/operator/index.ts',
             preload: { js: './src/renderer/preload.ts' },
           },
+          {
+            // Admin SPA is served by Express over HTTP; this entry exists only so
+            // webpack copies index.html to .webpack/renderer/admin/ where admin.ts expects it.
+            name: 'admin',
+            html: './src/renderer/admin/index.html',
+            js: './src/renderer/admin/index.ts',
+          },
         ],
       },
     }),
