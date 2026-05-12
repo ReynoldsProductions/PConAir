@@ -100,6 +100,19 @@ describe('POST /api/slides/next', () => {
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('NO_ACTIVE_DECK');
   });
+
+  it('returns 400 NO_ACTIVE_DECK when deck is still loading', async () => {
+    const { app, store, cookie } = await makeApp();
+    store.setState({
+      currentMode: 'slides',
+      slides: { deckId: 'abc', deckTitle: 'Test', slideIndex: 0, slideCount: 1, isLoading: true },
+    });
+    const res = await request(app)
+      .post('/api/slides/next')
+      .set('Cookie', cookie);
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('NO_ACTIVE_DECK');
+  });
 });
 
 describe('POST /api/slides/prev', () => {

@@ -1,23 +1,11 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response } from 'express';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { Mode } from '../../shared/types';
+import { requireOperator } from './middleware';
 
 const VALID_MODES: Mode[] = ['slides', 'url', 'l3', 'media-library', 'idle'];
 const START_TIME = Date.now();
-
-function requireOperator(auth: AuthManager) {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    const sessionId =
-      (req.cookies?.pconair_operator_session as string | undefined) ??
-      (req.cookies?.pconair_admin_session as string | undefined); // admin can do anything operator can
-    if (!sessionId || !auth.getSession(sessionId)) {
-      res.status(401).json({ error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } });
-      return;
-    }
-    next();
-  };
-}
 
 export function createApiRouter(store: StateStore, auth: AuthManager): Router {
   const router = Router();

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
+import { requireOperator } from './middleware';
 
 const GOOGLE_SLIDES_PATTERN = /^https:\/\/docs\.google\.com\/presentation\/d\/([^/]+)/;
 
@@ -18,26 +19,13 @@ function isValidUrl(url: string): boolean {
   }
 }
 
-function requireOperator(auth: AuthManager) {
-  return (req: Request, res: Response, next: () => void): void => {
-    const sessionId =
-      (req.cookies?.pconair_operator_session as string | undefined) ??
-      (req.cookies?.pconair_admin_session as string | undefined);
-    if (!sessionId || !auth.getSession(sessionId)) {
-      res.status(401).json({ error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } });
-      return;
-    }
-    next();
-  };
-}
-
 export function createSlidesRouter(store: StateStore, auth: AuthManager): Router {
   const router = Router();
   const opGuard = requireOperator(auth);
 
   // POST /api/slides/load
   router.post('/load', opGuard, (req: Request, res: Response) => {
-    const { deckUrl } = req.body as { deckUrl?: string };
+    const { deckUrl, instance } = req.body as { deckUrl?: string; instance?: string };
 
     if (!deckUrl || !isValidUrl(deckUrl)) {
       res.status(400).json({ error: { code: 'INVALID_URL', message: 'deckUrl must be a valid URL' } });
@@ -47,6 +35,11 @@ export function createSlidesRouter(store: StateStore, auth: AuthManager): Router
     const deckId = extractDeckId(deckUrl);
     if (!deckId) {
       res.status(400).json({ error: { code: 'INVALID_URL', message: 'deckUrl must be a Google Slides presentation URL' } });
+      return;
+    }
+
+    if (instance !== undefined && instance !== 'A' && instance !== 'B') {
+      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'instance must be "A" or "B"' } });
       return;
     }
 
@@ -76,6 +69,10 @@ export function createSlidesRouter(store: StateStore, auth: AuthManager): Router
       res.status(400).json({ error: { code: 'NO_ACTIVE_DECK', message: 'No deck is currently loaded' } });
       return;
     }
+    if (state.slides.isLoading) {
+      res.status(400).json({ error: { code: 'NO_ACTIVE_DECK', message: 'Deck is still loading' } });
+      return;
+    }
     if (state.slides.slideIndex >= state.slides.slideCount - 1) {
       res.status(400).json({ error: { code: 'SLIDE_OUT_OF_RANGE', message: 'Already at the last slide' } });
       return;
@@ -90,6 +87,10 @@ export function createSlidesRouter(store: StateStore, auth: AuthManager): Router
     const state = store.getState();
     if (!state.slides) {
       res.status(400).json({ error: { code: 'NO_ACTIVE_DECK', message: 'No deck is currently loaded' } });
+      return;
+    }
+    if (state.slides.isLoading) {
+      res.status(400).json({ error: { code: 'NO_ACTIVE_DECK', message: 'Deck is still loading' } });
       return;
     }
     if (state.slides.slideIndex <= 0) {
@@ -107,6 +108,10 @@ export function createSlidesRouter(store: StateStore, auth: AuthManager): Router
     const state = store.getState();
     if (!state.slides) {
       res.status(400).json({ error: { code: 'NO_ACTIVE_DECK', message: 'No deck is currently loaded' } });
+      return;
+    }
+    if (state.slides.isLoading) {
+      res.status(400).json({ error: { code: 'NO_ACTIVE_DECK', message: 'Deck is still loading' } });
       return;
     }
     if (
@@ -129,6 +134,10 @@ export function createSlidesRouter(store: StateStore, auth: AuthManager): Router
     const state = store.getState();
     if (!state.slides) {
       res.status(400).json({ error: { code: 'NO_ACTIVE_DECK', message: 'No deck is currently loaded' } });
+      return;
+    }
+    if (state.slides.isLoading) {
+      res.status(400).json({ error: { code: 'NO_ACTIVE_DECK', message: 'Deck is still loading' } });
       return;
     }
     store.setState({ slides: { ...state.slides, isLoading: true } });
