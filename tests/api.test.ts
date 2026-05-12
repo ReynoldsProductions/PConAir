@@ -104,3 +104,28 @@ describe('API routes', () => {
     expect(res.body).toHaveProperty('version');
   });
 });
+
+describe('Security headers', () => {
+  let app: ReturnType<typeof createServer>['app'];
+
+  beforeEach(() => {
+    const store = createStateStore();
+    const auth = createAuthManager(AUTH_CONFIG);
+    ({ app } = createServer({ store, auth }));
+  });
+
+  it('sets X-Content-Type-Options: nosniff', async () => {
+    const res = await request(app).get('/api/status');
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+  });
+
+  it('sets X-Frame-Options: DENY', async () => {
+    const res = await request(app).get('/api/status');
+    expect(res.headers['x-frame-options']).toBe('DENY');
+  });
+
+  it('sets Cache-Control: no-store on API responses', async () => {
+    const res = await request(app).get('/api/status');
+    expect(res.headers['cache-control']).toBe('no-store');
+  });
+});
