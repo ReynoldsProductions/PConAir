@@ -26,7 +26,7 @@ export function createClientStore() {
   function getState(): AppState { return state; }
 
   function applyFullState(newState: AppState): void {
-    state = newState;
+    state = structuredClone(newState);
     notify();
   }
 

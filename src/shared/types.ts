@@ -22,6 +22,8 @@ export interface SlidesState {
 export interface L3State {
   activeCueId: string | null;
   activeCueName: string | null;
+  /** Secondary line (e.g. job title); mirrors cue.title or inline take. */
+  activeTitle: string | null;
   isStacking: boolean;
   currentPlaylistId: string | null;
 }
@@ -102,7 +104,8 @@ export type ErrorCode =
 export type WsServerMessage =
   | { type: 'state'; payload: AppState }
   | { type: 'state_patch'; payload: Partial<AppState> }
-  | { type: 'error'; payload: { code: string; message: string } };
+  | { type: 'error'; payload: { code: string; message: string } }
+  | { type: 'action_result'; payload: unknown };
 
 export type WsClientMessage =
   | { type: 'action'; action: string; payload: Record<string, unknown> };

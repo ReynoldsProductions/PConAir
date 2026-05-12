@@ -11,9 +11,13 @@ export interface CreatePresetInput {
 
 export type UpdatePresetInput = Partial<Omit<UrlPreset, 'id' | 'createdAt' | 'updatedAt'>>;
 
-// NOTE: In-memory only — persistence to show profile is deferred to Phase 5 (spec 05).
-export function createPresetsStore() {
+// Persisted via runtime-state.json when persistence is wired (see src/main/runtime-persistence.ts).
+export function createPresetsStore(onChange?: () => void) {
   const presets = new Map<string, UrlPreset>();
+
+  function touch(): void {
+    onChange?.();
+  }
 
   function list(): UrlPreset[] {
     return Array.from(presets.values());
@@ -36,6 +40,7 @@ export function createPresetsStore() {
       updatedAt: now,
     };
     presets.set(preset.id, preset);
+    touch();
     return { ...preset };
   }
 
@@ -44,14 +49,25 @@ export function createPresetsStore() {
     if (!existing) return null;
     const updated: UrlPreset = { ...existing, ...input, id, createdAt: existing.createdAt, updatedAt: new Date().toISOString() };
     presets.set(id, updated);
+    touch();
     return { ...updated };
   }
 
   function remove(id: string): boolean {
-    return presets.delete(id);
+    const ok = presets.delete(id);
+    if (ok) touch();
+    return ok;
   }
 
-  return { list, findById, create, update, remove };
+  function replaceAll(items: UrlPreset[]): void {
+    presets.clear();
+    for (const p of items) {
+      presets.set(p.id, { ...p });
+    }
+    onChange?.();
+  }
+
+  return { list, findById, create, update, remove, replaceAll };
 }
 
 export type PresetsStore = ReturnType<typeof createPresetsStore>;

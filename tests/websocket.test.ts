@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { WebSocket } from 'ws';
-import { createServer } from '../src/main/server';
 import { createStateStore } from '../src/main/state';
 import { createAuthManager } from '../src/main/auth';
 import { createPresetsStore } from '../src/main/presets';
+import { createFullServer } from './_test-server';
 import type { WsServerMessage } from '../src/shared/types';
 
 const AUTH_CONFIG = {
@@ -66,7 +66,7 @@ async function nextPatchWith(
 }
 
 describe('WebSocket', () => {
-  let server: ReturnType<typeof createServer>;
+  let server: ReturnType<typeof createFullServer>;
   let store: ReturnType<typeof createStateStore>;
   let port: number;
 
@@ -74,7 +74,7 @@ describe('WebSocket', () => {
     store = createStateStore();
     const auth = createAuthManager(AUTH_CONFIG);
     const presets = createPresetsStore();
-    server = createServer({ store, auth, presets, port: 0 }); // port 0 = OS assigns
+    server = createFullServer({ store, auth, presets, port: 0 }); // port 0 = OS assigns
     await server.listen();
     // Get the assigned port
     const addr = server.httpServer.address();

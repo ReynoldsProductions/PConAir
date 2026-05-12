@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
-import { createServer } from '../src/main/server';
 import { createStateStore } from '../src/main/state';
 import { createAuthManager } from '../src/main/auth';
 import { createPresetsStore } from '../src/main/presets';
+import { createFullServer } from './_test-server';
 
 function makeServer() {
   const store = createStateStore();
@@ -17,7 +17,7 @@ function makeServer() {
     lockoutMs: 60000,
   });
   const presets = createPresetsStore();
-  const server = createServer({ store, auth, presets, port: 0 });
+  const server = createFullServer({ store, auth, presets, port: 0 });
   return { server, store, auth, presets };
 }
 
@@ -111,7 +111,7 @@ describe('POST /api/url', () => {
   it('accepts valid display param when display exists in state', async () => {
     const made = makeServer();
     const store = made.store;
-    const s2 = createServer({
+    const s2 = createFullServer({
       store,
       auth: createAuthManager({
         operatorPin: 'test1234',

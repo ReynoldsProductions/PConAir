@@ -5,7 +5,7 @@ const INITIAL_STATE: AppState = {
   currentPreset: null,
   currentUrl: null,
   slides: null,
-  l3: null,
+  l3: null, // populated in l3 mode; shape includes activeTitle for two-line cues
   mediaLibrary: null,
   background: {
     presetId: null,

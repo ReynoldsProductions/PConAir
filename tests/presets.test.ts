@@ -58,9 +58,9 @@ describe('PresetsStore', () => {
 
 import request from 'supertest';
 import type { Express } from 'express';
-import { createServer } from '../src/main/server';
 import { createStateStore } from '../src/main/state';
 import { createAuthManager } from '../src/main/auth';
+import { createFullServer } from './_test-server';
 
 function makeHttpServer() {
   const store = createStateStore();
@@ -69,7 +69,7 @@ function makeHttpServer() {
     maxFailures: 5, lockoutMs: 60000,
   });
   const presets = createPresetsStore();
-  const server = createServer({ store, auth, presets, port: 0 });
+  const server = createFullServer({ store, auth, presets, port: 0 });
   return { server, store, auth, presets };
 }
 

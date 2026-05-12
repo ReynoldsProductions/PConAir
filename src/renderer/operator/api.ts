@@ -17,5 +17,11 @@ export const slideNext   = ()                          => apiPost('/api/slides/n
 export const slidePrev   = ()                          => apiPost('/api/slides/prev');
 export const slideGoto   = (slideIndex: number)        => apiPost('/api/slides/goto',  { slideIndex });
 export const slideReload = ()                          => apiPost('/api/slides/reload');
-export const switchAB    = (instance: 'A' | 'B')      => apiPost('/api/ab/switch',    { instance });
+export const switchAB    = (instance: 'A' | 'B')      => apiPost('/api/ab/switch',     { instance });
 export const setMode     = (mode: string)              => apiPost('/api/mode',         { mode });
+
+export const loadUrl = (url: string, display?: string) =>
+  apiPost<unknown>('/api/url', display ? { url, display } : { url });
+
+export const urlReload = (instance?: 'A' | 'B') =>
+  apiPost<unknown>('/api/url/reload', instance ? { instance } : {});

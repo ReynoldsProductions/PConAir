@@ -6,7 +6,7 @@ const store = createClientStore();
 
 // ── WebSocket connection ──────────────────────────────────────────
 
-function connectWs(): WebSocket {
+function connectWs(delay = 1000): void {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const ws = new WebSocket(`${protocol}//${location.host}/ws`);
 
@@ -14,10 +14,7 @@ function connectWs(): WebSocket {
 
   ws.addEventListener('close', () => {
     setWsStatus(false);
-    let delay = 1000;
-    const retry = () => setTimeout(() => { connectWs(); }, delay);
-    delay = Math.min(delay * 2, 30000);
-    retry();
+    setTimeout(() => connectWs(Math.min(delay * 2, 30000)), delay);
   });
 
   ws.addEventListener('message', (event: MessageEvent<string>) => {
@@ -25,8 +22,6 @@ function connectWs(): WebSocket {
     if (msg.type === 'state')       store.applyFullState(msg.payload);
     else if (msg.type === 'state_patch') store.applyPatch(msg.payload);
   });
-
-  return ws;
 }
 
 // ── UI updates ────────────────────────────────────────────────────
@@ -63,6 +58,22 @@ function renderState(state: AppState): void {
   (document.getElementById('goto-btn') as HTMLButtonElement).disabled = !navEnabled;
   (document.getElementById('reload-btn') as HTMLButtonElement).disabled = !hasSlides;
 
+  const activeKey = state.abState.activeInstance === 'A' ? 'instanceA' : 'instanceB';
+  const activeUrlInst = state.abState[activeKey];
+  const urlReloadOk =
+    state.currentMode === 'url' && Boolean(activeUrlInst.url) && !activeUrlInst.isLoading;
+  (document.getElementById('url-reload-btn') as HTMLButtonElement).disabled = !urlReloadOk;
+  const urlStatusEl = document.getElementById('url-status')!;
+  if (state.currentMode === 'url' && state.currentUrl) {
+    const tgt = activeUrlInst.displayTarget ? ` → ${activeUrlInst.displayTarget}` : '';
+    const load = activeUrlInst.isLoading ? ' (loading)' : activeUrlInst.isReady ? '' : ' (not ready)';
+    urlStatusEl.textContent = `Active (${state.abState.activeInstance}): ${state.currentUrl}${tgt}${load}`;
+  } else if (state.currentMode === 'url') {
+    urlStatusEl.textContent = 'URL mode — no URL on active instance yet';
+  } else {
+    urlStatusEl.textContent = '';
+  }
+
   const active = state.abState.activeInstance;
   document.getElementById('ab-a-btn')!.classList.toggle('active', active === 'A');
   document.getElementById('ab-b-btn')!.classList.toggle('active', active === 'B');
@@ -98,6 +109,17 @@ function bindEvents(): void {
     if (!isNaN(n) && n >= 1) await api.slideGoto(n - 1);
   });
   on('reload-btn', () => api.slideReload());
+
+  on('url-load-btn', async () => {
+    const url = (document.getElementById('url-input') as HTMLInputElement).value.trim();
+    const displayRaw = (document.getElementById('url-display-input') as HTMLInputElement).value.trim();
+    if (!url) {
+      showError('Enter a URL');
+      return;
+    }
+    await api.loadUrl(url, displayRaw || undefined);
+  });
+  on('url-reload-btn', () => api.urlReload());
 
   document.querySelectorAll<HTMLButtonElement>('.ab-btn').forEach((btn) =>
     btn.addEventListener('click', async () => {

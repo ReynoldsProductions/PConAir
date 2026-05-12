@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
-import { createServer } from '../src/main/server';
+import type { Express } from 'express';
 import { createStateStore } from '../src/main/state';
 import { createAuthManager } from '../src/main/auth';
 import { createPresetsStore } from '../src/main/presets';
+import { createFullServer } from './_test-server';
 
 const AUTH_CONFIG = {
   operatorPin: '1234',
@@ -15,13 +16,13 @@ const AUTH_CONFIG = {
 };
 
 describe('Auth routes', () => {
-  let app: ReturnType<typeof createServer>['app'];
+  let app: Express;
 
   beforeEach(() => {
     const store = createStateStore();
     const auth = createAuthManager(AUTH_CONFIG);
     const presets = createPresetsStore();
-    ({ app } = createServer({ store, auth, presets }));
+    ({ app } = createFullServer({ store, auth, presets }));
   });
 
   it('POST /auth/operator with correct PIN sets session cookie', async () => {
@@ -51,14 +52,14 @@ describe('Auth routes', () => {
 });
 
 describe('API routes', () => {
-  let app: ReturnType<typeof createServer>['app'];
+  let app: Express;
   let operatorCookie: string;
 
   beforeEach(async () => {
     const store = createStateStore();
     const auth = createAuthManager(AUTH_CONFIG);
     const presets = createPresetsStore();
-    ({ app } = createServer({ store, auth, presets }));
+    ({ app } = createFullServer({ store, auth, presets }));
     const res = await request(app)
       .post('/auth/operator')
       .send({ pin: '1234' });
@@ -109,13 +110,13 @@ describe('API routes', () => {
 });
 
 describe('Security headers', () => {
-  let app: ReturnType<typeof createServer>['app'];
+  let app: Express;
 
   beforeEach(() => {
     const store = createStateStore();
     const auth = createAuthManager(AUTH_CONFIG);
     const presets = createPresetsStore();
-    ({ app } = createServer({ store, auth, presets }));
+    ({ app } = createFullServer({ store, auth, presets }));
   });
 
   it('sets X-Content-Type-Options: nosniff', async () => {

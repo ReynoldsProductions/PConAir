@@ -95,6 +95,10 @@ export function createAuthManager(config: AuthConfig) {
     return Math.max(0, Math.ceil((rec.lockedUntil - Date.now()) / 1000));
   }
 
+  async function verifyOperatorPin(pin: string): Promise<boolean> {
+    return bcrypt.compare(pin, operatorHash);
+  }
+
   return {
     createSession,
     getSession,
@@ -102,6 +106,7 @@ export function createAuthManager(config: AuthConfig) {
     isLockedOut,
     getRemainingAttempts,
     getRetryAfterSeconds,
+    verifyOperatorPin,
   };
 }
 
