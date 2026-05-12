@@ -10,6 +10,7 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
   const { store } = config;
   let windowA: BrowserWindow | null = null;
   let windowB: BrowserWindow | null = null;
+  let unsubscribe: (() => void) | null = null;
 
   function createSlidesWindow(): BrowserWindow {
     const display = screen.getPrimaryDisplay();
@@ -27,8 +28,8 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
       backgroundColor: '#000000',
       frame: false,
       show: false,
+      // Windows are shown explicitly via showInstance(); do not auto-show on ready-to-show
     });
-    win.once('ready-to-show', () => win.show());
     return win;
   }
 
@@ -51,6 +52,19 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
     }
   }
 
+  async function navigateToSlide(slideIndex: number): Promise<void> {
+    const state = store.getState();
+    const activeInstance = state.abState.activeInstance;
+    const win = activeInstance === 'A' ? windowA : windowB;
+    if (!win || win.isDestroyed() || !state.slides) return;
+
+    // Inject navigation via Google Slides keyboard shortcut simulation
+    // slideIndex is 0-based; Google Slides uses 1-based slide numbers in the DOM
+    await win.webContents.executeJavaScript(
+      `document.querySelector('[aria-label="Slide ${slideIndex + 1} of ${state.slides.slideCount}"]')?.click()`
+    );
+  }
+
   function showInstance(instance: ABInstance): void {
     const toShow = instance === 'A' ? windowA : windowB;
     const toHide = instance === 'A' ? windowB : windowA;
@@ -62,13 +76,10 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
     windowA = createSlidesWindow();
     windowB = createSlidesWindow();
 
-    store.subscribe((patch) => {
-      if (patch.slides && patch.slides.isLoading) {
-        const deckId = store.getState().slides?.deckId;
-        const activeInstance = store.getState().abState.activeInstance;
-        if (deckId) {
-          void loadDeck(deckId, activeInstance);
-        }
+    unsubscribe = store.subscribe((patch) => {
+      // Trigger deck load whenever isLoading is set to true (covers both /load and /reload)
+      if (patch.slides?.isLoading && patch.slides.deckId) {
+        void loadDeck(patch.slides.deckId, store.getState().abState.activeInstance);
       }
       if (patch.abState?.activeInstance) {
         showInstance(patch.abState.activeInstance);
@@ -77,13 +88,15 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
   }
 
   function destroy(): void {
+    unsubscribe?.();
+    unsubscribe = null;
     windowA?.destroy();
     windowB?.destroy();
     windowA = null;
     windowB = null;
   }
 
-  return { initialize, loadDeck, showInstance, destroy };
+  return { initialize, loadDeck, navigateToSlide, showInstance, destroy };
 }
 
 export type SlidesWindowManager = ReturnType<typeof createSlidesWindowManager>;
