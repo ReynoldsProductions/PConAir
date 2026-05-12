@@ -75,7 +75,11 @@ export function createServer(deps: ServerDeps) {
 
   function close(): Promise<void> {
     return new Promise((resolve, reject) => {
-      httpServer.close((err) => (err ? reject(err) : resolve()));
+      // Close all active WebSocket connections first so httpServer.close() doesn't hang
+      wss.clients.forEach((client) => client.terminate());
+      wss.close(() => {
+        httpServer.close((err) => (err ? reject(err) : resolve()));
+      });
     });
   }
 
