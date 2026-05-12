@@ -162,3 +162,94 @@ describe('POST /api/background', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('Background Preset CRUD', () => {
+  let app: Express;
+  let cookies: { operator: string; admin: string };
+  let srv: ReturnType<typeof makeHttpServer>['server'];
+
+  beforeEach(async () => {
+    const made = makeHttpServer();
+    srv = made.server;
+    await srv.listen();
+    app = srv.app;
+    cookies = await getCookies(app);
+  });
+
+  afterEach(() => srv.close());
+
+  it('GET /api/background/presets returns empty list initially', async () => {
+    const res = await request(app).get('/api/background/presets').set('Cookie', cookies.admin);
+    expect(res.status).toBe(200);
+    expect(res.body.presets).toEqual([]);
+  });
+
+  it('POST /api/background/presets creates a preset', async () => {
+    const res = await request(app)
+      .post('/api/background/presets')
+      .set('Cookie', cookies.admin)
+      .send({ name: 'Luma Green', type: 'luma', value: '#00FF00' });
+    expect(res.status).toBe(201);
+    expect(res.body.preset.id).toBeTruthy();
+    expect(res.body.preset.name).toBe('Luma Green');
+    expect(res.body.preset.type).toBe('luma');
+    expect(res.body.preset.value).toBe('#00FF00');
+  });
+
+  it('POST /api/background/presets returns 400 for missing name', async () => {
+    const res = await request(app)
+      .post('/api/background/presets')
+      .set('Cookie', cookies.admin)
+      .send({ type: 'luma', value: '#00FF00' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_MODE');
+  });
+
+  it('DELETE /api/background/presets/:id removes the preset', async () => {
+    const created = await request(app)
+      .post('/api/background/presets')
+      .set('Cookie', cookies.admin)
+      .send({ name: 'X', type: 'solid', value: '#FF0000' });
+    const id = created.body.preset.id as string;
+
+    const del = await request(app)
+      .delete(`/api/background/presets/${id}`)
+      .set('Cookie', cookies.admin);
+    expect(del.status).toBe(204);
+
+    const list = await request(app).get('/api/background/presets').set('Cookie', cookies.admin);
+    expect(list.body.presets).toEqual([]);
+  });
+
+  it('POST /api/background with valid presetId applies preset to state', async () => {
+    const created = await request(app)
+      .post('/api/background/presets')
+      .set('Cookie', cookies.admin)
+      .send({ name: 'Black BG', type: 'solid', value: '#111111' });
+    const id = created.body.preset.id as string;
+
+    const res = await request(app)
+      .post('/api/background')
+      .set('Cookie', cookies.admin)
+      .send({ presetId: id });
+    expect(res.status).toBe(200);
+    expect(res.body.background.presetId).toBe(id);
+    expect(res.body.background.presetName).toBe('Black BG');
+    expect(res.body.background.value).toBe('#111111');
+    expect(res.body.background.type).toBe('solid');
+  });
+
+  it('POST /api/background with unknown presetId returns 404', async () => {
+    const res = await request(app)
+      .post('/api/background')
+      .set('Cookie', cookies.admin)
+      .send({ presetId: 'nonexistent-id' });
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('PRESET_NOT_FOUND');
+  });
+
+  it('GET /api/background/presets returns 401 without auth', async () => {
+    const res = await request(app).get('/api/background/presets');
+    expect(res.status).toBe(401);
+  });
+});

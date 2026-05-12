@@ -68,7 +68,12 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   app.use('/api/presets', createPresetsRouter(s.store, s.auth, s.presets));
   app.use('/api/l3', createL3Router(s.store, s.auth, s.l3Cues, s.l3Playlists, s.l3ThemeStore, s.l3FilesRoot));
   app.use('/api/media-library', createMediaLibraryRouter(s.store, s.auth, s.mediaLibrary));
-  app.use('/api/background', createBackgroundRouter(s.store, s.auth));
+  app.use('/api/background', createBackgroundRouter({
+    store: s.store,
+    auth: s.auth,
+    paths: s.profilePaths,
+    getActiveProfileId: s.getActiveProfileId,
+  }));
   app.use('/api/action', createActionRouter(s.auth, s.dispatchAction));
   app.use(
     '/api/profiles',
