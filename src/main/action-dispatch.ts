@@ -126,12 +126,12 @@ export function createActionDispatcher(deps: {
       }
       case 'set_display': {
         const display = str(p.display);
-        const instance = str(p.instance) ?? str(p.instance_id);
+        const instance = str(p.instance);
         if (!display) {
-          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'display is required' } };
+          return { ok: false, status: 400, error: { code: 'MISSING_PARAM', message: 'display is required' } };
         }
         if (instance !== 'A' && instance !== 'B') {
-          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'instance must be "A" or "B"' } };
+          return { ok: false, status: 400, error: { code: 'INVALID_INSTANCE', message: 'instance must be "A" or "B"' } };
         }
         const knownDisplays = store.getState().displays;
         if (!knownDisplays.find((d) => d.id === display)) {

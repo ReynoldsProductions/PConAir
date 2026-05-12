@@ -162,6 +162,7 @@ describe('set_display action via POST /api/action', () => {
       .send({ action_id: 'set_display', params: { display: 'disp-2', instance: 'A' } });
     expect(res.status).toBe(200);
     expect(store.getState().abState.instanceA.displayTarget).toBe('disp-2');
+    expect(res.body).toMatchObject({ displayTarget: 'disp-2', instance: 'A' });
   });
 
   it('set_display updates instanceB.displayTarget', async () => {
@@ -171,6 +172,7 @@ describe('set_display action via POST /api/action', () => {
       .send({ action_id: 'set_display', params: { display: 'disp-1', instance: 'B' } });
     expect(res.status).toBe(200);
     expect(store.getState().abState.instanceB.displayTarget).toBe('disp-1');
+    expect(res.body).toMatchObject({ displayTarget: 'disp-1', instance: 'B' });
   });
 
   it('set_display returns 404 for unknown display id', async () => {
@@ -188,6 +190,7 @@ describe('set_display action via POST /api/action', () => {
       .set('Cookie', opCookie)
       .send({ action_id: 'set_display', params: { instance: 'A' } });
     expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('MISSING_PARAM');
   });
 
   it('set_display returns 400 for invalid instance value', async () => {
@@ -196,6 +199,15 @@ describe('set_display action via POST /api/action', () => {
       .set('Cookie', opCookie)
       .send({ action_id: 'set_display', params: { display: 'disp-1', instance: 'C' } });
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('INVALID_MODE');
+    expect(res.body.error.code).toBe('INVALID_INSTANCE');
+  });
+
+  it('set_display returns 400 when instance param is missing', async () => {
+    const res = await request(app)
+      .post('/api/action')
+      .set('Cookie', opCookie)
+      .send({ action_id: 'set_display', params: { display: 'disp-1' } });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_INSTANCE');
   });
 });

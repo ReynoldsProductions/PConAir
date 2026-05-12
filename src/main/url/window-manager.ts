@@ -11,7 +11,10 @@ function applyDisplayTarget(win: BrowserWindow | null, displayId: string | null)
   const target = displayId
     ? screen.getAllDisplays().find((d) => String(d.id) === displayId)
     : screen.getPrimaryDisplay();
-  if (!target) return;
+  if (!target) {
+    console.warn(`[window-manager] applyDisplayTarget: display "${displayId}" not found in Electron screen list`);
+    return;
+  }
   win.setBounds({
     x: target.bounds.x,
     y: target.bounds.y,
