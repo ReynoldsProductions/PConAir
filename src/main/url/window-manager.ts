@@ -6,6 +6,20 @@ interface UrlWindowConfig {
   store: StateStore;
 }
 
+function applyDisplayTarget(win: BrowserWindow | null, displayId: string | null): void {
+  if (!win || win.isDestroyed()) return;
+  const target = displayId
+    ? screen.getAllDisplays().find((d) => String(d.id) === displayId)
+    : screen.getPrimaryDisplay();
+  if (!target) return;
+  win.setBounds({
+    x: target.bounds.x,
+    y: target.bounds.y,
+    width: target.bounds.width,
+    height: target.bounds.height,
+  });
+}
+
 export function createUrlWindowManager(config: UrlWindowConfig) {
   const { store } = config;
   let windowA: BrowserWindow | null = null;
@@ -80,6 +94,13 @@ export function createUrlWindowManager(config: UrlWindowConfig) {
         // Only switch visibility when in url mode to avoid clobbering slides windows
         if (patch.abState.activeInstance && store.getState().currentMode === 'url') {
           showInstance(activeInstance);
+        }
+        // Move windows when displayTarget changes
+        if (patch.abState.instanceA?.displayTarget !== undefined) {
+          applyDisplayTarget(windowA, store.getState().abState.instanceA.displayTarget);
+        }
+        if (patch.abState.instanceB?.displayTarget !== undefined) {
+          applyDisplayTarget(windowB, store.getState().abState.instanceB.displayTarget);
         }
       }
     });

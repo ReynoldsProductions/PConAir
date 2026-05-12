@@ -126,10 +126,26 @@ export function createActionDispatcher(deps: {
       }
       case 'set_display': {
         const display = str(p.display);
+        const instance = str(p.instance) ?? str(p.instance_id);
         if (!display) {
           return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'display is required' } };
         }
-        return { ok: false, status: 501, error: { code: 'INVALID_MODE', message: 'set_display is not implemented' } };
+        if (instance !== 'A' && instance !== 'B') {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'instance must be "A" or "B"' } };
+        }
+        const knownDisplays = store.getState().displays;
+        if (!knownDisplays.find((d) => d.id === display)) {
+          return { ok: false, status: 404, error: { code: 'DISPLAY_NOT_FOUND', message: `Display "${display}" not found` } };
+        }
+        const instKey = instance === 'A' ? 'instanceA' : 'instanceB';
+        const current = store.getState().abState;
+        store.setState({
+          abState: {
+            ...current,
+            [instKey]: { ...current[instKey], displayTarget: display },
+          },
+        });
+        return { ok: true, body: { displayTarget: display, instance } };
       }
       case 'l3_take': {
         const cueId = str(p.cue_id) ?? str(p.cueId);

@@ -1,9 +1,23 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { WebSocket } from 'ws';
+import type { Express } from 'express';
 import { createStateStore } from '../src/main/state';
 import { createFullServer } from './_test-server';
 import type { WsServerMessage } from '../src/shared/types';
+
+function makeHttpServer() {
+  const store = createStateStore();
+  const server = createFullServer({
+    store,
+    operatorPin: 'test1234',
+    adminPin: 'adminpass8',
+    operatorSessionMs: 60000,
+    adminSessionMs: 60000,
+    port: 0,
+  });
+  return { server, store };
+}
 
 const AUTH_CONFIG = {
   operatorPin: '1234',
@@ -113,5 +127,75 @@ describe('WebSocket', () => {
     const patch = await nextPatchWith(nextMessage, 'currentMode');
     expect(patch).toMatchObject({ type: 'state_patch', payload: { currentMode: 'slides' } });
     ws.close();
+  });
+});
+
+describe('set_display action via POST /api/action', () => {
+  let app: Express;
+  let opCookie: string;
+  let srv: ReturnType<typeof makeHttpServer>['server'];
+  let store: ReturnType<typeof makeHttpServer>['store'];
+
+  beforeEach(async () => {
+    const made = makeHttpServer();
+    srv = made.server;
+    store = made.store;
+    // Seed displays so the action can find them
+    store.setState({
+      displays: [
+        { id: 'disp-1', name: 'HDMI-1', isPrimary: true },
+        { id: 'disp-2', name: 'HDMI-2', isPrimary: false },
+      ],
+    });
+    await srv.listen();
+    app = srv.app;
+    const res = await request(app).post('/auth/operator').send({ pin: 'test1234' });
+    opCookie = ((res.headers['set-cookie'] as unknown) as string[])[0];
+  });
+
+  afterEach(() => srv.close());
+
+  it('set_display updates instanceA.displayTarget', async () => {
+    const res = await request(app)
+      .post('/api/action')
+      .set('Cookie', opCookie)
+      .send({ action_id: 'set_display', params: { display: 'disp-2', instance: 'A' } });
+    expect(res.status).toBe(200);
+    expect(store.getState().abState.instanceA.displayTarget).toBe('disp-2');
+  });
+
+  it('set_display updates instanceB.displayTarget', async () => {
+    const res = await request(app)
+      .post('/api/action')
+      .set('Cookie', opCookie)
+      .send({ action_id: 'set_display', params: { display: 'disp-1', instance: 'B' } });
+    expect(res.status).toBe(200);
+    expect(store.getState().abState.instanceB.displayTarget).toBe('disp-1');
+  });
+
+  it('set_display returns 404 for unknown display id', async () => {
+    const res = await request(app)
+      .post('/api/action')
+      .set('Cookie', opCookie)
+      .send({ action_id: 'set_display', params: { display: 'nope', instance: 'A' } });
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('DISPLAY_NOT_FOUND');
+  });
+
+  it('set_display returns 400 when display param is missing', async () => {
+    const res = await request(app)
+      .post('/api/action')
+      .set('Cookie', opCookie)
+      .send({ action_id: 'set_display', params: { instance: 'A' } });
+    expect(res.status).toBe(400);
+  });
+
+  it('set_display returns 400 for invalid instance value', async () => {
+    const res = await request(app)
+      .post('/api/action')
+      .set('Cookie', opCookie)
+      .send({ action_id: 'set_display', params: { display: 'disp-1', instance: 'C' } });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_MODE');
   });
 });
