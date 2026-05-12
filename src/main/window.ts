@@ -1,5 +1,4 @@
 import { BrowserWindow, screen } from 'electron';
-import path from 'path';
 
 export interface WindowConfig {
   fullscreen?: boolean;
