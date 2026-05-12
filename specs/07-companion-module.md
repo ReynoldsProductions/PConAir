@@ -691,7 +691,7 @@ The Companion module implementation is complete and testable when:
 
 ### Actions
 
-- [ ] All 22 actions defined above (`load_url`, `slides_next`, `l3_take`, etc.) are implemented
+- [ ] All 19 actions defined above (`load_url`, `slides_next`, `l3_take`, etc.) are implemented
 - [ ] Each action sends correct HTTP POST or WebSocket message to PC On Air
 - [ ] Action inputs support Companion variable substitution (e.g., `$(pc_on_air:slide_index)`)
 - [ ] Dropdown inputs (mode, instance) have correct options
@@ -713,7 +713,7 @@ The Companion module implementation is complete and testable when:
 
 ### Presets
 
-- [ ] All 17 presets are pre-built and available in Companion's "Add Preset" menu
+- [ ] All 20 presets are pre-built and available in Companion's "Add Preset" menu
 - [ ] Each preset has correct label, action(s), feedback(s), and styling
 - [ ] Users can add presets to their layouts without manual configuration
 - [ ] Presets are draggable and configurable (e.g., change deck URL for "Load Deck 1")

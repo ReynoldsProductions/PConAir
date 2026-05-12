@@ -29,6 +29,7 @@ class PcOnAirInstance extends InstanceBase<Config> {
     this.setFeedbackDefinitions(buildFeedbacks((id) => String(this.getVariableValue(id) ?? '')))
     this.setPresetDefinitions(buildPresets())
     this.updateStatus(InstanceStatus.Connecting)
+    this.setVariableValues({ connection_status: 'connecting', connected: '0' })
     this.startClient(config)
   }
 
@@ -40,7 +41,9 @@ class PcOnAirInstance extends InstanceBase<Config> {
   async configUpdated(config: Config): Promise<void> {
     this.client?.destroy()
     this.client = null
+    this.connected = false
     this.updateStatus(InstanceStatus.Connecting)
+    this.setVariableValues({ connection_status: 'connecting', connected: '0' })
     this.startClient(config)
   }
 

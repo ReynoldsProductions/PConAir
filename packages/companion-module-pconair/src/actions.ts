@@ -34,7 +34,10 @@ export function buildActions(sendAction: SendAction): Record<string, CompanionAc
         },
       ],
       callback: async ({ options }) => {
-        const params: Record<string, unknown> = { url: options['url'] }
+        const params: Record<string, unknown> = {
+          url: options['url'],
+          session_mode: options['session_mode'],
+        }
         if (options['display']) params['display'] = options['display']
         await sendAction('load_url', params)
       },
