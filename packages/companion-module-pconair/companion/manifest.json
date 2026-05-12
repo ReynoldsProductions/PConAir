@@ -3,7 +3,7 @@
   "name": "PC On Air",
   "shortname": "PC On Air",
   "description": "Control PC On Air live event graphics and playout",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "main": "dist/index.js",
   "runtime": "NodeJS",
   "manufacturer": "TomsFaire",

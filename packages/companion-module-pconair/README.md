@@ -12,22 +12,43 @@ Connects Companion to a running PC On Air instance over WebSocket (with HTTP pol
 - Global mode switching (Slides / URL / Lower Thirds / Idle)
 - Connection status display
 
-## Installing in Companion
+## Installation
 
-### Development / manual install
+### Manual install (development / local testing)
 
-1. Clone this repository and navigate to this package:
+1. Build the module (see [Build instructions](#build-instructions) below).
+2. Copy the `packages/companion-module-pconair` directory into Companion's local dev modules path:
    ```
-   cd packages/companion-module-pconair
-   npm install
-   npm run build
+   <companion-user-data>/module-local-dev/companion-module-pconair/
    ```
-2. In Companion, go to **Settings → Developer modules** and add the path to `packages/companion-module-pconair`.
+   On macOS, `<companion-user-data>` is typically `~/Library/Application Support/companion/`.
 3. Restart Companion. The **PC On Air** connection type will appear in the module list.
 
 ### Via Companion module registry (future)
 
 Once published, search for **PC On Air** in the Companion module browser.
+
+## Build instructions
+
+```bash
+npm install
+npm run build
+```
+
+This compiles the TypeScript sources in `src/` to `dist/` using `tsc`.
+
+## Package for distribution
+
+```bash
+npm run package
+```
+
+This will:
+1. Compile TypeScript (`npm run build`)
+2. Create a `pkg/` directory
+3. Copy `companion/`, `dist/`, and `package.json` into `pkg/`
+4. Install production dependencies only inside `pkg/`
+5. Produce **`pkg/pconair-companion-0.1.0.zip`** — ready to submit to the Companion marketplace
 
 ## Configuration
 
@@ -38,56 +59,49 @@ Once published, search for **PC On Air** in the Companion module browser.
 | Operator PIN | _(empty)_ | Optional PIN for operator-level authentication |
 | HTTP Polling Interval (ms) | `2000` | Fallback polling interval when WebSocket is unavailable |
 
-## Actions (22)
+## Actions
 
-| Action | Description |
-|--------|-------------|
-| Load URL | Load a URL into the URL playout window |
-| Load URL Preset | Load a saved URL preset by ID or name |
-| Reload Current URL (On-Air) | Reload the active on-air URL |
-| Reload Current URL (Off-Air) | Reload the off-air URL instance |
-| Switch URL Instance (A ↔ B) | Toggle between A and B URL instances |
-| Switch URL Instance To… | Switch to a specific URL instance (A or B) |
-| Next Slide | Advance to the next slide |
-| Previous Slide | Go back to the previous slide |
-| Go to Slide… | Jump to a specific slide number |
-| Load Slides Deck | Load a Google Slides deck by URL |
-| Reload Slides (Keep Position) | Reload the deck without changing slide position |
-| Switch Slides Instance (A ↔ B) | Toggle between A and B slide instances |
-| Take Lower Third Cue | Take a lower third cue with optional overrides |
-| Clear Lower Third | Clear the active lower third |
-| Enable Lower Third Stacking | Turn on stacking mode for lower thirds |
-| Disable Lower Third Stacking | Turn off stacking mode |
-| Switch Active A/B Instance | Toggle A/B for the current mode |
-| Set Target Display | Set the target HDMI display |
-| Switch Mode | Switch the active mode (Slides/URL/L3/Idle) |
+| Action ID | Description |
+|-----------|-------------|
+| `load_url` | Load a URL into the URL playout window |
+| `load_url_preset` | Load a saved URL preset by ID or name |
+| `reload_url` | Reload the active on-air URL |
+| `reload_url_offair` | Reload the off-air URL instance |
+| `url_switch_ab` | Toggle between A and B URL instances |
+| `url_switch_to` | Switch to a specific URL instance (A or B) |
+| `set_mode` | Switch the active mode (Slides / URL / Lower Thirds / Idle) |
+| `slides_next` | Advance to the next slide |
+| `slides_prev` | Go back to the previous slide |
+| `slides_goto` | Jump to a specific slide number |
+| `slides_load` | Load a Google Slides deck by URL |
+| `ab_switch` | Toggle the active A/B instance for the current mode |
+| `l3_take` | Take a lower third cue with optional overrides |
+| `l3_clear` | Clear the active lower third |
+| `l3_stacking_on` | Enable lower third stacking mode |
+| `l3_stacking_off` | Disable lower third stacking mode |
+| `set_display` | Set the target HDMI display index |
 
-## Variables (11)
+## Feedbacks
+
+| Feedback ID | Description |
+|-------------|-------------|
+| `connection_status` | Button style reflects current connection state (green = connected, red = disconnected) |
+| `current_mode` | Highlights when the module is in a specified mode |
+| `slide_at` | Highlights when the current slide matches a given number |
+| `l3_cue_active` | Highlights when any lower third is on-air |
+| `ab_active_instance` | Highlights when a specified A/B instance (A or B) is active |
+
+## Variables
 
 | Variable | Description |
 |----------|-------------|
-| `$(pconair:current_mode)` | Current active mode |
-| `$(pconair:current_url)` | Current URL loaded |
-| `$(pconair:current_preset_name)` | Name of the active URL preset |
-| `$(pconair:slide_index)` | Current slide number (1-based) |
-| `$(pconair:slide_count)` | Total number of slides |
-| `$(pconair:deck_title)` | Title of the loaded deck |
-| `$(pconair:l3_active_cue)` | Name of the active lower third cue |
-| `$(pconair:l3_stacking)` | Lower third stacking state (`on`/`off`) |
-| `$(pconair:ab_active_instance)` | Active A/B instance (`A` or `B`) |
-| `$(pconair:connected)` | Connection state (`1` connected, `0` disconnected) |
 | `$(pconair:connection_status)` | Human-readable connection status |
-
-## Feedbacks (6)
-
-| Feedback | Description |
-|----------|-------------|
-| Is Connected | Green when connected, red when disconnected |
-| Is Mode Active | Highlights when a specified mode is active |
-| Is A/B Instance Active | Highlights when a specified A/B instance is active |
-| At Slide Number | Highlights when the current slide matches a number |
-| Lower Third Stacking On | Highlights when stacking mode is enabled |
-| Has Active Lower Third Cue | Highlights when any lower third is on-air |
+| `$(pconair:current_mode)` | Current active mode |
+| `$(pconair:current_slide)` | Current slide number (1-based) |
+| `$(pconair:total_slides)` | Total number of slides in the loaded deck |
+| `$(pconair:deck_title)` | Title of the loaded deck |
+| `$(pconair:active_url)` | URL currently loaded in the playout window |
+| `$(pconair:l3_active_cue_name)` | Name of the active lower third cue |
 
 ## Presets (19)
 

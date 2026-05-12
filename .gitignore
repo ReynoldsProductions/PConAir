@@ -12,6 +12,9 @@ dist/
 out/
 .cache/
 
+# Companion module packaging output
+packages/companion-module-pconair/pkg/
+
 # macOS
 .DS_Store
 Icon

@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "package": "npm run build && rm -rf pkg && mkdir -p pkg && cp -r companion dist package.json pkg/ && cd pkg && npm install --omit=dev && zip -r pconair-companion-0.1.0.zip . --exclude '*.zip' && cd .."
   },
   "dependencies": {
     "@companion-module/base": "^1.8.0"
