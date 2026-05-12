@@ -37,15 +37,20 @@ export function createUrlWindowManager(config: UrlWindowConfig) {
   async function loadUrl(url: string, instance: ABInstance): Promise<void> {
     const win = instance === 'A' ? windowA : windowB;
     if (!win || win.isDestroyed()) return;
-    await win.loadURL(url);
-    const state = store.getState();
     const instKey = instance === 'A' ? 'instanceA' : 'instanceB';
-    if (state.abState[instKey].url === url) {
+    try {
+      await win.loadURL(url);
+      const state = store.getState();
+      if (state.abState[instKey].url === url) {
+        store.setState({
+          abState: { ...state.abState, [instKey]: { ...state.abState[instKey], isLoading: false, isReady: true } },
+        });
+      }
+    } catch (err) {
+      console.error(`[url-window-manager] loadURL failed for instance ${instance}:`, err);
+      const state = store.getState();
       store.setState({
-        abState: {
-          ...state.abState,
-          [instKey]: { ...state.abState[instKey], isLoading: false, isReady: true },
-        },
+        abState: { ...state.abState, [instKey]: { ...state.abState[instKey], isLoading: false, isReady: false } },
       });
     }
   }
@@ -62,24 +67,19 @@ export function createUrlWindowManager(config: UrlWindowConfig) {
     windowB = createUrlWindow('B');
 
     unsubscribe = store.subscribe((patch) => {
-      const state = store.getState();
-      // Load URL when currentUrl changes and we're in url mode
-      if (patch.currentUrl && state.currentMode === 'url') {
-        const active = state.abState.activeInstance;
-        void loadUrl(patch.currentUrl, active);
-      }
-      // Handle per-instance reload: isLoading flips to true on an instance that has a URL
+      // Drive all URL loads through isLoading on each instance — avoids double-load
+      // when currentUrl and abState.instanceX.isLoading are both set in the same patch.
       if (patch.abState) {
-        const fullState = store.getState();
-        const { instanceA, instanceB } = patch.abState;
-        if (instanceA?.isLoading && fullState.abState.instanceA.url) {
-          void loadUrl(fullState.abState.instanceA.url, 'A');
+        const { instanceA, instanceB, activeInstance } = store.getState().abState;
+        if (patch.abState.instanceA?.isLoading && instanceA.url) {
+          void loadUrl(instanceA.url, 'A');
         }
-        if (instanceB?.isLoading && fullState.abState.instanceB.url) {
-          void loadUrl(fullState.abState.instanceB.url, 'B');
+        if (patch.abState.instanceB?.isLoading && instanceB.url) {
+          void loadUrl(instanceB.url, 'B');
         }
-        if (patch.abState.activeInstance) {
-          showInstance(patch.abState.activeInstance);
+        // Only switch visibility when in url mode to avoid clobbering slides windows
+        if (patch.abState.activeInstance && store.getState().currentMode === 'url') {
+          showInstance(activeInstance);
         }
       }
     });
