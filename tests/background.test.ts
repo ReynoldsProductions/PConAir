@@ -252,4 +252,24 @@ describe('Background Preset CRUD', () => {
     const res = await request(app).get('/api/background/presets');
     expect(res.status).toBe(401);
   });
+
+  it('GET /api/background/presets returns 403 for operator', async () => {
+    const res = await request(app).get('/api/background/presets').set('Cookie', cookies.operator);
+    expect(res.status).toBe(403);
+  });
+
+  it('POST /api/background/presets returns 403 for operator', async () => {
+    const res = await request(app)
+      .post('/api/background/presets')
+      .set('Cookie', cookies.operator)
+      .send({ name: 'X', type: 'solid', value: '#FF0000' });
+    expect(res.status).toBe(403);
+  });
+
+  it('DELETE /api/background/presets/:id returns 403 for operator', async () => {
+    const res = await request(app)
+      .delete('/api/background/presets/some-id')
+      .set('Cookie', cookies.operator);
+    expect(res.status).toBe(403);
+  });
 });

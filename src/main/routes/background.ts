@@ -68,7 +68,7 @@ export function createBackgroundRouter(d: BackgroundRouterDeps): Router {
     const activeId = getActiveProfileId();
     const profile = loadProfile(paths, activeId);
     if (!profile) {
-      res.status(404).json({ error: { code: 'PRESET_NOT_FOUND', message: 'Preset not found' } });
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'No active profile' } });
       return;
     }
     const before = profile.backgroundPresets.length;
