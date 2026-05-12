@@ -84,21 +84,47 @@ export function createBackgroundRouter(d: BackgroundRouterDeps): Router {
   // POST /api/background — set live background (by presetId or by type+value)
   router.post('/', adminGuard, (req: Request, res: Response) => {
     const { presetId, type, value } = req.body as {
-      presetId?: string;
+      presetId?: string | null;
       type?: string;
       value?: string;
     };
 
-    if (presetId !== undefined) {
-      const profile = loadProfile(paths, getActiveProfileId());
-      const found = profile?.backgroundPresets.find((p) => p.id === presetId);
-      if (!found) {
+    // Spec 02 §2.6: presetId optional; null/undefined → direct type/value path.
+    if (presetId != null) {
+      if (typeof presetId !== 'string') {
+        res.status(400).json({ error: { code: 'INVALID_MODE', message: 'presetId must be a string when provided' } });
+        return;
+      }
+      if (presetId.length === 0) {
         res.status(404).json({ error: { code: 'PRESET_NOT_FOUND', message: 'Preset not found' } });
         return;
       }
-      const newBg = { presetId: found.id, presetName: found.name, type: found.type, value: found.value };
-      store.setState({ background: newBg });
-      res.json({ background: newBg });
+
+      const profile = loadProfile(paths, getActiveProfileId());
+      if (!profile) {
+        res.status(404).json({ error: { code: 'PRESET_NOT_FOUND', message: 'Active profile not found' } });
+        return;
+      }
+
+      const preset = profile.backgroundPresets.find((p) => p.id === presetId);
+      if (!preset) {
+        res.status(404).json({ error: { code: 'PRESET_NOT_FOUND', message: 'Preset not found' } });
+        return;
+      }
+
+      if (preset.type !== 'luma' && preset.type !== 'solid') {
+        res.status(500).json({ error: { code: 'INVALID_MODE', message: 'Stored background preset has invalid type' } });
+        return;
+      }
+
+      if (!HEX_COLOR_RE.test(preset.value)) {
+        res.status(500).json({ error: { code: 'INVALID_URL', message: 'Stored background preset has invalid color value' } });
+        return;
+      }
+
+      const newBackground = { presetId: preset.id, presetName: preset.name, type: preset.type, value: preset.value };
+      store.setState({ background: newBackground });
+      res.json({ background: newBackground });
       return;
     }
 

@@ -111,7 +111,7 @@ async function main() {
   const urlManager = createUrlWindowManager({ store });
   urlManager.initialize();
 
-  const l3Manager = createL3WindowManager({ store });
+  const l3Manager = createL3WindowManager({ store, themes: l3ThemeStore, cues: l3Cues });
   l3Manager.initialize();
 
   const mediaLibraryManager = createMediaLibraryWindowManager({ store, media: mediaLibrary });

@@ -222,3 +222,109 @@ describe('POST /api/url/reload', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('POST /api/action set_display', () => {
+  it('updates displayTarget for active URL instance', async () => {
+    const made = makeServer();
+    const { store, server } = made;
+    await server.listen();
+    const app = server.app;
+    store.setState({ displays: [{ id: 'HDMI-1', name: 'HDMI-1', isPrimary: true }] });
+    const cookie = await login(app, 'test1234', '/auth/operator');
+    await request(app).post('/api/url').set('Cookie', cookie).send({ url: 'https://example.com' });
+
+    const res = await request(app)
+      .post('/api/action')
+      .set('Cookie', cookie)
+      .send({ action_id: 'set_display', params: { display: 'HDMI-1' } });
+    expect(res.status).toBe(200);
+    expect(res.body.abState.instanceA.displayTarget).toBe('HDMI-1');
+    await server.close();
+  });
+
+  it('resolves display by name (stores canonical id)', async () => {
+    const made = makeServer();
+    const { store, server } = made;
+    await server.listen();
+    const app = server.app;
+    store.setState({
+      displays: [{ id: 'HDMI-1', name: 'Side Monitor', isPrimary: false }],
+    });
+    const cookie = await login(app, 'test1234', '/auth/operator');
+    await request(app).post('/api/url').set('Cookie', cookie).send({ url: 'https://example.com' });
+
+    const res = await request(app)
+      .post('/api/action')
+      .set('Cookie', cookie)
+      .send({ action_id: 'set_display', params: { display: 'Side Monitor' } });
+    expect(res.status).toBe(200);
+    expect(res.body.abState.instanceA.displayTarget).toBe('HDMI-1');
+    await server.close();
+  });
+
+  it('returns 400 when not in url mode', async () => {
+    const made = makeServer();
+    const { store, server } = made;
+    await server.listen();
+    const app = server.app;
+    store.setState({ displays: [{ id: 'HDMI-1', name: 'HDMI-1', isPrimary: true }] });
+    const cookie = await login(app, 'test1234', '/auth/operator');
+
+    const res = await request(app)
+      .post('/api/action')
+      .set('Cookie', cookie)
+      .send({ action_id: 'set_display', params: { display: 'HDMI-1' } });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_MODE');
+    await server.close();
+  });
+
+  it('returns 404 for unknown display id', async () => {
+    const made = makeServer();
+    const { server } = made;
+    await server.listen();
+    const app = server.app;
+    const cookie = await login(app, 'test1234', '/auth/operator');
+    await request(app).post('/api/url').set('Cookie', cookie).send({ url: 'https://example.com' });
+
+    const res = await request(app)
+      .post('/api/action')
+      .set('Cookie', cookie)
+      .send({ action_id: 'set_display', params: { display: 'nope' } });
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('DISPLAY_NOT_FOUND');
+    await server.close();
+  });
+
+  it('targets instance B when params.instance is B', async () => {
+    const made = makeServer();
+    const { store, server } = made;
+    await server.listen();
+    const app = server.app;
+    store.setState({ displays: [{ id: 'HDMI-1', name: 'HDMI-1', isPrimary: true }] });
+    const cookie = await login(app, 'test1234', '/auth/operator');
+    await request(app).post('/api/url').set('Cookie', cookie).send({ url: 'https://a.com' });
+    store.setState({
+      abState: {
+        ...store.getState().abState,
+        activeInstance: 'A',
+        instanceB: {
+          url: 'https://b.com',
+          isLoading: false,
+          isReady: true,
+          displayTarget: null,
+          sessionMode: 'persistent',
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/action')
+      .set('Cookie', cookie)
+      .send({ action_id: 'set_display', params: { display: 'HDMI-1', instance: 'B' } });
+    expect(res.status).toBe(200);
+    expect(res.body.abState.instanceB.displayTarget).toBe('HDMI-1');
+    expect(res.body.abState.instanceA.displayTarget).toBeNull();
+    await server.close();
+  });
+});

@@ -530,6 +530,12 @@ Based on dependencies between specs, the following build order minimizes blocked
 19. **Latency benchmarking** (spec 03 Gap 2) — measure and document against resolved latency target.
 20. **Rendering fidelity testing** (spec 03 Gap 4) — visual comparison with original.
 
+### Implementation snapshot (2026-05-12)
+
+The phase list above is still the **recommended dependency order** for greenfield planning. The **live codebase** has progressed unevenly across phases: foundation and core modes are largely done; L3 ingest/themes/media library APIs and profiles export·import exist; **`set_display`** is implemented in-app; IP allowlist and security headers are present; operator UI covers slides, URL, L3, and media library; a Companion package lives under `packages/companion-module-pconair/` but release parity QA remains.
+
+**Canonical file-level status** (what shipped, what is left, test layout) is maintained in **`11-implementation-status.md`**, which is updated more frequently than this section.
+
 ---
 
 ## Post-Fix Review

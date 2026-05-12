@@ -3,6 +3,7 @@ import request from 'supertest';
 import type { Express } from 'express';
 import { createStateStore } from '../src/main/state';
 import { createFullServer } from './_test-server';
+import { loadProfile, patchShowProfile, writeProfile } from '../src/main/profiles/bootstrap';
 
 function makeHttpServer() {
   const store = createStateStore();
@@ -63,6 +64,15 @@ describe('POST /api/background', () => {
   let cookies: { operator: string; admin: string };
   let srv: ReturnType<typeof makeHttpServer>['server'];
   let store: ReturnType<typeof makeHttpServer>['store'];
+
+  function seedBackgroundPreset(
+    preset: { id: string; name: string; type: 'luma' | 'solid'; value: string; createdAt: string; updatedAt: string }
+  ) {
+    const prof = loadProfile(srv.profilePaths, srv.activeProfileId);
+    if (!prof) throw new Error('missing profile');
+    const next = patchShowProfile(prof, { backgroundPresets: [...prof.backgroundPresets, preset] });
+    writeProfile(srv.profilePaths, next, 'automatic');
+  }
 
   beforeEach(async () => {
     const made = makeHttpServer();
@@ -138,13 +148,60 @@ describe('POST /api/background', () => {
     expect(res.body.error.code).toBe('INVALID_MODE');
   });
 
-  it('returns 404 PRESET_NOT_FOUND when presetId is provided', async () => {
+  it('returns 404 PRESET_NOT_FOUND when presetId is unknown', async () => {
     const res = await request(app)
       .post('/api/background')
       .set('Cookie', cookies.admin)
       .send({ presetId: 'some-id' });
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('PRESET_NOT_FOUND');
+  });
+
+  it('returns 404 PRESET_NOT_FOUND when presetId is empty string', async () => {
+    const res = await request(app)
+      .post('/api/background')
+      .set('Cookie', cookies.admin)
+      .send({ presetId: '' });
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('PRESET_NOT_FOUND');
+  });
+
+  it('applies background preset from active profile (200)', async () => {
+    const ts = new Date().toISOString();
+    seedBackgroundPreset({
+      id: 'bg-preset-1',
+      name: 'Green Key',
+      type: 'luma',
+      value: '#00FF00',
+      createdAt: ts,
+      updatedAt: ts,
+    });
+    const res = await request(app)
+      .post('/api/background')
+      .set('Cookie', cookies.admin)
+      .send({ presetId: 'bg-preset-1' });
+    expect(res.status).toBe(200);
+    expect(res.body.background).toEqual({
+      presetId: 'bg-preset-1',
+      presetName: 'Green Key',
+      type: 'luma',
+      value: '#00FF00',
+    });
+    expect(store.getState().background.presetId).toBe('bg-preset-1');
+  });
+
+  it('treats presetId null as direct update (still sets type/value)', async () => {
+    const res = await request(app)
+      .post('/api/background')
+      .set('Cookie', cookies.admin)
+      .send({ presetId: null, type: 'solid', value: '#ABCDEF' });
+    expect(res.status).toBe(200);
+    expect(res.body.background).toEqual({
+      presetId: null,
+      presetName: null,
+      type: 'solid',
+      value: '#ABCDEF',
+    });
   });
 
   it('returns 403 for operator (admin-only)', async () => {

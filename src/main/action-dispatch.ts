@@ -4,7 +4,7 @@ import type { PresetsStore } from './presets';
 import type { L3CueStore } from './l3/cue-store';
 import type { Mode } from '../shared/types';
 import { slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideLoadOp } from './services/slide-ops';
-import { urlLoadOp, urlReloadOp } from './services/url-ops';
+import { urlLoadOp, urlReloadOp, setDisplayTargetOp } from './services/url-ops';
 import { l3ClearOp, l3StackingOp, l3TakeOp } from './l3/take-ops';
 
 export type ActionResult =
@@ -130,22 +130,10 @@ export function createActionDispatcher(deps: {
         if (!display) {
           return { ok: false, status: 400, error: { code: 'MISSING_PARAM', message: 'display is required' } };
         }
-        if (instance !== 'A' && instance !== 'B') {
-          return { ok: false, status: 400, error: { code: 'INVALID_INSTANCE', message: 'instance must be "A" or "B"' } };
-        }
-        const knownDisplays = store.getState().displays;
-        if (!knownDisplays.find((d) => d.id === display)) {
-          return { ok: false, status: 404, error: { code: 'DISPLAY_NOT_FOUND', message: `Display "${display}" not found` } };
-        }
-        const instKey = instance === 'A' ? 'instanceA' : 'instanceB';
-        const current = store.getState().abState;
-        store.setState({
-          abState: {
-            ...current,
-            [instKey]: { ...current[instKey], displayTarget: display },
-          },
-        });
-        return { ok: true, body: { displayTarget: display, instance } };
+        const inst = str(p.instance);
+        const target = inst === 'A' || inst === 'B' ? inst : undefined;
+        const r = setDisplayTargetOp(store, display, target);
+        return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
       }
       case 'l3_take': {
         const cueId = str(p.cue_id) ?? str(p.cueId);

@@ -19,7 +19,13 @@ const config: ForgeConfig = {
         output: { filename: 'index.js' },
       },
       renderer: {
-        config: {},
+        // Without ts-loader, webpack parses .ts as plain JS and fails on `import type`, etc.
+        config: {
+          module: {
+            rules: [{ test: /\.tsx?$/, use: 'ts-loader', exclude: /node_modules/ }],
+          },
+          resolve: { extensions: ['.ts', '.js', '.tsx', '.jsx'] },
+        },
         entryPoints: [
           {
             name: 'operator',

@@ -1,13 +1,21 @@
 import { BrowserWindow, screen } from 'electron';
 import type { StateStore } from '../state';
+import type { L3CueStore } from './cue-store';
+import type { L3ThemeStore } from './theme-store';
 
 interface L3StackEntry {
+  cueId: string;
   name: string;
   title: string;
 }
 
+export type L3ProgramStackEntry = Pick<L3StackEntry, 'name' | 'title'>;
+
 interface L3WindowConfig {
   store: StateStore;
+  /** When set with cues, program L3 loads installed theme CSS for the on-air cue (last in stack when stacking). */
+  themes?: L3ThemeStore;
+  cues?: L3CueStore;
 }
 
 function escapeHtml(s: string): string {
@@ -18,7 +26,8 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function buildDataUrl(stack: L3StackEntry[]): string {
+/** Build program overlay HTML; exported for unit tests (theme link + fallback layout). */
+export function buildL3ProgramMarkup(stack: L3ProgramStackEntry[], themeCss: string | null): string {
   const blocks = stack
     .map(
       (e) => `
@@ -28,7 +37,13 @@ function buildDataUrl(stack: L3StackEntry[]): string {
     </div>`
     )
     .join('');
-  const html = `<!DOCTYPE html>
+
+  const themeLink =
+    themeCss && themeCss.length > 0
+      ? `<link rel="stylesheet" href="data:text/css;charset=utf-8;base64,${Buffer.from(themeCss, 'utf8').toString('base64')}" />`
+      : '';
+
+  return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"/>
 <style>
 html,body{margin:0;background:transparent;overflow:hidden;}
@@ -36,12 +51,31 @@ html,body{margin:0;background:transparent;overflow:hidden;}
 .cue{color:#fff;text-shadow:0 2px 8px #000;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
 .name{font-size:40px;font-weight:700;line-height:1.1;}
 .title{font-size:26px;font-weight:500;opacity:0.92;margin-top:4px;}
-</style></head><body><div id="wrap">${blocks}</div></body></html>`;
-  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+</style>
+${themeLink}
+</head><body><div id="wrap">${blocks}</div></body></html>`;
+}
+
+function buildDataUrl(stack: L3StackEntry[], themeCss: string | null): string {
+  const markup = buildL3ProgramMarkup(stack, themeCss);
+  return `data:text/html;charset=utf-8,${encodeURIComponent(markup)}`;
+}
+
+function resolveThemeCss(
+  stack: L3StackEntry[],
+  themes: L3ThemeStore | undefined,
+  cues: L3CueStore | undefined
+): string | null {
+  if (!themes || !cues || stack.length === 0) return null;
+  const last = stack[stack.length - 1];
+  const cue = cues.findById(last.cueId);
+  const themeName = cue?.theme ?? 'default';
+  const theme = themes.findByName(themeName);
+  return theme?.cssContent ?? null;
 }
 
 export function createL3WindowManager(config: L3WindowConfig) {
-  const { store } = config;
+  const { store, themes, cues } = config;
   let win: BrowserWindow | null = null;
   let stack: L3StackEntry[] = [];
   let unsubscribe: (() => void) | null = null;
@@ -78,7 +112,8 @@ export function createL3WindowManager(config: L3WindowConfig) {
       hideWindow();
       return;
     }
-    const url = buildDataUrl(entries);
+    const themeCss = resolveThemeCss(entries, themes, cues);
+    const url = buildDataUrl(entries, themeCss);
     const window = ensureWindow();
     void window.loadURL(url).then(() => {
       if (!window.isDestroyed()) window.show();
@@ -110,6 +145,7 @@ export function createL3WindowManager(config: L3WindowConfig) {
       }
 
       const entry: L3StackEntry = {
+        cueId: l3.activeCueId,
         name: l3.activeCueName ?? '',
         title: l3.activeTitle ?? '',
       };

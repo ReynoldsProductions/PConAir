@@ -7,6 +7,24 @@ const store = createClientStore();
 /** Ignore checkbox `change` while syncing from server state. */
 let l3StackingUiLock = false;
 
+async function refreshMediaSelect(): Promise<void> {
+  const { items } = await api.mediaLibraryList();
+  const sel = document.getElementById('ml-item-select') as HTMLSelectElement;
+  const prev = sel.value;
+  sel.replaceChildren();
+  const opt0 = document.createElement('option');
+  opt0.value = '';
+  opt0.textContent = '— Select an item —';
+  sel.appendChild(opt0);
+  for (const it of items) {
+    const o = document.createElement('option');
+    o.value = it.id;
+    o.textContent = it.displayName;
+    sel.appendChild(o);
+  }
+  if (prev && items.some((x) => x.id === prev)) sel.value = prev;
+}
+
 async function refreshL3CueSelect(): Promise<void> {
   const { cues } = await api.l3ListCues();
   const sel = document.getElementById('l3-cue-select') as HTMLSelectElement;
@@ -138,6 +156,16 @@ function renderState(state: AppState): void {
   stackCb.checked = Boolean(l3s?.isStacking);
   l3StackingUiLock = false;
 
+  const mlLine = document.getElementById('ml-active-line')!;
+  const ml = state.mediaLibrary;
+  if (state.currentMode === 'media-library' && ml?.activeItemName) {
+    mlLine.textContent = `On air: ${ml.activeItemName}`;
+  } else if (state.currentMode === 'media-library') {
+    mlLine.textContent = 'On air: (no item)';
+  } else {
+    mlLine.textContent = 'On air: —';
+  }
+
   document.getElementById('state-dump')!.textContent = JSON.stringify(state, null, 2);
 }
 
@@ -201,6 +229,24 @@ function bindEvents(): void {
   });
   on('l3-clear-btn', () => api.l3Clear());
 
+  document.getElementById('ml-refresh-btn')!.addEventListener('click', async () => {
+    try {
+      await refreshMediaSelect();
+    } catch (e) {
+      showError((e as Error).message);
+    }
+  });
+
+  on('ml-take-btn', async () => {
+    const sel = document.getElementById('ml-item-select') as HTMLSelectElement;
+    if (!sel.value) {
+      showError('Select a media item');
+      return;
+    }
+    await api.mediaLibraryTake(sel.value);
+  });
+  on('ml-clear-btn', () => api.mediaLibraryClear());
+
   on('panic-btn', () => api.panicAction('toggle'));
 
   document.addEventListener('keydown', (e) => {
@@ -245,6 +291,7 @@ function bindEvents(): void {
 store.subscribe(renderState);
 bindEvents();
 void refreshL3CueSelect().catch(() => { /* no session yet */ });
+void refreshMediaSelect().catch(() => { /* no session yet */ });
 void refreshActiveProfile().catch(() => { /* public endpoint */ });
 setInterval(() => {
   void refreshActiveProfile().catch(() => {});

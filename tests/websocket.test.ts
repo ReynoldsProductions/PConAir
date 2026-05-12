@@ -140,12 +140,18 @@ describe('set_display action via POST /api/action', () => {
     const made = makeHttpServer();
     srv = made.server;
     store = made.store;
-    // Seed displays so the action can find them
+    // setDisplayTargetOp requires url mode + a loaded URL; seed both along with displays
     store.setState({
+      currentMode: 'url',
       displays: [
         { id: 'disp-1', name: 'HDMI-1', isPrimary: true },
         { id: 'disp-2', name: 'HDMI-2', isPrimary: false },
       ],
+      abState: {
+        activeInstance: 'A',
+        instanceA: { url: 'https://example.com', isLoading: false, isReady: true, displayTarget: null, sessionMode: 'persistent' },
+        instanceB: { url: 'https://example.com', isLoading: false, isReady: true, displayTarget: null, sessionMode: 'persistent' },
+      },
     });
     await srv.listen();
     app = srv.app;
@@ -162,7 +168,7 @@ describe('set_display action via POST /api/action', () => {
       .send({ action_id: 'set_display', params: { display: 'disp-2', instance: 'A' } });
     expect(res.status).toBe(200);
     expect(store.getState().abState.instanceA.displayTarget).toBe('disp-2');
-    expect(res.body).toMatchObject({ displayTarget: 'disp-2', instance: 'A' });
+    expect(res.body.abState.instanceA.displayTarget).toBe('disp-2');
   });
 
   it('set_display updates instanceB.displayTarget', async () => {
@@ -172,7 +178,7 @@ describe('set_display action via POST /api/action', () => {
       .send({ action_id: 'set_display', params: { display: 'disp-1', instance: 'B' } });
     expect(res.status).toBe(200);
     expect(store.getState().abState.instanceB.displayTarget).toBe('disp-1');
-    expect(res.body).toMatchObject({ displayTarget: 'disp-1', instance: 'B' });
+    expect(res.body.abState.instanceB.displayTarget).toBe('disp-1');
   });
 
   it('set_display returns 404 for unknown display id', async () => {
@@ -193,21 +199,22 @@ describe('set_display action via POST /api/action', () => {
     expect(res.body.error.code).toBe('MISSING_PARAM');
   });
 
-  it('set_display returns 400 for invalid instance value', async () => {
+  it('set_display with invalid instance value defaults to active instance', async () => {
     const res = await request(app)
       .post('/api/action')
       .set('Cookie', opCookie)
       .send({ action_id: 'set_display', params: { display: 'disp-1', instance: 'C' } });
-    expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('INVALID_INSTANCE');
+    expect(res.status).toBe(200);
+    // 'C' is not a valid ABInstance so it falls back to the active instance (A)
+    expect(store.getState().abState.instanceA.displayTarget).toBe('disp-1');
   });
 
-  it('set_display returns 400 when instance param is missing', async () => {
+  it('set_display with missing instance param defaults to active instance', async () => {
     const res = await request(app)
       .post('/api/action')
       .set('Cookie', opCookie)
       .send({ action_id: 'set_display', params: { display: 'disp-1' } });
-    expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('INVALID_INSTANCE');
+    expect(res.status).toBe(200);
+    expect(store.getState().abState.instanceA.displayTarget).toBe('disp-1');
   });
 });

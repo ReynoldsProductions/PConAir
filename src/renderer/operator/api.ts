@@ -53,6 +53,25 @@ export const l3Clear = () => apiPost<unknown>('/api/l3/clear');
 export const l3Stacking = (enabled: boolean) =>
   apiPost<unknown>('/api/l3/stacking', { enabled });
 
+export interface MediaLibraryListItem {
+  id: string;
+  displayName: string;
+  filename: string;
+  mimeType: string;
+  fileSize: number;
+  width?: number;
+  height?: number;
+  hasTransparency?: boolean;
+  uploadedAt: number;
+}
+
+export const mediaLibraryList = () => apiGet<{ items: MediaLibraryListItem[] }>('/api/media-library');
+
+export const mediaLibraryTake = (itemId: string) =>
+  apiPost<unknown>('/api/media-library/take', { itemId });
+
+export const mediaLibraryClear = () => apiPost<unknown>('/api/media-library/clear');
+
 export const fetchActiveProfile = () =>
   apiGet<{ id: string; name: string; createdAt: string; updatedAt: string }>('/api/profiles/active');
 
