@@ -8,6 +8,9 @@ import type { L3Cue } from './cue-store';
 export function renderCueHtml(cue: L3Cue, themeCss: string): string {
   const escapedName = escapeHtml(cue.name);
   const escapedTitle = escapeHtml(cue.title ?? '');
+  const subtitleHtml = cue.subtitle
+    ? `\n  <div class="subtitle">${escapeHtml(cue.subtitle)}</div>`
+    : '';
 
   return `<!DOCTYPE html>
 <html>
@@ -33,23 +36,28 @@ html, body {
   justify-content: center;
   padding: 24px 40px;
 }
-.cue-name {
+.name {
   font-size: 48px;
   font-weight: bold;
   line-height: 1.2;
 }
-.cue-title {
+.title {
   font-size: 32px;
   line-height: 1.2;
   margin-top: 8px;
+}
+.subtitle {
+  font-size: 24px;
+  line-height: 1.2;
+  margin-top: 4px;
 }
 ${themeCss}
 </style>
 </head>
 <body>
 <div class="lower-third">
-  <div class="cue-name">${escapedName}</div>
-  <div class="cue-title">${escapedTitle}</div>
+  <div class="name">${escapedName}</div>
+  <div class="title">${escapedTitle}</div>${subtitleHtml}
 </div>
 </body>
 </html>`;

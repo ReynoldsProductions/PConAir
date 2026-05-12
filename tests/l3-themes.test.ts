@@ -395,5 +395,30 @@ describe('L3 cue export — manual type', () => {
     expect(html).toContain('Jane Doe');
     expect(html).toContain('Chief Executive Officer');
     expect(html).toContain(css);
+    expect(html).toContain('class="name"');
+    expect(html).toContain('class="title"');
+  });
+
+  it('renderCueHtml escapes HTML special characters in name and title', () => {
+    const cue = {
+      id: 'test-escape',
+      name: '<script>alert(1)</script>',
+      title: '&amp;',
+      subtitle: null,
+      theme: 'default',
+      sourceType: 'manual' as const,
+      originalImagePath: null,
+      originalImageFormat: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const html = renderCueHtml(cue, '');
+
+    // Raw script tag must not appear
+    expect(html).not.toContain('<script>');
+    // Name should be escaped
+    expect(html).toContain('&lt;script&gt;');
+    // Title ampersand should be double-escaped: & → &amp; then &amp; → &amp;amp;
+    expect(html).toContain('&amp;amp;');
   });
 });

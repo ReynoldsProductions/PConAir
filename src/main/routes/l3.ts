@@ -404,9 +404,11 @@ export function createL3Router(
       };
       const mime = mimeMap[ext] ?? 'application/octet-stream';
       res.setHeader('Content-Type', mime);
+      const safeName = cue.name.replace(/[^\w\s-]/g, '_');
+      const encodedName = encodeURIComponent(cue.name);
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename="${encodeURIComponent(cue.name)}.${ext}"`
+        `attachment; filename="${safeName}.${ext}"; filename*=UTF-8''${encodedName}.${ext}`
       );
       res.sendFile(absPath, (err) => {
         if (err && !res.headersSent) {
@@ -420,9 +422,11 @@ export function createL3Router(
       try {
         const pngBuffer = await renderManualCue(cue);
         res.setHeader('Content-Type', 'image/png');
+        const safeName = cue.name.replace(/[^\w\s-]/g, '_');
+        const encodedName = encodeURIComponent(cue.name);
         res.setHeader(
           'Content-Disposition',
-          `attachment; filename="${encodeURIComponent(cue.name)}.png"`
+          `attachment; filename="${safeName}.png"; filename*=UTF-8''${encodedName}.png`
         );
         res.send(pngBuffer);
       } catch {
