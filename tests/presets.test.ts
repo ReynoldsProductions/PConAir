@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createPresetsStore } from '../src/main/presets';
 
 describe('PresetsStore', () => {
@@ -51,5 +51,219 @@ describe('PresetsStore', () => {
 
   it('remove: returns false for unknown id', () => {
     expect(store.remove('nope')).toBe(false);
+  });
+});
+
+// ── HTTP endpoint tests ──────────────────────────────────────────────
+
+import request from 'supertest';
+import type { Express } from 'express';
+import { createServer } from '../src/main/server';
+import { createStateStore } from '../src/main/state';
+import { createAuthManager } from '../src/main/auth';
+
+function makeHttpServer() {
+  const store = createStateStore();
+  const auth = createAuthManager({
+    operatorPin: 'test1234', adminPin: 'adminpass8', operatorSessionMs: 60000, adminSessionMs: 60000,
+    maxFailures: 5, lockoutMs: 60000,
+  });
+  const presets = createPresetsStore();
+  const server = createServer({ store, auth, presets, port: 0 });
+  return { server, store, auth, presets };
+}
+
+async function getCookies(app: Express) {
+  const op = await request(app).post('/auth/operator').send({ pin: 'test1234' });
+  const adm = await request(app).post('/auth/admin').send({ pin: 'adminpass8' });
+  return {
+    operator: ((op.headers['set-cookie'] as unknown) as string[])[0],
+    admin: ((adm.headers['set-cookie'] as unknown) as string[])[0],
+  };
+}
+
+describe('GET /api/presets', () => {
+  let app: Express;
+  let cookies: { operator: string; admin: string };
+  let srv: ReturnType<typeof makeHttpServer>['server'];
+  let ps: ReturnType<typeof createPresetsStore>;
+
+  beforeEach(async () => {
+    const made = makeHttpServer();
+    srv = made.server;
+    ps = made.presets;
+    await srv.listen();
+    app = srv.app;
+    cookies = await getCookies(app);
+  });
+
+  afterEach(() => srv.close());
+
+  it('returns empty list when no presets', async () => {
+    const res = await request(app).get('/api/presets').set('Cookie', cookies.operator);
+    expect(res.status).toBe(200);
+    expect(res.body.presets).toEqual([]);
+  });
+
+  it('returns all presets', async () => {
+    ps.create({ name: 'Slido', url: 'https://slido.com', sessionMode: 'persistent', displayTarget: null, description: null });
+    const res = await request(app).get('/api/presets').set('Cookie', cookies.operator);
+    expect(res.status).toBe(200);
+    expect(res.body.presets).toHaveLength(1);
+    expect(res.body.presets[0].name).toBe('Slido');
+  });
+
+  it('returns 401 without auth', async () => {
+    const res = await request(app).get('/api/presets');
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('POST /api/presets', () => {
+  let app: Express;
+  let cookies: { operator: string; admin: string };
+  let srv: ReturnType<typeof makeHttpServer>['server'];
+  let ps: ReturnType<typeof createPresetsStore>;
+
+  beforeEach(async () => {
+    const made = makeHttpServer();
+    srv = made.server;
+    ps = made.presets;
+    await srv.listen();
+    app = srv.app;
+    cookies = await getCookies(app);
+  });
+
+  afterEach(() => srv.close());
+
+  it('creates a preset as admin (returns 201)', async () => {
+    const res = await request(app)
+      .post('/api/presets')
+      .set('Cookie', cookies.admin)
+      .send({ name: 'Sponsor', url: 'https://sponsor.com', sessionMode: 'ephemeral', displayTarget: null });
+    expect(res.status).toBe(201);
+    expect(res.body.id).toBeTruthy();
+    expect(res.body.name).toBe('Sponsor');
+    expect(res.body.url).toBe('https://sponsor.com');
+    expect(res.body.sessionMode).toBe('ephemeral');
+  });
+
+  it('updates an existing preset when id matches (returns 200)', async () => {
+    const p = ps.create({ name: 'Old', url: 'https://old.com', sessionMode: 'persistent', displayTarget: null, description: null });
+    const res = await request(app)
+      .post('/api/presets')
+      .set('Cookie', cookies.admin)
+      .send({ id: p.id, name: 'New', url: 'https://new.com', sessionMode: 'persistent', displayTarget: null });
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(p.id);
+    expect(res.body.name).toBe('New');
+  });
+
+  it('rejects invalid URL (400 INVALID_URL)', async () => {
+    const res = await request(app)
+      .post('/api/presets')
+      .set('Cookie', cookies.admin)
+      .send({ name: 'Bad', url: 'not-a-url', sessionMode: 'persistent' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_URL');
+  });
+
+  it('returns 401 for operator (admin-only)', async () => {
+    const res = await request(app)
+      .post('/api/presets')
+      .set('Cookie', cookies.operator)
+      .send({ name: 'X', url: 'https://x.com', sessionMode: 'persistent' });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 401 without auth', async () => {
+    const res = await request(app)
+      .post('/api/presets')
+      .send({ name: 'X', url: 'https://x.com', sessionMode: 'persistent' });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('DELETE /api/presets/:id', () => {
+  let app: Express;
+  let cookies: { operator: string; admin: string };
+  let srv: ReturnType<typeof makeHttpServer>['server'];
+  let ps: ReturnType<typeof createPresetsStore>;
+  let store: ReturnType<typeof createStateStore>;
+
+  beforeEach(async () => {
+    const made = makeHttpServer();
+    srv = made.server;
+    ps = made.presets;
+    store = made.store;
+    await srv.listen();
+    app = srv.app;
+    cookies = await getCookies(app);
+  });
+
+  afterEach(() => srv.close());
+
+  it('deletes an existing preset (returns 204)', async () => {
+    const p = ps.create({ name: 'ToDelete', url: 'https://delete.me', sessionMode: 'persistent', displayTarget: null, description: null });
+    const res = await request(app).delete(`/api/presets/${p.id}`).set('Cookie', cookies.admin);
+    expect(res.status).toBe(204);
+    expect(ps.list()).toHaveLength(0);
+  });
+
+  it('returns 404 PRESET_NOT_FOUND for unknown id', async () => {
+    const res = await request(app).delete('/api/presets/nope').set('Cookie', cookies.admin);
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('PRESET_NOT_FOUND');
+  });
+
+  it('nullifies currentPreset when deleted preset is active', async () => {
+    const p = ps.create({ name: 'Active', url: 'https://active.com', sessionMode: 'persistent', displayTarget: null, description: null });
+    store.setState({ currentPreset: { id: p.id, name: p.name } });
+    await request(app).delete(`/api/presets/${p.id}`).set('Cookie', cookies.admin);
+    expect(store.getState().currentPreset).toBeNull();
+  });
+
+  it('returns 401 for operator (admin-only)', async () => {
+    const p = ps.create({ name: 'Y', url: 'https://y.com', sessionMode: 'persistent', displayTarget: null, description: null });
+    const res = await request(app).delete(`/api/presets/${p.id}`).set('Cookie', cookies.operator);
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('GET /api/displays', () => {
+  let app: Express;
+  let cookies: { operator: string; admin: string };
+  let srv: ReturnType<typeof makeHttpServer>['server'];
+  let store: ReturnType<typeof createStateStore>;
+
+  beforeEach(async () => {
+    const made = makeHttpServer();
+    srv = made.server;
+    store = made.store;
+    await srv.listen();
+    app = srv.app;
+    cookies = await getCookies(app);
+  });
+
+  afterEach(() => srv.close());
+
+  it('returns displays from state', async () => {
+    store.setState({ displays: [{ id: 'HDMI-1', name: 'HDMI-1', isPrimary: true }] });
+    const res = await request(app).get('/api/displays').set('Cookie', cookies.operator);
+    expect(res.status).toBe(200);
+    expect(res.body.displays).toHaveLength(1);
+    expect(res.body.displays[0].id).toBe('HDMI-1');
+    expect(res.body.displays[0].isPrimary).toBe(true);
+  });
+
+  it('returns empty array when no displays connected', async () => {
+    const res = await request(app).get('/api/displays').set('Cookie', cookies.operator);
+    expect(res.status).toBe(200);
+    expect(res.body.displays).toEqual([]);
+  });
+
+  it('returns 401 without auth', async () => {
+    const res = await request(app).get('/api/displays');
+    expect(res.status).toBe(401);
   });
 });

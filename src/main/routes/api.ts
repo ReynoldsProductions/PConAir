@@ -27,6 +27,10 @@ export function createApiRouter(store: StateStore, auth: AuthManager): Router {
     });
   });
 
+  router.get('/displays', opGuard, (_req: Request, res: Response) => {
+    res.json({ displays: store.getState().displays });
+  });
+
   router.post('/mode', opGuard, (req: Request, res: Response) => {
     const { mode } = req.body as { mode?: string };
     if (!mode || !VALID_MODES.includes(mode as Mode)) {
