@@ -1,37 +1,59 @@
 # PC On Air — Implementation Status & Handoff
 
 > Last updated: 2026-05-11
-> Branch: `feat/phase1-foundation`
-> Test suite: **99 tests passing** across 10 test files
+> Branch: `claude/zen-roentgen-63471a`
+> Test suite: **165 tests passing** across 13 test files
+
+---
+
+## Per-Spec Status
+
+| Spec | Title | Status | Notes |
+|------|-------|--------|-------|
+| 01 | Source of Truth | ✅ Reference | Product definition doc — no implementation target |
+| 02 | API State Contract | ✅ Implemented | All state fields in `types.ts`; includes `media-library` mode, `displayTarget`/`sessionMode` on `abState`, `ReliabilityRuntimeState` |
+| 03 | Slides Parity Inventory | ⚠️ Partial | Slides + A/B + Companion parity implemented; Gap 1 (slide_at feedback) addressed in spec 07; Gap 2 (latency benchmarking) still open |
+| 04 | Still Store & Media Library | ✅ Implemented | CSS themes, CSV import, image upload, cue export (image + manual PNG render), media library CRUD |
+| 05 | Profiles, Bundles, Backups | ✅ Implemented | Full profile CRUD, zip export/import, backup/restore — see §5 below |
+| 06 | URL Mode & Multi-Display | ✅ Implemented | A/B dual-instance, URL presets, session modes; `set_display` routes instance to Electron display |
+| 07 | Companion Module | ✅ Implemented | `packages/companion-module-pconair/` — actions, feedbacks, variables, presets; see §7 below |
+| 08 | Security Hardening | ✅ Implemented | IP allowlist, security headers, show-lock arm/take, admin health dashboard |
+| 09 | Reliability & Runbook | ✅ Implemented | Panic toggle, reload-instance, instance-status, show-lock, health dashboard |
+| 10 | Cross-Spec Review Findings | ✅ All critical resolved | 6/6 critical, 2/9 important resolved; GO for implementation (see doc) |
+| 11 | This document | — | — |
 
 ---
 
 ## Quick Summary
 
-The HTTP API layer, WebSocket server, and core state machine are largely complete. The main gaps are the **operator L3 panel** (frontend only), **media library**, **profiles/export**, and **Companion module**. Admin UI is unstarted.
+All backend API modules are complete. All four previously-identified gaps have been closed: background preset store is implemented, `set_display` routes instances to Electron displays, L3 PNG render pipeline produces 1920×1080 PNGs for manual-type cues, and the Admin SPA replaces the placeholder with a full dark-theme configuration UI. The only known open items are latency benchmarking (spec 03 Gap 2) and the Companion parity audit (spec 10).
 
 ---
 
-## 1. What Is Complete
+## What Is Complete
 
 ### Core Infrastructure
 | File | What it does |
 |------|------|
-| `src/shared/types.ts` | Full `AppState`, all sub-interfaces, error codes, WS message types |
+| `src/shared/types.ts` | Full `AppState`, all sub-interfaces, `media-library` mode, `ReliabilityRuntimeState`, `SessionMode` |
 | `src/main/state.ts` | In-memory state store with pub/sub and `structuredClone` isolation |
 | `src/main/auth.ts` | Operator + admin sessions, cookie-based, rate limiting, lockout |
 | `src/main/server.ts` | Express + `ws` WebSocket server, companion detection, state broadcast |
 | `src/main/runtime-persistence.ts` | JSON file persistence for presets and L3 cues (load on boot, save on change) |
 | `src/main/displays.ts` | Electron display enumeration helper |
-| `src/main/action-dispatch.ts` | WebSocket action dispatcher (all modes) |
+| `src/main/action-dispatch.ts` | WebSocket action dispatcher (all modes; `set_display` is a 501 stub) |
+| `src/main/cli-options.ts` | CLI flag parsing (`--reset-admin-pin`, etc.) |
+| `src/main/reliability-store.ts` | In-memory reliability state (panic, show-lock arm/take) |
 
 ### HTTP Routes — all mounted in `src/main/routes/index.ts`
 | Endpoint group | File | Status |
-|---------------|------|--------|
-| `POST /auth/operator`, `POST /auth/admin` | `routes/auth.ts` | ✅ |
+|----------------|------|--------|
+| `POST /auth/operator`, `POST /auth/admin`, `POST /auth/unlock-admin` | `routes/auth.ts` | ✅ |
 | `GET /api/status`, `GET /api/health` | `routes/api.ts` | ✅ |
-| `POST /api/mode` | `routes/api.ts` | ✅ |
-| `POST /api/ab/switch` | `routes/api.ts` | ✅ |
+| `POST /api/mode`, `POST /api/ab/switch` | `routes/api.ts` | ✅ |
+| `POST /api/panic` | `routes/api.ts` | ✅ |
+| `POST /api/reload-instance`, `GET /api/instance-status` | `routes/api.ts` | ✅ |
+| `POST /api/show-lock` (arm/take) | `routes/api.ts` | ✅ |
 | `GET /api/displays` | `routes/api.ts` | ✅ |
 | `POST /api/slides/load|next|prev|goto|reload` | `routes/slides.ts` | ✅ |
 | `POST /api/url`, `POST /api/url/reload` | `routes/url.ts` | ✅ |
@@ -40,175 +62,195 @@ The HTTP API layer, WebSocket server, and core state machine are largely complet
 | `GET/POST/DELETE /api/l3/cues` | `routes/l3.ts` | ✅ |
 | `GET/POST/PUT/DELETE /api/l3/playlists` | `routes/l3.ts` | ✅ |
 | `POST /api/l3/playlists/:id/activate` | `routes/l3.ts` | ✅ |
+| `GET/POST/DELETE /api/l3/themes` | `routes/l3.ts` | ✅ |
+| `GET /api/l3/themes/sample.css` | `routes/l3.ts` | ✅ |
+| `POST /api/l3/cues/import` (CSV) | `routes/l3.ts` | ✅ |
+| `GET /api/l3/cues/csv-sample` | `routes/l3.ts` | ✅ |
+| `POST /api/l3/cues/upload-image` | `routes/l3.ts` | ✅ |
+| `GET /api/l3/cues/:id/export` | `routes/l3.ts` | ✅ |
 | `GET /api/background`, `POST /api/background` | `routes/background.ts` | ✅ |
+| `GET/POST/DELETE /api/background/presets` | `routes/background.ts` | ✅ |
 | `POST /api/action` | `routes/action.ts` | ✅ |
+| `GET/POST/PATCH/DELETE /api/profiles` | `routes/profiles.ts` | ✅ |
+| `GET /api/profiles/active` | `routes/profiles.ts` | ✅ |
+| `POST /api/profiles/:id/export` | `routes/profiles.ts` | ✅ |
+| `POST /api/profiles/import`, `/import/confirm` | `routes/profiles.ts` | ✅ |
+| `GET/POST /api/profiles/:id/backups` + restore/download/delete | `routes/profiles.ts` | ✅ |
+| `GET /api/media-library`, `POST /api/media-library/take` | `routes/media-library.ts` | ✅ |
+| `GET /api/media-library/:id/download`, `DELETE /api/media-library/:id` | `routes/media-library.ts` | ✅ |
+| `POST /admin/admin-show-lock` | `routes/security.ts` | ✅ |
+| `GET /admin/health` (dashboard HTML) | `routes/admin.ts` | ✅ |
+| Security headers middleware | `routes/middleware.ts` | ✅ |
 
-### Service/Business Logic
-| File | What it does |
-|------|------|
-| `src/main/services/slide-ops.ts` | Slide state mutations (load, next, prev, goto, reload) |
-| `src/main/services/url-ops.ts` | URL state mutations (load, reload, A/B) |
-| `src/main/l3/cue-store.ts` | L3 cue CRUD store |
-| `src/main/l3/playlist-store.ts` | L3 playlist CRUD store |
-| `src/main/l3/take-ops.ts` | L3 take/clear/stacking business logic |
-| `src/main/l3/window-manager.ts` | L3 BrowserWindow lifecycle |
-| `src/main/presets.ts` | URL preset CRUD store with `onChange` callback |
+### Spec 04 — Still Store & Media Library
+- **CSS theme system**: `l3/theme-store.ts` — install/delete themes, serve `sample.css`, `GET /api/l3/themes`
+- **CSV bulk import**: `POST /api/l3/cues/import` — skips rows with missing required fields, defaults unknown themes to first available, returns per-row results; `GET /api/l3/cues/csv-sample` serves example CSV
+- **Image upload**: `POST /api/l3/cues/upload-image` — stores PNG/JPEG/GIF/WebP/SVG, creates Still Store cue with `sourceType: "image"`
+- **Cue export**: `GET /api/l3/cues/:id/export` — returns image bytes for `image`-type cues; 501 for `manual`-type (no render pipeline yet)
+- **Media Library**: `media-library/item-store.ts` + `window-manager.ts` + `routes/media-library.ts` — CRUD, take/clear, download; `media-library` mode in `AppState`
+- **Tests**: `l3-themes.test.ts` (themes, CSV import, image upload, export), `media-library.test.ts`
 
-### URL Mode (Phase 4)
-- A/B dual `BrowserWindow` model with `session.fromPartition('persist:pconair-url-A/B')`
-- `src/main/url/window-manager.ts` — subscribe-driven, no double-load race, mode guard before `showInstance`
-- WebSocket exponential backoff fixed (`connectWs(delay = 1000)` recursive parameter)
+### Spec 05 — Profiles, Bundles, Backups
+- `profiles/types.ts` — `ShowProfile` schema (v1), `BackupManifest`
+- `profiles/bundle-zip.ts` — zip export/import with asset bundling
+- `profiles/bootstrap.ts` — default profile creation on first run
+- `profiles/paths.ts` — Electron `userData` path helpers
+- Full CRUD at `GET/POST/PATCH/DELETE /api/profiles`
+- Export/import: zip download, multipart upload with two-phase confirm
+- Backup/restore: auto-backup on profile change, manual backup, restore, download, delete
+- **Tests**: `profiles.test.ts`
+
+### Spec 06 — URL Mode & Multi-Display
+- A/B dual `BrowserWindow` with `session.fromPartition` per instance
+- `src/main/url/window-manager.ts` — subscribe-driven, no double-load race
+- `abState.instanceA/B` now includes `displayTarget` and `sessionMode` (per spec 10 fix)
+- `set_display` WS action is a 501 stub (no display routing logic)
+
+### Spec 07 — Companion Module (`packages/companion-module-pconair/`)
+| File | Contents |
+|------|----------|
+| `src/actions.ts` | `load_url`, `load_url_preset`, `reload_url`, `set_mode`, `slides_next/prev/goto/load`, `ab_switch`, `l3_take/clear/stacking_on/off` |
+| `src/feedbacks.ts` | `connection_status`, `current_mode`, `slide_at`, `l3_cue_active`, `ab_active_instance` |
+| `src/variables.ts` | `connection_status`, `current_mode`, `current_slide`, `total_slides`, `deck_title`, `active_url`, `l3_active_cue_name` |
+| `src/presets.ts` | Drop-in preset buttons for common actions |
+| `src/client.ts` | WebSocket connection with exponential backoff; HTTP polling fallback |
+| `src/upgrades.ts` | Companion upgrade definitions |
+
+### Spec 08 — Security Hardening
+- `security/ip-allowlist.ts` — configurable IP allowlist middleware
+- `routes/middleware.ts` — `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Cache-Control: no-store` on all API responses
+- Show-lock arm/take (`POST /admin/admin-show-lock` + `POST /api/show-lock`)
+- Admin unlock via PIN: `POST /auth/unlock-admin` (in-app, no restart needed)
+- Emergency unlock: restart app or `--reset-admin-pin` CLI flag
+- `GET /admin/health` — admin-only health dashboard HTML
+
+### Spec 09 — Reliability & Runbook
+- `POST /api/panic` — toggle panic state; broadcasts to all WS clients
+- `POST /api/reload-instance` — reloads off-air instance only; rejects if requested instance is on-air
+- `GET /api/instance-status` — returns `{ instance, isLoading, isReady }` for each instance
+- `POST /api/show-lock` — arm/take pattern: first call arms, second call within TTL locks
+- `ReliabilityRuntimeState` in `AppState` — `panicActive`, `panicSlate`, `showLockArmed`, `showLockActive`
+- `GET /admin/health` — live health dashboard with instance status, mode, panic state, show-lock
 
 ### Operator UI (`src/renderer/operator/`)
-- `index.html` — Slides panel, URL panel, A/B instance buttons, mode buttons, status dump
-- `index.ts` — All bindings wired: slides controls, URL load/reload, A/B switch, mode switch
-- `api.ts` — Typed fetch helpers for all above operations
-- `state.ts` — Client-side state store with `applyFullState` (defensive clone) + `applyPatch`
-
-### WebSocket Actions (all handled in `action-dispatch.ts`)
-`slides_next`, `slides_prev`, `slides_goto`, `slides_reload`, `slides_load`, `ab_switch`, `url_switch_ab`, `url_switch_to`, `load_url`, `load_url_preset`, `reload_url`, `reload_url_offair`, `set_mode`, `set_display` (stub), `l3_take`, `l3_clear`, `l3_stacking_on`, `l3_stacking_off`
+- L3 panel: cue selector dropdown, name/title manual entry, Take/Clear buttons, Stacking toggle, active cue display
+- All L3 bindings wired in `index.ts`
+- `api.ts` includes `l3Take`, `l3Clear`, `l3Stacking`
 
 ---
 
-## 2. What Is Remaining
+## What Is Remaining
 
-### 2a. Operator L3 Panel (frontend only — no backend work needed)
-**Effort: Small (~2h)**
+### A. Latency Benchmarking (spec 03 Gap 2)
+**Effort: Small (testing/docs)**
 
-The L3 API is 100% complete. The operator HTML has a "Lower Thirds" mode button but no controls panel.
+The spec has a conflict: spec 01 §5.10 states "<50ms from action to display" while spec 03 Gap 2 uses "<500ms" from the original Slides Controller. Neither has been measured. Needs a benchmark test and a decision on which target is authoritative.
 
-Add to `src/renderer/operator/index.html`:
-```html
-<div class="panel-title" style="margin-top:20px;">Lower Thirds</div>
-<!-- Cue selector / manual name+title fields -->
-<!-- Take button, Clear button, Stacking toggle -->
-```
+### B. Companion Parity Audit (spec 10)
+**Effort: Small (research/review)**
 
-Add to `src/renderer/operator/api.ts`:
-```typescript
-export const l3Take = (body: { cueId?: string; name?: string; title?: string }) =>
-  apiPost('/api/l3/take', body);
-export const l3Clear = () => apiPost('/api/l3/clear');
-export const l3Stacking = (enabled: boolean) => apiPost('/api/l3/stacking', { enabled });
-```
-
-Wire event bindings in `src/renderer/operator/index.ts`.
-
-Update `renderState` to display active L3 cue name/title.
-
-### 2b. Media Library (spec `04-still-store-media-library.md`)
-**Effort: Medium (~1 day)**
-
-Not started. Needs:
-- `src/main/media-library/` — item store (id, name, path, type, tags)
-- `GET/POST/DELETE /api/media-library/items` — CRUD
-- File upload endpoint (`multipart/form-data`) — store files in Electron `userData`
-- `mediaLibrary` state field already exists in `AppState` (`activeItemId`, `activeItemName`)
-- Tests
-
-### 2c. Background Preset Store
-**Effort: Small (~3h)**
-
-`POST /api/background` currently returns 404 for any `presetId`. There is no background preset concept separate from URL presets. Re-read spec §2.6 and `05-profiles-bundles-backups.md` to decide if background presets are a separate store or just stored in the profiles bundle. This may be deferred to the profiles phase.
-
-### 2d. Profiles / Export-Import Bundles (spec `05-profiles-bundles-backups.md`)
-**Effort: Large (~1–2 days)**
-
-Not started. Needs:
-- Bundle schema: JSON manifest + asset files zipped
-- `POST /api/profiles/export` → returns a `.zip` download
-- `POST /api/profiles/import` → multipart upload, validates, restores state
-- Covers: URL presets, L3 cues + playlists, background settings, display assignments
-
-### 2e. Bitfocus Companion Module (spec `07-companion-module.md`)
-**Effort: Large (~1–2 days)**
-
-Not started. The server-side WebSocket action dispatch is complete — the Companion module is a separate npm package that wraps it.
-
-- Companion connects to `/ws?companion=1` (already handled: `companionConnected` state flag)
-- Module needs: action definitions (already mapped in `action-dispatch.ts`), variable definitions, feedback definitions
-- Separate package, not part of this repo — probably `packages/companion-module-pconair/`
-
-### 2f. Admin UI (`/admin` route)
-**Effort: Large (~1–2 days)**
-
-Not started. Needs a separate HTML page at `/operator/admin.html` (or similar) with:
-- Preset management (create/edit/delete URL presets with live preview)
-- L3 cue editor (create/edit/delete cues and playlists)
-- Background key color picker
-- Session login for persistent URL sessions
-- System settings (display assignments, port config)
+Spec 10 flags that the original Companion module source should be reviewed before declaring spec 07 complete. The implemented module covers all documented actions/feedbacks/variables, but a side-by-side comparison with the upstream source has not been done.
 
 ---
 
-## 3. Auth Model Reminder
+## Auth Model
 
 | Role | How to auth | What it can do |
 |------|------------|----------------|
 | Operator | `POST /auth/operator` with `pin` → session cookie | All read + all playback controls |
-| Admin | `POST /auth/admin` with `pin` → session cookie | Everything + presets CRUD, L3 cue management, background config |
+| Admin | `POST /auth/admin` with `pin` → session cookie | Everything + presets CRUD, L3 cue management, background config, profiles, show lock |
 
-Cookie name: `pconair_session`. Both expire per config (`operatorSessionMs`, `adminSessionMs`).
+Cookie name: `pconair_session`. Admin lock (`POST /api/show-lock` arm+take) blocks all admin routes at 403 until `POST /auth/unlock-admin` with admin PIN.
 
 ---
 
-## 4. Test Infrastructure
+## Test Infrastructure
 
 Tests live in `tests/`. Shared helper: `tests/_test-server.ts` — `createFullServer({ store, auth, presets, port: 0 })`.
 
 Run tests: `npx vitest run`
 
-Existing test files:
-- `api.test.ts` — `/api/status`, `/api/health`, mode, AB switch
-- `auth.test.ts` — login, logout, session expiry, rate limiting
-- `background.test.ts` — GET/POST /api/background
-- `l3-action.test.ts` — L3 routes + action dispatch
-- `operator-routes.test.ts` — operator HTML serving
-- `presets.test.ts` — presets CRUD + GET /api/displays
-- `slides.test.ts` — slides routes + AB switch
-- `state.test.ts` — state store unit tests
-- `url.test.ts` — URL load/reload routes
-- `websocket.test.ts` — WS connection, state push, action dispatch
+| Test file | Covers |
+|-----------|--------|
+| `api.test.ts` | `/api/status`, `/api/health`, mode, AB switch, panic, reload-instance, show-lock, security headers |
+| `auth.test.ts` | Login, logout, session expiry, rate limiting, unlock-admin |
+| `background.test.ts` | GET/POST /api/background + preset CRUD |
+| `l3-action.test.ts` | L3 routes + action dispatch |
+| `l3-themes.test.ts` | CSS themes CRUD + sample.css, CSV import, image upload, cue export |
+| `media-library.test.ts` | Media library CRUD, take/clear, mode transitions |
+| `operator-routes.test.ts` | Operator HTML serving |
+| `presets.test.ts` | Presets CRUD + GET /api/displays |
+| `profiles.test.ts` | Profile CRUD, export, import, backups |
+| `slides.test.ts` | Slides routes + AB switch |
+| `state.test.ts` | State store unit tests |
+| `url.test.ts` | URL load/reload routes |
+| `websocket.test.ts` | WS connection, state push, action dispatch, `set_display` |
 
 ---
 
-## 5. Known Issues / Tech Debt
+## Known Issues / Tech Debt
 
 1. **`tests/l3-action.test.ts` cookie cast** — pre-existing TypeScript error (cookie header cast); tests pass, just a type annotation issue.
-2. **`set_display` action stub** — returns 501. No display routing logic yet.
-3. **Media Library state** — `AppState.mediaLibrary` exists but the API and store are unimplemented.
-4. **No L3 CSS template system** — `theme` field is stored on cues but there's no template download or renderer; L3 window manager exists but rendering is stub.
-5. **Background preset store** — `presetId` on background always 404; deferred to profiles phase.
+2. **Latency benchmarking** — spec 01 and spec 03 have contradictory targets (50ms vs 500ms); not yet measured.
+3. **Companion parity audit** — spec 10 flags the original Companion module source should be reviewed; not yet done.
+4. **Admin UI — `set_display` / system settings** — the Admin SPA does not expose display assignment, port config, or IP allowlist UI. Backend routes for display enumeration exist (`GET /api/displays`); port/allowlist require restart-time config rather than live API.
+5. **`action-dispatch.ts` default branch** — unknown `action_id` returns `code: 'INVALID_MODE'`; semantically `UNKNOWN_ACTION` would be more accurate (pre-existing).
 
 ---
 
-## 6. File Tree (new files added this branch)
+## File Tree (notable files added/changed since initial status doc)
 
 ```
 src/
   main/
-    action-dispatch.ts          ← WebSocket action router
-    displays.ts                 ← Electron display enumeration
-    runtime-persistence.ts      ← JSON persistence for presets + cues
+    cli-options.ts                ← CLI flag parsing
+    reliability-store.ts          ← Panic + show-lock state
     l3/
-      cue-store.ts
-      playlist-store.ts
-      take-ops.ts
-      window-manager.ts
-    services/
-      slide-ops.ts
-      url-ops.ts
+      cue-renderer.ts             ← renderCueHtml (pure) + renderCueToPng (Electron offscreen)
+      theme-store.ts              ← CSS theme CRUD + getThemeCss()
+    media-library/
+      image-meta.ts
+      item-store.ts               ← Media Library item CRUD
+      window-manager.ts           ← Electron BrowserWindow for media-library
+    profiles/
+      bootstrap.ts                ← Default profile on first run
+      bundle-zip.ts               ← Zip export/import
+      paths.ts                    ← userData path helpers
+      types.ts                    ← ShowProfile schema (includes backgroundPresets)
     routes/
-      action.ts                 ← POST /api/action
-      background.ts             ← GET/POST /api/background
-      l3.ts                     ← All /api/l3/* routes
-docs/
-  plans/
-    2026-05-11-phase4-url-mode.md
+      admin.ts                    ← /admin HTML + health dashboard
+      background.ts               ← /api/background + /api/background/presets CRUD
+      media-library.ts            ← /api/media-library routes
+      middleware.ts               ← Security headers
+      operator.ts                 ← /operator HTML serving
+      profiles.ts                 ← /api/profiles routes
+      security.ts                 ← /admin/admin-show-lock
+    security/
+      ip-allowlist.ts
+    slides/
+      window-manager.ts
+    url/
+      window-manager.ts           ← applyDisplayTarget() wired on displayTarget changes
+  renderer/
+    admin/
+      index.html                  ← Full dark-theme admin SPA (presets, bg, L3, profiles, show-lock)
+    operator/
+      index.html                  ← Operator UI with full L3 panel
 tests/
-  _test-server.ts               ← Shared test server helper
-  background.test.ts
-  l3-action.test.ts
-specs/
-  11-implementation-status.md   ← This file
+  background.test.ts              ← GET/POST /api/background + preset CRUD
+  l3-action.test.ts               ← L3 routes + action dispatch + PUT cues
+  l3-themes.test.ts               ← CSS themes, CSV import, image upload, PNG render
+  media-library.test.ts
+  profiles.test.ts
+  websocket.test.ts               ← WS + set_display action
+packages/
+  companion-module-pconair/
+    src/
+      actions.ts
+      client.ts
+      feedbacks.ts
+      index.ts
+      presets.ts
+      upgrades.ts
+      variables.ts
 ```
