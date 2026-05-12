@@ -4,6 +4,27 @@ import * as api from './api';
 
 const store = createClientStore();
 
+/** Ignore checkbox `change` while syncing from server state. */
+let l3StackingUiLock = false;
+
+async function refreshL3CueSelect(): Promise<void> {
+  const { cues } = await api.l3ListCues();
+  const sel = document.getElementById('l3-cue-select') as HTMLSelectElement;
+  const prev = sel.value;
+  sel.replaceChildren();
+  const opt0 = document.createElement('option');
+  opt0.value = '';
+  opt0.textContent = '— Manual entry below —';
+  sel.appendChild(opt0);
+  for (const c of cues) {
+    const o = document.createElement('option');
+    o.value = c.id;
+    o.textContent = `${c.name} — ${c.title}`;
+    sel.appendChild(o);
+  }
+  if (prev && cues.some((x) => x.id === prev)) sel.value = prev;
+}
+
 // ── WebSocket connection ──────────────────────────────────────────
 
 function connectWs(delay = 1000): void {
@@ -78,6 +99,22 @@ function renderState(state: AppState): void {
   document.getElementById('ab-a-btn')!.classList.toggle('active', active === 'A');
   document.getElementById('ab-b-btn')!.classList.toggle('active', active === 'B');
 
+  const l3Line = document.getElementById('l3-active-line')!;
+  const l3s = state.l3;
+  if (l3s?.activeCueName != null || l3s?.activeTitle != null) {
+    const parts = [l3s.activeCueName, l3s.activeTitle].filter(
+      (x): x is string => typeof x === 'string' && x.length > 0
+    );
+    l3Line.textContent = parts.length ? `Active: ${parts.join(' — ')}` : 'Active: —';
+  } else {
+    l3Line.textContent = 'Active: —';
+  }
+
+  const stackCb = document.getElementById('l3-stacking-checkbox') as HTMLInputElement;
+  l3StackingUiLock = true;
+  stackCb.checked = Boolean(l3s?.isStacking);
+  l3StackingUiLock = false;
+
   document.getElementById('state-dump')!.textContent = JSON.stringify(state, null, 2);
 }
 
@@ -121,6 +158,42 @@ function bindEvents(): void {
   });
   on('url-reload-btn', () => api.urlReload());
 
+  document.getElementById('l3-cues-refresh-btn')!.addEventListener('click', async () => {
+    try {
+      await refreshL3CueSelect();
+    } catch (e) {
+      showError((e as Error).message);
+    }
+  });
+
+  on('l3-take-btn', async () => {
+    const sel = document.getElementById('l3-cue-select') as HTMLSelectElement;
+    if (sel.value) {
+      await api.l3Take({ cueId: sel.value });
+      return;
+    }
+    const name = (document.getElementById('l3-name-input') as HTMLInputElement).value.trim();
+    const title = (document.getElementById('l3-title-input') as HTMLInputElement).value.trim();
+    await api.l3Take({ name, title });
+  });
+  on('l3-clear-btn', () => api.l3Clear());
+
+  (document.getElementById('l3-stacking-checkbox') as HTMLInputElement).addEventListener(
+    'change',
+    async () => {
+      if (l3StackingUiLock) return;
+      const cb = document.getElementById('l3-stacking-checkbox') as HTMLInputElement;
+      try {
+        await api.l3Stacking(cb.checked);
+      } catch (e) {
+        showError((e as Error).message);
+        l3StackingUiLock = true;
+        cb.checked = !cb.checked;
+        l3StackingUiLock = false;
+      }
+    }
+  );
+
   document.querySelectorAll<HTMLButtonElement>('.ab-btn').forEach((btn) =>
     btn.addEventListener('click', async () => {
       try { await api.switchAB(btn.dataset.instance as 'A' | 'B'); }
@@ -140,4 +213,5 @@ function bindEvents(): void {
 
 store.subscribe(renderState);
 bindEvents();
+void refreshL3CueSelect().catch(() => { /* no session yet */ });
 connectWs();

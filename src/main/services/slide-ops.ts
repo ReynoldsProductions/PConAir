@@ -99,6 +99,8 @@ export function slideLoadOp(
   }
   store.setState({
     currentMode: 'slides',
+    l3: null,
+    mediaLibrary: null,
     slides: {
       deckId,
       deckTitle: deckId,

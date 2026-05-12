@@ -96,6 +96,7 @@ export type ErrorCode =
   | 'DISPLAY_NOT_FOUND'
   | 'CUE_NOT_FOUND'
   | 'PRESET_NOT_FOUND'
+  | 'ITEM_NOT_FOUND'
   | 'AUTH_REQUIRED'
   | 'RATE_LIMITED';
 

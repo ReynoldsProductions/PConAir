@@ -10,6 +10,8 @@ import { createUrlWindowManager } from './url/window-manager';
 import { createL3CueStore } from './l3/cue-store';
 import { createL3PlaylistStore } from './l3/playlist-store';
 import { createL3WindowManager } from './l3/window-manager';
+import { createMediaLibraryStore } from './media-library/item-store';
+import { createMediaLibraryWindowManager } from './media-library/window-manager';
 import { createActionDispatcher } from './action-dispatch';
 import { wireRuntimePersistence } from './runtime-persistence';
 import { snapshotDisplays } from './displays';
@@ -59,6 +61,9 @@ async function main() {
   const persistPath = path.join(app.getPath('userData'), 'runtime-state.json');
   markDirty = wireRuntimePersistence(persistPath, { presets, cues: l3Cues, playlists: l3Playlists }).markDirty;
 
+  const mediaLibraryRoot = path.join(app.getPath('userData'), 'media-library');
+  const mediaLibrary = createMediaLibraryStore({ rootDir: mediaLibraryRoot });
+
   const dispatchAction = createActionDispatcher({ store, auth, presets, cues: l3Cues });
 
   syncDisplaysToStore();
@@ -75,12 +80,16 @@ async function main() {
   const l3Manager = createL3WindowManager({ store });
   l3Manager.initialize();
 
+  const mediaLibraryManager = createMediaLibraryWindowManager({ store, media: mediaLibrary });
+  mediaLibraryManager.initialize();
+
   const server = createServer({
     store,
     auth,
     presets,
     l3Cues,
     l3Playlists,
+    mediaLibrary,
     dispatchAction,
     port: DEFAULT_PORT,
   });

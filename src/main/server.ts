@@ -7,6 +7,7 @@ import type { AuthManager } from './auth';
 import type { PresetsStore } from './presets';
 import type { L3CueStore } from './l3/cue-store';
 import type { L3PlaylistStore } from './l3/playlist-store';
+import type { MediaLibraryStore } from './media-library/item-store';
 import type { ActionDispatcher } from './action-dispatch';
 import type { WsServerMessage } from '../shared/types';
 
@@ -16,12 +17,13 @@ export interface ServerDeps {
   presets: PresetsStore;
   l3Cues: L3CueStore;
   l3Playlists: L3PlaylistStore;
+  mediaLibrary: MediaLibraryStore;
   dispatchAction: ActionDispatcher;
   port?: number;
 }
 
 export function createServer(deps: ServerDeps) {
-  const { store, auth, presets, l3Cues, l3Playlists, dispatchAction, port = 8080 } = deps;
+  const { store, auth, presets, l3Cues, l3Playlists, mediaLibrary, dispatchAction, port = 8080 } = deps;
 
   const routeServices: RouteServices = {
     store,
@@ -29,6 +31,7 @@ export function createServer(deps: ServerDeps) {
     presets,
     l3Cues,
     l3Playlists,
+    mediaLibrary,
     dispatchAction,
   };
 

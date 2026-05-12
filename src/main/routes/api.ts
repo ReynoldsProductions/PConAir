@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
-import type { Mode } from '../../shared/types';
+import type { AppState, Mode } from '../../shared/types';
 import { requireOperator } from './middleware';
 
 const VALID_MODES: Mode[] = ['slides', 'url', 'l3', 'media-library', 'idle'];
@@ -39,8 +39,12 @@ export function createApiRouter(store: StateStore, auth: AuthManager): Router {
       });
       return;
     }
-    store.setState({ currentMode: mode as Mode });
-    res.json({ currentMode: mode as Mode });
+    const nextMode = mode as Mode;
+    const patch: Partial<AppState> = { currentMode: nextMode };
+    if (nextMode !== 'l3') patch.l3 = null;
+    if (nextMode !== 'media-library') patch.mediaLibrary = null;
+    store.setState(patch);
+    res.json({ currentMode: nextMode });
   });
 
   router.post('/ab/switch', opGuard, (req: Request, res: Response) => {

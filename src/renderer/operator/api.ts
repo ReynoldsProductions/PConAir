@@ -1,3 +1,13 @@
+export async function apiGet<T>(path: string): Promise<T> {
+  const res = await fetch(path);
+  const data = await res.json() as T | { error: { code: string; message: string } };
+  if (!res.ok) {
+    const msg = (data as { error: { message: string } }).error?.message ?? `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return data as T;
+}
+
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
     method: 'POST',
@@ -10,6 +20,13 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     throw new Error(msg);
   }
   return data as T;
+}
+
+/** Cue row from GET /api/l3/cues (subset used by operator UI). */
+export interface L3CueListItem {
+  id: string;
+  name: string;
+  title: string;
 }
 
 export const loadDeck    = (deckUrl: string)           => apiPost('/api/slides/load',  { deckUrl });
@@ -25,3 +42,13 @@ export const loadUrl = (url: string, display?: string) =>
 
 export const urlReload = (instance?: 'A' | 'B') =>
   apiPost<unknown>('/api/url/reload', instance ? { instance } : {});
+
+export const l3ListCues = () => apiGet<{ cues: L3CueListItem[] }>('/api/l3/cues');
+
+export const l3Take = (body: { cueId?: string; name?: string; title?: string }) =>
+  apiPost<unknown>('/api/l3/take', body);
+
+export const l3Clear = () => apiPost<unknown>('/api/l3/clear');
+
+export const l3Stacking = (enabled: boolean) =>
+  apiPost<unknown>('/api/l3/stacking', { enabled });

@@ -62,6 +62,7 @@ export function l3TakeOp(
   store.setState({
     currentMode: 'l3',
     l3: nextL3,
+    mediaLibrary: null,
   });
 
   const s = store.getState();
