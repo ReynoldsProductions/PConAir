@@ -1,0 +1,23 @@
+# Secrets / credentials
+.env
+.env.local
+.env.*.local
+
+# Claude plan files
+.claude/plans/
+
+# Node / Electron
+node_modules/
+dist/
+out/
+.cache/
+
+# macOS
+.DS_Store
+Icon
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
