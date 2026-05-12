@@ -1,22 +1,13 @@
 import { Router, Request, Response } from 'express';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
-import { requireOperator } from './middleware';
+import { requireOperator, isValidUrl } from './middleware';
 
 const GOOGLE_SLIDES_PATTERN = /^https:\/\/docs\.google\.com\/presentation\/d\/([^/]+)/;
 
 function extractDeckId(deckUrl: string): string | null {
   const match = GOOGLE_SLIDES_PATTERN.exec(deckUrl);
   return match ? match[1] : null;
-}
-
-function isValidUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
-  }
 }
 
 export function createSlidesRouter(store: StateStore, auth: AuthManager): Router {

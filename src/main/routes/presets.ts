@@ -3,9 +3,7 @@ import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { PresetsStore } from '../presets';
 import type { SessionMode } from '../../shared/types';
-import { requireOperator, requireAdmin } from './middleware';
-
-const URL_PATTERN = /^https?:\/\/.+/;
+import { requireOperator, requireAdmin, isValidUrl } from './middleware';
 
 export function createPresetsRouter(store: StateStore, auth: AuthManager, presets: PresetsStore): Router {
   const router = Router();
@@ -28,12 +26,12 @@ export function createPresetsRouter(store: StateStore, auth: AuthManager, preset
       description?: string | null;
     };
 
-    if (!url || !URL_PATTERN.test(url)) {
+    if (!url || !isValidUrl(url)) {
       res.status(400).json({ error: { code: 'INVALID_URL', message: 'url must be a valid http or https URL' } });
       return;
     }
     if (!name) {
-      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'name is required' } });
+      res.status(400).json({ error: { code: 'INVALID_URL', message: 'name is required' } });
       return;
     }
     if (sessionMode !== 'persistent' && sessionMode !== 'ephemeral') {
@@ -49,6 +47,10 @@ export function createPresetsRouter(store: StateStore, auth: AuthManager, preset
         displayTarget: displayTarget ?? null,
         description: description ?? null,
       });
+      if (!updated) {
+        res.status(404).json({ error: { code: 'PRESET_NOT_FOUND', message: `Preset '${id}' not found` } });
+        return;
+      }
       res.json(updated);
     } else {
       const created = presets.create({

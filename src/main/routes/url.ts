@@ -2,9 +2,7 @@ import { Router, Request, Response } from 'express';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { ABInstance, InstanceState } from '../../shared/types';
-import { requireOperator } from './middleware';
-
-const URL_PATTERN = /^https?:\/\/.+/;
+import { requireOperator, isValidUrl } from './middleware';
 
 export function createUrlRouter(store: StateStore, auth: AuthManager): Router {
   const router = Router();
@@ -14,7 +12,7 @@ export function createUrlRouter(store: StateStore, auth: AuthManager): Router {
   router.post('/', opGuard, (req: Request, res: Response) => {
     const { url, display } = req.body as { url?: string; display?: string };
 
-    if (!url || !URL_PATTERN.test(url)) {
+    if (!url || !isValidUrl(url)) {
       res.status(400).json({ error: { code: 'INVALID_URL', message: 'url must be a valid http or https URL' } });
       return;
     }
