@@ -2,8 +2,6 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
 import { createStateStore } from '../src/main/state';
-import { createAuthManager } from '../src/main/auth';
-import { createPresetsStore } from '../src/main/presets';
 import { createFullServer } from './_test-server';
 
 const AUTH = {
@@ -11,18 +9,16 @@ const AUTH = {
   adminPin: 'adminpass8',
   operatorSessionMs: 60000,
   adminSessionMs: 60000,
-  maxFailures: 5,
-  lockoutMs: 60000,
 };
 
 async function opCookie(app: Express): Promise<string> {
   const res = await request(app).post('/auth/operator').send({ pin: 'op1234' });
-  return (res.headers['set-cookie'] as string[])[0];
+  return (res.headers['set-cookie'] as unknown as string[])[0];
 }
 
 async function adminCookie(app: Express): Promise<string> {
   const res = await request(app).post('/auth/admin').send({ pin: 'adminpass8' });
-  return (res.headers['set-cookie'] as string[])[0];
+  return (res.headers['set-cookie'] as unknown as string[])[0];
 }
 
 describe('POST /api/l3/take', () => {
@@ -32,9 +28,14 @@ describe('POST /api/l3/take', () => {
 
   beforeEach(async () => {
     const store = createStateStore();
-    const auth = createAuthManager(AUTH);
-    const presets = createPresetsStore();
-    srv = createFullServer({ store, auth, presets, port: 0 });
+    srv = createFullServer({
+      store,
+      operatorPin: AUTH.operatorPin,
+      adminPin: AUTH.adminPin,
+      operatorSessionMs: AUTH.operatorSessionMs,
+      adminSessionMs: AUTH.adminSessionMs,
+      port: 0,
+    });
     await srv.listen();
     app = srv.app;
     cookie = await opCookie(app);
@@ -71,9 +72,14 @@ describe('POST /api/l3/clear and stacking', () => {
 
   beforeEach(async () => {
     const store = createStateStore();
-    const auth = createAuthManager(AUTH);
-    const presets = createPresetsStore();
-    srv = createFullServer({ store, auth, presets, port: 0 });
+    srv = createFullServer({
+      store,
+      operatorPin: AUTH.operatorPin,
+      adminPin: AUTH.adminPin,
+      operatorSessionMs: AUTH.operatorSessionMs,
+      adminSessionMs: AUTH.adminSessionMs,
+      port: 0,
+    });
     await srv.listen();
     app = srv.app;
     cookie = await opCookie(app);
@@ -104,9 +110,14 @@ describe('L3 playlists', () => {
 
   beforeEach(async () => {
     const store = createStateStore();
-    const auth = createAuthManager(AUTH);
-    const presets = createPresetsStore();
-    srv = createFullServer({ store, auth, presets, port: 0 });
+    srv = createFullServer({
+      store,
+      operatorPin: AUTH.operatorPin,
+      adminPin: AUTH.adminPin,
+      operatorSessionMs: AUTH.operatorSessionMs,
+      adminSessionMs: AUTH.adminSessionMs,
+      port: 0,
+    });
     await srv.listen();
     app = srv.app;
     op = await opCookie(app);
@@ -141,9 +152,14 @@ describe('POST /api/action', () => {
 
   beforeEach(async () => {
     store = createStateStore();
-    const auth = createAuthManager(AUTH);
-    const presets = createPresetsStore();
-    srv = createFullServer({ store, auth, presets, port: 0 });
+    srv = createFullServer({
+      store,
+      operatorPin: AUTH.operatorPin,
+      adminPin: AUTH.adminPin,
+      operatorSessionMs: AUTH.operatorSessionMs,
+      adminSessionMs: AUTH.adminSessionMs,
+      port: 0,
+    });
     await srv.listen();
     app = srv.app;
     cookie = await opCookie(app);

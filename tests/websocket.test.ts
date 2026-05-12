@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { WebSocket } from 'ws';
 import { createStateStore } from '../src/main/state';
-import { createAuthManager } from '../src/main/auth';
-import { createPresetsStore } from '../src/main/presets';
 import { createFullServer } from './_test-server';
 import type { WsServerMessage } from '../src/shared/types';
 
@@ -11,8 +9,6 @@ const AUTH_CONFIG = {
   adminPin: 'secret99',
   operatorSessionMs: 3600000,
   adminSessionMs: 3600000,
-  maxFailures: 5,
-  lockoutMs: 300000,
 };
 
 /** Connects a WebSocket and returns helpers to consume messages in order. */
@@ -72,9 +68,14 @@ describe('WebSocket', () => {
 
   beforeEach(async () => {
     store = createStateStore();
-    const auth = createAuthManager(AUTH_CONFIG);
-    const presets = createPresetsStore();
-    server = createFullServer({ store, auth, presets, port: 0 }); // port 0 = OS assigns
+    server = createFullServer({
+      store,
+      operatorPin: AUTH_CONFIG.operatorPin,
+      adminPin: AUTH_CONFIG.adminPin,
+      operatorSessionMs: AUTH_CONFIG.operatorSessionMs,
+      adminSessionMs: AUTH_CONFIG.adminSessionMs,
+      port: 0,
+    });
     await server.listen();
     // Get the assigned port
     const addr = server.httpServer.address();

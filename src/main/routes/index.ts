@@ -10,6 +10,7 @@ import { createL3Router } from './l3';
 import { createActionRouter } from './action';
 import { createBackgroundRouter } from './background';
 import { createMediaLibraryRouter } from './media-library';
+import { createProfilesRouter } from './profiles';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { PresetsStore } from '../presets';
@@ -17,6 +18,7 @@ import type { L3CueStore } from '../l3/cue-store';
 import type { L3PlaylistStore } from '../l3/playlist-store';
 import type { MediaLibraryStore } from '../media-library/item-store';
 import type { ActionDispatcher } from '../action-dispatch';
+import type { ProfilePaths } from '../profiles/paths';
 
 export interface RouteServices {
   store: StateStore;
@@ -26,6 +28,9 @@ export interface RouteServices {
   l3Playlists: L3PlaylistStore;
   mediaLibrary: MediaLibraryStore;
   dispatchAction: ActionDispatcher;
+  profilePaths: ProfilePaths;
+  getActiveProfileId: () => string;
+  onProfileActivate?: () => void;
 }
 
 export function mountRoutes(app: Express, s: RouteServices): void {
@@ -39,5 +44,18 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   app.use('/api/media-library', createMediaLibraryRouter(s.store, s.auth, s.mediaLibrary));
   app.use('/api/background', createBackgroundRouter(s.store, s.auth));
   app.use('/api/action', createActionRouter(s.auth, s.dispatchAction));
+  app.use(
+    '/api/profiles',
+    createProfilesRouter({
+      paths: s.profilePaths,
+      getActiveProfileId: s.getActiveProfileId,
+      auth: s.auth,
+      presets: s.presets,
+      l3Cues: s.l3Cues,
+      l3Playlists: s.l3Playlists,
+      mediaLibrary: s.mediaLibrary,
+      onProfileActivate: s.onProfileActivate,
+    })
+  );
   app.use('/api', createApiRouter(s.store, s.auth));
 }

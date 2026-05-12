@@ -6,8 +6,6 @@ import os from 'os';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { createStateStore } from '../src/main/state';
-import { createAuthManager } from '../src/main/auth';
-import { createPresetsStore } from '../src/main/presets';
 import { createFullServer } from './_test-server';
 
 const AUTH = {
@@ -15,8 +13,6 @@ const AUTH = {
   adminPin: 'supersecret',
   operatorSessionMs: 3600000,
   adminSessionMs: 3600000,
-  maxFailures: 5,
-  lockoutMs: 300000,
 };
 
 /** Minimal valid 1×1 PNG */
@@ -32,11 +28,16 @@ describe('Media Library API', () => {
 
   beforeEach(async () => {
     const store = createStateStore();
-    const auth = createAuthManager(AUTH);
-    const presets = createPresetsStore();
     const mlRoot = path.join(os.tmpdir(), `pconair-ml-${randomUUID()}`);
     fs.mkdirSync(mlRoot, { recursive: true });
-    ({ app } = createFullServer({ store, auth, presets, mediaLibraryRoot: mlRoot }));
+    ({ app } = createFullServer({
+      store,
+      operatorPin: AUTH.operatorPin,
+      adminPin: AUTH.adminPin,
+      operatorSessionMs: AUTH.operatorSessionMs,
+      adminSessionMs: AUTH.adminSessionMs,
+      mediaLibraryRoot: mlRoot,
+    }));
 
     const op = await request(app).post('/auth/operator').send({ pin: '1234' });
     operatorCookie = op.headers['set-cookie'][0].split(';')[0];

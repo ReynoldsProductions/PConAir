@@ -2,23 +2,19 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
 import { createStateStore } from '../src/main/state';
-import { createAuthManager } from '../src/main/auth';
-import { createPresetsStore } from '../src/main/presets';
 import { createFullServer } from './_test-server';
 
 function makeServer() {
   const store = createStateStore();
-  const auth = createAuthManager({
+  const server = createFullServer({
+    store,
     operatorPin: 'test1234',
     adminPin: 'testadmin8',
     operatorSessionMs: 60000,
     adminSessionMs: 60000,
-    maxFailures: 5,
-    lockoutMs: 60000,
+    port: 0,
   });
-  const presets = createPresetsStore();
-  const server = createFullServer({ store, auth, presets, port: 0 });
-  return { server, store, auth, presets };
+  return { server, store, presets: server.presets };
 }
 
 async function login(app: Express, pin: string, route: string): Promise<string> {
@@ -113,15 +109,10 @@ describe('POST /api/url', () => {
     const store = made.store;
     const s2 = createFullServer({
       store,
-      auth: createAuthManager({
-        operatorPin: 'test1234',
-        adminPin: 'testadmin8',
-        operatorSessionMs: 60000,
-        adminSessionMs: 60000,
-        maxFailures: 5,
-        lockoutMs: 60000,
-      }),
-      presets: createPresetsStore(),
+      operatorPin: 'test1234',
+      adminPin: 'testadmin8',
+      operatorSessionMs: 60000,
+      adminSessionMs: 60000,
       port: 0,
     });
     await s2.listen();

@@ -2,8 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
 import { createStateStore } from '../src/main/state';
-import { createAuthManager } from '../src/main/auth';
-import { createPresetsStore } from '../src/main/presets';
 import { createFullServer } from './_test-server';
 
 const AUTH_CONFIG = {
@@ -11,8 +9,6 @@ const AUTH_CONFIG = {
   adminPin: 'supersecret',
   operatorSessionMs: 3600000,
   adminSessionMs: 3600000,
-  maxFailures: 5,
-  lockoutMs: 300000,
 };
 
 describe('Auth routes', () => {
@@ -20,9 +16,13 @@ describe('Auth routes', () => {
 
   beforeEach(() => {
     const store = createStateStore();
-    const auth = createAuthManager(AUTH_CONFIG);
-    const presets = createPresetsStore();
-    ({ app } = createFullServer({ store, auth, presets }));
+    ({ app } = createFullServer({
+      store,
+      operatorPin: AUTH_CONFIG.operatorPin,
+      adminPin: AUTH_CONFIG.adminPin,
+      operatorSessionMs: AUTH_CONFIG.operatorSessionMs,
+      adminSessionMs: AUTH_CONFIG.adminSessionMs,
+    }));
   });
 
   it('POST /auth/operator with correct PIN sets session cookie', async () => {
@@ -57,9 +57,13 @@ describe('API routes', () => {
 
   beforeEach(async () => {
     const store = createStateStore();
-    const auth = createAuthManager(AUTH_CONFIG);
-    const presets = createPresetsStore();
-    ({ app } = createFullServer({ store, auth, presets }));
+    ({ app } = createFullServer({
+      store,
+      operatorPin: AUTH_CONFIG.operatorPin,
+      adminPin: AUTH_CONFIG.adminPin,
+      operatorSessionMs: AUTH_CONFIG.operatorSessionMs,
+      adminSessionMs: AUTH_CONFIG.adminSessionMs,
+    }));
     const res = await request(app)
       .post('/auth/operator')
       .send({ pin: '1234' });
@@ -114,9 +118,13 @@ describe('Security headers', () => {
 
   beforeEach(() => {
     const store = createStateStore();
-    const auth = createAuthManager(AUTH_CONFIG);
-    const presets = createPresetsStore();
-    ({ app } = createFullServer({ store, auth, presets }));
+    ({ app } = createFullServer({
+      store,
+      operatorPin: AUTH_CONFIG.operatorPin,
+      adminPin: AUTH_CONFIG.adminPin,
+      operatorSessionMs: AUTH_CONFIG.operatorSessionMs,
+      adminSessionMs: AUTH_CONFIG.adminSessionMs,
+    }));
   });
 
   it('sets X-Content-Type-Options: nosniff', async () => {

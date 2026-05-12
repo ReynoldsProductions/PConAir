@@ -11,6 +11,8 @@ import type { MediaLibraryStore } from './media-library/item-store';
 import type { ActionDispatcher } from './action-dispatch';
 import type { WsServerMessage } from '../shared/types';
 
+import type { ProfilePaths } from './profiles/paths';
+
 export interface ServerDeps {
   store: StateStore;
   auth: AuthManager;
@@ -20,10 +22,25 @@ export interface ServerDeps {
   mediaLibrary: MediaLibraryStore;
   dispatchAction: ActionDispatcher;
   port?: number;
+  profilePaths: ProfilePaths;
+  getActiveProfileId: () => string;
+  onProfileActivate?: () => void;
 }
 
 export function createServer(deps: ServerDeps) {
-  const { store, auth, presets, l3Cues, l3Playlists, mediaLibrary, dispatchAction, port = 8080 } = deps;
+  const {
+    store,
+    auth,
+    presets,
+    l3Cues,
+    l3Playlists,
+    mediaLibrary,
+    dispatchAction,
+    port = 8080,
+    profilePaths,
+    getActiveProfileId,
+    onProfileActivate,
+  } = deps;
 
   const routeServices: RouteServices = {
     store,
@@ -33,6 +50,9 @@ export function createServer(deps: ServerDeps) {
     l3Playlists,
     mediaLibrary,
     dispatchAction,
+    profilePaths,
+    getActiveProfileId,
+    onProfileActivate,
   };
 
   const app = express();

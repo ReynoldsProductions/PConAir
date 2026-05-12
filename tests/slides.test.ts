@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createStateStore } from '../src/main/state';
-import { createAuthManager } from '../src/main/auth';
-import { createPresetsStore } from '../src/main/presets';
 import { createFullServer } from './_test-server';
 
 const AUTH_CONFIG = {
@@ -10,15 +8,17 @@ const AUTH_CONFIG = {
   adminPin: 'supersecret',
   operatorSessionMs: 3600000,
   adminSessionMs: 3600000,
-  maxFailures: 5,
-  lockoutMs: 300000,
 };
 
 async function makeApp() {
   const store = createStateStore();
-  const auth = createAuthManager(AUTH_CONFIG);
-  const presets = createPresetsStore();
-  const { app } = createFullServer({ store, auth, presets });
+  const { app } = createFullServer({
+    store,
+    operatorPin: AUTH_CONFIG.operatorPin,
+    adminPin: AUTH_CONFIG.adminPin,
+    operatorSessionMs: AUTH_CONFIG.operatorSessionMs,
+    adminSessionMs: AUTH_CONFIG.adminSessionMs,
+  });
   const loginRes = await request(app).post('/auth/operator').send({ pin: '1234' });
   const cookie = loginRes.headers['set-cookie'][0].split(';')[0];
   return { app, store, cookie };

@@ -15,6 +15,8 @@ import { createMediaLibraryWindowManager } from './media-library/window-manager'
 import { createActionDispatcher } from './action-dispatch';
 import { wireRuntimePersistence } from './runtime-persistence';
 import { snapshotDisplays } from './displays';
+import { bootstrapProfiles, parseProfileCliArg, getActiveMarker, syncActiveProfileUrlPresets } from './profiles/bootstrap';
+import { profileRuntimeStatePath } from './profiles/paths';
 
 const DEFAULT_PORT = parseInt(process.env.PCONAIR_PORT ?? '8080', 10);
 const OPERATOR_PIN = process.env.PCONAIR_OPERATOR_PIN ?? '0000';
@@ -44,22 +46,33 @@ function syncDisplaysToStore(): void {
 
 async function main() {
   validatePins(OPERATOR_PIN, ADMIN_PIN);
+  const cliProfile = parseProfileCliArg(process.argv);
+  const userData = app.getPath('userData');
+  const boot = bootstrapProfiles(userData, { operatorPin: OPERATOR_PIN, adminPin: ADMIN_PIN }, cliProfile);
+
   const store = getStore();
   const auth = createAuthManager({
-    operatorPin: OPERATOR_PIN,
-    adminPin: ADMIN_PIN,
-    operatorSessionMs: 8 * 60 * 60 * 1000,
-    adminSessionMs: 4 * 60 * 60 * 1000,
+    operatorPinHash: boot.profile.operatorPinHash,
+    adminPinHash: boot.profile.adminPinHash,
+    operatorSessionMs: boot.profile.appPreferences.operatorSessionDurationMinutes * 60 * 1000,
+    adminSessionMs: boot.profile.appPreferences.adminSessionDurationMinutes * 60 * 1000,
     maxFailures: 5,
     lockoutMs: 5 * 60 * 1000,
   });
 
-  let markDirty: () => void = () => {};
-  const presets = createPresetsStore(() => markDirty());
-  const l3Cues = createL3CueStore(() => markDirty());
-  const l3Playlists = createL3PlaylistStore(l3Cues, () => markDirty());
-  const persistPath = path.join(app.getPath('userData'), 'runtime-state.json');
-  markDirty = wireRuntimePersistence(persistPath, { presets, cues: l3Cues, playlists: l3Playlists }).markDirty;
+  let markRuntimeFlush: () => void = () => {};
+  const chain = () => {
+    markRuntimeFlush();
+    const id = getActiveMarker(boot.paths)?.id ?? boot.activeId;
+    syncActiveProfileUrlPresets(boot.paths, id, presets.list());
+  };
+
+  const presets = createPresetsStore(chain);
+  presets.replaceAll(boot.profile.urlPresets);
+  const l3Cues = createL3CueStore(chain);
+  const l3Playlists = createL3PlaylistStore(l3Cues, chain);
+  const persistPath = profileRuntimeStatePath(boot.paths, boot.activeId);
+  markRuntimeFlush = wireRuntimePersistence(persistPath, { presets, cues: l3Cues, playlists: l3Playlists }).markDirty;
 
   const mediaLibraryRoot = path.join(app.getPath('userData'), 'media-library');
   const mediaLibrary = createMediaLibraryStore({ rootDir: mediaLibraryRoot });
@@ -92,6 +105,12 @@ async function main() {
     mediaLibrary,
     dispatchAction,
     port: DEFAULT_PORT,
+    profilePaths: boot.paths,
+    getActiveProfileId: () => getActiveMarker(boot.paths)?.id ?? boot.activeId,
+    onProfileActivate: () => {
+      app.relaunch();
+      app.exit(0);
+    },
   });
   await server.listen();
   console.log(`PC On Air server running on http://localhost:${DEFAULT_PORT}`);

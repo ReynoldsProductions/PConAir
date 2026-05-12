@@ -3,8 +3,12 @@ import { randomBytes } from 'crypto';
 import type { Session } from '../shared/types';
 
 export interface AuthConfig {
-  operatorPin: string;
-  adminPin: string;
+  /** Plaintext pins (development / first boot). */
+  operatorPin?: string;
+  adminPin?: string;
+  /** Bcrypt hashes from show profile (preferred when profiles are enabled). */
+  operatorPinHash?: string;
+  adminPinHash?: string;
   operatorSessionMs: number;
   adminSessionMs: number;
   maxFailures: number;
@@ -16,9 +20,21 @@ interface FailureRecord {
   lockedUntil: number | null;
 }
 
+function resolvePinHashes(config: AuthConfig): { operatorHash: string; adminHash: string } {
+  if (config.operatorPinHash && config.adminPinHash) {
+    return { operatorHash: config.operatorPinHash, adminHash: config.adminPinHash };
+  }
+  if (config.operatorPin && config.adminPin) {
+    return {
+      operatorHash: bcrypt.hashSync(config.operatorPin, 12),
+      adminHash: bcrypt.hashSync(config.adminPin, 12),
+    };
+  }
+  throw new Error('AuthConfig requires operatorPin+adminPin or operatorPinHash+adminPinHash');
+}
+
 export function createAuthManager(config: AuthConfig) {
-  const operatorHash = bcrypt.hashSync(config.operatorPin, 12);
-  const adminHash = bcrypt.hashSync(config.adminPin, 12);
+  const { operatorHash, adminHash } = resolvePinHashes(config);
 
   const sessions = new Map<string, Session>();
   const failures = new Map<string, FailureRecord>();

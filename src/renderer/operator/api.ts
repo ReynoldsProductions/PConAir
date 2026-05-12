@@ -52,3 +52,6 @@ export const l3Clear = () => apiPost<unknown>('/api/l3/clear');
 
 export const l3Stacking = (enabled: boolean) =>
   apiPost<unknown>('/api/l3/stacking', { enabled });
+
+export const fetchActiveProfile = () =>
+  apiGet<{ id: string; name: string; createdAt: string; updatedAt: string }>('/api/profiles/active');

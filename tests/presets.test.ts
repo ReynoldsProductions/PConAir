@@ -59,18 +59,17 @@ describe('PresetsStore', () => {
 import request from 'supertest';
 import type { Express } from 'express';
 import { createStateStore } from '../src/main/state';
-import { createAuthManager } from '../src/main/auth';
 import { createFullServer } from './_test-server';
 
 function makeHttpServer() {
   const store = createStateStore();
-  const auth = createAuthManager({
-    operatorPin: 'test1234', adminPin: 'adminpass8', operatorSessionMs: 60000, adminSessionMs: 60000,
-    maxFailures: 5, lockoutMs: 60000,
+  const server = createFullServer({
+    store,
+    operatorPin: 'test1234',
+    adminPin: 'adminpass8',
+    port: 0,
   });
-  const presets = createPresetsStore();
-  const server = createFullServer({ store, auth, presets, port: 0 });
-  return { server, store, auth, presets };
+  return { server, store, presets: server.presets };
 }
 
 async function getCookies(app: Express) {

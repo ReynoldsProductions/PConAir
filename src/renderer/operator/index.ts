@@ -25,6 +25,17 @@ async function refreshL3CueSelect(): Promise<void> {
   if (prev && cues.some((x) => x.id === prev)) sel.value = prev;
 }
 
+async function refreshActiveProfile(): Promise<void> {
+  try {
+    const p = await api.fetchActiveProfile();
+    const el = document.getElementById('active-profile');
+    if (el) el.textContent = `Profile: ${p.name}`;
+  } catch {
+    const el = document.getElementById('active-profile');
+    if (el) el.textContent = '';
+  }
+}
+
 // ── WebSocket connection ──────────────────────────────────────────
 
 function connectWs(delay = 1000): void {
@@ -214,4 +225,8 @@ function bindEvents(): void {
 store.subscribe(renderState);
 bindEvents();
 void refreshL3CueSelect().catch(() => { /* no session yet */ });
+void refreshActiveProfile().catch(() => { /* public endpoint */ });
+setInterval(() => {
+  void refreshActiveProfile().catch(() => {});
+}, 60000);
 connectWs();
