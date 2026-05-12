@@ -6,6 +6,9 @@ export interface L3Cue {
   title: string;
   subtitle: string | null;
   theme: string;
+  sourceType: 'manual' | 'csv' | 'image';
+  originalImagePath?: string | null;
+  originalImageFormat?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -15,6 +18,9 @@ export interface CreateL3CueInput {
   title: string;
   subtitle?: string | null;
   theme: string;
+  sourceType?: 'manual' | 'csv' | 'image';
+  originalImagePath?: string | null;
+  originalImageFormat?: string | null;
 }
 
 export type UpdateL3CueInput = Partial<Pick<L3Cue, 'name' | 'title' | 'subtitle' | 'theme'>>;
@@ -42,6 +48,9 @@ export function createL3CueStore(onChange?: () => void) {
       title: input.title,
       subtitle: input.subtitle ?? null,
       theme: input.theme,
+      sourceType: input.sourceType ?? 'manual',
+      originalImagePath: input.originalImagePath ?? null,
+      originalImageFormat: input.originalImageFormat ?? null,
       createdAt: now,
       updatedAt: now,
     };

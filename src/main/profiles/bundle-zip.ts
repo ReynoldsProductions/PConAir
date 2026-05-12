@@ -89,6 +89,9 @@ function stillItemsToCues(items: StillStoreExportV1['items']): L3Cue[] {
     title: row.title,
     subtitle: row.subtitle ?? null,
     theme: row.theme,
+    sourceType: 'manual' as const,
+    originalImagePath: null,
+    originalImageFormat: null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }));
