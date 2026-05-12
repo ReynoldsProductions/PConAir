@@ -366,6 +366,9 @@
       <div class="sidebar-label">Show Control</div>
       <div class="nav-item" data-section="showlock">Show Lock</div>
 
+      <div class="sidebar-label">System</div>
+      <div class="nav-item" data-section="system">System</div>
+
       <div class="sidebar-spacer"></div>
       <div class="sidebar-footer">
         <a href="/admin/health" target="_blank" class="btn btn-sm" style="display:block;text-align:center;text-decoration:none;">
@@ -498,6 +501,7 @@ function renderSection() {
     case 'l3cues':     renderL3Cues(); break;
     case 'profiles':   renderProfiles(); break;
     case 'showlock':   renderShowLock(); break;
+    case 'system':     renderSystem(); break;
   }
 }
 
@@ -1054,6 +1058,125 @@ function renderShowLock() {
       clearTimeout(lockArmTimer);
       showSuccess('Show Unlocked');
       renderShowLock();
+    } catch { /* showError handled in api() */ }
+  });
+}
+
+// ── Section: System ───────────────────────────────────────────────────────────
+async function renderSystem() {
+  content().innerHTML = `<div class="section-title">System</div><div class="card"><div class="card-title">Loading…</div></div>`;
+
+  let statusData, displaysData, activeProfileData, fullProfileData;
+  try {
+    [statusData, displaysData, activeProfileData] = await Promise.all([
+      api('GET', '/api/status'),
+      api('GET', '/api/displays'),
+      api('GET', '/api/profiles/active'),
+    ]);
+  } catch { return; }
+
+  try {
+    fullProfileData = await api('GET', `/api/profiles/${activeProfileData.id}`);
+  } catch { fullProfileData = null; }
+
+  const displays = (displaysData && displaysData.displays) || [];
+  const instA = (statusData && statusData.abState && statusData.abState.instanceA) || {};
+  const instB = (statusData && statusData.abState && statusData.abState.instanceB) || {};
+  const prefs = (fullProfileData && fullProfileData.appPreferences) || {};
+  const allowlistEnabled = !!prefs.ipAllowlistEnabled;
+  const allowlist = Array.isArray(prefs.ipAllowlist) ? prefs.ipAllowlist : [];
+
+  const displayOptions = [
+    '<option value="">— None —</option>',
+    ...displays.map(d => `<option value="${escHtml(d.id)}">${escHtml(d.name)}${d.isPrimary ? ' (primary)' : ''}</option>`),
+  ].join('');
+
+  const port = location.port || '8080';
+
+  content().innerHTML = `
+    <div class="section-title">System</div>
+
+    <div class="card">
+      <div class="card-title">Display Assignment</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+        Assign each A/B instance to a connected display. Only meaningful in URL mode.
+      </p>
+      <div class="form-grid-2" style="margin-bottom:12px;">
+        <div class="field">
+          <div class="field-label">Instance A</div>
+          <select id="display-a-select">${displayOptions}</select>
+        </div>
+        <div class="field">
+          <div class="field-label">Instance B</div>
+          <select id="display-b-select">${displayOptions}</select>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="save-displays-btn">Save Display Assignment</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">IP Allowlist</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+        When enabled, only requests from listed IPs or CIDRs are accepted.
+        Changes take effect after restarting the app.
+      </p>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <input type="checkbox" id="allowlist-enabled-cb" ${allowlistEnabled ? 'checked' : ''}
+          style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);" />
+        <label for="allowlist-enabled-cb" style="font-size:13px;cursor:pointer;">Enable IP allowlist</label>
+      </div>
+      <div class="field">
+        <div class="field-label">Allowed IPs / CIDRs (one per line)</div>
+        <textarea id="allowlist-textarea" rows="6" placeholder="192.168.1.0/24&#10;10.0.0.1">${escHtml(allowlist.join('\n'))}</textarea>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="save-allowlist-btn">Save Allowlist</button>
+        <span style="font-size:11px;color:var(--orange);">&#9888; Changes take effect after restarting the app.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Server Port</div>
+      <p style="font-size:13px;color:var(--text-dim);line-height:1.5;">
+        Current port: <strong style="color:var(--text);font-size:16px;">${escHtml(port)}</strong>
+        &nbsp;<span style="font-size:11px;color:var(--text-dim);">(set at startup — restart required to change)</span>
+      </p>
+    </div>
+  `;
+
+  // Set current display selections
+  const selA = document.getElementById('display-a-select');
+  const selB = document.getElementById('display-b-select');
+  if (instA.displayTarget) selA.value = instA.displayTarget;
+  if (instB.displayTarget) selB.value = instB.displayTarget;
+
+  // Save display assignments
+  document.getElementById('save-displays-btn').addEventListener('click', async () => {
+    const displayA = selA.value;
+    const displayB = selB.value;
+    try {
+      await Promise.all([
+        api('POST', '/api/action', { action_id: 'set_display', params: { display: displayA, instance: 'A' } }),
+        api('POST', '/api/action', { action_id: 'set_display', params: { display: displayB, instance: 'B' } }),
+      ]);
+      showSuccess('Display assignment saved');
+    } catch { /* showError handled in api() */ }
+  });
+
+  // Save allowlist
+  document.getElementById('save-allowlist-btn').addEventListener('click', async () => {
+    if (!activeProfileData) { showError('No active profile'); return; }
+    const enabled = document.getElementById('allowlist-enabled-cb').checked;
+    const raw = document.getElementById('allowlist-textarea').value;
+    const ips = raw.split('\n').map(s => s.trim()).filter(Boolean);
+    try {
+      await api('PATCH', `/api/profiles/${activeProfileData.id}`, {
+        appPreferences: {
+          ipAllowlistEnabled: enabled,
+          ipAllowlist: ips.length > 0 ? ips : null,
+        },
+      });
+      showSuccess('Allowlist saved — restart the app to apply');
     } catch { /* showError handled in api() */ }
   });
 }
