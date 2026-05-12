@@ -14,6 +14,7 @@ import { createL3WindowManager } from './l3/window-manager';
 import { createMediaLibraryStore } from './media-library/item-store';
 import { createMediaLibraryWindowManager } from './media-library/window-manager';
 import { createActionDispatcher } from './action-dispatch';
+import { renderCueToPng } from './l3/cue-renderer';
 import { wireRuntimePersistence } from './runtime-persistence';
 import { snapshotDisplays } from './displays';
 import { bootstrapProfiles, parseProfileCliArg, getActiveMarker, syncActiveProfileUrlPresets, clearIpAllowlistForActiveProfile } from './profiles/bootstrap';
@@ -134,6 +135,7 @@ async function main() {
       app.exit(0);
     },
     trustForwardedFor: cli.trustForwardedFor,
+    renderManualCue: (cue) => renderCueToPng(cue, l3ThemeStore.getThemeCss(cue.theme)),
   });
   await server.listen();
   console.log(`PC On Air server running on http://localhost:${DEFAULT_PORT}`);

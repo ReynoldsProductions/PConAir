@@ -3,6 +3,7 @@ import request from 'supertest';
 import type { Express } from 'express';
 import { createStateStore } from '../src/main/state';
 import { createFullServer } from './_test-server';
+import { renderCueHtml } from '../src/main/l3/cue-renderer';
 
 /** Minimal valid 1×1 PNG */
 const PNG_1PX = Buffer.from(
@@ -332,5 +333,67 @@ describe('L3 Image Upload (Still Store)', () => {
       .set('Cookie', op);
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('CUE_NOT_FOUND');
+  });
+});
+
+describe('L3 cue export — manual type', () => {
+  let app: Express;
+  let srv: ReturnType<typeof createFullServer>;
+  let op: string;
+  let adm: string;
+
+  beforeEach(async () => {
+    const store = createStateStore();
+    srv = createFullServer({
+      store,
+      operatorPin: AUTH.operatorPin,
+      adminPin: AUTH.adminPin,
+      operatorSessionMs: AUTH.operatorSessionMs,
+      adminSessionMs: AUTH.adminSessionMs,
+      port: 0,
+    });
+    await srv.listen();
+    app = srv.app;
+    op = await opCookie(app);
+    adm = await adminCookie(app);
+  });
+
+  afterEach(() => srv.close());
+
+  it('returns 501 for manual cue when renderer is not injected', async () => {
+    const createRes = await request(app)
+      .post('/api/l3/cues')
+      .set('Cookie', adm)
+      .send({ name: 'Test Speaker', title: 'Director', theme: 'default' });
+    expect(createRes.status).toBe(201);
+    const cueId = createRes.body.id as string;
+
+    const res = await request(app)
+      .get(`/api/l3/cues/${cueId}/export`)
+      .set('Cookie', op);
+    expect(res.status).toBe(501);
+    expect(res.body.error.code).toBe('NOT_IMPLEMENTED');
+  });
+
+  it('renderCueHtml returns valid HTML with cue fields', () => {
+    const cue = {
+      id: 'test-id',
+      name: 'Jane Doe',
+      title: 'Chief Executive Officer',
+      subtitle: null,
+      theme: 'default',
+      sourceType: 'manual' as const,
+      originalImagePath: null,
+      originalImageFormat: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const css = '.lower-third { background: rgba(0,0,0,0.8); }';
+    const html = renderCueHtml(cue, css);
+
+    expect(html).toContain('<html');
+    expect(html).toContain('Jane Doe');
+    expect(html).toContain('Chief Executive Officer');
+    expect(html).toContain(css);
   });
 });

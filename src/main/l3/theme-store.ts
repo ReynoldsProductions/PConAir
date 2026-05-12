@@ -138,7 +138,18 @@ export function createL3ThemeStore(opts: { l3FilesRoot: string; onChange?: () =>
     return true;
   }
 
-  return { list, findByName, create, remove };
+  /**
+   * Returns the CSS content for the given theme name.
+   * Returns '' if themeId is null/undefined/empty, theme not found, or CSS unreadable.
+   */
+  function getThemeCss(themeId: string | null | undefined): string {
+    if (!themeId) return '';
+    const theme = findByName(themeId);
+    if (!theme) return '';
+    return theme.cssContent;
+  }
+
+  return { list, findByName, create, remove, getThemeCss };
 }
 
 export type L3ThemeStore = ReturnType<typeof createL3ThemeStore>;

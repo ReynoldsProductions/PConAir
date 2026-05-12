@@ -97,6 +97,7 @@ export function createL3Router(
   playlists: L3PlaylistStore,
   themes: L3ThemeStore,
   l3FilesRoot: string,
+  renderManualCue?: (cue: import('../l3/cue-store').L3Cue) => Promise<Buffer>,
 ): Router {
   const router = Router();
   const opGuard = requireOperator(auth);
@@ -381,7 +382,7 @@ export function createL3Router(
 
   // ── Cue export (parameterised — must come after static paths) ───────────────
 
-  router.get('/cues/:cueId/export', opGuard, (req: Request, res: Response) => {
+  router.get('/cues/:cueId/export', opGuard, async (req: Request, res: Response) => {
     const { cueId } = req.params;
     const cue = cues.findById(cueId);
     if (!cue) {
@@ -412,6 +413,23 @@ export function createL3Router(
           res.status(500).json({ error: { code: 'READ_ERROR', message: 'Failed to read file' } });
         }
       });
+      return;
+    }
+
+    if (cue.sourceType === 'manual' && renderManualCue) {
+      try {
+        const pngBuffer = await renderManualCue(cue);
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="${encodeURIComponent(cue.name)}.png"`
+        );
+        res.send(pngBuffer);
+      } catch {
+        if (!res.headersSent) {
+          res.status(500).json({ error: { code: 'RENDER_ERROR', message: 'Failed to render PNG' } });
+        }
+      }
       return;
     }
 

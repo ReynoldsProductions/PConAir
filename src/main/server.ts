@@ -33,6 +33,8 @@ export interface ServerDeps {
   getActiveProfileId: () => string;
   onProfileActivate?: () => void;
   trustForwardedFor?: boolean;
+  /** When omitted, manual-cue export returns 501 (e.g. in tests without Electron). */
+  renderManualCue?: (cue: import('./l3/cue-store').L3Cue) => Promise<Buffer>;
 }
 
 function getRequestClientIp(req: express.Request, trustForwardedFor: boolean): string {
@@ -95,6 +97,7 @@ export function createServer(deps: ServerDeps) {
     getActiveProfileId,
     onProfileActivate,
     trustForwardedFor = false,
+    renderManualCue: renderManualCueDep,
   } = deps;
 
   let adminShowLocked = false;
@@ -159,6 +162,7 @@ export function createServer(deps: ServerDeps) {
     reliability,
     serverStartedAt,
     buildDateIso,
+    renderManualCue: renderManualCueDep,
   };
 
   const app = express();
