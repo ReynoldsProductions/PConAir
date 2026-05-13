@@ -31,6 +31,10 @@ export interface AppPreferences {
   ipAllowlistEnabled: boolean;
   adminLockOnShow: boolean;
   operatorUiScale: number;
+  // New fields for GSC parity:
+  operatorTheme?: 'light' | 'dark';
+  verboseLogging?: boolean;
+  gpuMode?: 'default' | 'angle' | 'disabled';
 }
 
 /** Full profile as stored on disk (includes PIN hashes). */
