@@ -109,3 +109,12 @@ export const fetchServerInfo = () =>
 
 export const fetchSlidesNotes = () =>
   apiGet<{ notes: string | null; slideIndex: number | null }>('/api/slides/notes');
+
+export interface UrlPresetItem {
+  id: string;
+  name: string;
+  url: string;
+}
+
+export const fetchPresets = () =>
+  apiGet<{ presets: UrlPresetItem[] }>('/api/presets');

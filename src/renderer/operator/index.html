@@ -891,7 +891,7 @@ input[type="radio"] {
 
     <div class="main">
       <header class="status-bar">
-        <span class="status-bar-machine">PC On Air</span>
+        <span class="status-bar-machine" id="machine-name-label">PC On Air</span>
         <div class="status-bar-indicators">
           <div class="status-indicator">
             <span class="led" id="ws-dot"></span>
@@ -956,6 +956,10 @@ input[type="radio"] {
             </div>
             <button type="button" class="btn btn-secondary" id="reload-btn" disabled>Reload Deck</button>
           </div>
+          <div class="panel">
+            <div class="panel-title">Slide Presets</div>
+            <div id="slide-presets-list" class="field-hint">Loading…</div>
+          </div>
         </section>
 
         <section data-tab="url" hidden>
@@ -972,6 +976,10 @@ input[type="radio"] {
             <button type="button" class="btn btn-primary" id="url-load-btn">Load URL</button>
             <p id="url-status" class="url-status-line field-hint" style="margin-top:12px;"></p>
             <button type="button" class="btn btn-secondary" style="margin-top:12px;" id="url-reload-btn" disabled>Reload Active URL</button>
+          </div>
+          <div class="panel">
+            <div class="panel-title">URL Presets</div>
+            <div id="url-presets-list" class="field-hint">Loading…</div>
           </div>
         </section>
 
@@ -1054,7 +1062,17 @@ input[type="radio"] {
           <h1 class="page-title">Settings</h1>
           <div class="panel">
             <div class="panel-title">Theme</div>
-            <p class="field-hint">Loading…</p>
+            <div style="display:flex;gap:16px;margin-bottom:8px;">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="radio" name="theme-radio" value="light" />
+                Light
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="radio" name="theme-radio" value="dark" />
+                Dark
+              </label>
+            </div>
+            <p class="field-hint">Theme is set by the admin. This is your local override (stored in browser only).</p>
           </div>
         </section>
       </div>
