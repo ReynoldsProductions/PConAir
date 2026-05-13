@@ -5,7 +5,7 @@ import type { AuthManager } from '../auth';
 import { requireOperator } from './middleware';
 
 // Read once at startup — fs.readFileSync works inside Electron asars; res.sendFile does not.
-const OPERATOR_HTML_PATH = path.resolve(__dirname, '../../renderer/operator/index.html');
+const OPERATOR_HTML_PATH = path.resolve(__dirname, '../renderer/operator/index.html');
 const OPERATOR_HTML_CONTENT: string = (() => {
   try {
     return fs.readFileSync(OPERATOR_HTML_PATH, 'utf-8');

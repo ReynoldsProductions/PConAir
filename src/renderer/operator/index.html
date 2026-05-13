@@ -5,457 +5,1014 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PC On Air — Operator</title>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ============================================================
+   Google Slides Controller — Desktop UI Redesign
+   Design tokens and component styles (Faire-style)
+   ============================================================ */
 
-    :root {
-      --bg: #111;
-      --surface: #1e1e1e;
-      --border: #333;
-      --text: #e0e0e0;
-      --text-dim: #888;
-      --accent: #4a9eff;
-      --green: #3cba54;
-      --red: #e53935;
-      --orange: #ff9800;
-    }
+/* 1. DESIGN TOKENS
+   ============================================================ */
+:root {
+  --bg: #ffffff;
+  --surface-2: #fbf8f6;
+  --surface-3: #f3f0ed;
+  --border: #dfe0e1;
+  --text: #333333;
+  --text-subdued: #757575;
+  --text-disabled: #b5a998;
+  --ok: #49694c;
+  --warn: #907c3a;
+  --bad: #921100;
+  --led-ok: #3a7d3e;
+  --led-warn: #b8942a;
+  --led-bad: #a01200;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+  --font-serif: Georgia, 'Times New Roman', Times, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius: 4px;
+}
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      font-size: 14px;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
+/* 2. RESET + BASE
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
-    #status-bar {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 8px 16px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-      flex-wrap: wrap;
-    }
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
 
-    #panic-banner {
-      display: none;
-      flex: 1 1 100%;
-      text-align: center;
-      padding: 8px 12px;
-      background: #b71c1c;
-      color: #fff;
-      font-weight: 700;
-      font-size: 13px;
-      letter-spacing: 0.04em;
-    }
+body {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+}
 
-    #panic-banner.visible { display: block; }
+/* 3. LAYOUT
+   ============================================================ */
+.app {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
 
-    #panic-btn {
-      margin-left: auto;
-      padding: 8px 16px;
-      border: none;
-      border-radius: 4px;
-      background: #c62828;
-      color: #fff;
-      font-weight: 800;
-      font-size: 12px;
-      letter-spacing: 0.08em;
-      cursor: pointer;
-    }
+.sidebar {
+  width: 180px;
+  min-width: 180px;
+  background: var(--surface-2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  -webkit-app-region: drag;
+}
 
-    #panic-btn:hover { background: #e53935; }
+.sidebar-nav {
+  flex: 1;
+  padding: 16px 0 8px;
+  -webkit-app-region: no-drag;
+}
 
-    #status-bar .app-title {
-      font-weight: 600;
-      font-size: 13px;
-      color: var(--text-dim);
-      margin-right: auto;
-    }
+.nav-group {
+  margin-bottom: 16px;
+}
 
-    .status-pill {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: var(--text-dim);
-    }
+.nav-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-disabled);
+  padding: 0 16px;
+  margin-bottom: 4px;
+}
 
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--red);
-    }
+.nav-item {
+  display: block;
+  padding: 6px 16px;
+  font-size: 13px;
+  color: var(--text-subdued);
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background 0.1s, color 0.1s;
+}
 
-    .status-dot.connected { background: var(--green); }
+.nav-item:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
 
-    #mode-badge {
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      background: var(--border);
-      color: var(--text-dim);
-    }
+.nav-item.active {
+  background: var(--surface-3);
+  color: var(--text);
+  font-weight: 500;
+  border-left: 2px solid var(--text);
+  padding-left: 14px;
+}
 
-    #mode-badge.slides { background: #1a3a5c; color: var(--accent); }
-    #mode-badge.url    { background: #1a3a2a; color: var(--green); }
-    #mode-badge.l3     { background: #3a2a1a; color: var(--orange); }
-    #mode-badge.media-library { background: #2a1a3a; color: #ce93d8; }
-    #mode-badge.idle   { background: #2a2a2a; color: var(--text-dim); }
+.nav-item:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
 
-    #show-lock-badge {
-      display: none;
-      padding: 3px 10px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      background: var(--orange);
-      color: #111;
-    }
-    #show-lock-badge.visible { display: inline-block; }
+.sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-disabled);
+  -webkit-app-region: no-drag;
+}
 
-    #main {
-      flex: 1;
-      display: flex;
-      gap: 0;
-      overflow: hidden;
-    }
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 
-    .panel {
-      padding: 16px;
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      overflow-y: auto;
-    }
+/* 4. STATUS BAR + LED
+   ============================================================ */
+.status-bar {
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  height: 36px;
+  min-height: 36px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-subdued);
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
 
-    .panel:last-child { border-right: none; flex: 1; }
+.status-bar * {
+  -webkit-app-region: no-drag;
+}
 
-    .panel-title {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-dim);
-      padding-bottom: 8px;
-      border-bottom: 1px solid var(--border);
-    }
+.status-bar-machine {
+  font-weight: 500;
+  color: var(--text);
+  margin-right: auto;
+}
 
-    .btn {
-      padding: 8px 14px;
-      border-radius: 5px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text);
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-      transition: background 0.1s, border-color 0.1s;
-      white-space: nowrap;
-    }
+.status-bar-indicators {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
 
-    .btn:hover { background: #2a2a2a; border-color: #555; }
-    .btn:active { background: #333; }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
 
-    .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .btn-primary:hover { background: #3a8eef; border-color: #3a8eef; }
+.led {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
 
-    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.led-ok      { background: var(--led-ok);  box-shadow: 0 0 4px rgba(58,125,62,0.7); }
+.led-warn    { background: var(--led-warn); box-shadow: 0 0 4px rgba(184,148,42,0.7); }
+.led-bad     { background: var(--led-bad);  box-shadow: 0 0 4px rgba(160,18,0,0.7); }
+.led-neutral { background: var(--border); }
 
-    .btn-nav { flex: 1; text-align: center; font-size: 18px; padding: 12px; }
+/* 5. CONTENT AREA + TABS
+   ============================================================ */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 32px;
+}
 
-    input[type="text"], input[type="number"] {
-      width: 100%;
-      padding: 8px 10px;
-      border-radius: 5px;
-      border: 1px solid var(--border);
-      background: #0d0d0d;
-      color: var(--text);
-      font-size: 13px;
-    }
+.page-title {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 400;
+  color: var(--text);
+  margin-bottom: 24px;
+  line-height: 1.2;
+}
 
-    input[type="text"]:focus, input[type="number"]:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
+/* 6. PANELS (replaces .card)
+   ============================================================ */
+.panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+}
 
-    select {
-      width: 100%;
-      padding: 8px 10px;
-      border-radius: 5px;
-      border: 1px solid var(--border);
-      background: #0d0d0d;
-      color: var(--text);
-      font-size: 13px;
-    }
+.panel + .panel {
+  margin-top: 16px;
+}
 
-    select:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
+.panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 16px;
+}
 
-    .field-label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+.card-description {
+  font-size: 13px;
+  color: var(--text-subdued);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
 
-    .stack-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
+/* 7. DASHBOARD SPECIFICS
+   ============================================================ */
+.dashboard-machine-name-block {
+  margin-bottom: 24px;
+}
 
-    .stack-row input[type="checkbox"] {
-      width: auto;
-      accent-color: var(--accent);
-    }
+.dashboard-machine-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-serif);
+  font-size: 32px;
+  font-weight: 400;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: var(--radius);
+  padding: 2px 4px;
+  margin: -2px -4px;
+  transition: background 0.15s;
+}
 
-    #slide-counter {
-      font-size: 28px;
-      font-weight: 700;
-      color: var(--accent);
-      text-align: center;
-    }
+.dashboard-machine-heading:hover {
+  background: var(--surface-3);
+}
 
-    #deck-title {
-      font-size: 12px;
-      color: var(--text-dim);
-      text-align: center;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
+.dashboard-machine-heading:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
 
-    .ab-btn {
-      flex: 1;
-      padding: 16px;
-      text-align: center;
-      font-size: 24px;
-      font-weight: 700;
-      border-radius: 6px;
-      border: 2px solid var(--border);
-    }
+.rename-pencil {
+  width: 16px;
+  height: 16px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  color: var(--text-subdued);
+  flex-shrink: 0;
+}
 
-    .ab-btn.active { border-color: var(--accent); color: var(--accent); background: #1a2a3a; }
+.dashboard-machine-heading:hover .rename-pencil,
+.dashboard-machine-heading:focus-visible .rename-pencil {
+  opacity: 1;
+}
 
-    /* Watchdog banners */
-    #watchdog-banners {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 999;
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-      pointer-events: none;
-    }
+.dashboard-cta-row {
+  margin-top: 20px;
+  display: flex;
+  gap: 12px;
+}
 
-    .wd-banner {
-      display: none;
-      width: 100%;
-      padding: 8px 16px;
-      font-size: 13px;
-      font-weight: 600;
-      text-align: center;
-      pointer-events: all;
-    }
+/* 8. FORMS
+   ============================================================ */
+.form-group {
+  margin-bottom: 18px;
+}
 
-    .wd-banner.visible { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.form-group:last-child {
+  margin-bottom: 0;
+}
 
-    #wd-unresponsive-banner {
-      background: #b71c1c;
-      color: #fff;
-    }
+label {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 6px;
+  gap: 6px;
+}
 
-    #wd-memory-banner {
-      background: #f57f17;
-      color: #111;
-    }
+.icon {
+  width: 16px;
+  height: 16px;
+  color: var(--text-subdued);
+  flex-shrink: 0;
+}
 
-    #wd-restart-banner {
-      background: #1b5e20;
-      color: #fff;
-    }
+.input-field,
+.select-input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  transition: border-color 0.15s;
+}
 
-    .wd-force-reload-btn {
-      padding: 4px 12px;
-      border-radius: 4px;
-      border: 1px solid rgba(255,255,255,0.6);
-      background: transparent;
-      color: inherit;
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-      text-decoration: none;
-    }
+.select-input {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23757575' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
 
-    .wd-force-reload-btn:hover { background: rgba(255,255,255,0.2); }
+.input-field:hover,
+.select-input:hover {
+  border-color: var(--text-subdued);
+}
 
-    #error-toast {
-      position: fixed;
-      bottom: 16px;
-      right: 16px;
-      background: var(--red);
-      color: #fff;
-      padding: 10px 14px;
-      border-radius: 6px;
-      font-size: 13px;
-      display: none;
-      max-width: 300px;
-      z-index: 100;
-    }
+.input-field:focus,
+.select-input:focus {
+  outline: none;
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px rgba(51,51,51,0.08);
+}
+
+.input-field[type="checkbox"],
+.input-field[type="radio"] {
+  width: auto;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+  accent-color: var(--text);
+}
+
+.field-hint {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--text-subdued);
+  line-height: 1.45;
+}
+
+/* 9. BUTTONS
+   ============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.btn:active:not(:disabled) {
+  opacity: 0.75;
+}
+
+/* Primary: near-black */
+.btn-primary {
+  background: var(--text);
+  color: #fff;
+  border-color: var(--text);
+}
+
+.btn-primary:hover {
+  background: #000;
+  border-color: #000;
+}
+
+/* Secondary: transparent with border */
+.btn-secondary {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.btn-secondary:hover {
+  background: var(--surface-3);
+  border-color: var(--text-subdued);
+}
+
+/* Google sign-in */
+.btn-google {
+  background: var(--bg);
+  color: var(--text);
+  border-color: var(--border);
+  width: 100%;
+}
+
+.btn-google:hover {
+  background: var(--surface-2);
+  border-color: var(--text-subdued);
+}
+
+.btn-signout {
+  background: transparent;
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.btn-signout:hover {
+  background: var(--bad);
+  color: #fff;
+}
+
+.btn-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.btn-large {
+  padding: 12px 24px;
+  font-size: 14px;
+}
+
+/* 10. URLS + NETWORK
+   ============================================================ */
+.network-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.network-group strong {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-subdued);
+}
+
+.url-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 4px;
+}
+
+.url-item {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text);
+  padding: 3px 7px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  word-break: break-all;
+}
+
+.url-item.internal {
+  color: var(--text-subdued);
+}
+
+/* 11. SPEAKER NOTES
+   ============================================================ */
+.speaker-notes-capture {
+  white-space: pre-wrap;
+  min-height: 120px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+/* 12. AUTH CONTAINER
+   ============================================================ */
+.auth-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 13. STATUS TOAST
+   ============================================================ */
+.status-message {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1000;
+  min-width: 200px;
+  text-align: left;
+  transition: opacity 0.2s, transform 0.2s;
+  transform: translateY(8px);
+  border: 1px solid transparent;
+}
+
+.status-message.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.status-message.success {
+  background: var(--ok);
+  color: #fff;
+}
+
+.status-message.error {
+  background: var(--bad);
+  color: #fff;
+}
+
+.status-message.info {
+  background: var(--text);
+  color: #fff;
+}
+
+/* 14. SCROLLBARS
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-disabled); }
+
+/* 15. UTILITY
+   ============================================================ */
+[hidden] {
+  display: none !important;
+}
+
+
+/* ── PC On Air operator additions ───────────────────────────────── */
+
+#panic-banner {
+  display: none;
+  flex-shrink: 0;
+  width: 100%;
+  text-align: center;
+  padding: 8px 16px;
+  background: var(--bad);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+#panic-banner.visible { display: block; }
+
+#mode-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: var(--radius);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--surface-3);
+  color: var(--text-subdued);
+  border: 1px solid var(--border);
+}
+
+#mode-badge.idle {
+  background: var(--surface-2);
+  color: var(--text-subdued);
+}
+
+#mode-badge.slides {
+  background: #e8eef5;
+  color: #1a4a8c;
+  border-color: #c5d4eb;
+}
+
+#mode-badge.url {
+  background: #e6f4ea;
+  color: var(--ok);
+  border-color: #c8e6c9;
+}
+
+#mode-badge.l3 {
+  background: #fff3e0;
+  color: #9a6700;
+  border-color: #ffe0b2;
+}
+
+#mode-badge.media-library {
+  background: #f3e5f5;
+  color: #6a1b9a;
+  border-color: #e1bee7;
+}
+
+#show-lock-badge {
+  display: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: #fff3e0;
+  color: var(--warn);
+  border: 1px solid #ffe0b2;
+}
+
+#show-lock-badge.visible { display: inline-block; }
+
+.led {
+  background: var(--led-bad);
+  box-shadow: 0 0 4px rgba(160, 18, 0, 0.7);
+}
+
+.led.connected {
+  background: var(--led-ok);
+  box-shadow: 0 0 4px rgba(58, 125, 62, 0.7);
+}
+
+.ab-row { display: flex; gap: 12px; }
+
+.ab-btn {
+  flex: 1;
+  min-height: 72px;
+  font-size: 24px;
+  font-weight: 700;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.ab-btn:hover:not(:disabled) {
+  border-color: var(--text-subdued);
+  background: var(--surface-2);
+}
+
+.ab-btn.active {
+  border-color: #1a4a8c;
+  background: #e8eef5;
+  color: #1a4a8c;
+}
+
+.mode-btn-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mode-btn-grid .btn { width: 100%; justify-content: flex-start; }
+
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
+
+.btn-row .input-field { flex: 1; min-width: 0; }
+
+.btn-nav { flex: 1; text-align: center; font-size: 18px; padding: 12px 16px; }
+
+#slide-counter {
+  font-size: 26px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text);
+}
+
+#deck-title {
+  font-size: 12px;
+  color: var(--text-subdued);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#watchdog-banners {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.wd-banner {
+  display: none;
+  width: 100%;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  pointer-events: auto;
+}
+
+.wd-banner.visible { display: flex; }
+
+#wd-unresponsive-banner {
+  background: var(--bad);
+  color: #fff;
+}
+
+#wd-memory-banner {
+  background: #fff8e1;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+
+#wd-restart-banner {
+  background: var(--ok);
+  color: #fff;
+}
+
+.wd-force-reload-btn {
+  padding: 4px 12px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+
+.wd-force-reload-btn:hover { background: rgba(255, 255, 255, 0.2); }
+
+#wd-memory-banner .wd-health-link {
+  padding: 4px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  font-family: var(--font-sans);
+}
+
+#wd-memory-banner .wd-health-link:hover { background: var(--surface-2); }
+
+#error-toast.status-message {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+  display: none;
+  background: var(--bad);
+  color: #fff;
+  border-color: var(--bad);
+  max-width: 320px;
+  white-space: pre-wrap;
+}
+
+#panic-btn {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  border-radius: var(--radius);
+  border: 1px solid var(--bad);
+  background: var(--bad);
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+
+#panic-btn:hover { filter: brightness(1.08); }
+
+#state-dump {
+  font-size: 11px;
+  color: var(--text-subdued);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 60vh;
+  overflow: auto;
+  margin: 0;
+}
+
+.ml-l3-select-wrap { display: flex; gap: 8px; align-items: stretch; }
+
+.ml-l3-select-wrap .select-input { flex: 1; min-width: 0; }
+
+.url-status-line { font-size: 12px; color: var(--text-subdued); line-height: 1.45; min-height: 1.2em; }
+
   </style>
 </head>
 <body>
 
-  <!-- Watchdog alert banners (spec 09 §6.2, §6.3, §6.5) -->
   <div id="watchdog-banners">
     <div id="wd-unresponsive-banner" class="wd-banner">
       <span id="wd-unresponsive-text">⚠ Program Output Unresponsive</span>
-      <button class="wd-force-reload-btn" id="wd-force-reload-btn">Force Reload</button>
+      <button type="button" class="wd-force-reload-btn" id="wd-force-reload-btn">Force Reload</button>
     </div>
     <div id="wd-memory-banner" class="wd-banner">
       <span id="wd-memory-text">⚠ Memory Usage High</span>
       <span>— Consider restarting app after this show —</span>
-      <a class="wd-force-reload-btn" href="/admin/health">View Health</a>
+      <a class="wd-health-link" href="/admin/health">View Health</a>
     </div>
     <div id="wd-restart-banner" class="wd-banner">
       <span>&#10003; Program Output Restarted — State Restored</span>
     </div>
   </div>
 
-  <div id="panic-banner">PANIC — OUTPUT HIDDEN · Click UN-PANIC or press P</div>
+  <div class="app">
+    <aside class="sidebar">
+      <nav class="sidebar-nav">
+        <div class="nav-group">
+          <div class="nav-group-label">Overview</div>
+          <a href="#" class="nav-item active" data-target="dashboard">Live Control</a>
+          <a href="#" class="nav-item" data-target="slides">Slides</a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-label">Show Control</div>
+          <a href="#" class="nav-item" data-target="url">URL Mode</a>
+          <a href="#" class="nav-item" data-target="l3">Lower Thirds</a>
+          <a href="#" class="nav-item" data-target="media">Media Library</a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-label">System</div>
+          <a href="#" class="nav-item" data-target="status">Status</a>
+        </div>
+      </nav>
+      <footer class="sidebar-footer">
+        <div id="active-profile"></div>
+      </footer>
+    </aside>
 
-  <div id="status-bar">
-    <span class="app-title">PC On Air</span>
-    <span id="active-profile" class="status-pill" title="Active show profile">—</span>
-    <span id="mode-badge">IDLE</span>
-    <span id="show-lock-badge">SHOW LOCKED</span>
-    <span class="status-pill">
-      <span id="ws-dot" class="status-dot"></span>
-      <span id="ws-label">Disconnected</span>
-    </span>
-    <span class="status-pill">
-      <span id="companion-dot" class="status-dot"></span>
-      <span>Companion</span>
-    </span>
-    <button type="button" id="panic-btn">PANIC</button>
+    <div class="main">
+      <header class="status-bar">
+        <span class="status-bar-machine">PC On Air</span>
+        <div class="status-bar-indicators">
+          <div class="status-indicator">
+            <span class="led" id="ws-dot"></span>
+            <span id="ws-label">Disconnected</span>
+          </div>
+          <div class="status-indicator">
+            <span class="led" id="companion-dot"></span>
+            <span>Companion</span>
+          </div>
+          <span id="mode-badge" class="mode-badge">IDLE</span>
+          <span id="show-lock-badge">SHOW LOCKED</span>
+          <button type="button" id="panic-btn" class="btn btn-primary">PANIC</button>
+        </div>
+      </header>
+
+      <div id="panic-banner">PANIC — OUTPUT HIDDEN · Click UN-PANIC or press P</div>
+
+      <div class="content">
+        <section data-tab="dashboard">
+          <h1 class="page-title">Live Control</h1>
+          <div class="panel">
+            <div class="panel-title">A/B Instance</div>
+            <div class="ab-row">
+              <button type="button" class="ab-btn" id="ab-a-btn" data-instance="A">A</button>
+              <button type="button" class="ab-btn" id="ab-b-btn" data-instance="B">B</button>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Mode</div>
+            <div class="mode-btn-grid">
+              <button type="button" class="btn btn-secondary" data-mode="idle">Idle</button>
+              <button type="button" class="btn btn-secondary" data-mode="slides">Slides</button>
+              <button type="button" class="btn btn-secondary" data-mode="url">URL</button>
+              <button type="button" class="btn btn-secondary" data-mode="l3">Lower Thirds</button>
+              <button type="button" class="btn btn-secondary" data-mode="media-library">Media Library</button>
+            </div>
+          </div>
+        </section>
+
+        <section data-tab="slides" hidden>
+          <h1 class="page-title">Slides</h1>
+          <div class="panel">
+            <div class="form-group">
+              <label for="deck-url-input">Google Slides URL</label>
+              <input type="text" id="deck-url-input" class="input-field" placeholder="https://docs.google.com/presentation/d/…" autocomplete="off" />
+            </div>
+            <button type="button" class="btn btn-primary" id="load-btn">Load Deck</button>
+            <div class="form-group" style="margin-top:16px;">
+              <div id="slide-counter">— / —</div>
+              <div id="deck-title">No deck loaded</div>
+            </div>
+            <div class="btn-row">
+              <button type="button" class="btn btn-secondary btn-nav" id="prev-btn" disabled>‹</button>
+              <button type="button" class="btn btn-secondary btn-nav" id="next-btn" disabled>›</button>
+            </div>
+            <div class="form-group">
+              <label for="goto-input">Go to slide (1-based)</label>
+              <div class="btn-row">
+                <input type="number" id="goto-input" class="input-field" min="1" placeholder="1" />
+                <button type="button" class="btn btn-primary" id="goto-btn" disabled>Go</button>
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary" id="reload-btn" disabled>Reload Deck</button>
+          </div>
+        </section>
+
+        <section data-tab="url" hidden>
+          <h1 class="page-title">URL Mode</h1>
+          <div class="panel">
+            <div class="form-group">
+              <label for="url-input">Page URL</label>
+              <input type="text" id="url-input" class="input-field" placeholder="https://…" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label for="url-display-input">Display target (optional)</label>
+              <input type="text" id="url-display-input" class="input-field" placeholder="Match a display from status" autocomplete="off" />
+            </div>
+            <button type="button" class="btn btn-primary" id="url-load-btn">Load URL</button>
+            <p id="url-status" class="url-status-line field-hint" style="margin-top:12px;"></p>
+            <button type="button" class="btn btn-secondary" style="margin-top:12px;" id="url-reload-btn" disabled>Reload Active URL</button>
+          </div>
+        </section>
+
+        <section data-tab="l3" hidden>
+          <h1 class="page-title">Lower Thirds</h1>
+          <div class="panel">
+            <div id="l3-active-line" class="field-hint" style="margin-bottom:12px;">Active: —</div>
+            <div class="form-group">
+              <label for="l3-cue-select">Cue from library</label>
+              <div class="ml-l3-select-wrap">
+                <select id="l3-cue-select" class="select-input">
+                  <option value="">— Manual entry below —</option>
+                </select>
+                <button type="button" class="btn btn-secondary" id="l3-cues-refresh-btn" title="Reload cue list">Refresh</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="l3-name-input">Name (manual take)</label>
+              <input type="text" id="l3-name-input" class="input-field" placeholder="Speaker name" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label for="l3-title-input">Title (manual take)</label>
+              <input type="text" id="l3-title-input" class="input-field" placeholder="Role or second line" autocomplete="off" />
+            </div>
+            <label class="form-group" style="display:flex;flex-direction:row;align-items:center;gap:8px;cursor:pointer;user-select:none;margin-bottom:0;">
+              <input type="checkbox" id="l3-stacking-checkbox" />
+              <span>Stack with active</span>
+            </label>
+            <div class="btn-row" style="margin-top:16px;">
+              <button type="button" class="btn btn-primary" id="l3-take-btn">Take</button>
+              <button type="button" class="btn btn-secondary" id="l3-clear-btn">Clear</button>
+            </div>
+          </div>
+        </section>
+
+        <section data-tab="media" hidden>
+          <h1 class="page-title">Media Library</h1>
+          <div class="panel">
+            <div id="ml-active-line" class="field-hint" style="margin-bottom:12px;">On air: —</div>
+            <div class="form-group">
+              <label for="ml-item-select">Still image</label>
+              <div class="ml-l3-select-wrap">
+                <select id="ml-item-select" class="select-input">
+                  <option value="">— Select an item —</option>
+                </select>
+                <button type="button" class="btn btn-secondary" id="ml-refresh-btn" title="Reload library list">Refresh</button>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button type="button" class="btn btn-primary" id="ml-take-btn">Take</button>
+              <button type="button" class="btn btn-secondary" id="ml-clear-btn">Clear</button>
+            </div>
+          </div>
+        </section>
+
+        <section data-tab="status" hidden>
+          <h1 class="page-title">Status</h1>
+          <div class="panel">
+            <pre id="state-dump"></pre>
+          </div>
+        </section>
+      </div>
+    </div>
   </div>
 
-  <div id="main">
-
-    <div class="panel" style="width: 280px; min-width: 280px;">
-      <div class="panel-title">Slides</div>
-      <div>
-        <div class="field-label">Google Slides URL</div>
-        <input type="text" id="deck-url-input" placeholder="https://docs.google.com/presentation/d/…" />
-      </div>
-      <button class="btn btn-primary" id="load-btn">Load Deck</button>
-      <div id="slide-counter">— / —</div>
-      <div id="deck-title">No deck loaded</div>
-      <div class="btn-row">
-        <button class="btn btn-nav" id="prev-btn" disabled>‹</button>
-        <button class="btn btn-nav" id="next-btn" disabled>›</button>
-      </div>
-      <div>
-        <div class="field-label">Go to slide (1-based)</div>
-        <div class="btn-row">
-          <input type="number" id="goto-input" min="1" style="flex:1;" placeholder="1" />
-          <button class="btn" id="goto-btn" disabled>Go</button>
-        </div>
-      </div>
-      <button class="btn" id="reload-btn" disabled>Reload Deck</button>
-
-      <div class="panel-title" style="margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border);">URL</div>
-      <div>
-        <div class="field-label">Page URL</div>
-        <input type="text" id="url-input" placeholder="https://…" />
-      </div>
-      <div>
-        <div class="field-label">Display ID (optional)</div>
-        <input type="text" id="url-display-input" placeholder="Match a display from status" />
-      </div>
-      <button class="btn btn-primary" id="url-load-btn">Load URL</button>
-      <div id="url-status" class="field-label" style="margin-top: 8px; line-height: 1.4;"></div>
-      <button class="btn" id="url-reload-btn" disabled>Reload active URL</button>
-
-      <div class="panel-title" style="margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border);">Lower Thirds</div>
-      <div id="l3-active-line" class="field-label" style="line-height: 1.4;">Active: —</div>
-      <div>
-        <div class="field-label">Cue from library</div>
-        <div class="btn-row" style="align-items: stretch;">
-          <select id="l3-cue-select" style="flex: 1;">
-            <option value="">— Manual entry below —</option>
-          </select>
-          <button class="btn" type="button" id="l3-cues-refresh-btn" title="Reload cue list">↻</button>
-        </div>
-      </div>
-      <div>
-        <div class="field-label">Name (manual take)</div>
-        <input type="text" id="l3-name-input" placeholder="Speaker name" autocomplete="off" />
-      </div>
-      <div>
-        <div class="field-label">Title (manual take)</div>
-        <input type="text" id="l3-title-input" placeholder="Role or second line" autocomplete="off" />
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" type="button" id="l3-take-btn">Take</button>
-        <button class="btn" type="button" id="l3-clear-btn">Clear</button>
-      </div>
-      <label class="stack-row" style="cursor: pointer; user-select: none;">
-        <input type="checkbox" id="l3-stacking-checkbox" />
-        <span>Stacking (keep previous on new take)</span>
-      </label>
-
-      <div class="panel-title" style="margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border);">Media library</div>
-      <div id="ml-active-line" class="field-label" style="line-height: 1.4;">On air: —</div>
-      <div>
-        <div class="field-label">Still image</div>
-        <div class="btn-row" style="align-items: stretch;">
-          <select id="ml-item-select" style="flex: 1;">
-            <option value="">— Select an item —</option>
-          </select>
-          <button class="btn" type="button" id="ml-refresh-btn" title="Reload library list">↻</button>
-        </div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" type="button" id="ml-take-btn">Take</button>
-        <button class="btn" type="button" id="ml-clear-btn">Clear</button>
-      </div>
-    </div>
-
-    <div class="panel" style="width: 200px; min-width: 200px;">
-      <div class="panel-title">A/B Instance</div>
-      <div class="btn-row">
-        <button class="btn ab-btn" id="ab-a-btn" data-instance="A">A</button>
-        <button class="btn ab-btn" id="ab-b-btn" data-instance="B">B</button>
-      </div>
-      <div class="panel-title" style="margin-top: 8px;">Mode</div>
-      <button class="btn" data-mode="idle" id="mode-idle-btn">Idle</button>
-      <button class="btn" data-mode="slides" id="mode-slides-btn">Slides</button>
-      <button class="btn" data-mode="url" id="mode-url-btn">URL</button>
-      <button class="btn" data-mode="l3" id="mode-l3-btn">Lower Thirds</button>
-      <button class="btn" data-mode="media-library" id="mode-media-btn">Media</button>
-    </div>
-
-    <div class="panel">
-      <div class="panel-title">Status</div>
-      <pre id="state-dump" style="font-size:11px; color: var(--text-dim); white-space: pre-wrap; word-break: break-all;"></pre>
-    </div>
-
-  </div>
-
-  <div id="error-toast"></div>
+  <div id="error-toast" class="status-message"></div>
 
   <script src="./index.js"></script>
 </body>

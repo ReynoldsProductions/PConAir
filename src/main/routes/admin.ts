@@ -6,7 +6,7 @@ import type { AuthManager } from '../auth';
 // Read once at startup — fs.readFileSync works inside Electron asars; res.sendFile does not.
 const ADMIN_HTML_CONTENT: string = (() => {
   try {
-    return fs.readFileSync(path.resolve(__dirname, '../../renderer/admin/index.html'), 'utf-8');
+    return fs.readFileSync(path.resolve(__dirname, '../renderer/admin/index.html'), 'utf-8');
   } catch {
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>PC On Air — Admin</title></head><body><p>PC On Air Admin UI</p></body></html>`;
   }

@@ -38,9 +38,9 @@ export function createFullServer(opts: FullServerTestOpts) {
     adminPinHash: boot.profile.adminPinHash,
     operatorSessionMs: opts.operatorSessionMs ?? boot.profile.appPreferences.operatorSessionDurationMinutes * 60 * 1000,
     adminSessionMs: opts.adminSessionMs ?? boot.profile.appPreferences.adminSessionDurationMinutes * 60 * 1000,
-    maxFailures: 100,
-    failureWindowMs: 200,
-    lockoutMs: 200,
+    maxFailures: 5,
+    failureWindowMs: 5 * 60 * 1000,
+    lockoutMs: 5 * 60 * 1000,
   });
 
   let markRuntimeFlush: () => void = () => {};
