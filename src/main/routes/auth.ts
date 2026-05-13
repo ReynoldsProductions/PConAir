@@ -167,6 +167,39 @@ export function createAuthRouter(auth: AuthManager, opts: AuthRouterOpts): Route
       .json({ message: 'Logged out successfully.' });
   });
 
+  /** HTML form login (browser): sets admin cookie and redirects to /admin/ */
+  router.post('/admin/browser', async (req: Request, res: Response) => {
+    const raw = req.body as { pin?: unknown };
+    const pin = typeof raw.pin === 'string' ? raw.pin : undefined;
+    const ip = clientIp(req);
+
+    if (!pin) {
+      res.redirect(303, '/admin/?login=missing');
+      return;
+    }
+
+    if (auth.isLockedOut(ip)) {
+      res.redirect(303, '/admin/?login=locked');
+      return;
+    }
+
+    const session = await auth.createSession('admin', pin, ip);
+    if (!session) {
+      if (auth.isLockedOut(ip)) {
+        res.redirect(303, '/admin/?login=locked');
+        return;
+      }
+      res.redirect(303, '/admin/?login=bad');
+      return;
+    }
+
+    res.cookie('pconair_admin_session', session.id, {
+      ...COOKIE_BASE,
+      maxAge: session.expiresAt - session.createdAt,
+    });
+    res.redirect(303, '/admin/');
+  });
+
   router.post('/unlock-admin', async (req: Request, res: Response) => {
     const { pin } = req.body as { pin?: string };
     const ip = clientIp(req);

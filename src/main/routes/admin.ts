@@ -13,7 +13,7 @@ const ADMIN_HTML_CONTENT: string = (() => {
 })();
 
 const HTML_CSP =
-  "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' https:; font-src 'self'";
+  "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' https:; font-src 'self'";
 
 const ADMIN_UNLOCK_JS = `(function(){
   var f=document.getElementById('unlock-form');
@@ -34,6 +34,47 @@ const ADMIN_UNLOCK_JS = `(function(){
 const FALLBACK_ADMIN_HTML = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>PC On Air — Admin</title></head>
 <body><p>PC On Air Admin UI</p></body></html>`;
+
+const LOGIN_HINTS: Record<string, string> = {
+  bad: 'Incorrect PIN. Try again.',
+  locked: 'Too many failed attempts. Wait five minutes, then try again.',
+  missing: 'Enter your admin PIN.',
+};
+
+function adminLoginHtml(hint: string): string {
+  const msg = hint ? `<p class="err">${hint.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</p>` : '';
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PC On Air — Admin sign-in</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #111; color: #e0e0e0; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .box { background: #1e1e1e; border: 1px solid #333; border-radius: 6px; padding: 28px 32px; max-width: 22rem; width: 100%; box-sizing: border-box; }
+    h1 { font-size: 1.1rem; font-weight: 600; margin: 0 0 6px; }
+    p.sub { font-size: 13px; color: #888; margin: 0 0 20px; line-height: 1.45; }
+    .err { color: #ff6b6b; font-size: 13px; margin: 0 0 14px; }
+    label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: #aaa; }
+    input { width: 100%; box-sizing: border-box; padding: 8px 12px; font-size: 15px; border: 1px solid #444; border-radius: 4px; background: #0d0d0d; color: #e0e0e0; margin-bottom: 16px; }
+    button { width: 100%; padding: 10px 16px; font-size: 14px; font-weight: 600; border: none; border-radius: 4px; background: #4a9eff; color: #fff; cursor: pointer; }
+    button:hover { background: #3a8eef; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>PC On Air — Admin</h1>
+    <p class="sub">Enter the admin PIN to access setup and configuration.</p>
+    ${msg}
+    <form method="post" action="/auth/admin/browser" autocomplete="off">
+      <label for="pin">Admin PIN</label>
+      <input id="pin" name="pin" type="password" inputmode="numeric" required autofocus />
+      <button type="submit">Sign in</button>
+    </form>
+  </div>
+</body>
+</html>`;
+}
 
 const LOCKED_SHELL = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -126,18 +167,14 @@ export function createAdminRouter(d: AdminRouterDeps): Router {
 
   router.get('/', (req: Request, res: Response) => {
     const adminSid = req.cookies?.pconair_admin_session as string | undefined;
-    const opSid = req.cookies?.pconair_operator_session as string | undefined;
     const adminSession = adminSid ? d.auth.getSession(adminSid) : null;
-    const opSession = opSid ? d.auth.getSession(opSid) : null;
 
     if (!adminSession || adminSession.role !== 'admin') {
-      if (opSession) {
-        res.status(403).json({
-          error: { code: 'FORBIDDEN', message: 'Admin access required' },
-        });
-        return;
-      }
-      res.status(401).json({ error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } });
+      const code = typeof req.query.login === 'string' ? req.query.login : '';
+      const hint = LOGIN_HINTS[code] ?? '';
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Content-Security-Policy', HTML_CSP);
+      res.status(adminSession ? 403 : 401).send(adminLoginHtml(hint));
       return;
     }
 
