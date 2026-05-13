@@ -146,6 +146,16 @@ export function createAuthManager(config: AuthConfig) {
     return Math.ceil(rec.lockedUntil / 1000);
   }
 
+  /** Creates a session without PIN verification — for trusted internal callers (Electron main process only). */
+  function createTrustedSession(role: 'operator' | 'admin'): Session {
+    const id = randomBytes(16).toString('base64');
+    const now = Date.now();
+    const durationMs = role === 'operator' ? config.operatorSessionMs : config.adminSessionMs;
+    const session: Session = { id, role, createdAt: now, expiresAt: now + durationMs };
+    sessions.set(id, session);
+    return session;
+  }
+
   async function verifyOperatorPin(pin: string): Promise<boolean> {
     return bcrypt.compare(pin, operatorHash);
   }
@@ -166,6 +176,7 @@ export function createAuthManager(config: AuthConfig) {
 
   return {
     createSession,
+    createTrustedSession,
     getSession,
     deleteSession,
     isLockedOut,
