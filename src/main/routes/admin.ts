@@ -3,7 +3,14 @@ import path from 'path';
 import fs from 'fs';
 import type { AuthManager } from '../auth';
 
-const ADMIN_HTML = path.resolve(__dirname, '../../renderer/admin/index.html');
+// Read once at startup — fs.readFileSync works inside Electron asars; res.sendFile does not.
+const ADMIN_HTML_CONTENT: string = (() => {
+  try {
+    return fs.readFileSync(path.resolve(__dirname, '../../renderer/admin/index.html'), 'utf-8');
+  } catch {
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>PC On Air — Admin</title></head><body><p>PC On Air Admin UI</p></body></html>`;
+  }
+})();
 
 const HTML_CSP =
   "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' https:; font-src 'self'";
@@ -153,12 +160,8 @@ export function createAdminRouter(d: AdminRouterDeps): Router {
     }
 
     res.setHeader('Content-Security-Policy', HTML_CSP);
-    if (fs.existsSync(ADMIN_HTML)) {
-      res.sendFile(ADMIN_HTML);
-    } else {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.send(FALLBACK_ADMIN_HTML);
-    }
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(ADMIN_HTML_CONTENT);
   });
 
   return router;
