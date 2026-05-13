@@ -529,34 +529,90 @@ function escHtml(s) {
 }
 
 // ── Section: Dashboard ────────────────────────────────────────────────────────
-function renderDashboard() {
+// ── Section: Dashboard ────────────────────────────────────────────────────────
+async function renderDashboard() {
+  content().innerHTML = '<div class="section-title">Dashboard</div><div class="card"><div class="card-title">Loading…</div></div>';
+  let info, st;
+  try {
+    const [infoR, stateR] = await Promise.all([
+      fetch('/api/server-info', { credentials: 'include' }),
+      fetch('/api/status', { credentials: 'include' }),
+    ]);
+    info = await infoR.json();
+    st = await stateR.json();
+  } catch (e) {
+    showError('Failed to load dashboard: ' + e.message);
+    return;
+  }
+
   content().innerHTML = `
-    <div class="section-title">Status</div>
+    <div class="section-title">Dashboard</div>
+
     <div class="card">
-      <div class="card-title">Live App State</div>
-      <div class="btn-row" style="margin-bottom:12px;">
-        <button class="btn btn-sm" id="status-refresh-btn">Refresh</button>
-        <button class="btn btn-sm btn-danger" id="panic-btn">PANIC</button>
-        <button class="btn btn-sm" id="ab-switch-btn">Switch A/B</button>
+      <div class="card-title">Machine</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input id="machine-name-input" type="text" value="${escHtml(info.machineName)}" style="flex:1;" />
+        <button class="btn btn-sm btn-primary" id="save-machine-name-btn">Save</button>
       </div>
-      <pre id="state-dump">${escHtml(JSON.stringify(state, null, 2))}</pre>
+      <p style="color:var(--text-dim);font-size:12px;margin-top:6px;">This name appears in the operator web UI header.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Share URLs — Operator</div>
+      ${info.operatorUrls.map(u => `<div style="font-family:monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;margin-bottom:4px;word-break:break-all;user-select:all;">${escHtml(u)}</div>`).join('')}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Share URLs — Admin</div>
+      ${info.adminUrls.map(u => `<div style="font-family:monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;margin-bottom:4px;word-break:break-all;user-select:all;">${escHtml(u)}</div>`).join('')}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Share URLs — Companion API</div>
+      ${info.companionUrls.map(u => `<div style="font-family:monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;margin-bottom:4px;word-break:break-all;user-select:all;">${escHtml(u)}</div>`).join('')}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Status</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px;">
+        <tr><td style="padding:4px 8px;color:var(--text-dim);width:160px;">Mode</td><td><strong>${escHtml(String(st.currentMode || 'idle'))}</strong></td></tr>
+        <tr><td style="padding:4px 8px;color:var(--text-dim);">Connected clients</td><td>${st.connectionStatus?.webSocketClients ?? 0}</td></tr>
+        <tr><td style="padding:4px 8px;color:var(--text-dim);">Uptime</td><td>${Math.floor(info.uptime / 60)}m ${info.uptime % 60}s</td></tr>
+        <tr><td style="padding:4px 8px;color:var(--text-dim);">Companion</td><td>${st.connectionStatus?.companionConnected ? '✓ Connected' : '✗ Disconnected'}</td></tr>
+      </table>
+      <div class="btn-row">
+        <button class="btn btn-sm btn-danger" id="dash-panic-btn">PANIC</button>
+        <button class="btn btn-sm" id="dash-ab-btn">Switch A/B</button>
+        <button class="btn btn-sm" id="dash-refresh-btn">↺ Refresh</button>
+      </div>
     </div>
   `;
 
-  document.getElementById('status-refresh-btn').addEventListener('click', async () => {
-    const s = await api('GET', '/api/status');
-    if (s) { state = s; updateTopBar(); document.getElementById('state-dump').textContent = JSON.stringify(state, null, 2); }
+  document.getElementById('save-machine-name-btn').addEventListener('click', async () => {
+    const name = document.getElementById('machine-name-input').value.trim();
+    if (!name) { showError('Name cannot be empty'); return; }
+    try {
+      const activeJ = await api('GET', '/api/profiles/active');
+      await api('PATCH', '/api/profiles/' + activeJ.id, { name });
+      showSuccess('Machine name saved');
+    } catch { /* api() shows the error */ }
   });
 
-  document.getElementById('panic-btn').addEventListener('click', async () => {
-    if (!confirm('Trigger PANIC? This will hide all output.')) return;
-    await api('POST', '/api/panic');
-    showSuccess('Panic triggered');
+  document.getElementById('dash-refresh-btn').addEventListener('click', () => renderDashboard());
+
+  document.getElementById('dash-panic-btn').addEventListener('click', async () => {
+    try {
+      await api('POST', '/api/panic', { action: 'toggle' });
+      renderDashboard();
+    } catch { /* handled */ }
   });
 
-  document.getElementById('ab-switch-btn').addEventListener('click', async () => {
-    await api('POST', '/api/ab/switch');
-    showSuccess('A/B switched');
+  document.getElementById('dash-ab-btn').addEventListener('click', async () => {
+    const inst = st.abState?.activeInstance === 'A' ? 'B' : 'A';
+    try {
+      await api('POST', '/api/ab/switch', { instance: inst });
+      renderDashboard();
+    } catch { /* handled */ }
   });
 }
 
