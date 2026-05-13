@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen } from 'electron';
+import { app, BrowserWindow, screen, session } from 'electron';
 import path from 'path';
 import { createProgramWindow, createOperatorWindow } from './window';
 import { createServer } from './server';
@@ -139,6 +139,16 @@ async function main() {
   });
   await server.listen();
   console.log(`PC On Air server running on http://localhost:${DEFAULT_PORT}`);
+
+  // Pre-authenticate the operator window so it can load /operator without a PIN prompt.
+  const opSession = auth.createTrustedSession('operator');
+  await session.defaultSession.cookies.set({
+    url: `http://localhost:${DEFAULT_PORT}`,
+    name: 'pconair_operator_session',
+    value: opSession.id,
+    httpOnly: true,
+    expirationDate: Math.floor(opSession.expiresAt / 1000),
+  });
 
   programWindow = createProgramWindow({ fullscreen: false });
   createOperatorWindow(DEFAULT_PORT);
