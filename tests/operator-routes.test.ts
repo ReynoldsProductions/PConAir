@@ -37,6 +37,15 @@ describe('GET /operator', () => {
     expect(res.text).toContain('PC On Air');
   });
 
+  it('returns 200 with operator bundle for authenticated operator', async () => {
+    const res = await request(app)
+      .get('/operator/index.js')
+      .set('Cookie', operatorCookie);
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/javascript/);
+    expect(res.text.length).toBeGreaterThan(100);
+  });
+
   it('returns 401 without auth', async () => {
     const res = await request(app).get('/operator');
     expect(res.status).toBe(401);
