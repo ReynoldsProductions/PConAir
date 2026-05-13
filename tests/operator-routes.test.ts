@@ -35,6 +35,7 @@ describe('GET /operator', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
     expect(res.text).toContain('PC On Air');
+    expect(res.text).toContain('Live Control');
   });
 
   it('returns 200 with operator bundle for authenticated operator', async () => {
@@ -46,8 +47,27 @@ describe('GET /operator', () => {
     expect(res.text.length).toBeGreaterThan(100);
   });
 
-  it('returns 401 without auth', async () => {
-    const res = await request(app).get('/operator');
+  it('returns 401 for operator bundle without auth', async () => {
+    const res = await request(app).get('/operator/index.js');
     expect(res.status).toBe(401);
+  });
+
+  it('returns sign-in HTML without session', async () => {
+    const res = await request(app).get('/operator/');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.text).toContain('Operator sign-in');
+    expect(res.text).toContain('/auth/operator/browser');
+  });
+
+  it('browser form login sets cookie and opens operator shell', async () => {
+    const res = await request(app).post('/auth/operator/browser').type('form').send({ pin: '1234' });
+    expect(res.status).toBe(303);
+    const raw = res.headers['set-cookie'];
+    expect(raw).toBeDefined();
+    const op = raw![0].split(';')[0];
+    const page = await request(app).get('/operator/').set('Cookie', op);
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('Live Control');
   });
 });

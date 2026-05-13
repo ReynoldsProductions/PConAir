@@ -1,5 +1,7 @@
+const fetchDefaults: RequestInit = { credentials: 'include' };
+
 export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(path);
+  const res = await fetch(path, fetchDefaults);
   const data = await res.json() as T | { error: { code: string; message: string } };
   if (!res.ok) {
     const msg = (data as { error: { message: string } }).error?.message ?? `HTTP ${res.status}`;
@@ -10,6 +12,7 @@ export async function apiGet<T>(path: string): Promise<T> {
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
+    ...fetchDefaults,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: body !== undefined ? JSON.stringify(body) : undefined,

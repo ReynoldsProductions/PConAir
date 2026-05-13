@@ -569,6 +569,19 @@ input[type="radio"] {
 
 /* ── PC On Air operator additions ───────────────────────────────── */
 
+/* Electron: title-bar drag on .sidebar can swallow clicks unless children opt out */
+.main,
+.main button,
+.main input,
+.main select,
+.main textarea,
+.main label,
+.main a,
+.main .btn,
+.main .ab-btn {
+  -webkit-app-region: no-drag;
+}
+
 #panic-banner {
   display: none;
   flex-shrink: 0;
