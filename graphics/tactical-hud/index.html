@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ORBITAL // Tactical HUD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cy:#34e7e0; --cy-dim:#1b8f8c; --amber:#ffb02e; --red:#ff3b46; --ink:#cfeef0;
+    --panel:rgba(4,14,16,.42); --line:rgba(52,231,224,.55);
+    --disp:'Chakra Petch',sans-serif; --mono:'Share Tech Mono',monospace;
+    --glow:0 0 8px rgba(52,231,224,.55);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{width:1920px;height:1080px;overflow:hidden;background:transparent;color:var(--ink);
+    font-family:var(--mono);-webkit-font-smoothing:antialiased;}
+  #hud{position:absolute;inset:0;}
+
+  /* ── atmosphere over the live feed ── */
+  .grid{position:absolute;inset:0;pointer-events:none;opacity:.16;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:64px 64px;mask-image:radial-gradient(ellipse 70% 70% at 50% 50%,transparent 30%,#000 100%);}
+  .vignette{position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(ellipse 80% 75% at 50% 48%,transparent 40%,rgba(0,8,10,.55) 100%);
+    box-shadow:inset 0 0 220px rgba(0,10,12,.7);animation:flicker 5s infinite steps(60);}
+  .scan{position:absolute;inset:0;pointer-events:none;opacity:.5;
+    background:repeating-linear-gradient(to bottom,rgba(52,231,224,.06) 0,rgba(52,231,224,.06) 1px,transparent 2px,transparent 4px);
+    animation:scandrift 8s linear infinite;}
+  @keyframes scandrift{to{background-position:0 256px;}}
+  @keyframes flicker{0%,96%,100%{opacity:1;}97%{opacity:.86;}98%{opacity:.97;}}
+
+  .tint{position:absolute;inset:0;pointer-events:none;background:rgba(10,40,44,.10);mix-blend-mode:screen;}
+
+  /* ── corner brackets framing the subject ── */
+  .bracket{position:absolute;width:90px;height:90px;border:2px solid var(--cy);filter:drop-shadow(var(--glow));opacity:.9;}
+  .bk-tl{top:150px;left:150px;border-right:none;border-bottom:none;}
+  .bk-tr{top:150px;right:150px;border-left:none;border-bottom:none;}
+  .bk-bl{bottom:150px;left:150px;border-right:none;border-top:none;}
+  .bk-br{bottom:150px;right:150px;border-left:none;border-top:none;}
+
+  /* ── center reticle ── */
+  .reticle{position:absolute;left:50%;top:50%;width:280px;height:280px;transform:translate(-50%,-50%);pointer-events:none;}
+  .reticle .ring{position:absolute;inset:0;border:1.5px dashed rgba(52,231,224,.6);border-radius:50%;animation:spin 14s linear infinite;}
+  .reticle .ring2{position:absolute;inset:54px;border:1px solid rgba(255,176,46,.5);border-radius:50%;animation:spin 9s linear infinite reverse;}
+  .reticle .cx,.reticle .cy{position:absolute;background:var(--cy);box-shadow:var(--glow);}
+  .reticle .cx{left:50%;top:0;width:1.5px;height:100%;transform:translateX(-50%);}
+  .reticle .cy{top:50%;left:0;height:1.5px;width:100%;transform:translateY(-50%);}
+  .reticle .dot{position:absolute;left:50%;top:50%;width:8px;height:8px;background:var(--amber);border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 10px var(--amber);animation:pulse 1.4s ease-in-out infinite;}
+  .reticle .tag{position:absolute;left:calc(50% + 22px);top:calc(50% + 18px);font-family:var(--mono);font-size:14px;color:var(--amber);letter-spacing:.1em;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @keyframes pulse{0%,100%{opacity:1;transform:translate(-50%,-50%) scale(1);}50%{opacity:.35;transform:translate(-50%,-50%) scale(.7);}}
+
+  /* ── top status bar ── */
+  .topbar{position:absolute;top:0;left:0;right:0;height:60px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 28px;background:linear-gradient(to bottom,rgba(3,12,14,.82),rgba(3,12,14,0));}
+  .brandt{font-family:var(--disp);font-weight:700;font-size:22px;letter-spacing:.34em;color:var(--cy);text-shadow:var(--glow);}
+  .brandt b{color:var(--amber);}
+  .topc{display:flex;align-items:center;gap:14px;font-family:var(--disp);font-weight:600;letter-spacing:.2em;font-size:15px;}
+  .rec{display:flex;align-items:center;gap:8px;color:var(--red);}
+  .rec .d{width:11px;height:11px;border-radius:50%;background:var(--red);box-shadow:0 0 10px var(--red);animation:blink 1s steps(2,end) infinite;}
+  @keyframes blink{50%{opacity:.15;}}
+  .clock{font-family:var(--mono);font-size:18px;color:var(--cy);letter-spacing:.08em;text-shadow:var(--glow);}
+  .topr{display:flex;align-items:center;gap:10px;font-family:var(--disp);font-weight:600;letter-spacing:.18em;font-size:15px;color:var(--ink);}
+  .topr .acq{color:var(--amber);}
+
+  /* generic panel chrome */
+  .panel{position:absolute;background:var(--panel);border:1px solid var(--line);
+    box-shadow:var(--glow),inset 0 0 24px rgba(52,231,224,.06);backdrop-filter:blur(1px);padding:14px 16px;}
+  .panel::before{content:"";position:absolute;top:-1px;left:-1px;width:14px;height:14px;border-top:2px solid var(--amber);border-left:2px solid var(--amber);}
+  .panel::after{content:"";position:absolute;bottom:-1px;right:-1px;width:14px;height:14px;border-bottom:2px solid var(--amber);border-right:2px solid var(--amber);}
+  .ptitle{font-family:var(--disp);font-weight:600;font-size:13px;letter-spacing:.28em;color:var(--cy);margin-bottom:12px;text-shadow:var(--glow);}
+
+  /* telemetry (bottom-left) */
+  .telem{left:40px;bottom:96px;width:440px;}
+  .row{display:flex;align-items:center;gap:12px;margin:9px 0;font-size:14px;}
+  .row .k{width:54px;color:#7fd7d4;letter-spacing:.1em;}
+  .row .bar{flex:1;height:8px;background:rgba(52,231,224,.12);border:1px solid rgba(52,231,224,.3);position:relative;overflow:hidden;}
+  .row .bar i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--cy-dim),var(--cy));box-shadow:0 0 8px var(--cy);transition:width .4s ease;}
+  .row .v{width:96px;text-align:right;color:var(--ink);}
+
+  /* radar (bottom-right) */
+  .radar{right:40px;bottom:96px;width:240px;height:240px;border-radius:50%;padding:0;overflow:hidden;}
+  .radar .face{position:absolute;inset:0;border-radius:50%;
+    background:radial-gradient(circle,rgba(52,231,224,.10),transparent 70%);}
+  .radar .ringr{position:absolute;border:1px solid rgba(52,231,224,.3);border-radius:50%;}
+  .radar .r1{inset:18px;} .radar .r2{inset:64px;} .radar .r3{inset:104px;}
+  .radar .cross{position:absolute;background:rgba(52,231,224,.3);}
+  .radar .ch{left:0;right:0;top:50%;height:1px;} .radar .cv{top:0;bottom:0;left:50%;width:1px;}
+  .radar .sweep{position:absolute;inset:0;border-radius:50%;
+    background:conic-gradient(from 0deg,rgba(52,231,224,.55),rgba(52,231,224,0) 60deg,transparent 360deg);
+    animation:spin 2.6s linear infinite;}
+  .radar .blip{position:absolute;width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);animation:blink 1.6s steps(2) infinite;}
+  .radar .b1{top:78px;left:150px;} .radar .b2{top:150px;left:84px;animation-delay:.5s;} .radar .b3{top:110px;left:120px;animation-delay:1s;}
+  .radarlbl{position:absolute;right:40px;bottom:60px;width:240px;text-align:center;font-family:var(--disp);font-size:12px;letter-spacing:.28em;color:var(--cy);}
+
+  /* waveform (upper-right) */
+  .wavep{right:40px;top:84px;width:380px;height:104px;}
+  .wavep svg{display:block;width:348px;height:56px;margin-top:6px;}
+  .wavep polyline{fill:none;stroke:var(--cy);stroke-width:2;filter:drop-shadow(var(--glow));}
+  .wavmeta{display:flex;justify-content:space-between;font-size:12px;color:#7fd7d4;letter-spacing:.12em;margin-top:6px;}
+
+  /* bottom ticker */
+  .ticker{position:absolute;left:0;right:0;bottom:0;height:46px;display:flex;align-items:center;
+    background:linear-gradient(to top,rgba(3,12,14,.9),rgba(3,12,14,.2));border-top:1px solid var(--line);overflow:hidden;}
+  .ticker .tag{flex:none;padding:0 18px;height:100%;display:flex;align-items:center;background:var(--amber);color:#06181a;
+    font-family:var(--disp);font-weight:700;letter-spacing:.2em;font-size:13px;}
+  .ticker .mask{flex:1;overflow:hidden;position:relative;height:100%;}
+  .ticker .track{position:absolute;top:0;height:100%;display:flex;align-items:center;white-space:nowrap;animation:crawl 26s linear infinite;}
+  .ticker .track span{font-size:15px;color:var(--cy);letter-spacing:.08em;padding:0 6px;}
+  .ticker .track i{color:var(--amber);padding:0 22px;font-style:normal;}
+  @keyframes crawl{to{transform:translateX(-50%);}}
+
+  /* ── MAX: camera grade wash (alpha-composites over the OBS camera below) ── */
+  .grade{position:absolute;inset:0;pointer-events:none;background:rgba(6,44,48,.26);}
+  .grade.thermal{background:rgba(8,48,18,.42);}
+  .grade::after{content:"";position:absolute;inset:0;
+    background:radial-gradient(ellipse 76% 70% at 50% 46%,transparent 44%,rgba(0,12,14,.5) 100%);}
+
+  /* bright scanner pass traveling down the feed */
+  .scanpass{position:absolute;left:0;right:0;height:130px;top:-150px;pointer-events:none;
+    background:linear-gradient(to bottom,transparent,rgba(52,231,224,.16),rgba(207,238,240,.45),rgba(52,231,224,.16),transparent);
+    filter:blur(1px);animation:pass 6.5s linear infinite;}
+  @keyframes pass{0%{top:-150px;}100%{top:1150px;}}
+
+  /* drifting / locking target box */
+  .tracker{position:absolute;left:0;top:0;width:150px;height:150px;pointer-events:none;will-change:transform;}
+  .tracker .c{position:absolute;width:26px;height:26px;border:2px solid var(--amber);filter:drop-shadow(0 0 6px var(--amber));}
+  .tracker .tl{top:0;left:0;border-right:none;border-bottom:none;}
+  .tracker .tr{top:0;right:0;border-left:none;border-bottom:none;}
+  .tracker .bl{bottom:0;left:0;border-right:none;border-top:none;}
+  .tracker .br{bottom:0;right:0;border-left:none;border-top:none;}
+  .tracker .lbl{position:absolute;left:0;top:-24px;font-family:var(--mono);font-size:13px;color:var(--amber);letter-spacing:.12em;white-space:nowrap;text-shadow:0 0 6px rgba(255,176,46,.6);}
+  .tracker.lock .c{border-color:var(--red);filter:drop-shadow(0 0 9px var(--red));}
+  .tracker.lock .lbl{color:var(--red);}
+
+  /* proximity alert strobe */
+  .alert{position:absolute;top:72px;left:50%;transform:translateX(-50%);padding:9px 24px;
+    font-family:var(--disp);font-weight:700;letter-spacing:.32em;font-size:19px;color:#1a0000;
+    background:var(--red);box-shadow:0 0 28px rgba(255,59,70,.85);opacity:0;pointer-events:none;}
+  .alert.on{animation:strobe 1.8s steps(2,end);}
+  @keyframes strobe{0%,100%{opacity:0;}10%,30%,50%,70%,90%{opacity:1;}20%,40%,60%,80%{opacity:.12;}}
+
+  /* glitch hit */
+  .glitch-bars{position:absolute;inset:0;pointer-events:none;opacity:0;
+    background:repeating-linear-gradient(to bottom,transparent 0,transparent 17px,rgba(255,59,70,.18) 17px,rgba(255,59,70,.18) 19px,rgba(52,231,224,.18) 19px,rgba(52,231,224,.18) 21px);}
+  body.glitch #hud{animation:gshift .34s steps(2,end);}
+  body.glitch .glitch-bars{opacity:1;animation:gbars .34s steps(3,end);}
+  body.glitch .brandt,body.glitch .clock,body.glitch .ptitle,body.glitch .topr{text-shadow:2px 0 var(--red),-2px 0 var(--cy);}
+  @keyframes gshift{0%{transform:translate(0,0);}25%{transform:translate(-9px,2px) skewX(-2deg);filter:hue-rotate(25deg) contrast(1.35);}50%{transform:translate(7px,-3px);}60%{transform:translate(-5px,0) skewX(1.5deg);}100%{transform:none;}}
+  @keyframes gbars{0%{transform:translateY(0);}33%{transform:translateY(-14px);}66%{transform:translateY(9px);}100%{transform:translateY(0);}}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="grade" id="grade"></div>
+  <div class="tint"></div>
+  <div class="grid"></div>
+  <div class="scan"></div>
+  <div class="vignette"></div>
+
+  <div class="bracket bk-tl"></div><div class="bracket bk-tr"></div>
+  <div class="bracket bk-bl"></div><div class="bracket bk-br"></div>
+
+  <div class="reticle">
+    <div class="ring"></div><div class="ring2"></div>
+    <div class="cx"></div><div class="cy"></div><div class="dot"></div>
+    <div class="tag">LOCK</div>
+  </div>
+
+  <div class="topbar">
+    <div class="brandt">ORBITAL<b>//</b>TACTICAL FEED</div>
+    <div class="topc"><span class="rec"><span class="d"></span>REC</span><span class="clock" id="clock">T+ 00:00:00</span></div>
+    <div class="topr">TARGETS&nbsp;<span class="acq" id="targets">0042</span></div>
+  </div>
+
+  <div class="panel telem">
+    <div class="ptitle">TELEMETRY</div>
+    <div class="row"><span class="k">ALT</span><span class="bar"><i id="bar-alt" style="width:62%"></i></span><span class="v" id="v-alt">12,480 m</span></div>
+    <div class="row"><span class="k">VEL</span><span class="bar"><i id="bar-vel" style="width:48%"></i></span><span class="v" id="v-vel">482 km/h</span></div>
+    <div class="row"><span class="k">SIG</span><span class="bar"><i id="bar-sig" style="width:80%"></i></span><span class="v" id="v-sig">-41 dB</span></div>
+    <div class="row"><span class="k">PWR</span><span class="bar"><i id="bar-pwr" style="width:87%"></i></span><span class="v" id="v-pwr">87 %</span></div>
+  </div>
+
+  <div class="panel wavep">
+    <div class="ptitle">SIGNAL // AUDIO</div>
+    <svg viewBox="0 0 348 56" preserveAspectRatio="none"><polyline id="wave" points=""/></svg>
+    <div class="wavmeta"><span>48.0 kHz</span><span id="db">-12.4 dB</span></div>
+  </div>
+
+  <div class="panel radar">
+    <div class="face"></div>
+    <div class="ringr r1"></div><div class="ringr r2"></div><div class="ringr r3"></div>
+    <div class="cross ch"></div><div class="cross cv"></div>
+    <div class="sweep"></div>
+    <div class="blip b1"></div><div class="blip b2"></div><div class="blip b3"></div>
+  </div>
+  <div class="radarlbl">PROXIMITY // 240°</div>
+
+  <div class="ticker">
+    <div class="tag">STATUS</div>
+    <div class="mask"><div class="track" id="track"></div></div>
+  </div>
+
+  <div class="scanpass"></div>
+  <div class="glitch-bars"></div>
+  <div class="tracker" id="tracker">
+    <div class="lbl" id="tlbl">TRK X0 Y0</div>
+    <span class="c tl"></span><span class="c tr"></span><span class="c bl"></span><span class="c br"></span>
+  </div>
+  <div class="alert" id="alert">⚠ PROXIMITY ALERT</div>
+</div>
+
+<script>
+  const q=new URLSearchParams(location.search);
+  if(q.get('brand')) document.querySelector('.brandt').innerHTML=q.get('brand');
+
+  // mission clock T+ hh:mm:ss (counts up from load)
+  const t0=Date.now();
+  function clk(){
+    const e=Math.floor((Date.now()-t0)/1000);
+    const h=String(Math.floor(e/3600)).padStart(2,'0');
+    const m=String(Math.floor(e/60)%60).padStart(2,'0');
+    const s=String(e%60).padStart(2,'0');
+    document.getElementById('clock').textContent=`T+ ${h}:${m}:${s}`;
+  }
+  clk(); setInterval(clk,1000);
+
+  // target counter — increments, "scoreboard"
+  let targets=42;
+  setInterval(()=>{ targets+=Math.floor(Math.random()*3); document.getElementById('targets').textContent=String(targets).padStart(4,'0'); }, 1700);
+
+  // telemetry jitter
+  const rnd=(a,b)=>a+Math.random()*(b-a);
+  function telem(){
+    const alt=rnd(12000,12900), vel=rnd(440,520), sig=rnd(-46,-36), pwr=rnd(80,92);
+    document.getElementById('v-alt').textContent=Math.round(alt).toLocaleString()+' m';
+    document.getElementById('v-vel').textContent=Math.round(vel)+' km/h';
+    document.getElementById('v-sig').textContent=sig.toFixed(0)+' dB';
+    document.getElementById('v-pwr').textContent=Math.round(pwr)+' %';
+    document.getElementById('bar-alt').style.width=((alt-11500)/1800*100).toFixed(0)+'%';
+    document.getElementById('bar-vel').style.width=((vel-400)/160*100).toFixed(0)+'%';
+    document.getElementById('bar-sig').style.width=((sig+50)/16*100).toFixed(0)+'%';
+    document.getElementById('bar-pwr').style.width=pwr.toFixed(0)+'%';
+    document.getElementById('db').textContent=(-rnd(8,18)).toFixed(1)+' dB';
+  }
+  telem(); setInterval(telem,1200);
+
+  // scrolling audio waveform (continuous)
+  const N=58; let buf=new Array(N).fill(28); let phase=0;
+  const wave=document.getElementById('wave');
+  function draw(){
+    phase+=0.35;
+    buf.shift();
+    buf.push(28 + Math.sin(phase)*15*Math.random() + (Math.random()-0.5)*16);
+    const step=348/(N-1);
+    wave.setAttribute('points', buf.map((y,i)=>`${(i*step).toFixed(1)},${y.toFixed(1)}`).join(' '));
+    requestAnimationFrame(draw);
+  }
+  draw();
+
+  // status ticker (duplicated for seamless loop)
+  const ITEMS=['LINK ESTABLISHED','OPTICAL FEED NOMINAL','TRACKING 3 CONTACTS','GIMBAL STABILIZED','THERMAL WITHIN LIMITS','UPLINK 142 Mb/s','GEO-FENCE CLEAR'];
+  const track=document.getElementById('track');
+  function run(){ const f=document.createDocumentFragment();
+    ITEMS.forEach(t=>{const s=document.createElement('span');s.textContent=t;const i=document.createElement('i');i.textContent='◆';f.appendChild(s);f.appendChild(i);});
+    return f; }
+  track.appendChild(run()); track.appendChild(run());
+
+  // ── MAX behaviours ──
+  // camera grade
+  if(q.get('grade')==='thermal') document.getElementById('grade').classList.add('thermal');
+
+  // RGB-split glitch hits
+  function glitch(){ document.body.classList.add('glitch'); setTimeout(()=>document.body.classList.remove('glitch'),340); }
+  setInterval(glitch, 5200); setTimeout(glitch, 2600);
+
+  // proximity-alert strobe
+  const alertEl=document.getElementById('alert');
+  function alertHit(){ alertEl.classList.add('on'); setTimeout(()=>alertEl.classList.remove('on'),1800); }
+  setTimeout(alertHit, 3500); setInterval(alertHit, 13000);
+
+  // drifting / locking target box
+  const trk=document.getElementById('tracker'), tlbl=document.getElementById('tlbl');
+  let px=880,py=420,tx=880,ty=420,locked=false;
+  function newTarget(){ tx=180+Math.random()*(1920-180-150); ty=160+Math.random()*(1080-160-200); locked=false; trk.classList.remove('lock'); }
+  function trackLoop(){
+    px+=(tx-px)*0.045; py+=(ty-py)*0.045;
+    trk.style.transform=`translate(${px.toFixed(1)}px,${py.toFixed(1)}px)`;
+    const cx=(px+75)|0, cy=(py+75)|0;
+    if(!locked && Math.abs(tx-px)<6 && Math.abs(ty-py)<6){ locked=true; trk.classList.add('lock'); }
+    tlbl.textContent = (locked?'◎ LOCK ':'TRK ')+`X${cx} Y${cy}`;
+    requestAnimationFrame(trackLoop);
+  }
+  newTarget(); trackLoop(); setInterval(newTarget, 3200);
+</script>
+</body>
+</html>

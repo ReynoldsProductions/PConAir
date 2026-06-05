@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Faire Quarterly — cover</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#2b2622; --ink-soft:#5b554e; --cream:#fbf8f6; --paper:#f4efe9;
+    --tan:#b5a998; --tan-deep:#8a6f46; --live:#921100;
+    --serif:'Lora',Georgia,serif; --sans:'Inter',sans-serif;
+    /* photo window geometry — must match the OBS webcam item transform */
+    --pw-x:1158px; --pw-y:96px; --pw-w:666px; --pw-h:888px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{width:1920px;height:1080px;overflow:hidden;background:transparent;
+    font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--ink);}
+  #stage{position:absolute;inset:0;}
+
+  /* faint paper grain over the cream — texture, not gradient */
+  .grain{position:absolute;inset:0;pointer-events:none;opacity:.05;mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+
+  /* ── left rail ── */
+  .rail{position:absolute;left:96px;top:84px;width:984px;}
+
+  .masthead{font-family:var(--serif);font-weight:500;font-size:158px;line-height:.86;
+    letter-spacing:-.02em;color:var(--ink);
+    opacity:0;transform:translateY(22px);animation:rise .9s cubic-bezier(.2,.7,.2,1) .05s forwards;}
+  .masthead .reg{font-size:.34em;vertical-align:top;color:var(--tan-deep);margin-left:.1em;font-weight:500;}
+
+  .rule-row{display:flex;align-items:center;justify-content:space-between;margin-top:30px;}
+  .rule{height:2px;background:var(--ink);flex:1;transform:scaleX(0);transform-origin:left;
+    animation:draw .9s cubic-bezier(.2,.7,.2,1) .25s forwards;}
+  .rule-row .meta{display:flex;gap:26px;padding-left:24px;white-space:nowrap;
+    opacity:0;animation:fade .7s ease .55s forwards;}
+  .meta span{font-size:15px;font-weight:600;letter-spacing:.26em;text-transform:uppercase;color:var(--ink);}
+  .meta .ed{color:var(--tan-deep);}
+
+  .cover{margin-top:96px;}
+  .kicker{font-size:17px;font-weight:600;letter-spacing:.3em;text-transform:uppercase;color:var(--tan-deep);
+    opacity:0;animation:fade .7s ease .65s forwards;}
+  .headline{font-family:var(--serif);font-style:italic;font-weight:400;font-size:96px;line-height:1.0;
+    color:var(--ink);margin-top:22px;max-width:940px;
+    opacity:0;transform:translateY(20px);animation:rise .9s cubic-bezier(.2,.7,.2,1) .78s forwards;}
+
+  /* coverlines */
+  .lines{margin-top:64px;display:flex;flex-direction:column;gap:22px;max-width:760px;}
+  .line{display:flex;gap:18px;align-items:baseline;font-size:24px;line-height:1.3;color:var(--ink);
+    opacity:0;transform:translateX(-14px);animation:slidein .7s cubic-bezier(.2,.7,.2,1) forwards;}
+  .line .d{color:var(--tan-deep);font-weight:600;flex:none;}
+  .line b{font-weight:600;}
+  .line:nth-child(1){animation-delay:1.0s;} .line:nth-child(2){animation-delay:1.12s;} .line:nth-child(3){animation-delay:1.24s;}
+
+  /* ── folio (bottom-left) ── */
+  .folio{position:absolute;left:96px;bottom:72px;display:flex;align-items:center;gap:20px;
+    font-size:15px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--ink);
+    opacity:0;animation:fade .7s ease 1.2s forwards;}
+  .folio .sep{width:5px;height:5px;border-radius:50%;background:var(--tan);}
+  .folio .live{display:flex;align-items:center;gap:9px;color:var(--live);}
+  .folio .live .dot{width:10px;height:10px;border-radius:50%;background:var(--live);animation:pulse 1.6s ease-in-out infinite;}
+  .folio .clock{font-variant-numeric:tabular-nums;letter-spacing:.08em;color:var(--ink-soft);}
+
+  /* ── cover portrait frame (over the webcam window) ── */
+  .frame{position:absolute;left:var(--pw-x);top:var(--pw-y);width:var(--pw-w);height:var(--pw-h);
+    border:2px solid var(--ink);box-shadow:0 18px 60px rgba(43,38,34,.18);
+    opacity:0;animation:fade .9s ease .35s forwards;}
+  .frame::after{content:"";position:absolute;inset:12px;border:1px solid var(--tan);pointer-events:none;}
+  /* corner folio number, top-left, straddling the keyline */
+  .pageno{position:absolute;left:var(--pw-x);top:var(--pw-y);transform:translate(-50%,-50%);
+    width:64px;height:64px;background:var(--ink);color:var(--cream);
+    display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:30px;
+    opacity:0;animation:pop .6s cubic-bezier(.2,.9,.3,1.3) 1.0s forwards;}
+  /* caption / nameplate inside the bottom of the portrait */
+  .caption{position:absolute;left:var(--pw-x);width:var(--pw-w);top:calc(var(--pw-y) + var(--pw-h));
+    transform:translateY(-100%);background:rgba(43,38,34,.82);backdrop-filter:blur(2px);
+    padding:18px 24px;border-top:1px solid var(--tan);
+    clip-path:inset(0 0 100% 0);animation:wipeup .7s cubic-bezier(.2,.7,.2,1) 1.05s forwards;}
+  .caption .nm{font-family:var(--serif);font-weight:500;font-size:30px;color:var(--cream);line-height:1.1;}
+  .caption .rl{font-size:13px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--tan);margin-top:4px;}
+
+  @keyframes rise{to{opacity:1;transform:none;}}
+  @keyframes fade{to{opacity:1;}}
+  @keyframes draw{to{transform:scaleX(1);}}
+  @keyframes slidein{to{opacity:1;transform:none;}}
+  @keyframes pop{from{opacity:0;transform:translate(-50%,-50%) scale(.6);}to{opacity:1;transform:translate(-50%,-50%) scale(1);}}
+  @keyframes wipeup{to{clip-path:inset(0 0 0 0);}}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="grain"></div>
+
+  <div class="rail">
+    <div class="masthead" id="masthead">Faire<span class="reg">Q</span></div>
+    <div class="rule-row">
+      <div class="rule"></div>
+      <div class="meta"><span>The Quarterly</span><span class="ed" id="ed">Live Edition</span></div>
+    </div>
+
+    <div class="cover">
+      <div class="kicker" id="kicker">On the Cover</div>
+      <div class="headline" id="headline">The shop<br>around the corner</div>
+    </div>
+
+    <div class="lines">
+      <div class="line"><span class="d">—</span><span><b>Inside the backroom:</b> how four hubs ship a record day</span></div>
+      <div class="line"><span class="d">—</span><span>A field guide to <b>Faire Direct</b>, in five small moves</span></div>
+      <div class="line"><span class="d">—</span><span>Makers we love, and the season ahead</span></div>
+    </div>
+  </div>
+
+  <div class="folio">
+    <span id="issue">Issue 07</span><span class="sep"></span>
+    <span id="date">Spring</span><span class="sep"></span>
+    <span class="live"><span class="dot"></span>Live</span><span class="sep"></span>
+    <span class="clock" id="clock">--:--</span>
+  </div>
+
+  <!-- portrait frame over the webcam window -->
+  <div class="frame"></div>
+  <div class="pageno">01</div>
+  <div class="caption">
+    <div class="nm" id="nm">Your Name</div>
+    <div class="rl" id="rl">Live from the studio</div>
+  </div>
+</div>
+
+<script>
+  const q = new URLSearchParams(location.search);
+  const set = (id,v)=>{ if(v) document.getElementById(id).textContent = v; };
+  set('nm', q.get('name')); set('rl', q.get('role'));
+  set('kicker', q.get('kicker')); set('issue', q.get('issue')); set('ed', q.get('ed'));
+  if (q.get('headline')) document.getElementById('headline').innerHTML = q.get('headline').replace(/\\n/g,'<br>');
+
+  // month/season-ish date
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const now0=new Date(); document.getElementById('date').textContent = months[now0.getMonth()]+' '+now0.getFullYear();
+
+  function tick(){
+    const d=new Date(); let h=d.getHours(),m=d.getMinutes(); const ap=h>=12?'PM':'AM'; h=h%12||12;
+    document.getElementById('clock').textContent = `${h}:${String(m).padStart(2,'0')} ${ap}`;
+  }
+  tick(); setInterval(tick, 1000);
+</script>
+</body>
+</html>

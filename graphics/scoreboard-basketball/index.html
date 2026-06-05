@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>COURTVISION — basketball scorebug</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&family=Saira:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0c0f14; --bg2:#141a22; --panel:#1b232e; --ink:#eef3f7; --sub:#90a0b2;
+    --line:rgba(255,255,255,.10); --amber:#ffb515; --red:#ff2e3e; --live:#ff2e3e;
+    --a:#007A33; --b:#552583; --bgold:#FDB927;
+    --cond:'Saira Condensed',sans-serif; --sans:'Saira',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{width:1920px;height:1080px;overflow:hidden;background:transparent;color:var(--ink);
+    font-family:var(--sans);-webkit-font-smoothing:antialiased;}
+  #stage{position:absolute;inset:0;}
+
+  /* network bug (top-left) */
+  .netbug{position:absolute;top:30px;left:42px;display:flex;align-items:center;gap:14px;
+    filter:drop-shadow(0 4px 14px rgba(0,0,0,.5));}
+  .netbug .logo{font-family:var(--cond);font-weight:800;font-size:30px;letter-spacing:.04em;color:#fff;
+    background:linear-gradient(135deg,var(--amber),#ff7a00);padding:4px 14px;border-radius:6px;color:#15130a;}
+  .netbug .info{font-family:var(--sans);font-weight:600;font-size:15px;letter-spacing:.14em;text-transform:uppercase;color:#e7eef5;text-shadow:0 2px 8px rgba(0,0,0,.6);}
+  .netbug .info .live{color:var(--live);}
+
+  /* ── SCOREBUG (bottom center) ── */
+  .bug{position:absolute;left:50%;bottom:74px;transform:translateX(-50%);
+    display:flex;align-items:stretch;height:94px;border-radius:12px;overflow:visible;
+    background:linear-gradient(180deg,var(--bg2),var(--bg));border:1px solid var(--line);
+    box-shadow:0 18px 50px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06);font-family:var(--cond);}
+
+  .team{display:flex;align-items:center;gap:16px;padding:0 22px;position:relative;}
+  .team .tab{position:absolute;top:14px;bottom:14px;width:7px;border-radius:4px;}
+  .team.a .tab{left:0;background:var(--a);} .team.b .tab{right:0;background:var(--b);}
+  .team .logo{width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:26px;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.5);}
+  .team.a .logo{background:radial-gradient(circle at 35% 30%,#0b9c44,#005f28);}
+  .team.b .logo{background:radial-gradient(circle at 35% 30%,#6c33a8,#3d1a5e);border:2px solid var(--bgold);}
+  .team .abbr{font-weight:700;font-size:30px;letter-spacing:.04em;color:#fff;}
+  .team .score{font-weight:800;font-size:62px;line-height:.9;color:#fff;min-width:84px;text-align:center;
+    font-variant-numeric:tabular-nums;text-shadow:0 3px 10px rgba(0,0,0,.5);}
+  .team.a{padding-left:26px;} .team.b{padding-right:26px;flex-direction:row-reverse;}
+  .team.active .score{color:var(--amber);} /* possession highlight */
+  .team .poss{width:0;height:0;opacity:0;border-top:9px solid transparent;border-bottom:9px solid transparent;}
+  .team.a .poss{border-left:13px solid var(--amber);}
+  .team.b .poss{border-right:13px solid var(--amber);}
+  .team.active .poss{opacity:1;animation:bob 1s ease-in-out infinite;}
+  @keyframes bob{50%{transform:translateY(-3px);}}
+
+  /* center module */
+  .center{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:0 26px;background:linear-gradient(180deg,#0a0d12,#10151c);position:relative;min-width:210px;
+    border-left:1px solid var(--line);border-right:1px solid var(--line);}
+  .center .clock{font-weight:700;font-size:42px;line-height:1;letter-spacing:.02em;color:#fff;font-variant-numeric:tabular-nums;text-shadow:0 0 14px rgba(120,180,255,.25);}
+  .center .meta{display:flex;align-items:center;gap:12px;margin-top:5px;font-family:var(--sans);font-weight:600;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--sub);}
+  .center .qtr{color:#fff;background:var(--red);padding:1px 9px;border-radius:4px;letter-spacing:.08em;}
+  .center .bonus{color:#0c0f14;background:var(--amber);padding:1px 7px;border-radius:3px;font-weight:700;}
+
+  /* shot clock — mounted above center */
+  .shot{position:absolute;top:-34px;left:50%;transform:translateX(-50%);
+    width:78px;height:64px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:linear-gradient(180deg,#241a02,#181203);border:2px solid var(--amber);
+    box-shadow:0 8px 22px rgba(0,0,0,.6),0 0 18px rgba(255,181,21,.35);}
+  .shot .v{font-weight:800;font-size:40px;line-height:.9;color:var(--amber);font-variant-numeric:tabular-nums;text-shadow:0 0 12px rgba(255,181,21,.6);}
+  .shot .l{font-family:var(--sans);font-weight:700;font-size:9px;letter-spacing:.18em;color:#caa24a;margin-top:1px;}
+  .shot.danger{border-color:var(--red);box-shadow:0 8px 22px rgba(0,0,0,.6),0 0 22px rgba(255,46,62,.6);animation:shotpulse .5s steps(2) infinite;}
+  .shot.danger .v{color:var(--red);text-shadow:0 0 14px rgba(255,46,62,.8);}
+  .shot.danger .l{color:#e0808a;}
+  @keyframes shotpulse{50%{opacity:.55;}}
+
+  /* timeouts / fouls row under teams */
+  .tos{position:absolute;bottom:-22px;display:flex;gap:5px;}
+  .team.a .tos{left:26px;} .team.b .tos{right:26px;flex-direction:row-reverse;}
+  .tos i{width:18px;height:4px;border-radius:2px;background:#3a4658;}
+  .tos i.on{background:var(--amber);}
+
+  /* player stat card (left) */
+  .card{position:absolute;left:42px;bottom:150px;width:372px;border-radius:12px;overflow:hidden;
+    background:linear-gradient(180deg,var(--panel),var(--bg));border:1px solid var(--line);
+    box-shadow:0 18px 50px rgba(0,0,0,.55);transform:translateX(-440px);animation:slidein .6s cubic-bezier(.2,.7,.2,1) .3s forwards;}
+  .card .hd{display:flex;align-items:center;gap:14px;padding:12px 16px;background:linear-gradient(90deg,var(--a),rgba(0,122,51,0));}
+  .card .num{font-family:var(--cond);font-weight:800;font-size:38px;color:#fff;line-height:1;}
+  .card .who .nm{font-family:var(--cond);font-weight:700;font-size:26px;color:#fff;line-height:1;}
+  .card .who .pos{font-family:var(--sans);font-weight:600;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#bfe9cf;margin-top:3px;}
+  .card .stats{display:flex;}
+  .card .st{flex:1;padding:12px 6px;text-align:center;border-right:1px solid var(--line);}
+  .card .st:last-child{border-right:none;}
+  .card .st .n{font-family:var(--cond);font-weight:800;font-size:34px;color:#fff;line-height:1;}
+  .card .st .k{font-family:var(--sans);font-weight:600;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--sub);margin-top:4px;}
+  @keyframes slidein{to{transform:none;}}
+
+  /* ticker */
+  .ticker{position:absolute;left:0;right:0;bottom:0;height:46px;display:flex;align-items:center;
+    background:linear-gradient(to top,rgba(8,11,15,.96),rgba(8,11,15,.7));border-top:2px solid var(--amber);overflow:hidden;}
+  .ticker .tag{flex:none;height:100%;display:flex;align-items:center;padding:0 18px;background:var(--amber);color:#15130a;
+    font-family:var(--cond);font-weight:800;letter-spacing:.12em;font-size:16px;}
+  .ticker .mask{flex:1;overflow:hidden;position:relative;height:100%;}
+  .ticker .track{position:absolute;top:0;height:100%;display:flex;align-items:center;white-space:nowrap;animation:crawl 30s linear infinite;}
+  .ticker .g{display:inline-flex;align-items:center;gap:10px;padding:0 26px;font-family:var(--sans);font-size:16px;color:#e7eef5;}
+  .ticker .g b{font-family:var(--cond);font-weight:700;letter-spacing:.04em;}
+  .ticker .g .sc{color:var(--amber);font-family:var(--cond);font-weight:700;font-variant-numeric:tabular-nums;}
+  .ticker .g .fin{color:var(--sub);font-size:12px;font-weight:600;letter-spacing:.12em;}
+  @keyframes crawl{to{transform:translateX(-50%);}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="netbug"><span class="logo">COURTVISION</span><span class="info"><span class="live">● LIVE</span> · TD Garden</span></div>
+
+  <div class="bug">
+    <div class="team a" id="teamA">
+      <span class="tab"></span>
+      <span class="logo">B</span>
+      <span class="abbr" id="abbrA">BOS</span>
+      <span class="score" id="scoreA">88</span>
+      <span class="poss"></span>
+      <span class="tos" id="tosA"></span>
+    </div>
+
+    <div class="center">
+      <div class="shot" id="shot"><span class="v" id="shotv">14</span><span class="l">SHOT</span></div>
+      <div class="clock" id="clock">07:42</div>
+      <div class="meta"><span class="qtr" id="qtr">Q3</span><span id="foulsA">TF 4</span><span class="bonus" id="bonusB" style="display:none">BONUS</span></div>
+    </div>
+
+    <div class="team b" id="teamB">
+      <span class="tab"></span>
+      <span class="logo">L</span>
+      <span class="abbr" id="abbrB">LAL</span>
+      <span class="score" id="scoreB">84</span>
+      <span class="poss"></span>
+      <span class="tos" id="tosB"></span>
+    </div>
+  </div>
+
+  <div class="card" id="card">
+    <div class="hd"><span class="num" id="pnum">0</span><div class="who"><div class="nm" id="pname">J. TATUM</div><div class="pos" id="pteam">BOSTON · SF</div></div></div>
+    <div class="stats">
+      <div class="st"><div class="n" id="ppts">31</div><div class="k">PTS</div></div>
+      <div class="st"><div class="n" id="preb">9</div><div class="k">REB</div></div>
+      <div class="st"><div class="n" id="past">7</div><div class="k">AST</div></div>
+      <div class="st"><div class="n" id="pfg">11-19</div><div class="k">FG</div></div>
+    </div>
+  </div>
+
+  <div class="ticker">
+    <div class="tag">AROUND THE LEAGUE</div>
+    <div class="mask"><div class="track" id="track"></div></div>
+  </div>
+</div>
+
+<script>
+  const q=new URLSearchParams(location.search);
+  const g=id=>document.getElementById(id);
+  const setTxt=(id,v)=>{ if(v!=null&&v!=='') g(id).textContent=v; };
+
+  // params
+  setTxt('abbrA',q.get('a')); setTxt('abbrB',q.get('b'));
+  setTxt('scoreA',q.get('sa')); setTxt('scoreB',q.get('sb'));
+  setTxt('qtr',q.get('q'));
+  if(q.get('card')==='0') g('card').style.display='none';
+
+  // possession
+  const poss=(q.get('poss')||'a').toLowerCase();
+  g(poss==='b'?'teamB':'teamA').classList.add('active');
+
+  // timeouts (pips) + team fouls / bonus
+  const toA=+(q.get('toA')??5), toB=+(q.get('toB')??4);
+  const pip=(el,n)=>{ for(let i=0;i<7;i++){const s=document.createElement('i'); if(i<n)s.className='on'; el.appendChild(s);} };
+  pip(g('tosA'),toA); pip(g('tosB'),toB);
+  const fA=+(q.get('fA')??4), fB=+(q.get('fB')??5);
+  g('foulsA').textContent='TF '+fA;
+  if(fA>=5){ g('bonusB').style.display=''; g('bonusB').textContent='BONUS'; } // opponent in bonus
+
+  // ── game clock (counts down; tenths under a minute) ──
+  let gsec=(()=>{const p=(q.get('clock')||'07:42').split(':');return (+p[0])*60+(+p[1]);})();
+  let gt=gsec*1000;
+  // ── shot clock (counts down, resets to 24) ──
+  let sc=+(q.get('shot')??14)*1000;
+  let last=performance.now();
+  function fmtGame(ms){ const s=ms/1000; if(s<60) return s.toFixed(1); const m=Math.floor(s/60); return m+':'+String(Math.floor(s%60)).padStart(2,'0'); }
+  function loop(now){
+    const dt=now-last; last=now;
+    if(gt>0){ gt=Math.max(0,gt-dt); g('clock').textContent=fmtGame(gt); }
+    sc-=dt; if(sc<=0) sc=24000;
+    if(gt>0 && sc>gt) sc=gt; // shot can't exceed game
+    const ss=sc/1000;
+    g('shotv').textContent = ss<=5 ? ss.toFixed(1) : Math.ceil(ss);
+    g('shot').classList.toggle('danger', ss<=5);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // ticker — around the league
+  const GAMES=[['GSW','112','DEN','108','FINAL'],['MIA','89','NYK','91','3Q 2:14'],['DAL','77','PHX','74','HALF'],['MIL','103','PHI','99','4Q 5:30'],['OKC','120','SAC','118','FINAL/OT']];
+  const track=g('track');
+  function run(){ const f=document.createDocumentFragment();
+    GAMES.forEach(([a,sa,b,sb,st])=>{ const d=document.createElement('span'); d.className='g';
+      d.innerHTML=`<b>${a}</b> <span class="sc">${sa}</span> &nbsp;<b>${b}</b> <span class="sc">${sb}</span> <span class="fin">${st}</span>`;
+      f.appendChild(d); });
+    return f; }
+  track.appendChild(run()); track.appendChild(run());
+</script>
+</body>
+</html>
