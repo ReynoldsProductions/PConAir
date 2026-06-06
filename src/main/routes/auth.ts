@@ -63,6 +63,39 @@ export function createAuthRouter(auth: AuthManager, opts: AuthRouterOpts): Route
       .json({ role: 'operator' });
   });
 
+  /** HTML form login (browser): sets cookie and redirects to /operator/ */
+  router.post('/operator/browser', async (req: Request, res: Response) => {
+    const raw = req.body as { pin?: unknown };
+    const pin = typeof raw.pin === 'string' ? raw.pin : undefined;
+    const ip = clientIp(req);
+
+    if (!pin) {
+      res.redirect(303, '/operator/?login=missing');
+      return;
+    }
+
+    if (auth.isLockedOut(ip)) {
+      res.redirect(303, '/operator/?login=locked');
+      return;
+    }
+
+    const session = await auth.createSession('operator', pin, ip);
+    if (!session) {
+      if (auth.isLockedOut(ip)) {
+        res.redirect(303, '/operator/?login=locked');
+        return;
+      }
+      res.redirect(303, '/operator/?login=bad');
+      return;
+    }
+
+    res.cookie('pconair_operator_session', session.id, {
+      ...COOKIE_BASE,
+      maxAge: session.expiresAt - session.createdAt,
+    });
+    res.redirect(303, '/operator/');
+  });
+
   router.post('/admin', async (req: Request, res: Response) => {
     const { pin } = req.body as { pin?: string };
     const ip = clientIp(req);

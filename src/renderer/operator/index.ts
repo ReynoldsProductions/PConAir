@@ -343,6 +343,23 @@ function bindEvents(): void {
       catch (e) { showError((e as Error).message); }
     })
   );
+
+  // Tab switching — same pattern as GSC renderer.js
+  document.querySelectorAll<HTMLElement>('.nav-item').forEach((item) => {
+    item.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      document.querySelectorAll('.nav-item').forEach((n) => n.classList.remove('active'));
+      document.querySelectorAll<HTMLElement>('section[data-tab]').forEach((s) => {
+        s.hidden = true;
+      });
+      item.classList.add('active');
+      const target = item.dataset.target;
+      if (target) {
+        const section = document.querySelector<HTMLElement>(`section[data-tab="${target}"]`);
+        if (section) section.hidden = false;
+      }
+    });
+  });
 }
 
 // ── Boot ──────────────────────────────────────────────────────────

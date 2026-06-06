@@ -46,7 +46,8 @@ export function createOperatorWindow(serverPort: number): BrowserWindow {
     show: false,
   });
 
-  win.loadURL(`http://localhost:${serverPort}/operator`);
+  // Trailing slash so relative script URLs from HtmlWebpackPlugin resolve under /operator/
+  win.loadURL(`http://localhost:${serverPort}/operator/`);
   win.once('ready-to-show', () => win.show());
   return win;
 }
