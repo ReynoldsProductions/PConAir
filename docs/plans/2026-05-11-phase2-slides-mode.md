@@ -1,6 +1,8 @@
 # PC On Air — Phase 2: Slides Mode Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status: ✅ COMPLETE** — All 5 tasks implemented and committed. 19 slides tests + 3 A/B tests passing. TypeScript clean.
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Implement the Slides mode API — `/api/slides/*` and `/api/ab/switch` endpoints with full state management — and wire BrowserWindow instances into Electron for actual display output.
 
@@ -37,7 +39,7 @@ PConAir/
 - Create: `src/main/routes/slides.ts`
 - Create: `tests/slides.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```typescript
 // tests/slides.test.ts
@@ -242,7 +244,7 @@ describe('POST /api/slides/reload', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 cd /Users/tom/Documents/Claude/PConAir && npx vitest run tests/slides.test.ts
@@ -250,7 +252,7 @@ cd /Users/tom/Documents/Claude/PConAir && npx vitest run tests/slides.test.ts
 
 Expected: FAIL — routes not found.
 
-- [ ] **Step 3: Write `src/main/routes/slides.ts`**
+- [x] **Step 3: Write `src/main/routes/slides.ts`**
 
 ```typescript
 import { Router, Request, Response } from 'express';
@@ -400,7 +402,7 @@ export function createSlidesRouter(store: StateStore, auth: AuthManager): Router
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 cd /Users/tom/Documents/Claude/PConAir && npx vitest run tests/slides.test.ts
@@ -408,7 +410,7 @@ cd /Users/tom/Documents/Claude/PConAir && npx vitest run tests/slides.test.ts
 
 Expected: All 12 tests pass.
 
-- [ ] **Step 5: Run all tests**
+- [x] **Step 5: Run all tests**
 
 ```bash
 cd /Users/tom/Documents/Claude/PConAir && npx vitest run
@@ -416,7 +418,7 @@ cd /Users/tom/Documents/Claude/PConAir && npx vitest run
 
 Expected: All 38 tests pass (26 existing + 12 new slides tests).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/tom/Documents/Claude/PConAir && git add src/main/routes/slides.ts tests/slides.test.ts && git commit -m "feat: slides API routes (load, next, prev, goto, reload)"
@@ -430,7 +432,7 @@ cd /Users/tom/Documents/Claude/PConAir && git add src/main/routes/slides.ts test
 - Modify: `src/main/routes/api.ts`
 - Modify: `tests/slides.test.ts` (add A/B tests)
 
-- [ ] **Step 1: Add A/B switch tests to `tests/slides.test.ts`**
+- [x] **Step 1: Add A/B switch tests to `tests/slides.test.ts`**
 
 Append to `tests/slides.test.ts`:
 
@@ -469,7 +471,7 @@ describe('POST /api/ab/switch', () => {
 });
 ```
 
-- [ ] **Step 2: Run A/B tests to verify they fail**
+- [x] **Step 2: Run A/B tests to verify they fail**
 
 ```bash
 cd /Users/tom/Documents/Claude/PConAir && npx vitest run tests/slides.test.ts -t "ab/switch"
@@ -477,7 +479,7 @@ cd /Users/tom/Documents/Claude/PConAir && npx vitest run tests/slides.test.ts -t
 
 Expected: FAIL — route not found.
 
-- [ ] **Step 3: Add `POST /api/ab/switch` to `src/main/routes/api.ts`**
+- [x] **Step 3: Add `POST /api/ab/switch` to `src/main/routes/api.ts`**
 
 Add to the bottom of `createApiRouter`, before `return router`:
 
@@ -496,7 +498,7 @@ router.post('/ab/switch', opGuard, (req: Request, res: Response) => {
 });
 ```
 
-- [ ] **Step 4: Run all tests**
+- [x] **Step 4: Run all tests**
 
 ```bash
 cd /Users/tom/Documents/Claude/PConAir && npx vitest run
@@ -504,7 +506,7 @@ cd /Users/tom/Documents/Claude/PConAir && npx vitest run
 
 Expected: All 41 tests pass (38 + 3 new A/B tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/tom/Documents/Claude/PConAir && git add src/main/routes/api.ts tests/slides.test.ts && git commit -m "feat: POST /api/ab/switch endpoint"
@@ -517,7 +519,7 @@ cd /Users/tom/Documents/Claude/PConAir && git add src/main/routes/api.ts tests/s
 **Files:**
 - Modify: `src/main/routes/index.ts`
 
-- [ ] **Step 1: Update `src/main/routes/index.ts`**
+- [x] **Step 1: Update `src/main/routes/index.ts`**
 
 ```typescript
 import { Express } from 'express';
@@ -538,7 +540,7 @@ export function mountRoutes(app: Express, store: StateStore, auth: AuthManager):
 
 **Important:** Mount `/api/slides` BEFORE `/api` so the more-specific path matches first.
 
-- [ ] **Step 2: Run all tests to confirm nothing broke**
+- [x] **Step 2: Run all tests to confirm nothing broke**
 
 ```bash
 cd /Users/tom/Documents/Claude/PConAir && npx vitest run
@@ -546,7 +548,7 @@ cd /Users/tom/Documents/Claude/PConAir && npx vitest run
 
 Expected: All 41 tests pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/tom/Documents/Claude/PConAir && git add src/main/routes/index.ts && git commit -m "feat: mount slides router at /api/slides"
@@ -561,7 +563,7 @@ cd /Users/tom/Documents/Claude/PConAir && git add src/main/routes/index.ts && gi
 
 This module manages actual Electron BrowserWindow instances for A and B. It is Electron-only and cannot be unit-tested; it is integrated via `src/main/index.ts`.
 
-- [ ] **Step 1: Create `src/main/slides/window-manager.ts`**
+- [x] **Step 1: Create `src/main/slides/window-manager.ts`**
 
 ```typescript
 import { BrowserWindow, screen } from 'electron';
@@ -667,7 +669,7 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
 export type SlidesWindowManager = ReturnType<typeof createSlidesWindowManager>;
 ```
 
-- [ ] **Step 2: Run all tests to confirm no compile errors**
+- [x] **Step 2: Run all tests to confirm no compile errors**
 
 ```bash
 cd /Users/tom/Documents/Claude/PConAir && npx tsc --noEmit && npx vitest run
@@ -675,7 +677,7 @@ cd /Users/tom/Documents/Claude/PConAir && npx tsc --noEmit && npx vitest run
 
 Expected: 0 TypeScript errors, all 41 tests pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/tom/Documents/Claude/PConAir && git add src/main/slides/window-manager.ts && git commit -m "feat: slides window manager for A/B BrowserWindow instances"
@@ -688,7 +690,7 @@ cd /Users/tom/Documents/Claude/PConAir && git add src/main/slides/window-manager
 **Files:**
 - Modify: `src/main/index.ts`
 
-- [ ] **Step 1: Update `src/main/index.ts`** to initialize the SlidesWindowManager
+- [x] **Step 1: Update `src/main/index.ts`** to initialize the SlidesWindowManager
 
 ```typescript
 import { app, BrowserWindow } from 'electron';
@@ -758,7 +760,7 @@ app.on('window-all-closed', () => {
 });
 ```
 
-- [ ] **Step 2: Run all tests to confirm nothing broke**
+- [x] **Step 2: Run all tests to confirm nothing broke**
 
 ```bash
 cd /Users/tom/Documents/Claude/PConAir && npx vitest run
@@ -766,7 +768,7 @@ cd /Users/tom/Documents/Claude/PConAir && npx vitest run
 
 Expected: All 41 tests pass.
 
-- [ ] **Step 3: Run typecheck**
+- [x] **Step 3: Run typecheck**
 
 ```bash
 cd /Users/tom/Documents/Claude/PConAir && npx tsc --noEmit
@@ -774,7 +776,7 @@ cd /Users/tom/Documents/Claude/PConAir && npx tsc --noEmit
 
 Expected: No errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd /Users/tom/Documents/Claude/PConAir && git add src/main/index.ts && git commit -m "feat: initialize slides window manager in electron main process"
