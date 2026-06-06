@@ -82,3 +82,61 @@ FFG stops being its own app and becomes the platform's **first show**:
 - Graphics packages: in-repo `packages/` dir to start (recommended), or separate repos per package?
 - `scoreboard` content type: data model + how it binds to the existing timer/Stagetimer.
 - Should the OBS overlay pages reuse the operator renderer templates, or be a dedicated transparent render path?
+
+## 9. Recommended answers (pre-Step 2 analysis — 2026-06-05)
+
+Drafted for human sign-off before implementation begins. These are recommendations, not decisions.
+
+### Q1 — Output path: single app vs. two build targets
+
+**✅ DECIDED: single app, both output paths.** One Electron app serves both the hardware/switcher path (BrowserWindow → HDMI) and the software/OBS path (Express server → Browser Sources). The `core` + `shell-electron` + `shell-web` structural split in Step 2 is still the right move for testability, but `shell-web` is a future build target — not a separate deliverable.
+
+### Q2 — Repo name / platform identity
+
+**✅ DECIDED: PConAir is the platform. FFG is one graphics treatment (package + profile) within it.** The repo stays `TomsFaire/PConAir`. "PC On Air" names the tool; Faire Fulfillment Games is just the first show running on it. This framing should be reflected everywhere — docs, README, Companion module naming.
+
+### Q3 — Graphics packages location
+
+**✅ DECIDED: in-repo `packages/` for now; sideloadable packages are a first-class future requirement.**
+
+FFG package starts in `packages/graphics-ffg/` alongside the companion module. The package format should be designed from the start to be portable — structured as a self-contained directory (CSS, templates, assets, manifest) so it can eventually be zipped, imported, exported, and backed up the same way show profiles are today (Spec 05). When the format stabilizes and there are external consumers, sideloading becomes a Step 2 capability (load a package zip from disk/URL at runtime). Do not design the package loader in a way that couples it to the in-repo path.
+
+### Q4 — `scoreboard` clock: local-owned timer (not Stagetimer)
+
+**✅ DECIDED: PConAir owns the clock. Stagetimer is dropped as a dependency for FFG.**
+
+Stagetimer was too slow for live scoring use. The clock lives entirely inside PConAir's core — driven by the server, synced over the existing WebSocket like all other state. Stagetimer support is removed from the scoreboard schema (not even an optional mode for now — add it back only if a future show specifically needs it).
+
+**Updated scoreboard state shape:**
+
+```ts
+interface ScoreboardState {
+  teams: Array<{
+    id: string;
+    name: string;
+    shortName: string;   // e.g. city code for FFG
+    color: string;       // primary hex
+    secondaryColor?: string;
+    logoUrl?: string;
+  }>;
+  scores: Record<string, number>;   // teamId → score
+  order: string[];                  // teamId[] — ranked display order (maps to FFG `orders`)
+  phase: 'pre' | 'live' | 'break' | 'final';
+  winner: string | null;            // teamId
+  h2h: { a: string; b: string } | null;  // teamIds for head-to-head view
+  clock: {
+    mode: 'count-up' | 'count-down' | 'off';
+    value: number;      // current value in seconds
+    running: boolean;
+    startedAt?: number; // server epoch ms — lets clients compute drift-free display value
+  };
+}
+```
+
+The clock is ticked server-side on an interval; `startedAt` lets overlay pages compute the live display value without waiting for every tick. Operator/Companion can start, stop, reset, and set the clock value via the existing action-dispatch pattern.
+
+### Q5 — OBS overlay pages: dedicated render path, operator UI preserved
+
+**✅ DECIDED: dedicated `src/renderer/overlays/` path for OBS overlays; existing operator renderer stays intact and must remain functional.**
+
+New OBS overlay pages live at `src/renderer/overlays/` — transparent background, silent auto-reconnect, no UI chrome, graphics-package-themed. They are additive; the existing operator UI (`src/renderer/operator/`) and admin SPA (`src/renderer/admin/`) are not touched and must continue to work. A small shared WS client module (extracted from `src/renderer/operator/api.ts`) can be reused by overlays for the WebSocket connection — no other sharing between the two render paths.
