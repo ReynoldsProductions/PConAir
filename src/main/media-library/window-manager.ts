@@ -77,7 +77,11 @@ export function createMediaLibraryWindowManager(config: { store: StateStore; med
     win = null;
   }
 
-  return { initialize, destroy };
+  function getWindow(): BrowserWindow | null {
+    return win && !win.isDestroyed() ? win : null;
+  }
+
+  return { initialize, getWindow, destroy };
 }
 
 export type MediaLibraryWindowManager = ReturnType<typeof createMediaLibraryWindowManager>;

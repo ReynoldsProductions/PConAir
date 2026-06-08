@@ -179,7 +179,11 @@ export function createL3WindowManager(config: L3WindowConfig) {
     win = null;
   }
 
-  return { initialize, destroy };
+  function getWindow(): BrowserWindow | null {
+    return win && !win.isDestroyed() ? win : null;
+  }
+
+  return { initialize, getWindow, destroy };
 }
 
 export type L3WindowManager = ReturnType<typeof createL3WindowManager>;

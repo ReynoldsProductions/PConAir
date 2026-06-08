@@ -118,7 +118,14 @@ export function createUrlWindowManager(config: UrlWindowConfig) {
     windowB = null;
   }
 
-  return { initialize, loadUrl, showInstance, destroy };
+  function getActiveWindow(): BrowserWindow | null {
+    const state = store.getState();
+    const activeInstance = state.abState.activeInstance;
+    const win = activeInstance === 'A' ? windowA : windowB;
+    return win && !win.isDestroyed() ? win : null;
+  }
+
+  return { initialize, loadUrl, showInstance, getActiveWindow, destroy };
 }
 
 export type UrlWindowManager = ReturnType<typeof createUrlWindowManager>;

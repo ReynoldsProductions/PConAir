@@ -127,7 +127,14 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
     }
   }
 
-  return { initialize, loadDeck, navigateToSlide, showInstance, getSpeakerNotes, destroy };
+  function getActiveWindow(): BrowserWindow | null {
+    const state = store.getState();
+    const activeInstance = state.abState.activeInstance;
+    const win = activeInstance === 'A' ? windowA : windowB;
+    return win && !win.isDestroyed() ? win : null;
+  }
+
+  return { initialize, loadDeck, navigateToSlide, showInstance, getSpeakerNotes, getActiveWindow, destroy };
 }
 
 export type SlidesWindowManager = ReturnType<typeof createSlidesWindowManager>;
