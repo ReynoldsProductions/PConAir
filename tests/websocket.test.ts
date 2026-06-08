@@ -218,3 +218,98 @@ describe('set_display action via POST /api/action', () => {
     expect(store.getState().abState.instanceA.displayTarget).toBe('disp-1');
   });
 });
+
+describe('Graphics viewer WebSocket (?graphics=1)', () => {
+  it('allows connection without auth and receives initial state', async () => {
+    const store = createStateStore();
+    const srv = createFullServer({
+      store,
+      operatorPin: 'test1234',
+      adminPin: 'adminpass8',
+      operatorSessionMs: 60000,
+      adminSessionMs: 60000,
+      port: 0,
+    });
+    await new Promise<void>((resolve) => srv.httpServer.listen(0, resolve));
+    const port = (srv.httpServer.address() as { port: number }).port;
+
+    const ws = new WebSocket(`ws://localhost:${port}/ws?graphics=1`);
+    const msg = await new Promise<WsServerMessage>((resolve, reject) => {
+      ws.on('message', (data) => resolve(JSON.parse(data.toString()) as WsServerMessage));
+      ws.on('error', reject);
+    });
+
+    expect(msg.type).toBe('state');
+    expect((msg as { type: 'state'; payload: unknown }).payload).toBeTruthy();
+
+    ws.close();
+    await new Promise<void>((resolve) => srv.httpServer.close(() => resolve()));
+  });
+
+  it('receives state_patch when store state changes', async () => {
+    const store = createStateStore();
+    const srv = createFullServer({
+      store,
+      operatorPin: 'test1234',
+      adminPin: 'adminpass8',
+      operatorSessionMs: 60000,
+      adminSessionMs: 60000,
+      port: 0,
+    });
+    await new Promise<void>((resolve) => srv.httpServer.listen(0, resolve));
+    const port = (srv.httpServer.address() as { port: number }).port;
+
+    const ws = new WebSocket(`ws://localhost:${port}/ws?graphics=1`);
+    // skip initial 'state' message
+    await new Promise<void>((resolve, reject) => {
+      ws.once('message', () => resolve());
+      ws.on('error', reject);
+    });
+
+    const patchPromise = new Promise<WsServerMessage>((resolve, reject) => {
+      ws.once('message', (data) => resolve(JSON.parse(data.toString()) as WsServerMessage));
+      ws.on('error', reject);
+    });
+
+    // mutate state — should broadcast to all clients including graphics viewer
+    store.setState({ graphics: { scoreboard: { teamA: 'BOS', teamB: 'LAL', scoreA: 10, scoreB: 8, quarter: 'Q2', gameClock: '5:00', gameClockRunning: true, shotClock: 24, shotClockRunning: true, possession: 'a', foulsA: 2, foulsB: 3, timeoutsA: 5, timeoutsB: 6 } } });
+
+    const patch = await patchPromise;
+    expect(patch.type).toBe('state_patch');
+    expect((patch as { type: 'state_patch'; payload: { graphics?: unknown } }).payload.graphics).toBeTruthy();
+
+    ws.close();
+    await new Promise<void>((resolve) => srv.httpServer.close(() => resolve()));
+  });
+
+  it('rejects action messages from graphics viewers silently', async () => {
+    const store = createStateStore();
+    const srv = createFullServer({
+      store,
+      operatorPin: 'test1234',
+      adminPin: 'adminpass8',
+      operatorSessionMs: 60000,
+      adminSessionMs: 60000,
+      port: 0,
+    });
+    await new Promise<void>((resolve) => srv.httpServer.listen(0, resolve));
+    const port = (srv.httpServer.address() as { port: number }).port;
+
+    const ws = new WebSocket(`ws://localhost:${port}/ws?graphics=1`);
+    // wait for initial state
+    await new Promise<void>((resolve, reject) => {
+      ws.once('message', () => resolve());
+      ws.on('error', reject);
+    });
+
+    // send an action — graphics viewer must not trigger state change
+    ws.send(JSON.stringify({ type: 'action', action_id: 'set_mode', params: { mode: 'url' } }));
+
+    // wait 200ms; if store didn't change, mode is still 'idle'
+    await new Promise<void>((resolve) => setTimeout(resolve, 200));
+    expect(store.getState().currentMode).toBe('idle');
+
+    ws.close();
+    await new Promise<void>((resolve) => srv.httpServer.close(() => resolve()));
+  });
+});
