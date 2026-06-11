@@ -650,5 +650,32 @@ export function createL3Router(
     res.json({ l3: { currentPlaylistId: id } });
   });
 
+  // Step through the active playlist (wraps around). Takes the cue at the new position.
+  function playlistStep(res: Response, direction: 1 | -1): void {
+    const l3 = store.getState().l3;
+    const playlistId = l3?.currentPlaylistId ?? null;
+    const playlist = playlistId ? playlists.findById(playlistId) : null;
+    if (!playlist || playlist.cueIds.length === 0) {
+      res.status(400).json({ error: { code: 'PRESET_NOT_FOUND', message: 'No active playlist (activate one first)' } });
+      return;
+    }
+    const currentIdx = l3?.activeCueId ? playlist.cueIds.indexOf(l3.activeCueId) : -1;
+    const nextIdx =
+      currentIdx === -1
+        ? direction === 1
+          ? 0
+          : playlist.cueIds.length - 1
+        : (currentIdx + direction + playlist.cueIds.length) % playlist.cueIds.length;
+    const r = l3TakeOp(store, cues, { cueId: playlist.cueIds[nextIdx] });
+    if (!r.ok) {
+      res.status(r.status).json({ error: r.error });
+      return;
+    }
+    res.json({ ...r.body, playlistPosition: nextIdx + 1, playlistLength: playlist.cueIds.length });
+  }
+
+  router.post('/playlists/next', opGuard, (_req: Request, res: Response) => playlistStep(res, 1));
+  router.post('/playlists/prev', opGuard, (_req: Request, res: Response) => playlistStep(res, -1));
+
   return router;
 }
