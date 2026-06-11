@@ -11,12 +11,51 @@ export interface Preset {
   name: string;
 }
 
+export type SlidesContentKind = 'slides' | 'url' | 'none';
+
 export interface SlidesState {
   deckId: string;
   deckTitle: string;
   slideIndex: number; // 0-based
   slideCount: number;
   isLoading: boolean;
+  /** Original deck URL as loaded (for status display / reload). */
+  deckUrl: string | null;
+  /** A/B failover: backup deck loaded alongside the primary. */
+  backupDeckId: string | null;
+  backupDeckUrl: string | null;
+  backupLoaded: boolean;
+  /** Current slide's speaker notes (normalized; '' when none). */
+  notes: string;
+  /** Google's presenter-notes popup is open (capture source). */
+  notesOpen: boolean;
+  /** Current/next slide preview images as data URLs (null until captured). */
+  thumbnailCurrent: string | null;
+  thumbnailNext: string | null;
+  /** Offline mode toggle (cache-warm plumbing; Google blocks true offline presenting). */
+  offlineMode: boolean;
+  cacheWarmed: boolean;
+  contentKind: SlidesContentKind;
+}
+
+/** Build a full SlidesState from the core fields plus optional overrides. */
+export function makeSlidesState(
+  init: Pick<SlidesState, 'deckId' | 'deckTitle' | 'slideIndex' | 'slideCount' | 'isLoading'> & Partial<SlidesState>
+): SlidesState {
+  return {
+    deckUrl: null,
+    backupDeckId: null,
+    backupDeckUrl: null,
+    backupLoaded: false,
+    notes: '',
+    notesOpen: false,
+    thumbnailCurrent: null,
+    thumbnailNext: null,
+    offlineMode: false,
+    cacheWarmed: false,
+    contentKind: 'slides',
+    ...init,
+  };
 }
 
 export interface L3State {

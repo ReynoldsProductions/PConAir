@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createStateStore } from '../src/main/state';
+import { makeSlidesState } from '../src/shared/types';
 import { createFullServer } from './_test-server';
 
 const AUTH_CONFIG = {
@@ -72,7 +73,7 @@ describe('POST /api/slides/next', () => {
     const { app, store, cookie } = await makeApp();
     store.setState({
       currentMode: 'slides',
-      slides: { deckId: 'abc', deckTitle: 'Test', slideIndex: 0, slideCount: 5, isLoading: false },
+      slides: makeSlidesState({ deckId: 'abc', deckTitle: 'Test', slideIndex: 0, slideCount: 5, isLoading: false }),
     });
     const res = await request(app)
       .post('/api/slides/next')
@@ -85,7 +86,7 @@ describe('POST /api/slides/next', () => {
     const { app, store, cookie } = await makeApp();
     store.setState({
       currentMode: 'slides',
-      slides: { deckId: 'abc', deckTitle: 'Test', slideIndex: 4, slideCount: 5, isLoading: false },
+      slides: makeSlidesState({ deckId: 'abc', deckTitle: 'Test', slideIndex: 4, slideCount: 5, isLoading: false }),
     });
     const res = await request(app)
       .post('/api/slides/next')
@@ -107,7 +108,7 @@ describe('POST /api/slides/next', () => {
     const { app, store, cookie } = await makeApp();
     store.setState({
       currentMode: 'slides',
-      slides: { deckId: 'abc', deckTitle: 'Test', slideIndex: 0, slideCount: 1, isLoading: true },
+      slides: makeSlidesState({ deckId: 'abc', deckTitle: 'Test', slideIndex: 0, slideCount: 1, isLoading: true }),
     });
     const res = await request(app)
       .post('/api/slides/next')
@@ -122,7 +123,7 @@ describe('POST /api/slides/prev', () => {
     const { app, store, cookie } = await makeApp();
     store.setState({
       currentMode: 'slides',
-      slides: { deckId: 'abc', deckTitle: 'Test', slideIndex: 3, slideCount: 5, isLoading: false },
+      slides: makeSlidesState({ deckId: 'abc', deckTitle: 'Test', slideIndex: 3, slideCount: 5, isLoading: false }),
     });
     const res = await request(app)
       .post('/api/slides/prev')
@@ -135,7 +136,7 @@ describe('POST /api/slides/prev', () => {
     const { app, store, cookie } = await makeApp();
     store.setState({
       currentMode: 'slides',
-      slides: { deckId: 'abc', deckTitle: 'Test', slideIndex: 0, slideCount: 5, isLoading: false },
+      slides: makeSlidesState({ deckId: 'abc', deckTitle: 'Test', slideIndex: 0, slideCount: 5, isLoading: false }),
     });
     const res = await request(app)
       .post('/api/slides/prev')
@@ -150,7 +151,7 @@ describe('POST /api/slides/goto', () => {
     const { app, store, cookie } = await makeApp();
     store.setState({
       currentMode: 'slides',
-      slides: { deckId: 'abc', deckTitle: 'Test', slideIndex: 0, slideCount: 10, isLoading: false },
+      slides: makeSlidesState({ deckId: 'abc', deckTitle: 'Test', slideIndex: 0, slideCount: 10, isLoading: false }),
     });
     const res = await request(app)
       .post('/api/slides/goto')
@@ -164,7 +165,7 @@ describe('POST /api/slides/goto', () => {
     const { app, store, cookie } = await makeApp();
     store.setState({
       currentMode: 'slides',
-      slides: { deckId: 'abc', deckTitle: 'Test', slideIndex: 0, slideCount: 5, isLoading: false },
+      slides: makeSlidesState({ deckId: 'abc', deckTitle: 'Test', slideIndex: 0, slideCount: 5, isLoading: false }),
     });
     const res = await request(app)
       .post('/api/slides/goto')
@@ -178,7 +179,7 @@ describe('POST /api/slides/goto', () => {
     const { app, store, cookie } = await makeApp();
     store.setState({
       currentMode: 'slides',
-      slides: { deckId: 'abc', deckTitle: 'Test', slideIndex: 0, slideCount: 5, isLoading: false },
+      slides: makeSlidesState({ deckId: 'abc', deckTitle: 'Test', slideIndex: 0, slideCount: 5, isLoading: false }),
     });
     const res = await request(app)
       .post('/api/slides/goto')
@@ -194,7 +195,7 @@ describe('POST /api/slides/reload', () => {
     const { app, store, cookie } = await makeApp();
     store.setState({
       currentMode: 'slides',
-      slides: { deckId: 'abc', deckTitle: 'Test', slideIndex: 2, slideCount: 5, isLoading: false },
+      slides: makeSlidesState({ deckId: 'abc', deckTitle: 'Test', slideIndex: 2, slideCount: 5, isLoading: false }),
     });
     const res = await request(app)
       .post('/api/slides/reload')

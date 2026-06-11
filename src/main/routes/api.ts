@@ -5,7 +5,7 @@ import type { AuthManager } from '../auth';
 import type { ReliabilityStore } from '../reliability-store';
 import type { AppState, Mode, ABInstance } from '../../shared/types';
 import { requireOperator, requireAdmin } from './middleware';
-import { getLogs, clearLogs, setVerboseLogging, isVerboseLogging } from '../logger';
+import { gscStatusFields } from '../services/gsc-status';
 
 const VALID_MODES: Mode[] = ['slides', 'url', 'l3', 'media-library', 'idle'];
 
@@ -52,8 +52,12 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
   const adminGuard = requireAdmin(auth);
   const reloadTimers = new Map<ABInstance, ReturnType<typeof setTimeout>>();
 
-  router.get('/status', opGuard, (_req: Request, res: Response) => {
-    res.json(store.getState());
+  // Unauthenticated on LAN (v2 plan §Connections): read-only, gated by the
+  // global IP allowlist, and polled cookie-less by the GSC Companion module.
+  // GSC-compat flat fields are merged alongside the AppState fields.
+  router.get('/status', (_req: Request, res: Response) => {
+    const state = store.getState();
+    res.json({ ...state, ...gscStatusFields(state) });
   });
 
   router.get('/health', adminGuard, (_req: Request, res: Response) => {

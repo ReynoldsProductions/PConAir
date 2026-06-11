@@ -6,6 +6,7 @@ import { createSlidesRouter } from './slides';
 import { createUrlRouter } from './url';
 import { createOperatorRouter } from './operator';
 import { createRemoteRouter } from './remote';
+import { createGscCompatRouter } from './gsc-compat';
 import { createAdminRouter } from './admin';
 import { createPresetsRouter } from './presets';
 import { createL3Router } from './l3';
@@ -78,6 +79,8 @@ export function mountRoutes(app: Express, s: RouteServices): void {
     })
   );
   app.use('/api/slides', createSlidesRouter(s.store, s.auth));
+  // GSC Companion module compat — cookie-less, IP-allowlist-gated (see gsc-compat.ts)
+  app.use('/api', createGscCompatRouter(s.store));
   app.use('/api/url', createUrlRouter(s.store, s.auth));
   app.use('/api/presets', createPresetsRouter(s.store, s.auth, s.presets));
   app.use('/api/l3', createL3Router(s.store, s.auth, s.l3Cues, s.l3Playlists, s.l3ThemeStore, s.l3FilesRoot, s.renderManualCue));
