@@ -144,6 +144,16 @@
     .qr-box img { width: 280px; height: 280px; border-radius: 8px; background: #fff; }
     .qr-url { font-size: 12px; color: var(--text-dim); margin: 10px 0; word-break: break-all; }
 
+    /* ---- L3 page ---- */
+    .l3-active-row { font-size: 14px; color: var(--text-dim); margin-bottom: 12px; min-height: 18px; }
+    .l3-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .l3-cue { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; cursor: pointer; text-align: left; color: var(--text); }
+    .l3-cue.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .l3-cue.live { border-color: var(--live); box-shadow: 0 0 0 1px var(--live); }
+    .l3-cue .cue-name { font-size: 13px; font-weight: 600; margin: 0 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .l3-cue .cue-title { font-size: 11px; color: var(--text-dim); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .l3-cue .cue-theme { font-size: 9.5px; color: var(--text-dim); letter-spacing: 0.5px; text-transform: uppercase; margin-top: 6px; }
+
     /* ---- Settings page tunnel section ---- */
     .settings-field { display: block; font-size: 12px; color: var(--text-dim); margin: 10px 0 4px; }
     .settings-input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 9px 10px; font-size: 13px; box-sizing: border-box; }
@@ -233,9 +243,43 @@
     </section>
 
     <section class="page" id="page-l3">
-      <h2>Lower Thirds</h2>
-      <p class="sub">Cue gallery, take/clear, playlists</p>
-      <span class="stub-badge">Coming in Phase 4</span>
+      <div class="slides-header">
+        <span class="deck-title">Lower Thirds</span>
+        <span id="l3-onair" class="chip" hidden>ON AIR</span>
+      </div>
+
+      <div class="l3-active-row">
+        <span id="l3-active-name">Nothing on air</span>
+      </div>
+
+      <div class="slide-controls">
+        <button id="l3-clear" class="nav-btn nav-prev">Clear</button>
+        <button id="l3-take" class="nav-btn nav-next">Take selected</button>
+      </div>
+
+      <div class="goto-row">
+        <label class="haptic-label"><input type="checkbox" id="l3-stacking" /> Stacking</label>
+        <select id="l3-playlist" class="settings-input" style="flex:1;max-width:220px;"></select>
+        <button id="l3-pl-prev" class="small-btn">‹ Prev</button>
+        <button id="l3-pl-next" class="small-btn">Next ›</button>
+      </div>
+
+      <div id="l3-gallery" class="l3-gallery"></div>
+
+      <details class="card loader-card">
+        <summary>Add / import cues</summary>
+        <label class="settings-field" for="l3-new-name">Name</label>
+        <input id="l3-new-name" class="settings-input" type="text" placeholder="Jane Doe" />
+        <label class="settings-field" for="l3-new-title">Title</label>
+        <input id="l3-new-title" class="settings-input" type="text" placeholder="Director of Things" />
+        <label class="settings-field" for="l3-new-theme">Template</label>
+        <select id="l3-new-theme" class="settings-input"></select>
+        <div class="loader-buttons">
+          <button id="l3-add" class="small-btn primary">Add cue</button>
+          <label class="small-btn" for="l3-csv" style="cursor:pointer;">Import CSV<input id="l3-csv" type="file" accept=".csv" hidden /></label>
+        </div>
+        <p class="hint-line" id="l3-msg"></p>
+      </details>
     </section>
 
     <section class="page" id="page-stills">

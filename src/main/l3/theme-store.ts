@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import { fairel3sStyleToCss } from './fairel3s-theme-convert';
+import { FAIREL3S_STYLES } from './fairel3s-styles-data';
 
 export interface L3Theme {
   name: string;
@@ -43,6 +45,25 @@ const BUILT_IN_DEFAULT: L3Theme = {
   isBuiltIn: true,
   createdAt: 0,
 };
+
+function faireDisplayName(name: string): string {
+  return name
+    .replace(/^faire-/, 'Faire ')
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** FaireL3s styles bundled as built-in themes (v2 plan, phase 4). */
+const BUILT_IN_FAIRE: L3Theme[] = FAIREL3S_STYLES.map(({ name, style }) => ({
+  name,
+  displayName: faireDisplayName(name),
+  description: 'Bundled FaireL3s template',
+  cssContent: fairel3sStyleToCss(style),
+  isBuiltIn: true,
+  createdAt: 0,
+}));
+
+const BUILT_INS: L3Theme[] = [BUILT_IN_DEFAULT, ...BUILT_IN_FAIRE];
 
 interface ThemeIndex {
   themes: Array<{ name: string; displayName: string; description?: string; createdAt: number }>;
@@ -96,11 +117,12 @@ export function createL3ThemeStore(opts: { l3FilesRoot: string; onChange?: () =>
   loadIndex();
 
   function list(): L3Theme[] {
-    return [BUILT_IN_DEFAULT, ...Array.from(customThemes.values())];
+    return [...BUILT_INS, ...Array.from(customThemes.values())];
   }
 
   function findByName(name: string): L3Theme | null {
-    if (name === 'default') return BUILT_IN_DEFAULT;
+    const builtIn = BUILT_INS.find((t) => t.name === name);
+    if (builtIn) return builtIn;
     return customThemes.get(name) ?? null;
   }
 

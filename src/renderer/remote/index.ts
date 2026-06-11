@@ -232,12 +232,16 @@ function connectWs(): void {
         renderStatusGrid(msg.payload);
         renderSlides((msg.payload.slides as SlidesSlice | null) ?? null);
         renderTunnel((msg.payload.tunnel as TunnelSlice | undefined) ?? null);
+        renderL3((msg.payload.l3 as L3Slice | null) ?? null);
       } else if (msg.type === 'state_patch' && msg.payload) {
         if ('slides' in msg.payload) {
           renderSlides((msg.payload.slides as SlidesSlice | null) ?? null);
         }
         if ('tunnel' in msg.payload) {
           renderTunnel((msg.payload.tunnel as TunnelSlice | undefined) ?? null);
+        }
+        if ('l3' in msg.payload) {
+          renderL3((msg.payload.l3 as L3Slice | null) ?? null);
         }
       }
     } catch {
@@ -249,6 +253,169 @@ function connectWs(): void {
     setTimeout(connectWs, reconnectDelayMs);
     reconnectDelayMs = Math.min(reconnectDelayMs * 2, 15000);
   };
+}
+
+// ---- Lower thirds page ----
+
+interface L3Slice {
+  activeCueId: string | null;
+  activeCueName: string | null;
+  activeTitle: string | null;
+  isStacking: boolean;
+  currentPlaylistId: string | null;
+}
+
+interface L3Cue {
+  id: string;
+  name: string;
+  title: string;
+  theme: string;
+}
+
+let l3Cues: L3Cue[] = [];
+let l3SelectedCueId: string | null = null;
+let lastL3: L3Slice | null = null;
+
+function renderL3(l3: L3Slice | null): void {
+  lastL3 = l3;
+  const onAir = Boolean(l3?.activeCueId || l3?.activeCueName);
+  $('l3-onair').hidden = !onAir;
+  $('l3-active-name').textContent = onAir
+    ? `${l3?.activeCueName ?? ''}${l3?.activeTitle ? ' — ' + l3.activeTitle : ''}`
+    : 'Nothing on air';
+  ($('l3-stacking') as HTMLInputElement).checked = l3?.isStacking ?? false;
+  const playlistSel = $('l3-playlist') as HTMLSelectElement;
+  if (l3?.currentPlaylistId && playlistSel.value !== l3.currentPlaylistId) {
+    playlistSel.value = l3.currentPlaylistId;
+  }
+  renderL3Gallery();
+}
+
+function renderL3Gallery(): void {
+  const gallery = $('l3-gallery');
+  gallery.innerHTML = '';
+  for (const cue of l3Cues) {
+    const btn = document.createElement('button');
+    btn.className = 'l3-cue';
+    if (cue.id === l3SelectedCueId) btn.classList.add('selected');
+    if (cue.id === lastL3?.activeCueId) btn.classList.add('live');
+    btn.innerHTML = `<p class="cue-name"></p><p class="cue-title"></p><div class="cue-theme"></div>`;
+    (btn.querySelector('.cue-name') as HTMLElement).textContent = cue.name;
+    (btn.querySelector('.cue-title') as HTMLElement).textContent = cue.title;
+    (btn.querySelector('.cue-theme') as HTMLElement).textContent = cue.theme;
+    btn.addEventListener('click', () => {
+      l3SelectedCueId = cue.id;
+      renderL3Gallery();
+    });
+    btn.addEventListener('dblclick', () => {
+      haptic();
+      void api('/api/l3/take', { cueId: cue.id });
+    });
+    gallery.appendChild(btn);
+  }
+}
+
+async function refreshL3Data(): Promise<void> {
+  try {
+    const cuesRes = await fetch('/api/l3/cues');
+    if (cuesRes.ok) {
+      const data = (await cuesRes.json()) as { cues: L3Cue[] };
+      l3Cues = data.cues ?? [];
+      renderL3Gallery();
+    }
+    const plRes = await fetch('/api/l3/playlists');
+    if (plRes.ok) {
+      const data = (await plRes.json()) as { playlists: Array<{ id: string; name: string }> };
+      const sel = $('l3-playlist') as HTMLSelectElement;
+      const current = lastL3?.currentPlaylistId ?? '';
+      sel.innerHTML = '<option value="">No playlist</option>';
+      for (const pl of data.playlists ?? []) {
+        const opt = document.createElement('option');
+        opt.value = pl.id;
+        opt.textContent = pl.name;
+        sel.appendChild(opt);
+      }
+      sel.value = current;
+    }
+    const themesRes = await fetch('/api/l3/themes');
+    if (themesRes.ok) {
+      const data = (await themesRes.json()) as { themes: Array<{ name: string; displayName: string }> };
+      const sel = $('l3-new-theme') as HTMLSelectElement;
+      sel.innerHTML = '';
+      for (const t of data.themes ?? []) {
+        const opt = document.createElement('option');
+        opt.value = t.name;
+        opt.textContent = t.displayName;
+        sel.appendChild(opt);
+      }
+    }
+  } catch {
+    /* server unreachable */
+  }
+}
+
+function wireL3Page(): void {
+  $('l3-take').addEventListener('click', () => {
+    if (!l3SelectedCueId) {
+      $('l3-msg').textContent = 'Select a cue first.';
+      return;
+    }
+    haptic();
+    void api('/api/l3/take', { cueId: l3SelectedCueId });
+  });
+  $('l3-clear').addEventListener('click', () => {
+    haptic();
+    void api('/api/l3/clear');
+  });
+  $('l3-stacking').addEventListener('change', () => {
+    void api('/api/l3/stacking', { enabled: ($('l3-stacking') as HTMLInputElement).checked });
+  });
+  $('l3-playlist').addEventListener('change', async () => {
+    const id = ($('l3-playlist') as HTMLSelectElement).value;
+    if (id) {
+      const r = await api(`/api/l3/playlists/${encodeURIComponent(id)}/activate`);
+      $('l3-msg').textContent = r.ok ? '' : r.error ?? 'Activate failed (admin required)';
+    }
+  });
+  $('l3-pl-next').addEventListener('click', () => {
+    haptic();
+    void api('/api/l3/playlists/next');
+  });
+  $('l3-pl-prev').addEventListener('click', () => {
+    haptic();
+    void api('/api/l3/playlists/prev');
+  });
+  $('l3-add').addEventListener('click', async () => {
+    const name = ($('l3-new-name') as HTMLInputElement).value.trim();
+    const title = ($('l3-new-title') as HTMLInputElement).value.trim();
+    const theme = ($('l3-new-theme') as HTMLSelectElement).value;
+    if (!name) {
+      $('l3-msg').textContent = 'Name is required.';
+      return;
+    }
+    const r = await api('/api/l3/cues', { name, title, theme });
+    $('l3-msg').textContent = r.ok ? 'Cue added.' : r.error ?? 'Add failed (admin session required)';
+    if (r.ok) {
+      ($('l3-new-name') as HTMLInputElement).value = '';
+      ($('l3-new-title') as HTMLInputElement).value = '';
+      void refreshL3Data();
+    }
+  });
+  $('l3-csv').addEventListener('change', async () => {
+    const input = $('l3-csv') as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const res = await fetch('/api/l3/cues/import', { method: 'POST', body: form });
+      $('l3-msg').textContent = res.ok ? 'CSV imported.' : `Import failed (HTTP ${res.status})`;
+      if (res.ok) void refreshL3Data();
+    } catch {
+      $('l3-msg').textContent = 'Import failed.';
+    }
+    input.value = '';
+  });
 }
 
 // ---- QR modal + tunnel settings ----
@@ -332,5 +499,7 @@ renderNav();
 showPage(currentPageId());
 window.addEventListener('hashchange', () => showPage(currentPageId()));
 wireSlidesPage();
+wireL3Page();
 wireQrAndTunnel();
+void refreshL3Data();
 connectWs();
