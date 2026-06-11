@@ -63,6 +63,8 @@ export interface L3State {
   activeCueName: string | null;
   /** Secondary line (e.g. job title); mirrors cue.title or inline take. */
   activeTitle: string | null;
+  /** Theme name of the live cue — render pages fetch its CSS. */
+  activeTheme: string | null;
   isStacking: boolean;
   currentPlaylistId: string | null;
 }
@@ -142,6 +144,21 @@ export interface WatchdogState {
   lastRendererCrashAt: string | null;
 }
 
+// ---- Software output path (render pages) ----
+
+export type RenderContentType = 'slides' | 'l3' | 'stills' | 'url';
+export type RenderBg = 'transparent' | 'black' | 'white' | 'chroma' | 'opaque';
+
+export interface RenderOutputState {
+  bg: RenderBg;
+  /** Used when bg === 'chroma'. */
+  chromaColor: string;
+  /** Output claimed for this content type: display id, 'obs', or null (unassigned). */
+  claimedOutput: string | null;
+}
+
+export type RenderOutputsState = Record<RenderContentType, RenderOutputState>;
+
 export type TunnelStatus = 'inactive' | 'starting' | 'active' | 'error';
 
 /** Cloudflare tunnel runtime state (Companion-first: all operator-relevant fields named). */
@@ -170,6 +187,7 @@ export interface AppState {
   reliability: ReliabilityRuntimeState;
   watchdog: WatchdogState;
   tunnel: TunnelState;
+  renderOutputs: RenderOutputsState;
 }
 
 // ---- HTTP API types ----

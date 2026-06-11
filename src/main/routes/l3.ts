@@ -30,6 +30,7 @@ function emptyL3(): L3State {
     activeCueId: null,
     activeCueName: null,
     activeTitle: null,
+    activeTheme: null,
     isStacking: false,
     currentPlaylistId: null,
   };
@@ -113,6 +114,17 @@ export function createL3Router(
     const sample = themes.findByName('default');
     res.setHeader('Content-Type', 'text/css');
     res.send(sample?.cssContent ?? '');
+  });
+
+  // Unauthenticated: consumed by /render pages in OBS (no cookies on LAN).
+  router.get('/themes/:name/css', (req: Request, res: Response) => {
+    const theme = themes.findByName(req.params.name);
+    if (!theme) {
+      res.status(404).type('text/plain').send('Theme not found');
+      return;
+    }
+    res.setHeader('Content-Type', 'text/css');
+    res.send(theme.cssContent);
   });
 
   router.post(

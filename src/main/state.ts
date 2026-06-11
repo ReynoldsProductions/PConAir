@@ -44,6 +44,12 @@ const INITIAL_STATE: AppState = {
     pinRequired: false,
     lastError: null,
   },
+  renderOutputs: {
+    slides: { bg: 'opaque', chromaColor: '#00b140', claimedOutput: null },
+    l3: { bg: 'transparent', chromaColor: '#00b140', claimedOutput: null },
+    stills: { bg: 'transparent', chromaColor: '#00b140', claimedOutput: null },
+    url: { bg: 'opaque', chromaColor: '#00b140', claimedOutput: null },
+  },
 };
 
 type Subscriber = (patch: Partial<AppState>) => void;

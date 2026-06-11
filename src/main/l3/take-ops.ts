@@ -11,6 +11,7 @@ function emptyL3(): L3State {
     activeCueId: null,
     activeCueName: null,
     activeTitle: null,
+    activeTheme: null,
     isStacking: false,
     currentPlaylistId: null,
   };
@@ -31,6 +32,7 @@ export function l3TakeOp(
   let nextId: string;
   let nextName: string;
   let nextTitle: string | null;
+  let nextTheme: string | null;
 
   if (input.cueId) {
     const cue = cues.findById(input.cueId);
@@ -40,6 +42,7 @@ export function l3TakeOp(
     nextId = cue.id;
     nextName = cue.name;
     nextTitle = cue.title;
+    nextTheme = cue.theme;
   } else {
     if (!input.name || typeof input.name !== 'string' || !input.name.trim()) {
       return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'name is required when cueId is omitted' } };
@@ -50,6 +53,7 @@ export function l3TakeOp(
     nextId = randomUUID();
     nextName = input.name.trim();
     nextTitle = input.title.trim();
+    nextTheme = typeof input.theme === 'string' && input.theme.trim() ? input.theme.trim() : 'default';
   }
 
   const nextL3: L3State = {
@@ -57,6 +61,7 @@ export function l3TakeOp(
     activeCueId: nextId,
     activeCueName: nextName,
     activeTitle: nextTitle,
+    activeTheme: nextTheme,
   };
 
   store.setState({
@@ -76,6 +81,7 @@ export function l3ClearOp(store: StateStore): Ok<{ l3: L3State | null }> {
     activeCueId: null,
     activeCueName: null,
     activeTitle: null,
+    activeTheme: null,
   };
   store.setState({ l3: nextL3 });
   return { ok: true, body: { l3: store.getState().l3 } };
