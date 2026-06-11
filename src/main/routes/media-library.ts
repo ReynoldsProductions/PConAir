@@ -4,6 +4,8 @@ import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { MediaLibraryStore } from '../media-library/item-store';
 import { requireOperator, requireAdmin } from './middleware';
+import { createSlideshowEngine } from '../media-library/slideshow';
+import type { SlideshowTransition } from '../../shared/types';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -30,6 +32,49 @@ export function createMediaLibraryRouter(store: StateStore, auth: AuthManager, m
   const router = Router();
   const opGuard = requireOperator(auth);
   const adminGuard = requireAdmin(auth);
+  const slideshow = createSlideshowEngine({ store, media });
+
+  router.post('/slideshow', opGuard, (req: Request, res: Response) => {
+    const body = req.body as {
+      action?: string;
+      itemIds?: string[];
+      intervalSec?: number;
+      transition?: string;
+    };
+    const action = body.action;
+    if (action === 'play') {
+      const itemIds = Array.isArray(body.itemIds) ? body.itemIds.filter((x): x is string => typeof x === 'string') : [];
+      const intervalSec = typeof body.intervalSec === 'number' ? body.intervalSec : 5;
+      const transition: SlideshowTransition = body.transition === 'fade' ? 'fade' : 'cut';
+      const r = slideshow.play({ itemIds, intervalSec, transition });
+      if (!r.ok) {
+        res.status(400).json({ error: { code: 'ITEM_NOT_FOUND', message: r.error } });
+        return;
+      }
+    } else if (action === 'pause') {
+      if (!slideshow.pause()) {
+        res.status(400).json({ error: { code: 'INVALID_MODE', message: 'No slideshow running' } });
+        return;
+      }
+    } else if (action === 'resume') {
+      if (!slideshow.resume()) {
+        res.status(400).json({ error: { code: 'INVALID_MODE', message: 'No slideshow running' } });
+        return;
+      }
+    } else if (action === 'stop') {
+      slideshow.stop();
+    } else if (action === 'next' || action === 'prev') {
+      const moved = action === 'next' ? slideshow.next() : slideshow.prev();
+      if (!moved) {
+        res.status(400).json({ error: { code: 'INVALID_MODE', message: 'No slideshow loaded' } });
+        return;
+      }
+    } else {
+      res.status(400).json({ error: { code: 'INVALID_MODE', message: "action must be play|pause|resume|stop|next|prev" } });
+      return;
+    }
+    res.json({ mediaLibrary: store.getState().mediaLibrary });
+  });
 
   router.get('/', opGuard, (_req: Request, res: Response) => {
     res.json(listPayload(media.list()));
@@ -100,6 +145,7 @@ export function createMediaLibraryRouter(store: StateStore, auth: AuthManager, m
       mediaLibrary: {
         activeItemId: item.id,
         activeItemName: item.displayName,
+        slideshow: store.getState().mediaLibrary?.slideshow ?? null,
       },
     });
     const s = store.getState();

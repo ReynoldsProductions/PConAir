@@ -233,6 +233,7 @@ function connectWs(): void {
         renderSlides((msg.payload.slides as SlidesSlice | null) ?? null);
         renderTunnel((msg.payload.tunnel as TunnelSlice | undefined) ?? null);
         renderL3((msg.payload.l3 as L3Slice | null) ?? null);
+        renderStills((msg.payload.mediaLibrary as StillsSlice | null) ?? null);
       } else if (msg.type === 'state_patch' && msg.payload) {
         if ('slides' in msg.payload) {
           renderSlides((msg.payload.slides as SlidesSlice | null) ?? null);
@@ -242,6 +243,9 @@ function connectWs(): void {
         }
         if ('l3' in msg.payload) {
           renderL3((msg.payload.l3 as L3Slice | null) ?? null);
+        }
+        if ('mediaLibrary' in msg.payload) {
+          renderStills((msg.payload.mediaLibrary as StillsSlice | null) ?? null);
         }
       }
     } catch {
@@ -418,6 +422,154 @@ function wireL3Page(): void {
   });
 }
 
+// ---- Still store page ----
+
+interface StillsSlice {
+  activeItemId: string | null;
+  activeItemName: string | null;
+  slideshow: {
+    running: boolean;
+    paused: boolean;
+    itemIds: string[];
+    position: number;
+    intervalSec: number;
+    transition: 'cut' | 'fade';
+  } | null;
+}
+
+interface MediaItem {
+  id: string;
+  displayName: string;
+}
+
+let mediaItems: MediaItem[] = [];
+let stillSelectedId: string | null = null;
+let ssSelection: string[] = [];
+let lastStills: StillsSlice | null = null;
+
+function renderStills(m: StillsSlice | null): void {
+  lastStills = m;
+  const onAir = Boolean(m?.activeItemId);
+  $('stills-onair').hidden = !onAir;
+  $('stills-active-name').textContent = onAir ? m?.activeItemName ?? '' : 'Nothing on air';
+  const show = m?.slideshow ?? null;
+  $('ss-status').hidden = !(show?.running && !show.paused);
+  $('ss-pos').textContent = show ? `${show.position + 1} / ${show.itemIds.length}` : '';
+  ($('ss-pause') as HTMLButtonElement).textContent = show?.paused ? 'Resume' : 'Pause';
+  renderStillsGallery();
+}
+
+function renderStillsGallery(): void {
+  const gallery = $('stills-gallery');
+  gallery.innerHTML = '';
+  for (const item of mediaItems) {
+    const card = document.createElement('button');
+    card.className = 'still-card';
+    if (item.id === stillSelectedId) card.classList.add('selected');
+    if (item.id === lastStills?.activeItemId) card.classList.add('live');
+    const img = document.createElement('img');
+    img.loading = 'lazy';
+    img.src = `/api/media-library/${encodeURIComponent(item.id)}/download`;
+    img.alt = item.displayName;
+    card.appendChild(img);
+    const ssIdx = ssSelection.indexOf(item.id);
+    if (ssIdx !== -1) {
+      const badge = document.createElement('span');
+      badge.className = 'ss-badge';
+      badge.textContent = String(ssIdx + 1);
+      card.appendChild(badge);
+    }
+    const nameEl = document.createElement('span');
+    nameEl.className = 'still-name';
+    nameEl.textContent = item.displayName;
+    card.appendChild(nameEl);
+    card.addEventListener('click', () => {
+      stillSelectedId = item.id;
+      const idx = ssSelection.indexOf(item.id);
+      if (idx === -1) {
+        ssSelection.push(item.id);
+      } else {
+        ssSelection.splice(idx, 1);
+      }
+      $('ss-count').textContent = String(ssSelection.length);
+      renderStillsGallery();
+    });
+    card.addEventListener('dblclick', () => {
+      haptic();
+      void api('/api/media-library/take', { itemId: item.id });
+    });
+    gallery.appendChild(card);
+  }
+}
+
+async function refreshStillsData(): Promise<void> {
+  try {
+    const res = await fetch('/api/media-library');
+    if (res.ok) {
+      const data = (await res.json()) as { items: MediaItem[] };
+      mediaItems = data.items ?? [];
+      renderStillsGallery();
+    }
+  } catch {
+    /* server unreachable */
+  }
+}
+
+function wireStillsPage(): void {
+  $('stills-take').addEventListener('click', () => {
+    if (!stillSelectedId) {
+      $('stills-msg').textContent = 'Select an image first.';
+      return;
+    }
+    haptic();
+    void api('/api/media-library/take', { itemId: stillSelectedId });
+  });
+  $('stills-clear').addEventListener('click', () => {
+    haptic();
+    void api('/api/media-library/clear');
+  });
+
+  const ssAction = (action: string, extra?: Record<string, unknown>) => async () => {
+    const r = await api('/api/media-library/slideshow', { action, ...extra });
+    $('stills-msg').textContent = r.ok ? '' : r.error ?? `${action} failed`;
+  };
+  $('ss-play').addEventListener('click', () => {
+    const intervalSec = parseInt(($('ss-interval') as HTMLInputElement).value, 10) || 5;
+    const transition = ($('ss-transition') as HTMLSelectElement).value;
+    if (ssSelection.length === 0) {
+      $('stills-msg').textContent = 'Tap images to add them to the slideshow first.';
+      return;
+    }
+    void ssAction('play', { itemIds: ssSelection, intervalSec, transition })();
+  });
+  $('ss-pause').addEventListener('click', () => {
+    void ssAction(lastStills?.slideshow?.paused ? 'resume' : 'pause')();
+  });
+  $('ss-stop').addEventListener('click', () => void ssAction('stop')());
+  $('ss-next').addEventListener('click', () => void ssAction('next')());
+  $('ss-prev').addEventListener('click', () => void ssAction('prev')());
+
+  $('stills-upload').addEventListener('change', async () => {
+    const input = $('stills-upload') as HTMLInputElement;
+    if (!input.files?.length) return;
+    const form = new FormData();
+    for (const f of Array.from(input.files)) form.append('files[]', f);
+    try {
+      const res = await fetch('/api/media-library/upload', { method: 'POST', body: form });
+      const data = (await res.json().catch(() => null)) as { imported?: number } | null;
+      $('stills-upload-msg').textContent = res.ok
+        ? `Imported ${data?.imported ?? 0} image(s).`
+        : res.status === 401 || res.status === 403
+          ? 'Admin session required.'
+          : 'Upload failed.';
+      if (res.ok) void refreshStillsData();
+    } catch {
+      $('stills-upload-msg').textContent = 'Upload failed.';
+    }
+    input.value = '';
+  });
+}
+
 // ---- QR modal + tunnel settings ----
 
 interface TunnelSlice {
@@ -500,6 +652,8 @@ showPage(currentPageId());
 window.addEventListener('hashchange', () => showPage(currentPageId()));
 wireSlidesPage();
 wireL3Page();
+wireStillsPage();
 wireQrAndTunnel();
 void refreshL3Data();
+void refreshStillsData();
 connectWs();
