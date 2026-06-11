@@ -1,4 +1,5 @@
 import { app, screen, session } from 'electron';
+import fs from 'fs';
 import path from 'path';
 import { createOperatorWindow } from './window';
 import { appSettingsPath, loadAppSettings, resolvePort, saveAppSettings } from './app-settings';
@@ -170,6 +171,11 @@ async function main() {
     },
     showQrOverlay,
     hideQrOverlay,
+    packagesRoot: (() => {
+      const p = path.join(userData, 'packages');
+      fs.mkdirSync(p, { recursive: true });
+      return p;
+    })(),
     profilePaths: boot.paths,
     getActiveProfileId: () => getActiveMarker(boot.paths)?.id ?? boot.activeId,
     onProfileActivate: () => {
