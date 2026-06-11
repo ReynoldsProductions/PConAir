@@ -16,6 +16,7 @@ import type { ProfilePaths } from './profiles/paths';
 import { loadProfile } from './profiles/bootstrap';
 import { parseCookieHeader } from './cookie-parse';
 import { isClientIpAllowlisted } from './security/ip-allowlist';
+import { createTunnelPinGate } from './security/tunnel-pin';
 import { createReliabilityStore } from './reliability-store';
 
 export interface ServerDeps {
@@ -40,6 +41,19 @@ export interface ServerDeps {
   trustForwardedFor?: boolean;
   /** When omitted, manual-cue export returns 501 (e.g. in tests without Electron). */
   renderManualCue?: (cue: import('./l3/cue-store').L3Cue) => Promise<Buffer>;
+  /** Tunnel PIN gate: bcrypt hash getter; null/omitted = tunnel access not PIN-gated. */
+  getTunnelPinHash?: () => string | null;
+  /** Tunnel/QR control hooks (Electron main); absent in tests. */
+  startTunnel?: () => void;
+  stopTunnel?: () => void;
+  saveTunnelSettings?: (patch: {
+    tunnelEnabled?: boolean;
+    tunnelDomain?: string | null;
+    tunnelToken?: string | null;
+    tunnelPinHash?: string | null;
+  }) => void;
+  showQrOverlay?: (url: string, durationMs: number) => Promise<void>;
+  hideQrOverlay?: () => void;
 }
 
 function getRequestClientIp(req: express.Request, trustForwardedFor: boolean): string {
@@ -177,6 +191,12 @@ export function createServer(deps: ServerDeps) {
     getSlidesNotes,
     getProfileName,
     renderManualCue: renderManualCueDep,
+    port,
+    startTunnel: deps.startTunnel,
+    stopTunnel: deps.stopTunnel,
+    saveTunnelSettings: deps.saveTunnelSettings,
+    showQrOverlay: deps.showQrOverlay,
+    hideQrOverlay: deps.hideQrOverlay,
   };
 
   const app = express();
@@ -206,6 +226,12 @@ export function createServer(deps: ServerDeps) {
     res.setHeader('Cache-Control', 'no-store');
     next();
   });
+
+  // Tunnel access always requires the PIN when one is configured (v2 plan §Connections).
+  const tunnelGate = createTunnelPinGate({
+    getTunnelPinHash: deps.getTunnelPinHash ?? (() => null),
+  });
+  app.use(tunnelGate.middleware);
 
   mountRoutes(app, routeServices);
 

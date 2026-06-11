@@ -1,7 +1,9 @@
 import { app, screen, session } from 'electron';
 import path from 'path';
 import { createOperatorWindow } from './window';
-import { appSettingsPath, loadAppSettings, resolvePort } from './app-settings';
+import { appSettingsPath, loadAppSettings, resolvePort, saveAppSettings } from './app-settings';
+import { createTunnelManager } from './tunnel/manager';
+import { showQrOverlay, hideQrOverlay } from './tunnel/qr-overlay';
 import { createAppTray } from './tray';
 import { registerSettingsIpc, openSettingsWindow } from './settings-window';
 import { createServer } from './server';
@@ -54,7 +56,8 @@ async function main() {
   validatePins(OPERATOR_PIN, ADMIN_PIN);
   const cliProfile = parseProfileCliArg(process.argv);
   const userData = app.getPath('userData');
-  const appSettings = loadAppSettings(appSettingsPath(userData));
+  const settingsFile = appSettingsPath(userData);
+  const appSettings = loadAppSettings(settingsFile);
   const port = resolvePort(process.env.PCONAIR_PORT, appSettings);
   if (cli.clearAllowlist) {
     clearIpAllowlistForActiveProfile(userData);
@@ -130,22 +133,20 @@ async function main() {
   const mediaLibraryManager = createMediaLibraryWindowManager({ store, media: mediaLibrary, getDisplayPreference });
   mediaLibraryManager.initialize();
 
-  startWatchdog({
+  const tunnelManager = createTunnelManager({
     store,
-    getProgramWindow: () => {
-      const mode = store.getState().currentMode;
-      if (mode === 'slides') return slidesManager.getActiveWindow();
-      if (mode === 'url') return urlManager.getActiveWindow();
-      if (mode === 'l3') return l3Manager.getWindow();
-      if (mode === 'media-library') return mediaLibraryManager.getWindow();
-      return null;
-    },
-    recreateProgramWindow: () => {
-      const mode = store.getState().currentMode;
-      if (mode === 'slides') { slidesManager.destroy(); slidesManager.initialize(); }
-      else if (mode === 'url') { urlManager.destroy(); urlManager.initialize(); }
-      else if (mode === 'l3') { l3Manager.destroy(); l3Manager.initialize(); }
-      else if (mode === 'media-library') { mediaLibraryManager.destroy(); mediaLibraryManager.initialize(); }
+    getLocalOrigin: () => `http://127.0.0.1:${port}`,
+    resourcesPath: app.isPackaged ? process.resourcesPath : null,
+  });
+  const startTunnelFromSettings = (): void => {
+    const s = loadAppSettings(settingsFile);
+    tunnelManager.start({ token: s.tunnelToken, domain: s.tunnelDomain });
+  };
+  store.setState({
+    tunnel: {
+      ...store.getState().tunnel,
+      enabled: appSettings.tunnelEnabled,
+      pinRequired: appSettings.tunnelPinHash !== null,
     },
   });
 
@@ -161,6 +162,14 @@ async function main() {
     mediaLibrary,
     dispatchAction,
     port,
+    getTunnelPinHash: () => loadAppSettings(settingsFile).tunnelPinHash,
+    startTunnel: startTunnelFromSettings,
+    stopTunnel: () => tunnelManager.stop(),
+    saveTunnelSettings: (patch) => {
+      saveAppSettings(settingsFile, patch);
+    },
+    showQrOverlay,
+    hideQrOverlay,
     profilePaths: boot.paths,
     getActiveProfileId: () => getActiveMarker(boot.paths)?.id ?? boot.activeId,
     onProfileActivate: () => {
@@ -180,6 +189,10 @@ async function main() {
         ? `port ${port} is already in use`
         : String((err as Error).message ?? err);
     console.error(`PConAir server failed to start: ${serverError}`);
+  }
+
+  if (!serverError && appSettings.tunnelEnabled) {
+    startTunnelFromSettings();
   }
 
   if (!serverError) {

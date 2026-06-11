@@ -27,8 +27,12 @@ const DEFAULT_STATE: AppState = {
     memoryHeapTotalGb: 0,
     lastRendererCrashAt: null,
   },
-  graphics: {
-    scoreboard: null,
+  tunnel: {
+    enabled: false,
+    status: 'inactive',
+    url: null,
+    pinRequired: false,
+    lastError: null,
   },
 };
 

@@ -128,27 +128,18 @@ export interface WatchdogState {
   lastRendererCrashAt: string | null;
 }
 
-export interface ScoreboardState {
-  teamA: string;
-  teamB: string;
-  scoreA: number;
-  scoreB: number;
-  quarter: string;
-  /** Display string: "7:42" (m:ss) or "14.5" (tenths under 60 s). */
-  gameClock: string;
-  gameClockRunning: boolean;
-  /** Shot clock in whole seconds. */
-  shotClock: number;
-  shotClockRunning: boolean;
-  possession: 'a' | 'b' | null;
-  foulsA: number;
-  foulsB: number;
-  timeoutsA: number;
-  timeoutsB: number;
-}
+export type TunnelStatus = 'inactive' | 'starting' | 'active' | 'error';
 
-export interface GraphicsState {
-  scoreboard: ScoreboardState | null;
+/** Cloudflare tunnel runtime state (Companion-first: all operator-relevant fields named). */
+export interface TunnelState {
+  enabled: boolean;
+  status: TunnelStatus;
+  /** Public URL — trycloudflare.com quick-tunnel URL or the configured custom domain. */
+  url: string | null;
+  /** A tunnel PIN is configured (tunnel clients must enter it). */
+  pinRequired: boolean;
+  /** Last error message when status === 'error'. */
+  lastError: string | null;
 }
 
 export interface AppState {
@@ -164,7 +155,7 @@ export interface AppState {
   connectionStatus: ConnectionStatus;
   reliability: ReliabilityRuntimeState;
   watchdog: WatchdogState;
-  graphics: GraphicsState;
+  tunnel: TunnelState;
 }
 
 // ---- HTTP API types ----

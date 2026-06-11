@@ -136,15 +136,40 @@
     .loader-card input[type="url"] { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 9px 10px; font-size: 13px; }
     .loader-buttons { display: flex; gap: 8px; margin-top: 12px; align-items: center; flex-wrap: wrap; }
     .hint-line { font-size: 12px; color: var(--warn); margin: 8px 0 0; min-height: 14px; }
+
+    /* ---- QR modal + header button ---- */
+    .header-btn { margin-left: 10px; padding: 5px 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); color: var(--text); cursor: pointer; }
+    .qr-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .qr-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; text-align: center; max-width: 340px; }
+    .qr-box img { width: 280px; height: 280px; border-radius: 8px; background: #fff; }
+    .qr-url { font-size: 12px; color: var(--text-dim); margin: 10px 0; word-break: break-all; }
+
+    /* ---- Settings page tunnel section ---- */
+    .settings-field { display: block; font-size: 12px; color: var(--text-dim); margin: 10px 0 4px; }
+    .settings-input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 9px 10px; font-size: 13px; box-sizing: border-box; }
+    .tunnel-status-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; }
+    .status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-dim); }
+    .status-dot.active { background: var(--live); }
+    .status-dot.error { background: var(--err); }
+    .status-dot.starting { background: var(--warn); }
   </style>
 </head>
 <body>
   <header>
     <h1>PConAir</h1>
+    <button id="qr-btn" class="header-btn" aria-label="Show QR code">QR</button>
     <div class="spacer"></div>
     <span id="conn-label">connecting…</span>
     <div id="conn-dot"></div>
   </header>
+
+  <div id="qr-modal" class="qr-modal" hidden>
+    <div class="qr-box">
+      <img id="qr-img" alt="QR code for remote URL" />
+      <div id="qr-url" class="qr-url"></div>
+      <button id="qr-close" class="small-btn">Close</button>
+    </div>
+  </div>
 
   <main>
     <section class="page" id="page-slides">
@@ -240,9 +265,31 @@
     <section class="page" id="page-settings">
       <h2>Settings</h2>
       <p class="sub">Network, tunnel, displays, profiles, security</p>
+
+      <div class="card">
+        <h3>Cloudflare tunnel</h3>
+        <div class="tunnel-status-row">
+          <span id="tunnel-dot" class="status-dot"></span>
+          <span id="tunnel-status-text">inactive</span>
+        </div>
+        <div id="tunnel-url" class="qr-url"></div>
+        <label class="settings-field" for="tunnel-domain">Custom domain (optional, requires token)</label>
+        <input id="tunnel-domain" class="settings-input" type="text" placeholder="show.example.com" />
+        <label class="settings-field" for="tunnel-token">Cloudflare tunnel token (optional)</label>
+        <input id="tunnel-token" class="settings-input" type="password" placeholder="eyJh…" />
+        <label class="settings-field" for="tunnel-pin">Access PIN for tunnel clients (4–8 digits, blank = off)</label>
+        <input id="tunnel-pin" class="settings-input" type="text" inputmode="numeric" placeholder="1234" />
+        <div class="loader-buttons">
+          <button id="tunnel-save" class="small-btn">Save config</button>
+          <button id="tunnel-toggle" class="small-btn primary">Start tunnel</button>
+        </div>
+        <p class="hint-line" id="tunnel-msg"></p>
+        <p style="font-size:12px;color:var(--text-dim);margin:8px 0 0;">Tunnel config requires an admin session — sign in via the admin dashboard first.</p>
+      </div>
+
       <div class="card">
         <h3>Admin dashboard</h3>
-        <p>Profiles, presets, security, and show lock are managed in the <a href="/admin" style="color: var(--accent)">admin dashboard</a> until this page is built out (Phase 3).</p>
+        <p>Profiles, presets, security, and show lock are managed in the <a href="/admin" style="color: var(--accent)">admin dashboard</a>.</p>
       </div>
     </section>
   </main>
