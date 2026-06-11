@@ -168,7 +168,8 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
     if (!win || win.isDestroyed() || !s.slides || s.slides.isLoading) return;
     try {
       const image = await win.webContents.capturePage();
-      const resized = image.resize({ width: 320 });
+      // 1280 wide: high enough for /render/slides as an OBS source, small enough to broadcast.
+      const resized = image.resize({ width: 1280 });
       const dataUrl = resized.toDataURL();
       const latest = store.getState();
       if (latest.slides && latest.slides.thumbnailCurrent !== dataUrl) {

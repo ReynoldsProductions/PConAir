@@ -226,6 +226,18 @@ export function createServer(deps: ServerDeps) {
     server: httpServer,
     path: '/ws',
     verifyClient: (info, cb) => {
+      // Render pages (OBS browser sources) connect cookie-less with ?render=1
+      // and get read-only state push. LAN-only via the IP allowlist below.
+      try {
+        const u = new URL(info.req.url || '/', 'http://localhost');
+        if (u.searchParams.get('render') === '1') {
+          const ip = info.req.socket.remoteAddress ?? '0.0.0.0';
+          cb(isClientIpAllowlisted(ip, getSecurityNetworkPrefs()));
+          return;
+        }
+      } catch {
+        /* fall through to cookie auth */
+      }
       const cookies = parseCookieHeader(info.req.headers.cookie);
       const op = cookies.pconair_operator_session;
       const ad = cookies.pconair_admin_session;
@@ -260,6 +272,22 @@ export function createServer(deps: ServerDeps) {
   });
 
   wss.on('connection', (ws, req) => {
+    let isCompanion = false;
+    let isRender = false;
+    try {
+      const u = new URL(req.url || '/', 'http://localhost');
+      isCompanion = u.searchParams.get('companion') === '1';
+      isRender = u.searchParams.get('render') === '1';
+    } catch {
+      /* ignore */
+    }
+
+    if (isRender) {
+      // Read-only state push for render pages: send snapshot, ignore messages.
+      ws.send(JSON.stringify({ type: 'state', payload: store.getState() } satisfies WsServerMessage));
+      return;
+    }
+
     const cookies = parseCookieHeader(req.headers.cookie);
     const opId = cookies.pconair_operator_session;
     const adId = cookies.pconair_admin_session;
@@ -271,14 +299,6 @@ export function createServer(deps: ServerDeps) {
       return;
     }
     wsRegistry.register(ws, sessionIds);
-
-    let isCompanion = false;
-    try {
-      const u = new URL(req.url || '/', 'http://localhost');
-      isCompanion = u.searchParams.get('companion') === '1';
-    } catch {
-      /* ignore */
-    }
     if (isCompanion) {
       companionClients.add(ws);
       setCompanionConnected(companionClients.size > 0);

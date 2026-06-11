@@ -163,7 +163,8 @@ export function createMediaLibraryRouter(store: StateStore, auth: AuthManager, m
     res.json({ currentMode: 'idle', mediaLibrary: null });
   });
 
-  router.get('/:itemId/download', opGuard, (req: Request, res: Response) => {
+  // Unauthenticated: consumed by /render pages in OBS (no cookies on LAN).
+  router.get('/:itemId/download', (req: Request, res: Response) => {
     const { itemId } = req.params;
     const item = media.findById(itemId);
     if (!item) {

@@ -234,6 +234,8 @@ function connectWs(): void {
         renderTunnel((msg.payload.tunnel as TunnelSlice | undefined) ?? null);
         renderL3((msg.payload.l3 as L3Slice | null) ?? null);
         renderStills((msg.payload.mediaLibrary as StillsSlice | null) ?? null);
+        renderOutputCards((msg.payload.renderOutputs as RenderOutputs | undefined) ?? null);
+        renderLiveStatus(msg.payload);
       } else if (msg.type === 'state_patch' && msg.payload) {
         if ('slides' in msg.payload) {
           renderSlides((msg.payload.slides as SlidesSlice | null) ?? null);
@@ -246,6 +248,12 @@ function connectWs(): void {
         }
         if ('mediaLibrary' in msg.payload) {
           renderStills((msg.payload.mediaLibrary as StillsSlice | null) ?? null);
+        }
+        if ('renderOutputs' in msg.payload) {
+          renderOutputCards((msg.payload.renderOutputs as RenderOutputs | undefined) ?? null);
+        }
+        if ('currentMode' in msg.payload || 'l3' in msg.payload) {
+          renderLiveStatus(msg.payload);
         }
       }
     } catch {
@@ -570,6 +578,97 @@ function wireStillsPage(): void {
   });
 }
 
+// ---- Per-page output controls (software output path) ----
+
+interface RenderOutput {
+  bg: 'transparent' | 'black' | 'white' | 'chroma' | 'opaque';
+  chromaColor: string;
+  claimedOutput: string | null;
+}
+
+type RenderOutputs = Record<'slides' | 'l3' | 'stills' | 'url', RenderOutput>;
+
+let lastOutputs: RenderOutputs | null = null;
+const OUTPUT_PAGES: Array<{ type: keyof RenderOutputs; page: string }> = [
+  { type: 'slides', page: 'page-slides' },
+  { type: 'l3', page: 'page-l3' },
+  { type: 'stills', page: 'page-stills' },
+  { type: 'url', page: 'page-urls' },
+];
+
+function renderOutputCards(outputs: RenderOutputs | null): void {
+  lastOutputs = outputs;
+  if (!outputs) return;
+  for (const { type } of OUTPUT_PAGES) {
+    const bgSel = document.getElementById(`out-bg-${type}`) as HTMLSelectElement | null;
+    const chroma = document.getElementById(`out-chroma-${type}`) as HTMLInputElement | null;
+    const claimed = document.getElementById(`out-claimed-${type}`);
+    if (bgSel && document.activeElement !== bgSel) bgSel.value = outputs[type].bg;
+    if (chroma && document.activeElement !== chroma) chroma.value = outputs[type].chromaColor;
+    if (claimed) claimed.textContent = outputs[type].claimedOutput ?? 'unassigned';
+  }
+}
+
+function wireOutputCards(): void {
+  for (const { type, page } of OUTPUT_PAGES) {
+    const section = document.getElementById(page);
+    if (!section) continue;
+    const card = document.createElement('details');
+    card.className = 'card loader-card';
+    card.innerHTML = `
+      <summary>Output &amp; key mode</summary>
+      <div class="goto-row" style="margin-top:10px;">
+        <select id="out-bg-${type}" class="settings-input" style="max-width:140px;">
+          <option value="transparent">Transparent</option>
+          <option value="black">Black (luma)</option>
+          <option value="white">White (luma)</option>
+          <option value="chroma">Chroma color</option>
+          <option value="opaque">Opaque</option>
+        </select>
+        <input id="out-chroma-${type}" type="color" value="#00b140" style="width:44px;height:36px;border:1px solid var(--border);border-radius:6px;background:var(--surface);" />
+        <button id="out-copy-${type}" class="small-btn">Copy OBS URL</button>
+      </div>
+      <p class="hint-line" style="color:var(--text-dim)">Live status: <span id="out-status-${type}">—</span> · Claimed output: <span id="out-claimed-${type}">unassigned</span></p>
+      <p class="hint-line" id="out-msg-${type}"></p>`;
+    section.appendChild(card);
+
+    document.getElementById(`out-bg-${type}`)!.addEventListener('change', async () => {
+      const bg = (document.getElementById(`out-bg-${type}`) as HTMLSelectElement).value;
+      const r = await api(`/api/render/${type}/background`, { bg });
+      (document.getElementById(`out-msg-${type}`) as HTMLElement).textContent = r.ok ? '' : r.error ?? 'Failed';
+    });
+    document.getElementById(`out-chroma-${type}`)!.addEventListener('change', async () => {
+      const chromaColor = (document.getElementById(`out-chroma-${type}`) as HTMLInputElement).value;
+      await api(`/api/render/${type}/background`, { chromaColor });
+    });
+    document.getElementById(`out-copy-${type}`)!.addEventListener('click', () => {
+      const url = `${location.origin}/render/${type}`;
+      void navigator.clipboard.writeText(url).then(
+        () => {
+          (document.getElementById(`out-msg-${type}`) as HTMLElement).textContent = `Copied ${url}`;
+        },
+        () => {
+          (document.getElementById(`out-msg-${type}`) as HTMLElement).textContent = url;
+        }
+      );
+    });
+  }
+}
+
+function renderLiveStatus(state: Record<string, unknown>): void {
+  const mode = state.currentMode as string;
+  const liveMap: Record<string, boolean> = {
+    slides: mode === 'slides',
+    l3: mode === 'l3' || Boolean((state.l3 as { activeCueId?: string } | null)?.activeCueId),
+    stills: mode === 'media-library',
+    url: mode === 'url',
+  };
+  for (const { type } of OUTPUT_PAGES) {
+    const el = document.getElementById(`out-status-${type}`);
+    if (el) el.textContent = liveMap[type] ? 'LIVE' : 'off';
+  }
+}
+
 // ---- QR modal + tunnel settings ----
 
 interface TunnelSlice {
@@ -653,6 +752,7 @@ window.addEventListener('hashchange', () => showPage(currentPageId()));
 wireSlidesPage();
 wireL3Page();
 wireStillsPage();
+wireOutputCards();
 wireQrAndTunnel();
 void refreshL3Data();
 void refreshStillsData();
