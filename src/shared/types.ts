@@ -67,9 +67,23 @@ export interface L3State {
   currentPlaylistId: string | null;
 }
 
+export type SlideshowTransition = 'cut' | 'fade';
+
+/** Still-store slideshow runtime state (Companion-first: flat, named fields). */
+export interface SlideshowState {
+  running: boolean;
+  paused: boolean;
+  itemIds: string[];
+  /** 0-based index into itemIds. */
+  position: number;
+  intervalSec: number;
+  transition: SlideshowTransition;
+}
+
 export interface MediaLibraryState {
   activeItemId: string | null;
   activeItemName: string | null;
+  slideshow: SlideshowState | null;
 }
 
 export interface BackgroundState {

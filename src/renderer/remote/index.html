@@ -154,6 +154,15 @@
     .l3-cue .cue-title { font-size: 11px; color: var(--text-dim); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .l3-cue .cue-theme { font-size: 9.5px; color: var(--text-dim); letter-spacing: 0.5px; text-transform: uppercase; margin-top: 6px; }
 
+    /* ---- Stills page ---- */
+    .stills-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .still-card { position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; background: var(--surface); padding: 0; }
+    .still-card img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; }
+    .still-card .still-name { font-size: 10px; color: var(--text-dim); padding: 4px 6px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .still-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .still-card.live { border-color: var(--live); box-shadow: 0 0 0 1px var(--live); }
+    .still-card .ss-badge { position: absolute; top: 4px; right: 4px; background: var(--accent); color: #08111c; font-size: 10px; font-weight: 700; border-radius: 999px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
+
     /* ---- Settings page tunnel section ---- */
     .settings-field { display: block; font-size: 12px; color: var(--text-dim); margin: 10px 0 4px; }
     .settings-input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 9px 10px; font-size: 13px; box-sizing: border-box; }
@@ -283,9 +292,49 @@
     </section>
 
     <section class="page" id="page-stills">
-      <h2>Still Store</h2>
-      <p class="sub">Image gallery, take to output, slideshow</p>
-      <span class="stub-badge">Coming in Phase 5</span>
+      <div class="slides-header">
+        <span class="deck-title">Still Store</span>
+        <span id="stills-onair" class="chip" hidden>ON AIR</span>
+      </div>
+      <div class="l3-active-row"><span id="stills-active-name">Nothing on air</span></div>
+
+      <div class="slide-controls">
+        <button id="stills-clear" class="nav-btn nav-prev">Clear</button>
+        <button id="stills-take" class="nav-btn nav-next">Take selected</button>
+      </div>
+
+      <div id="stills-gallery" class="stills-gallery"></div>
+
+      <div class="card">
+        <h3>Slideshow <span id="ss-status" class="chip" hidden>PLAYING</span></h3>
+        <p class="hint-line" style="color:var(--text-dim)">Tap images above to add them to the slideshow in order. Selected: <span id="ss-count">0</span></p>
+        <div class="goto-row">
+          <label class="haptic-label">Interval
+            <input id="ss-interval" type="number" min="1" max="3600" value="5" style="width:64px;margin-left:6px;" />s
+          </label>
+          <select id="ss-transition" class="settings-input" style="max-width:110px;">
+            <option value="cut">Hard cut</option>
+            <option value="fade">Fade</option>
+          </select>
+        </div>
+        <div class="loader-buttons">
+          <button id="ss-play" class="small-btn primary">Play</button>
+          <button id="ss-pause" class="small-btn">Pause</button>
+          <button id="ss-stop" class="small-btn">Stop</button>
+          <button id="ss-prev" class="small-btn">‹ Prev</button>
+          <button id="ss-next" class="small-btn">Next ›</button>
+          <span id="ss-pos" class="haptic-label"></span>
+        </div>
+        <p class="hint-line" id="stills-msg"></p>
+      </div>
+
+      <details class="card loader-card">
+        <summary>Upload images</summary>
+        <div class="loader-buttons">
+          <label class="small-btn" for="stills-upload" style="cursor:pointer;">Choose images<input id="stills-upload" type="file" accept="image/*" multiple hidden /></label>
+        </div>
+        <p class="hint-line" id="stills-upload-msg"></p>
+      </details>
     </section>
 
     <section class="page" id="page-packages">
