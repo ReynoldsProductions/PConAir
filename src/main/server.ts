@@ -17,6 +17,7 @@ import { loadProfile } from './profiles/bootstrap';
 import { parseCookieHeader } from './cookie-parse';
 import { isClientIpAllowlisted } from './security/ip-allowlist';
 import { createTunnelPinGate } from './security/tunnel-pin';
+import { createPackageHub, type PackageHub } from './packages/state-hub';
 import { createReliabilityStore } from './reliability-store';
 
 export interface ServerDeps {
@@ -49,6 +50,8 @@ export interface ServerDeps {
   }) => void;
   showQrOverlay?: (url: string, durationMs: number) => Promise<void>;
   hideQrOverlay?: () => void;
+  /** Directory scanned for graphics packages; omit to disable the packages system. */
+  packagesRoot?: string;
 }
 
 function getRequestClientIp(req: express.Request, trustForwardedFor: boolean): string {
@@ -156,6 +159,8 @@ export function createServer(deps: ServerDeps) {
     wsRegistry.closeFor(sessionId);
   }
 
+  const packageHub: PackageHub | null = deps.packagesRoot ? createPackageHub(deps.packagesRoot) : null;
+
   const routeServices: RouteServices = {
     store,
     auth,
@@ -183,6 +188,7 @@ export function createServer(deps: ServerDeps) {
     saveTunnelSettings: deps.saveTunnelSettings,
     showQrOverlay: deps.showQrOverlay,
     hideQrOverlay: deps.hideQrOverlay,
+    packageHub,
   };
 
   const app = express();
@@ -282,8 +288,41 @@ export function createServer(deps: ServerDeps) {
       /* ignore */
     }
 
+    // Package namespace pub/sub ({type:'subscribe', namespace:'package:<id>'}) —
+    // available to render pages and authenticated clients alike.
+    const namespaceUnsubs: Array<() => void> = [];
+    ws.on('close', () => {
+      for (const u of namespaceUnsubs) u();
+    });
+    ws.on('message', (raw) => {
+      if (!packageHub) return;
+      try {
+        const msg = JSON.parse(String(raw)) as { type?: string; namespace?: string };
+        if (msg.type !== 'subscribe' || typeof msg.namespace !== 'string') return;
+        const m = /^package:(.+)$/.exec(msg.namespace);
+        if (!m) return;
+        const state = packageHub.getState(m[1]);
+        if (state === null) {
+          ws.send(JSON.stringify({ type: 'error', payload: { code: 'ITEM_NOT_FOUND', message: `Unknown package '${m[1]}'` } }));
+          return;
+        }
+        const namespace = msg.namespace;
+        ws.send(JSON.stringify({ type: 'state', namespace, state }));
+        namespaceUnsubs.push(
+          packageHub.subscribe(namespace, (s) => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'state', namespace, state: s }));
+            }
+          })
+        );
+      } catch {
+        /* ignore malformed frames */
+      }
+    });
+
     if (isRender) {
-      // Read-only state push for render pages: send snapshot, ignore messages.
+      // Read-only AppState push for render pages: send snapshot; package
+      // subscriptions above are the only messages honored.
       ws.send(JSON.stringify({ type: 'state', payload: store.getState() } satisfies WsServerMessage));
       return;
     }

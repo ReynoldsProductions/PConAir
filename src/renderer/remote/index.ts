@@ -578,6 +578,91 @@ function wireStillsPage(): void {
   });
 }
 
+// ---- Packages page ----
+
+interface PackageInfo {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  renders: Array<{ id: string; label: string }>;
+  hasControl: boolean;
+  live: boolean;
+}
+
+async function refreshPackages(): Promise<void> {
+  try {
+    const res = await fetch('/api/packages');
+    if (!res.ok) return;
+    const data = (await res.json()) as { packages: PackageInfo[]; errors: Array<{ dir: string; error: string }> };
+    const list = $('pkg-list');
+    list.innerHTML = '';
+    if (data.packages.length === 0) {
+      list.innerHTML = '<div class="card"><p>No packages installed. Drop a package folder into the packages/ directory and rescan.</p></div>';
+    }
+    for (const pkg of data.packages) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      const h = document.createElement('h3');
+      h.textContent = `${pkg.name} `;
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.textContent = pkg.live ? 'LIVE' : 'OFFLINE';
+      if (!pkg.live) chip.style.borderColor = chip.style.color = 'var(--text-dim)';
+      h.appendChild(chip);
+      card.appendChild(h);
+      const desc = document.createElement('p');
+      desc.textContent = `${pkg.description} (v${pkg.version})`;
+      card.appendChild(desc);
+      const row = document.createElement('div');
+      row.className = 'loader-buttons';
+      if (pkg.hasControl) {
+        const open = document.createElement('a');
+        open.className = 'small-btn primary';
+        open.style.textDecoration = 'none';
+        open.href = `/packages/${encodeURIComponent(pkg.id)}/control`;
+        open.target = '_blank';
+        open.textContent = 'Open Control UI';
+        row.appendChild(open);
+      }
+      for (const r of pkg.renders) {
+        const copy = document.createElement('button');
+        copy.className = 'small-btn';
+        copy.textContent = pkg.renders.length > 1 ? `Copy OBS URL — ${r.label}` : 'Copy OBS URL';
+        copy.addEventListener('click', () => {
+          const url = `${location.origin}/packages/${encodeURIComponent(pkg.id)}/render/${encodeURIComponent(r.id)}`;
+          void navigator.clipboard.writeText(url).then(
+            () => {
+              $('pkg-msg').textContent = `Copied ${url}`;
+            },
+            () => {
+              $('pkg-msg').textContent = url;
+            }
+          );
+        });
+        row.appendChild(copy);
+      }
+      card.appendChild(row);
+      list.appendChild(card);
+    }
+    if (data.errors.length > 0) {
+      const err = document.createElement('div');
+      err.className = 'card';
+      err.innerHTML = `<h3>Load errors</h3><p>${data.errors.map((e) => `${e.dir}: ${e.error}`).join('<br>')}</p>`;
+      list.appendChild(err);
+    }
+  } catch {
+    /* server unreachable */
+  }
+}
+
+function wirePackagesPage(): void {
+  $('pkg-rescan').addEventListener('click', async () => {
+    await fetch('/api/packages/rescan', { method: 'POST' });
+    void refreshPackages();
+  });
+}
+
 // ---- Per-page output controls (software output path) ----
 
 interface RenderOutput {
@@ -752,8 +837,10 @@ window.addEventListener('hashchange', () => showPage(currentPageId()));
 wireSlidesPage();
 wireL3Page();
 wireStillsPage();
+wirePackagesPage();
 wireOutputCards();
 wireQrAndTunnel();
 void refreshL3Data();
 void refreshStillsData();
+void refreshPackages();
 connectWs();
