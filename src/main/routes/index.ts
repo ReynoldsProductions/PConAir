@@ -5,6 +5,7 @@ import { createApiRouter } from './api';
 import { createSlidesRouter } from './slides';
 import { createUrlRouter } from './url';
 import { createOperatorRouter } from './operator';
+import { createRemoteRouter } from './remote';
 import { createAdminRouter } from './admin';
 import { createPresetsRouter } from './presets';
 import { createL3Router } from './l3';
@@ -68,6 +69,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
     })
   );
   app.use('/operator', createOperatorRouter(s.auth));
+  app.use('/remote', createRemoteRouter(s.auth));
   app.use(
     '/admin',
     createAdminRouter({

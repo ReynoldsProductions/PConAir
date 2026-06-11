@@ -388,8 +388,12 @@ export function createServer(deps: ServerDeps) {
   });
 
   function listen(): Promise<void> {
-    return new Promise((resolve) => {
-      httpServer.listen(port, resolve);
+    return new Promise((resolve, reject) => {
+      httpServer.once('error', reject);
+      httpServer.listen(port, () => {
+        httpServer.removeListener('error', reject);
+        resolve();
+      });
     });
   }
 

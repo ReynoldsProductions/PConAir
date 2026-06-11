@@ -63,29 +63,31 @@ export function createAuthRouter(auth: AuthManager, opts: AuthRouterOpts): Route
       .json({ role: 'operator' });
   });
 
-  /** HTML form login (browser): sets cookie and redirects to /operator/ */
+  /** HTML form login (browser): sets cookie and redirects back to the requesting UI. */
   router.post('/operator/browser', async (req: Request, res: Response) => {
-    const raw = req.body as { pin?: unknown };
+    const raw = req.body as { pin?: unknown; next?: unknown };
     const pin = typeof raw.pin === 'string' ? raw.pin : undefined;
+    // Fixed allowlist — never redirect to a caller-supplied path (open redirect).
+    const next = raw.next === '/remote/' ? '/remote/' : '/operator/';
     const ip = clientIp(req);
 
     if (!pin) {
-      res.redirect(303, '/operator/?login=missing');
+      res.redirect(303, `${next}?login=missing`);
       return;
     }
 
     if (auth.isLockedOut(ip)) {
-      res.redirect(303, '/operator/?login=locked');
+      res.redirect(303, `${next}?login=locked`);
       return;
     }
 
     const session = await auth.createSession('operator', pin, ip);
     if (!session) {
       if (auth.isLockedOut(ip)) {
-        res.redirect(303, '/operator/?login=locked');
+        res.redirect(303, `${next}?login=locked`);
         return;
       }
-      res.redirect(303, '/operator/?login=bad');
+      res.redirect(303, `${next}?login=bad`);
       return;
     }
 
@@ -93,7 +95,7 @@ export function createAuthRouter(auth: AuthManager, opts: AuthRouterOpts): Route
       ...COOKIE_BASE,
       maxAge: session.expiresAt - session.createdAt,
     });
-    res.redirect(303, '/operator/');
+    res.redirect(303, next);
   });
 
   router.post('/admin', async (req: Request, res: Response) => {

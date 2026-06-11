@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>PConAir</title>
+  <style>
+    :root {
+      --bg: #111315;
+      --surface: #1c1f22;
+      --surface-2: #25292d;
+      --border: #33383d;
+      --text: #e8eaec;
+      --text-dim: #9aa0a6;
+      --accent: #4da3ff;
+      --live: #2ecc71;
+      --warn: #e5a53a;
+      --err: #e53935;
+      --nav-h: 64px;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex: 0 0 auto;
+    }
+    header h1 { font-size: 15px; font-weight: 700; margin: 0; letter-spacing: 0.04em; }
+    header .spacer { flex: 1; }
+    #conn-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--err);
+      flex: 0 0 auto;
+    }
+    #conn-dot.connected { background: var(--live); }
+    #conn-label { font-size: 12px; color: var(--text-dim); }
+    main {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 16px;
+      padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    }
+    .page { display: none; max-width: 760px; margin: 0 auto; }
+    .page.active { display: block; }
+    .page h2 { font-size: 18px; margin: 0 0 4px; }
+    .page p.sub { font-size: 13px; color: var(--text-dim); margin: 0 0 16px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .card h3 { margin: 0 0 8px; font-size: 14px; }
+    .card p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+    .stub-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--warn);
+      border: 1px solid var(--warn);
+      border-radius: 999px;
+      padding: 2px 10px;
+      margin-bottom: 12px;
+    }
+    dl.status { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; margin: 0; font-size: 13px; }
+    dl.status dt { color: var(--text-dim); }
+    dl.status dd { margin: 0; font-variant-numeric: tabular-nums; }
+    nav {
+      flex: 0 0 auto;
+      display: flex;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding-bottom: env(safe-area-inset-bottom);
+      height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+    }
+    nav button {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 6px 2px;
+    }
+    nav button .glyph { font-size: 20px; line-height: 1; }
+    nav button.active { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PConAir</h1>
+    <div class="spacer"></div>
+    <span id="conn-label">connecting…</span>
+    <div id="conn-dot"></div>
+  </header>
+
+  <main>
+    <section class="page" id="page-slides">
+      <h2>Slides</h2>
+      <p class="sub">Google Slides control</p>
+      <span class="stub-badge">Coming in Phase 2</span>
+      <div class="card"><h3>Server status</h3><dl class="status" id="status-grid"></dl></div>
+    </section>
+
+    <section class="page" id="page-l3">
+      <h2>Lower Thirds</h2>
+      <p class="sub">Cue gallery, take/clear, playlists</p>
+      <span class="stub-badge">Coming in Phase 4</span>
+    </section>
+
+    <section class="page" id="page-stills">
+      <h2>Still Store</h2>
+      <p class="sub">Image gallery, take to output, slideshow</p>
+      <span class="stub-badge">Coming in Phase 5</span>
+    </section>
+
+    <section class="page" id="page-packages">
+      <h2>Packages</h2>
+      <p class="sub">Loaded graphics packages</p>
+      <span class="stub-badge">Coming in Phase 7</span>
+    </section>
+
+    <section class="page" id="page-urls">
+      <h2>URLs</h2>
+      <p class="sub">Named URL presets, A/B instances</p>
+      <span class="stub-badge">Coming in Phase 10</span>
+    </section>
+
+    <section class="page" id="page-timer">
+      <h2>Timer</h2>
+      <p class="sub">Stagetimer.io</p>
+      <span class="stub-badge">Coming in Phase 10</span>
+    </section>
+
+    <section class="page" id="page-settings">
+      <h2>Settings</h2>
+      <p class="sub">Network, tunnel, displays, profiles, security</p>
+      <div class="card">
+        <h3>Admin dashboard</h3>
+        <p>Profiles, presets, security, and show lock are managed in the <a href="/admin" style="color: var(--accent)">admin dashboard</a> until this page is built out (Phase 3).</p>
+      </div>
+    </section>
+  </main>
+
+  <nav id="nav"></nav>
+</body>
+</html>

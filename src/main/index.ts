@@ -1,8 +1,9 @@
-import { initLogger } from './logger';
-initLogger();
-import { app, BrowserWindow, screen, session } from 'electron';
+import { app, screen, session } from 'electron';
 import path from 'path';
 import { createOperatorWindow } from './window';
+import { appSettingsPath, loadAppSettings, resolvePort } from './app-settings';
+import { createAppTray } from './tray';
+import { registerSettingsIpc, openSettingsWindow } from './settings-window';
 import { createServer } from './server';
 import { getStore } from './state';
 import { createAuthManager } from './auth';
@@ -26,7 +27,6 @@ import { parsePconairCli } from './cli-options';
 import { startWatchdog } from './watchdog-electron';
 
 const cli = parsePconairCli(process.argv);
-const DEFAULT_PORT = parseInt(process.env.PCONAIR_PORT ?? '8080', 10);
 const OPERATOR_PIN = cli.operatorPin ?? process.env.PCONAIR_OPERATOR_PIN ?? '0000';
 const ADMIN_PIN = cli.adminPin ?? process.env.PCONAIR_ADMIN_PIN ?? '00000000';
 
@@ -54,6 +54,8 @@ async function main() {
   validatePins(OPERATOR_PIN, ADMIN_PIN);
   const cliProfile = parseProfileCliArg(process.argv);
   const userData = app.getPath('userData');
+  const appSettings = loadAppSettings(appSettingsPath(userData));
+  const port = resolvePort(process.env.PCONAIR_PORT, appSettings);
   if (cli.clearAllowlist) {
     clearIpAllowlistForActiveProfile(userData);
     console.log('[security] IP allowlist cleared for active profile.');
@@ -158,13 +160,7 @@ async function main() {
     graphicsRoot,
     mediaLibrary,
     dispatchAction,
-    port: DEFAULT_PORT,
-    crashDumpsPath: app.getPath('crashDumps'),
-    getSlidesNotes: () => slidesManager.getSpeakerNotes(),
-    getProfileName: () => {
-      const id = getActiveMarker(boot.paths)?.id ?? boot.activeId;
-      return loadProfile(boot.paths, id)?.name ?? 'PC On Air';
-    },
+    port,
     profilePaths: boot.paths,
     getActiveProfileId: () => getActiveMarker(boot.paths)?.id ?? boot.activeId,
     onProfileActivate: () => {
@@ -174,27 +170,50 @@ async function main() {
     trustForwardedFor: cli.trustForwardedFor,
     renderManualCue: (cue) => renderCueToPng(cue, l3ThemeStore.getThemeCss(cue.theme)),
   });
-  await server.listen();
-  console.log(`PC On Air server running on http://localhost:${DEFAULT_PORT}`);
-  bootstrapGraphicsPresets(DEFAULT_PORT, graphicsRoot, presets);
+  let serverError: string | null = null;
+  try {
+    await server.listen();
+    console.log(`PConAir server running on http://localhost:${port}`);
+  } catch (err) {
+    serverError =
+      (err as NodeJS.ErrnoException).code === 'EADDRINUSE'
+        ? `port ${port} is already in use`
+        : String((err as Error).message ?? err);
+    console.error(`PConAir server failed to start: ${serverError}`);
+  }
 
-  // Pre-authenticate the operator window so it can load /operator without a PIN prompt.
-  const opSession = auth.createTrustedSession('operator');
-  await session.defaultSession.cookies.set({
-    url: `http://localhost:${DEFAULT_PORT}`,
-    name: 'pconair_operator_session',
-    value: opSession.id,
-    httpOnly: true,
-    expirationDate: Math.floor(opSession.expiresAt / 1000),
+  if (!serverError) {
+    // Pre-authenticate the local Electron shell so tray-opened windows skip the PIN prompt.
+    const opSession = auth.createTrustedSession('operator');
+    await session.defaultSession.cookies.set({
+      url: `http://localhost:${port}`,
+      name: 'pconair_operator_session',
+      value: opSession.id,
+      httpOnly: true,
+      expirationDate: Math.floor(opSession.expiresAt / 1000),
+    });
+  }
+
+  registerSettingsIpc({
+    runningPort: port,
+    serverError: () => serverError,
+    profilePaths: boot.paths,
+    getActiveProfileId: () => getActiveMarker(boot.paths)?.id ?? boot.activeId,
   });
 
-  createOperatorWindow(DEFAULT_PORT);
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createOperatorWindow(DEFAULT_PORT);
-    }
+  // Appliance model: no windows at boot. The tray is the only persistent UI;
+  // operators use the web GUI from a browser.
+  createAppTray({
+    port,
+    serverError,
+    onOpenSettings: () => openSettingsWindow(),
+    onOpenOperatorWindow: () => createOperatorWindow(port),
   });
+
+  if (serverError) {
+    // Surface the problem immediately so the port can be fixed without a terminal.
+    openSettingsWindow();
+  }
 }
 
 app.whenReady().then(main).catch((err: unknown) => {
@@ -202,6 +221,7 @@ app.whenReady().then(main).catch((err: unknown) => {
   app.exit(1);
 });
 
+// Tray app: closing windows must not stop the server. Quit only via the tray menu.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  /* keep running */
 });
