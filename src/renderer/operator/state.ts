@@ -27,6 +27,13 @@ const DEFAULT_STATE: AppState = {
     memoryHeapTotalGb: 0,
     lastRendererCrashAt: null,
   },
+  tunnel: {
+    enabled: false,
+    status: 'inactive',
+    url: null,
+    pinRequired: false,
+    lastError: null,
+  },
 };
 
 export function createClientStore() {

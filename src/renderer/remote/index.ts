@@ -231,9 +231,13 @@ function connectWs(): void {
       if (msg.type === 'state' && msg.payload) {
         renderStatusGrid(msg.payload);
         renderSlides((msg.payload.slides as SlidesSlice | null) ?? null);
+        renderTunnel((msg.payload.tunnel as TunnelSlice | undefined) ?? null);
       } else if (msg.type === 'state_patch' && msg.payload) {
         if ('slides' in msg.payload) {
           renderSlides((msg.payload.slides as SlidesSlice | null) ?? null);
+        }
+        if ('tunnel' in msg.payload) {
+          renderTunnel((msg.payload.tunnel as TunnelSlice | undefined) ?? null);
         }
       }
     } catch {
@@ -247,8 +251,86 @@ function connectWs(): void {
   };
 }
 
+// ---- QR modal + tunnel settings ----
+
+interface TunnelSlice {
+  enabled: boolean;
+  status: 'inactive' | 'starting' | 'active' | 'error';
+  url: string | null;
+  pinRequired: boolean;
+  lastError: string | null;
+}
+
+let lastTunnel: TunnelSlice | null = null;
+
+function renderTunnel(t: TunnelSlice | null): void {
+  lastTunnel = t;
+  const dot = $('tunnel-dot');
+  dot.className = `status-dot ${t?.status === 'active' ? 'active' : t?.status === 'error' ? 'error' : t?.status === 'starting' ? 'starting' : ''}`;
+  $('tunnel-status-text').textContent = t
+    ? t.status + (t.status === 'error' && t.lastError ? ` — ${t.lastError}` : '')
+    : 'inactive';
+  $('tunnel-url').textContent = t?.url ?? '';
+  $('tunnel-toggle').textContent = t?.enabled && t.status !== 'inactive' ? 'Stop tunnel' : 'Start tunnel';
+}
+
+function wireQrAndTunnel(): void {
+  $('qr-btn').addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/qr');
+      const data = (await res.json()) as { url: string; qr: string };
+      ($('qr-img') as HTMLImageElement).src = data.qr;
+      $('qr-url').textContent = data.url;
+      $('qr-modal').hidden = false;
+    } catch {
+      /* server unreachable */
+    }
+  });
+  $('qr-close').addEventListener('click', () => {
+    $('qr-modal').hidden = true;
+  });
+  $('qr-modal').addEventListener('click', (e) => {
+    if (e.target === $('qr-modal')) $('qr-modal').hidden = true;
+  });
+
+  $('tunnel-save').addEventListener('click', async () => {
+    const domain = ($('tunnel-domain') as HTMLInputElement).value.trim();
+    const token = ($('tunnel-token') as HTMLInputElement).value.trim();
+    const pin = ($('tunnel-pin') as HTMLInputElement).value.trim();
+    const body: Record<string, string | null> = {};
+    body.domain = domain || null;
+    body.token = token || null;
+    body.pin = pin || null;
+    const res = await fetch('/api/tunnel/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    $('tunnel-msg').textContent = res.ok
+      ? 'Saved.'
+      : res.status === 401 || res.status === 403
+        ? 'Admin session required.'
+        : 'Save failed.';
+  });
+
+  $('tunnel-toggle').addEventListener('click', async () => {
+    const enable = !(lastTunnel?.enabled && lastTunnel.status !== 'inactive');
+    const res = await fetch('/api/tunnel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: enable }),
+    });
+    $('tunnel-msg').textContent = res.ok
+      ? ''
+      : res.status === 401 || res.status === 403
+        ? 'Admin session required.'
+        : 'Toggle failed.';
+  });
+}
+
 renderNav();
 showPage(currentPageId());
 window.addEventListener('hashchange', () => showPage(currentPageId()));
 wireSlidesPage();
+wireQrAndTunnel();
 connectWs();

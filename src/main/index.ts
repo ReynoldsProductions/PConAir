@@ -1,7 +1,9 @@
 import { app, screen, session } from 'electron';
 import path from 'path';
 import { createOperatorWindow } from './window';
-import { appSettingsPath, loadAppSettings, resolvePort } from './app-settings';
+import { appSettingsPath, loadAppSettings, resolvePort, saveAppSettings } from './app-settings';
+import { createTunnelManager } from './tunnel/manager';
+import { showQrOverlay, hideQrOverlay } from './tunnel/qr-overlay';
 import { createAppTray } from './tray';
 import { registerSettingsIpc, openSettingsWindow } from './settings-window';
 import { createServer } from './server';
@@ -52,7 +54,8 @@ async function main() {
   validatePins(OPERATOR_PIN, ADMIN_PIN);
   const cliProfile = parseProfileCliArg(process.argv);
   const userData = app.getPath('userData');
-  const appSettings = loadAppSettings(appSettingsPath(userData));
+  const settingsFile = appSettingsPath(userData);
+  const appSettings = loadAppSettings(settingsFile);
   const port = resolvePort(process.env.PCONAIR_PORT, appSettings);
   if (cli.clearAllowlist) {
     clearIpAllowlistForActiveProfile(userData);
@@ -119,6 +122,23 @@ async function main() {
   const mediaLibraryManager = createMediaLibraryWindowManager({ store, media: mediaLibrary });
   mediaLibraryManager.initialize();
 
+  const tunnelManager = createTunnelManager({
+    store,
+    getLocalOrigin: () => `http://127.0.0.1:${port}`,
+    resourcesPath: app.isPackaged ? process.resourcesPath : null,
+  });
+  const startTunnelFromSettings = (): void => {
+    const s = loadAppSettings(settingsFile);
+    tunnelManager.start({ token: s.tunnelToken, domain: s.tunnelDomain });
+  };
+  store.setState({
+    tunnel: {
+      ...store.getState().tunnel,
+      enabled: appSettings.tunnelEnabled,
+      pinRequired: appSettings.tunnelPinHash !== null,
+    },
+  });
+
   const server = createServer({
     store,
     auth,
@@ -130,6 +150,14 @@ async function main() {
     mediaLibrary,
     dispatchAction,
     port,
+    getTunnelPinHash: () => loadAppSettings(settingsFile).tunnelPinHash,
+    startTunnel: startTunnelFromSettings,
+    stopTunnel: () => tunnelManager.stop(),
+    saveTunnelSettings: (patch) => {
+      saveAppSettings(settingsFile, patch);
+    },
+    showQrOverlay,
+    hideQrOverlay,
     profilePaths: boot.paths,
     getActiveProfileId: () => getActiveMarker(boot.paths)?.id ?? boot.activeId,
     onProfileActivate: () => {
@@ -149,6 +177,10 @@ async function main() {
         ? `port ${port} is already in use`
         : String((err as Error).message ?? err);
     console.error(`PConAir server failed to start: ${serverError}`);
+  }
+
+  if (!serverError && appSettings.tunnelEnabled) {
+    startTunnelFromSettings();
   }
 
   if (!serverError) {

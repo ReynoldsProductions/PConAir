@@ -7,6 +7,7 @@ import { createUrlRouter } from './url';
 import { createOperatorRouter } from './operator';
 import { createRemoteRouter } from './remote';
 import { createGscCompatRouter } from './gsc-compat';
+import { createTunnelRouter } from './tunnel';
 import { createAdminRouter } from './admin';
 import { createPresetsRouter } from './presets';
 import { createL3Router } from './l3';
@@ -47,6 +48,19 @@ export interface RouteServices {
   serverStartedAt: number;
   buildDateIso: string;
   renderManualCue?: (cue: L3Cue) => Promise<Buffer>;
+  /** Server port — used for LAN URLs in QR codes. */
+  port: number;
+  /** Tunnel control hooks (Electron main); absent in tests. */
+  startTunnel?: () => void;
+  stopTunnel?: () => void;
+  saveTunnelSettings?: (patch: {
+    tunnelEnabled?: boolean;
+    tunnelDomain?: string | null;
+    tunnelToken?: string | null;
+    tunnelPinHash?: string | null;
+  }) => void;
+  showQrOverlay?: (url: string, durationMs: number) => Promise<void>;
+  hideQrOverlay?: () => void;
 }
 
 export function mountRoutes(app: Express, s: RouteServices): void {
@@ -71,6 +85,18 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   app.use('/api/slides', createSlidesRouter(s.store, s.auth));
   // GSC Companion module compat — cookie-less, IP-allowlist-gated (see gsc-compat.ts)
   app.use('/api', createGscCompatRouter(s.store));
+  app.use(
+    createTunnelRouter({
+      store: s.store,
+      auth: s.auth,
+      port: s.port,
+      startTunnel: s.startTunnel,
+      stopTunnel: s.stopTunnel,
+      saveTunnelSettings: s.saveTunnelSettings,
+      showQrOverlay: s.showQrOverlay,
+      hideQrOverlay: s.hideQrOverlay,
+    })
+  );
   app.use('/api/url', createUrlRouter(s.store, s.auth));
   app.use('/api/presets', createPresetsRouter(s.store, s.auth, s.presets));
   app.use('/api/l3', createL3Router(s.store, s.auth, s.l3Cues, s.l3Playlists, s.l3ThemeStore, s.l3FilesRoot, s.renderManualCue));

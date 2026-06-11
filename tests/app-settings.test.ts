@@ -62,11 +62,11 @@ describe('saveAppSettings', () => {
 
 describe('resolvePort', () => {
   it('prefers a valid env value over the settings file', () => {
-    expect(resolvePort('9001', { schemaVersion: 1, port: 8123 })).toBe(9001);
+    expect(resolvePort('9001', { ...DEFAULT_APP_SETTINGS, port: 8123 })).toBe(9001);
   });
 
   it('falls back to settings when env is unset or invalid', () => {
-    expect(resolvePort(undefined, { schemaVersion: 1, port: 8123 })).toBe(8123);
-    expect(resolvePort('nope', { schemaVersion: 1, port: 8123 })).toBe(8123);
+    expect(resolvePort(undefined, { ...DEFAULT_APP_SETTINGS, port: 8123 })).toBe(8123);
+    expect(resolvePort('nope', { ...DEFAULT_APP_SETTINGS, port: 8123 })).toBe(8123);
   });
 });

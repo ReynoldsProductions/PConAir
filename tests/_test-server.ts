@@ -24,6 +24,10 @@ export interface FullServerTestOpts {
   port?: number;
   mediaLibraryRoot?: string;
   trustForwardedFor?: boolean;
+  getTunnelPinHash?: () => string | null;
+  startTunnel?: () => void;
+  stopTunnel?: () => void;
+  saveTunnelSettings?: (patch: Record<string, unknown>) => void;
 }
 
 export function createFullServer(opts: FullServerTestOpts) {
@@ -87,6 +91,10 @@ export function createFullServer(opts: FullServerTestOpts) {
     profilePaths: boot.paths,
     getActiveProfileId: () => getActiveMarker(boot.paths)?.id ?? boot.activeId,
     trustForwardedFor: opts.trustForwardedFor,
+    getTunnelPinHash: opts.getTunnelPinHash,
+    startTunnel: opts.startTunnel,
+    stopTunnel: opts.stopTunnel,
+    saveTunnelSettings: opts.saveTunnelSettings,
   });
 
   return {

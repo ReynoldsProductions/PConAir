@@ -11,11 +11,23 @@ export interface AppSettings {
   schemaVersion: 1;
   /** HTTP/WS port. Default 8080. Never default to 9595 — that's GSC's port. */
   port: number;
+  /** Cloudflare tunnel: start cloudflared on boot. */
+  tunnelEnabled: boolean;
+  /** Custom domain shown as the public URL when a token-based tunnel is used. */
+  tunnelDomain: string | null;
+  /** Cloudflare tunnel token (`cloudflared tunnel run --token …`); null = quick tunnel. */
+  tunnelToken: string | null;
+  /** bcrypt hash of the 4-digit tunnel PIN; null = tunnel access not PIN-gated. */
+  tunnelPinHash: string | null;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
   schemaVersion: 1,
   port: 8080,
+  tunnelEnabled: false,
+  tunnelDomain: null,
+  tunnelToken: null,
+  tunnelPinHash: null,
 });
 
 export function appSettingsPath(userDataDir: string): string {
@@ -24,6 +36,10 @@ export function appSettingsPath(userDataDir: string): string {
 
 function isValidPort(p: unknown): p is number {
   return typeof p === 'number' && Number.isInteger(p) && p >= 1 && p <= 65535;
+}
+
+function strOrNull(v: unknown): string | null {
+  return typeof v === 'string' && v.length > 0 ? v : null;
 }
 
 /** Tolerant load: missing file, unreadable JSON, or bad fields fall back to defaults. */
@@ -41,14 +57,22 @@ export function loadAppSettings(filePath: string): AppSettings {
   return {
     schemaVersion: 1,
     port: isValidPort(obj.port) ? obj.port : DEFAULT_APP_SETTINGS.port,
+    tunnelEnabled: obj.tunnelEnabled === true,
+    tunnelDomain: strOrNull(obj.tunnelDomain),
+    tunnelToken: strOrNull(obj.tunnelToken),
+    tunnelPinHash: strOrNull(obj.tunnelPinHash),
   };
 }
 
+export type AppSettingsPatch = Partial<Omit<AppSettings, 'schemaVersion'>>;
+
 /** Merge a patch into the stored settings and persist. Returns the merged result. */
-export function saveAppSettings(filePath: string, patch: Partial<Pick<AppSettings, 'port'>>): AppSettings {
+export function saveAppSettings(filePath: string, patch: AppSettingsPatch): AppSettings {
   const current = loadAppSettings(filePath);
   const next: AppSettings = {
     ...current,
+    ...patch,
+    schemaVersion: 1,
     port: patch.port !== undefined && isValidPort(patch.port) ? patch.port : current.port,
   };
   fs.mkdirSync(path.dirname(filePath), { recursive: true });

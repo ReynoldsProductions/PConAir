@@ -128,6 +128,20 @@ export interface WatchdogState {
   lastRendererCrashAt: string | null;
 }
 
+export type TunnelStatus = 'inactive' | 'starting' | 'active' | 'error';
+
+/** Cloudflare tunnel runtime state (Companion-first: all operator-relevant fields named). */
+export interface TunnelState {
+  enabled: boolean;
+  status: TunnelStatus;
+  /** Public URL — trycloudflare.com quick-tunnel URL or the configured custom domain. */
+  url: string | null;
+  /** A tunnel PIN is configured (tunnel clients must enter it). */
+  pinRequired: boolean;
+  /** Last error message when status === 'error'. */
+  lastError: string | null;
+}
+
 export interface AppState {
   currentMode: Mode;
   currentPreset: Preset | null;
@@ -141,6 +155,7 @@ export interface AppState {
   connectionStatus: ConnectionStatus;
   reliability: ReliabilityRuntimeState;
   watchdog: WatchdogState;
+  tunnel: TunnelState;
 }
 
 // ---- HTTP API types ----

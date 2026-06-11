@@ -25,3 +25,6 @@ Icon?
 .idea/
 *.swp
 *.swo
+
+# macOS AppleDouble files
+._*
