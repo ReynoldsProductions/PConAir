@@ -134,8 +134,8 @@ function renderSlides(slides: SlidesSlice | null): void {
   const strip = $('slide-strip');
   const hasThumb = Boolean(slides?.thumbnailCurrent || slides?.thumbnailNext);
   strip.hidden = !hasThumb;
-  if (slides?.thumbnailCurrent) ($('thumb-current') as HTMLImageElement).src = slides.thumbnailCurrent;
-  if (slides?.thumbnailNext) ($('thumb-next') as HTMLImageElement).src = slides.thumbnailNext;
+  ($('thumb-current') as HTMLImageElement).src = slides?.thumbnailCurrent ?? '';
+  ($('thumb-next') as HTMLImageElement).src = slides?.thumbnailNext ?? '';
 
   $('offline-chip').hidden = !(slides?.offlineMode && slides.cacheWarmed);
   $('backup-chip').hidden = !slides?.backupLoaded;

@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import path from 'path';
 import { appSettingsPath, loadAppSettings, saveAppSettings } from './app-settings';
 import { snapshotDisplays } from './displays';
 import { loadProfile, writeProfile, getActiveMarker } from './profiles/bootstrap';
@@ -7,6 +8,22 @@ import type { ProfilePaths } from './profiles/paths';
 // Injected by @electron-forge/plugin-webpack for the `settings` renderer entry.
 declare const SETTINGS_WINDOW_WEBPACK_ENTRY: string;
 declare const SETTINGS_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
+
+/** Resolve settings window entry URL and preload path.
+ *  Primary: forge-injected webpack constants (dev + ideal packaged build).
+ *  Fallback: compute from app path (handles packaged builds where DefinePlugin
+ *  didn't inject the constants). */
+function resolveSettingsEntry(): { url: string; preload: string } {
+  try {
+    return { url: SETTINGS_WINDOW_WEBPACK_ENTRY, preload: SETTINGS_WINDOW_PRELOAD_WEBPACK_ENTRY };
+  } catch {
+    const base = path.join(app.getAppPath(), '.webpack', 'renderer', 'settings');
+    return {
+      url: `file://${path.join(base, 'index.html')}`,
+      preload: path.join(base, 'preload.js'),
+    };
+  }
+}
 
 export interface SettingsWindowDeps {
   /** Port the server is actually running on (or tried to). */
@@ -86,35 +103,23 @@ export function openSettingsWindow(): BrowserWindow | null {
     settingsWindow.focus();
     return settingsWindow;
   }
-  try {
-    settingsWindow = new BrowserWindow({
-      width: 520,
-      height: 720,
-      title: 'PConAir Settings',
-      webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-        preload: SETTINGS_WINDOW_PRELOAD_WEBPACK_ENTRY,
-      },
-    });
-    // Loaded from the webpack entry (file/dev-server), not over HTTP, so the
-    // settings window still opens when the server failed to start.
-    void settingsWindow.loadURL(SETTINGS_WINDOW_WEBPACK_ENTRY);
-    settingsWindow.on('closed', () => {
-      settingsWindow = null;
-    });
-    return settingsWindow;
-  } catch (e) {
-    if (e instanceof ReferenceError) {
-      void dialog.showMessageBox({
-        type: 'info',
-        title: 'PConAir Settings',
-        message: 'Settings window unavailable in this build.\n\nRebuild the app with electron-forge package to enable it.',
-        buttons: ['OK'],
-      });
-      return null;
-    }
-    throw e;
-  }
+  const entry = resolveSettingsEntry();
+  settingsWindow = new BrowserWindow({
+    width: 520,
+    height: 720,
+    title: 'PConAir Settings',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      preload: entry.preload,
+    },
+  });
+  // Loaded from the webpack entry (file/dev-server), not over HTTP, so the
+  // settings window still opens when the server failed to start.
+  void settingsWindow.loadURL(entry.url);
+  settingsWindow.on('closed', () => {
+    settingsWindow = null;
+  });
+  return settingsWindow;
 }
