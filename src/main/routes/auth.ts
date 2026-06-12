@@ -98,6 +98,40 @@ export function createAuthRouter(auth: AuthManager, opts: AuthRouterOpts): Route
     res.redirect(303, next);
   });
 
+  /** HTML form login for the admin dashboard (browser POST from /admin/ login page). */
+  router.post('/admin/browser', async (req: Request, res: Response) => {
+    const raw = req.body as { pin?: unknown };
+    const pin = typeof raw.pin === 'string' ? raw.pin : undefined;
+    const next = '/admin/';
+    const ip = clientIp(req);
+
+    if (!pin) {
+      res.redirect(303, `${next}?login=missing`);
+      return;
+    }
+
+    if (auth.isLockedOut(ip)) {
+      res.redirect(303, `${next}?login=locked`);
+      return;
+    }
+
+    const session = await auth.createSession('admin', pin, ip);
+    if (!session) {
+      if (auth.isLockedOut(ip)) {
+        res.redirect(303, `${next}?login=locked`);
+        return;
+      }
+      res.redirect(303, `${next}?login=bad`);
+      return;
+    }
+
+    res.cookie('pconair_admin_session', session.id, {
+      ...COOKIE_BASE,
+      maxAge: session.expiresAt - session.createdAt,
+    });
+    res.redirect(303, next);
+  });
+
   router.post('/admin', async (req: Request, res: Response) => {
     const { pin } = req.body as { pin?: string };
     const ip = clientIp(req);

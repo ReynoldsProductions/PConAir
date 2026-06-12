@@ -35,6 +35,47 @@ const FALLBACK_ADMIN_HTML = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>PC On Air — Admin</title></head>
 <body><p>PC On Air Admin UI</p></body></html>`;
 
+const LOGIN_QUERY_HINTS: Record<string, string> = {
+  bad: 'Incorrect admin PIN. Try again.',
+  locked: 'Too many failed attempts. Wait five minutes, then try again.',
+  missing: 'Enter the admin PIN.',
+  ratelimited: 'Too many failed attempts. Please try again later.',
+};
+
+function adminLoginHtml(message: string): string {
+  const msg = message ? `<p class="err">${message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>` : '';
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PConAir — Admin</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #111315; color: #e8eaec; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .box { background: #1c1f22; border: 1px solid #33383d; border-radius: 10px; padding: 28px 32px; max-width: 22rem; width: 100%; box-sizing: border-box; }
+    h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 8px; }
+    p.sub { font-size: 13px; color: #9aa0a6; margin: 0 0 20px; line-height: 1.45; }
+    .err { color: #ff6e62; font-size: 13px; margin: 0 0 14px; }
+    label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+    input { width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 16px; border: 1px solid #33383d; border-radius: 6px; margin-bottom: 16px; background: #111315; color: #e8eaec; }
+    button { width: 100%; padding: 12px 16px; font-size: 14px; font-weight: 600; border: none; border-radius: 6px; background: #e5a53a; color: #08111c; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>PConAir Admin</h1>
+    <p class="sub">Enter the admin PIN to access the dashboard.</p>
+    ${msg}
+    <form method="post" action="/auth/admin/browser" autocomplete="off">
+      <label for="pin">Admin PIN</label>
+      <input id="pin" name="pin" type="password" inputmode="numeric" required autofocus />
+      <button type="submit">Continue</button>
+    </form>
+  </div>
+</body>
+</html>`;
+}
+
 const LOCKED_SHELL = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admin locked</title><style>body{font-family:system-ui,sans-serif;max-width:28rem;margin:2rem auto;padding:0 1rem}</style></head>
@@ -131,6 +172,16 @@ export function createAdminRouter(d: AdminRouterDeps): Router {
     const opSession = opSid ? d.auth.getSession(opSid) : null;
 
     if (!adminSession || adminSession.role !== 'admin') {
+      // Browser navigations (sec-fetch-dest: document) get an HTML login page.
+      // API clients get JSON errors.
+      const isBrowserNav = req.headers['sec-fetch-dest'] === 'document';
+      if (isBrowserNav) {
+        const loginCode = typeof req.query.login === 'string' ? req.query.login : '';
+        res.status(401).setHeader('Content-Type', 'text/html; charset=utf-8').send(
+          adminLoginHtml(LOGIN_QUERY_HINTS[loginCode] ?? '')
+        );
+        return;
+      }
       if (opSession) {
         res.status(403).json({
           error: { code: 'FORBIDDEN', message: 'Admin access required' },

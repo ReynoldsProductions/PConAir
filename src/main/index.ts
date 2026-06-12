@@ -262,6 +262,8 @@ async function main() {
   createAppTray({
     port,
     serverError,
+    operatorPin: OPERATOR_PIN,
+    adminPin: ADMIN_PIN,
     onOpenSettings: () => openSettingsWindow(),
     onOpenOperatorWindow: () => createOperatorWindow(port),
   });
