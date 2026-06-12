@@ -195,7 +195,8 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
         slides: { ...state.slides, isLoading: false },
       });
       if (instance === state.abState.activeInstance) {
-        win.show(); // make the presentation visible on screen
+        win.show();
+        if (process.platform === 'darwin') win.setSimpleFullScreen(true);
         openNotesCaptureWindow(win);
         scheduleCacheWarm();
       }
@@ -248,7 +249,10 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
     const toShow = instance === 'A' ? windowA : windowB;
     const toHide = instance === 'A' ? windowB : windowA;
     if (toHide && !toHide.isDestroyed()) toHide.hide();
-    if (toShow && !toShow.isDestroyed()) toShow.show();
+    if (toShow && !toShow.isDestroyed()) {
+      toShow.show();
+      if (process.platform === 'darwin') toShow.setSimpleFullScreen(true);
+    }
   }
 
   function closeAll(): void {
