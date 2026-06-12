@@ -50,8 +50,8 @@ export interface ServerDeps {
   }) => void;
   showQrOverlay?: (url: string, durationMs: number) => Promise<void>;
   hideQrOverlay?: () => void;
-  /** Directory scanned for graphics packages; omit to disable the packages system. */
-  packagesRoot?: string;
+  /** Directory (or ordered list: bundled first, then user) scanned for graphics packages; omit to disable the packages system. */
+  packagesRoot?: string | string[];
 }
 
 function getRequestClientIp(req: express.Request, trustForwardedFor: boolean): string {

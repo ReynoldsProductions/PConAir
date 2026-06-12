@@ -96,6 +96,90 @@ describe('package hub', () => {
     hub.rescan();
     expect(hub.getState('hoops')!.scoreA).toBe(7);
   });
+
+  it('scans multiple roots in order; duplicate ids are skipped with an error', () => {
+    const root2 = fs.mkdtempSync(path.join(os.tmpdir(), 'pconair-pkg2-'));
+    try {
+      writeFixturePackage(root2); // same 'hoops' id as root
+      const dir = path.join(root2, 'extra');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(
+        path.join(dir, 'package.json'),
+        JSON.stringify({ id: 'extra', name: 'Extra', version: '1.0.0', renders: [{ id: 'main', label: 'Main', file: 'r.html' }] })
+      );
+      fs.writeFileSync(path.join(dir, 'r.html'), '<html></html>');
+
+      const hub = createPackageHub([root, root2]);
+      expect(hub.list().map((p) => p.manifest.id).sort()).toEqual(['extra', 'hoops']);
+      // hoops loaded from the first root, not shadowed by the second
+      expect(hub.find('hoops')!.dir.startsWith(root)).toBe(true);
+      expect(hub.errors().some((e) => e.error.includes('duplicate package id'))).toBe(true);
+    } finally {
+      fs.rmSync(root2, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('bundled packages (phase 8)', () => {
+  const bundledRoot = path.join(__dirname, '..', 'bundled-packages');
+
+  it('all three bundled packages load without errors', () => {
+    const result = scanPackagesDir(bundledRoot);
+    expect(result.errors).toEqual([]);
+    expect(result.packages.map((p) => p.manifest.id).sort()).toEqual(['ffg', 'hoops', 'news']);
+    for (const p of result.packages) expect(p.controlFile).toBe('control.html');
+  });
+
+  it('ffg declares the five plan renders; hoops and news declare one each', () => {
+    const hub = createPackageHub(bundledRoot);
+    expect(hub.find('ffg')!.manifest.renders.map((r) => r.id)).toEqual([
+      'single-pip',
+      'four-portrait',
+      'four-up',
+      'head-to-head',
+      'champion',
+    ]);
+    expect(hub.find('hoops')!.manifest.renders.map((r) => r.id)).toEqual(['scorebug']);
+    expect(hub.find('news')!.manifest.renders.map((r) => r.id)).toEqual(['overlay']);
+  });
+
+  it('seeds initial state from the manifests', () => {
+    const hub = createPackageHub(bundledRoot);
+    expect(hub.getState('ffg')).toMatchObject({
+      scores: [0, 0, 0, 0],
+      maxScore: 10,
+      winner: null,
+      h2h: { slotA: [0, 1], slotB: [2, 3] },
+    });
+    expect((hub.getState('ffg')!.teams as Array<{ handle: string }>).length).toBe(4);
+    expect(hub.getState('hoops')).toMatchObject({ teamA: 'BOS', clockEndsAt: 0, quarter: 3 });
+    expect(hub.getState('news')).toMatchObject({ bugVisible: true, l3: { visible: false } });
+  });
+
+  it('serves bundled render, control, and asset files over HTTP', async () => {
+    const store = createStateStore();
+    const server = createFullServer({ store, ...PINS, port: 0, packagesRoot: bundledRoot });
+    await server.listen();
+    try {
+      const list = await request(server.app).get('/api/packages');
+      expect(list.body.packages.map((p: { id: string }) => p.id).sort()).toEqual(['ffg', 'hoops', 'news']);
+
+      expect((await request(server.app).get('/packages/hoops/render/scorebug')).text).toContain('COURTVISION');
+      expect((await request(server.app).get('/packages/news/render/overlay')).text).toContain('Nightly News');
+      for (const r of ['single-pip', 'four-portrait', 'four-up', 'head-to-head', 'champion']) {
+        const res = await request(server.app).get(`/packages/ffg/render/${r}`);
+        expect(res.status).toBe(200);
+        // every FFG render hydrates from package state, never query-param state
+        expect(res.text).toContain('ffg-common.js');
+      }
+      expect((await request(server.app).get('/packages/ffg/control')).text).toContain('SET WINNER');
+      expect((await request(server.app).get('/packages/ffg/assets/cardboard.css')).status).toBe(200);
+      expect((await request(server.app).get('/packages/ffg/assets/icons/one-faire.gif')).status).toBe(200);
+      expect((await request(server.app).get('/packages/hoops/assets/state.js')).text).toContain('PConAirPackage');
+    } finally {
+      await server.close();
+    }
+  });
 });
 
 describe('packages HTTP + WS', () => {

@@ -1,0 +1,50 @@
+{
+  "id": "news",
+  "name": "Faire Nightly News",
+  "version": "1.0.0",
+  "description": "Broadcast overlay — logo bug, LIVE indicator + clock, lower third, ticker",
+  "renders": [
+    { "id": "overlay", "label": "Overlay", "file": "render.html" }
+  ],
+  "stateSchema": {
+    "bugVisible": "boolean",
+    "liveVisible": "boolean",
+    "theme": "string",
+    "l3": { "visible": "boolean", "name": "string", "title": "string" },
+    "tickerVisible": "boolean",
+    "tickerLabel": "string"
+  },
+  "initialState": {
+    "bugVisible": true,
+    "liveVisible": true,
+    "theme": "light",
+    "l3": { "visible": false, "name": "Jane Smith", "title": "Chief Executive Officer" },
+    "tickerVisible": true,
+    "tickerLabel": "Faire Wire",
+    "tickerItems": [
+      "Q2 wrap:: — fulfillment hit 99.1% on-time across all four hubs",
+      "Toronto:: clears a record 12,400-order day",
+      "New:: Insider perks go live next week",
+      "Brand spotlight:: — Maison Balzac joins Faire Direct"
+    ]
+  },
+  "companionActions": [
+    { "id": "news_l3_take", "label": "Take lower third" },
+    { "id": "news_l3_clear", "label": "Clear lower third" },
+    { "id": "news_set_ticker", "label": "Set ticker items" },
+    { "id": "news_clear_ticker", "label": "Clear ticker" },
+    { "id": "news_toggle_bug", "label": "Toggle logo bug" },
+    { "id": "news_show_live", "label": "Show LIVE indicator" },
+    { "id": "news_hide_live", "label": "Hide LIVE indicator" }
+  ],
+  "companionFeedbacks": [
+    { "id": "l3_visible", "label": "Lower third on air" },
+    { "id": "bug_visible", "label": "Logo bug visible" },
+    { "id": "live_visible", "label": "LIVE indicator visible" },
+    { "id": "ticker_visible", "label": "Ticker visible" }
+  ],
+  "companionVariables": [
+    { "id": "l3_name", "label": "Lower third name" },
+    { "id": "l3_title", "label": "Lower third title" }
+  ]
+}

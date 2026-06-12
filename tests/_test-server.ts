@@ -28,7 +28,7 @@ export interface FullServerTestOpts {
   startTunnel?: () => void;
   stopTunnel?: () => void;
   saveTunnelSettings?: (patch: Record<string, unknown>) => void;
-  packagesRoot?: string;
+  packagesRoot?: string | string[];
 }
 
 export function createFullServer(opts: FullServerTestOpts) {

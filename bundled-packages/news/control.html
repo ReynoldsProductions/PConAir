@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Faire Nightly News — control</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#333333; --sub:#757575; --cream:#fbf8f6; --tan:#b5a998;
+    --border:#dfe0e1; --live:#921100; --bg:#1a1816; --panel:#2b2622;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--cream);font-family:'Inter',sans-serif;min-height:100dvh;
+    padding:16px;display:flex;flex-direction:column;gap:14px;max-width:640px;margin:0 auto;}
+  .header{display:flex;align-items:center;justify-content:space-between;}
+  h1{font-family:'Lora',serif;font-weight:500;font-size:22px;color:var(--tan);}
+  .pill{font-size:10px;font-weight:700;letter-spacing:.12em;padding:4px 10px;border-radius:20px;}
+  .pill.live{background:#1a3a1a;color:#6ecf6e;}
+  .pill.offline{background:#3a1a1a;color:#cf6e6e;}
+  .section{background:var(--panel);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px;}
+  .lbl{font-size:10px;letter-spacing:.2em;color:var(--tan);font-weight:700;text-transform:uppercase;}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  button{border:none;border-radius:6px;cursor:pointer;font-family:'Inter',sans-serif;font-weight:600;
+    font-size:13px;letter-spacing:.08em;color:var(--cream);background:#3a3632;
+    padding:13px 18px;touch-action:manipulation;}
+  button:active{opacity:.7;}
+  button.take{background:#2d6a2d;}
+  button.clear{background:var(--live);}
+  button.toggled{outline:2px solid var(--tan);}
+  input,textarea{background:var(--bg);border:1px solid #585550;border-radius:6px;color:var(--cream);
+    font-family:'Inter',sans-serif;font-size:14px;padding:10px;width:100%;}
+  input:focus,textarea:focus{outline:none;border-color:var(--tan);}
+  textarea{resize:vertical;min-height:110px;line-height:1.5;}
+  .hint{font-size:11px;color:#8a8378;line-height:1.4;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Faire Nightly News</h1>
+  <div class="pill offline" id="pill">CONNECTING…</div>
+</div>
+
+<div class="section">
+  <div class="lbl">Lower third</div>
+  <input id="l3name" placeholder="Name">
+  <input id="l3title" placeholder="Title">
+  <div class="row">
+    <button class="take" data-act="l3take" style="flex:1">TAKE</button>
+    <button class="clear" data-act="l3clear" style="flex:1">CLEAR</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lbl">Ticker</div>
+  <input id="tickerLabel" placeholder="Ticker label (Faire Wire)">
+  <textarea id="tickerItems" placeholder="One headline per line"></textarea>
+  <div class="hint">One item per line. Use <b>lead:: rest of headline</b> to bold the lead-in.</div>
+  <div class="row">
+    <button class="take" data-act="tickerSet" style="flex:1">UPDATE TICKER</button>
+    <button class="clear" data-act="tickerClear" style="flex:1">CLEAR TICKER</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lbl">Bugs &amp; theme</div>
+  <div class="row">
+    <button data-act="bug" id="bBug" style="flex:1">LOGO BUG</button>
+    <button data-act="live" id="bLive" style="flex:1">LIVE + CLOCK</button>
+    <button data-act="theme" id="bTheme" style="flex:1">DARK L3</button>
+  </div>
+</div>
+
+<script src="/packages/news/assets/state.js"></script>
+<script>
+  const g = (id) => document.getElementById(id);
+  let state = null;
+
+  const client = PConAirPackage.connect('news', (s) => {
+    state = s;
+    g('pill').className = 'pill live';
+    g('pill').textContent = 'LIVE';
+    render();
+  });
+
+  function patch(p) { client.patch(p); }
+
+  function syncInput(id, value) {
+    const el = g(id);
+    if (document.activeElement !== el) el.value = value ?? '';
+  }
+
+  function render() {
+    if (!state) return;
+    const l3 = state.l3 || {};
+    syncInput('l3name', l3.name);
+    syncInput('l3title', l3.title);
+    syncInput('tickerLabel', state.tickerLabel);
+    syncInput('tickerItems', (state.tickerItems || []).join('\n'));
+    g('bBug').classList.toggle('toggled', !!state.bugVisible);
+    g('bLive').classList.toggle('toggled', !!state.liveVisible);
+    g('bTheme').classList.toggle('toggled', state.theme === 'dark');
+  }
+
+  document.body.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn || !state) return;
+    switch (btn.dataset.act) {
+      case 'l3take':
+        patch({ l3: { visible: true, name: g('l3name').value, title: g('l3title').value } });
+        break;
+      case 'l3clear':
+        patch({ l3: { ...(state.l3 || {}), visible: false } });
+        break;
+      case 'tickerSet':
+        patch({
+          tickerLabel: g('tickerLabel').value,
+          tickerItems: g('tickerItems').value.split('\n').map((l) => l.trim()).filter(Boolean),
+          tickerVisible: true,
+        });
+        break;
+      case 'tickerClear':
+        patch({ tickerVisible: false });
+        break;
+      case 'bug': patch({ bugVisible: !state.bugVisible }); break;
+      case 'live': patch({ liveVisible: !state.liveVisible }); break;
+      case 'theme': patch({ theme: state.theme === 'dark' ? 'light' : 'dark' }); break;
+    }
+  });
+</script>
+</body>
+</html>

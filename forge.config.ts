@@ -2,7 +2,7 @@ import type { ForgeConfig } from '@electron-forge/shared-types';
 import { WebpackPlugin } from '@electron-forge/plugin-webpack';
 
 const config: ForgeConfig = {
-  packagerConfig: { asar: true },
+  packagerConfig: { asar: true, extraResource: ['./bundled-packages'] },
   rebuildConfig: {},
   makers: [
     { name: '@electron-forge/maker-zip', platforms: ['darwin', 'linux'] },
