@@ -31,6 +31,9 @@ export interface GscStatusFields {
   notesLayout: 'hide' | 'default';
   offlineModeEnabled: boolean;
   perfectcue: { enabled: boolean; ports: unknown[] };
+  stageTimerOverlayEnabled: boolean;
+  stageTimerOverlayPosition: string;
+  stageTimerOverlaySize: number;
 }
 
 export function gscStatusFields(state: AppState): GscStatusFields {
@@ -65,5 +68,8 @@ export function gscStatusFields(state: AppState): GscStatusFields {
     notesLayout: 'hide',
     offlineModeEnabled: slides?.offlineMode ?? false,
     perfectcue: { enabled: false, ports: [] },
+    stageTimerOverlayEnabled: state.stageTimer.overlayEnabled,
+    stageTimerOverlayPosition: state.stageTimer.overlayPosition,
+    stageTimerOverlaySize: state.stageTimer.overlaySize,
   };
 }

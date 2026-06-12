@@ -236,6 +236,8 @@ function connectWs(): void {
         renderStills((msg.payload.mediaLibrary as StillsSlice | null) ?? null);
         renderOutputCards((msg.payload.renderOutputs as RenderOutputs | undefined) ?? null);
         renderLiveStatus(msg.payload);
+        renderUrlState(msg.payload);
+        renderStageTimer((msg.payload.stageTimer as StageTimerSlice | undefined) ?? null);
       } else if (msg.type === 'state_patch' && msg.payload) {
         if ('slides' in msg.payload) {
           renderSlides((msg.payload.slides as SlidesSlice | null) ?? null);
@@ -254,6 +256,17 @@ function connectWs(): void {
         }
         if ('currentMode' in msg.payload || 'l3' in msg.payload) {
           renderLiveStatus(msg.payload);
+        }
+        if (
+          'currentMode' in msg.payload ||
+          'currentUrl' in msg.payload ||
+          'currentPreset' in msg.payload ||
+          'abState' in msg.payload
+        ) {
+          renderUrlState(msg.payload);
+        }
+        if ('stageTimer' in msg.payload) {
+          renderStageTimer((msg.payload.stageTimer as StageTimerSlice | undefined) ?? null);
         }
       }
     } catch {
@@ -754,6 +767,199 @@ function renderLiveStatus(state: Record<string, unknown>): void {
   }
 }
 
+// ---- URLs page ----
+
+interface UrlPresetLike {
+  id: string;
+  name: string;
+  url: string;
+}
+
+interface UrlPageState {
+  currentMode: string;
+  currentUrl: string | null;
+  currentPresetName: string | null;
+  activeInstance: 'A' | 'B';
+}
+
+const urlPage: UrlPageState = { currentMode: 'idle', currentUrl: null, currentPresetName: null, activeInstance: 'A' };
+let urlPresets: UrlPresetLike[] = [];
+
+function renderUrlState(patch: Record<string, unknown>): void {
+  if ('currentMode' in patch) urlPage.currentMode = String(patch.currentMode);
+  if ('currentUrl' in patch) urlPage.currentUrl = (patch.currentUrl as string | null) ?? null;
+  if ('currentPreset' in patch) {
+    urlPage.currentPresetName = (patch.currentPreset as { name?: string } | null)?.name ?? null;
+  }
+  if ('abState' in patch) {
+    urlPage.activeInstance = ((patch.abState as { activeInstance?: 'A' | 'B' } | null)?.activeInstance ?? 'A');
+  }
+
+  const onAir = urlPage.currentMode === 'url';
+  $('url-onair').hidden = !onAir;
+  $('url-current').textContent = urlPage.currentUrl
+    ? (urlPage.currentPresetName ? `${urlPage.currentPresetName} — ` : '') + urlPage.currentUrl
+    : 'No URL loaded';
+  $('url-ab-status').textContent = `Active: ${urlPage.activeInstance}`;
+}
+
+function renderUrlPresetList(): void {
+  const list = $('url-preset-list');
+  list.innerHTML = '';
+  if (urlPresets.length === 0) {
+    list.innerHTML = '<p class="hint-line" style="color:var(--text-dim)">No presets yet.</p>';
+    return;
+  }
+  for (const p of urlPresets) {
+    const row = document.createElement('div');
+    row.className = 'goto-row';
+    const open = document.createElement('button');
+    open.className = 'small-btn primary';
+    open.textContent = p.name;
+    open.style.flex = '1';
+    open.title = p.url;
+    open.addEventListener('click', async () => {
+      haptic();
+      const r = await api('/api/action', { action_id: 'load_url_preset', params: { preset: p.id } });
+      $('url-preset-msg').textContent = r.ok ? '' : r.error ?? 'Failed';
+    });
+    const del = document.createElement('button');
+    del.className = 'small-btn';
+    del.textContent = '✕';
+    del.title = 'Delete preset (admin)';
+    del.addEventListener('click', async () => {
+      const res = await fetch(`/api/presets/${encodeURIComponent(p.id)}`, { method: 'DELETE' });
+      $('url-preset-msg').textContent = res.ok ? '' : res.status === 401 || res.status === 403 ? 'Admin session required.' : 'Delete failed.';
+      void refreshUrlPresets();
+    });
+    row.append(open, del);
+    list.appendChild(row);
+  }
+}
+
+async function refreshUrlPresets(): Promise<void> {
+  try {
+    const res = await fetch('/api/presets');
+    if (!res.ok) return;
+    const data = (await res.json()) as { presets: UrlPresetLike[] };
+    urlPresets = data.presets;
+    renderUrlPresetList();
+  } catch {
+    /* server unreachable */
+  }
+}
+
+function wireUrlsPage(): void {
+  $('url-open').addEventListener('click', async () => {
+    haptic();
+    const url = ($('url-input') as HTMLInputElement).value.trim();
+    if (!url) return;
+    const r = await api('/api/url', { url });
+    $('url-msg').textContent = r.ok ? '' : r.error ?? 'Failed';
+  });
+  $('url-reload').addEventListener('click', async () => {
+    haptic();
+    const r = await api('/api/url/reload');
+    $('url-msg').textContent = r.ok ? '' : r.error ?? 'Failed';
+  });
+  $('url-ab-switch').addEventListener('click', async () => {
+    haptic();
+    const r = await api('/api/ab/switch', {});
+    $('url-msg').textContent = r.ok ? '' : r.error ?? 'Failed';
+  });
+  $('url-preset-add').addEventListener('click', async () => {
+    const name = ($('url-new-name') as HTMLInputElement).value.trim();
+    const url = ($('url-new-url') as HTMLInputElement).value.trim();
+    if (!name || !url) {
+      $('url-add-msg').textContent = 'Name and URL are required.';
+      return;
+    }
+    const res = await fetch('/api/presets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, url }),
+    });
+    $('url-add-msg').textContent = res.ok
+      ? 'Added.'
+      : res.status === 401 || res.status === 403
+        ? 'Admin session required.'
+        : 'Add failed.';
+    if (res.ok) {
+      ($('url-new-name') as HTMLInputElement).value = '';
+      ($('url-new-url') as HTMLInputElement).value = '';
+      void refreshUrlPresets();
+    }
+  });
+}
+
+// ---- Timer page (stagetimer.io) ----
+
+interface StageTimerSlice {
+  overlayEnabled: boolean;
+  overlayPosition: string;
+  overlaySize: number;
+  roomId: string | null;
+  configured: boolean;
+}
+
+let lastStageTimer: StageTimerSlice | null = null;
+
+function renderStageTimer(st: StageTimerSlice | null): void {
+  lastStageTimer = st;
+  $('st-overlay-chip').hidden = !st?.overlayEnabled;
+  $('st-overlay-toggle').textContent = st?.overlayEnabled ? 'Hide overlay' : 'Show overlay';
+  $('st-configured').textContent = st?.configured ? `Room ${st.roomId} configured` : 'Not configured';
+  const pos = $('st-position') as HTMLSelectElement;
+  const size = $('st-size') as HTMLInputElement;
+  if (st && document.activeElement !== pos) pos.value = st.overlayPosition;
+  if (st && document.activeElement !== size) size.value = String(st.overlaySize);
+  if (st && document.activeElement !== $('st-room')) ($('st-room') as HTMLInputElement).value = st.roomId ?? '';
+
+  // Embed the configured room's viewer; the stagetimer.io home page otherwise.
+  const frame = $('st-frame') as HTMLIFrameElement;
+  const want = st?.roomId ? `https://stagetimer.io/r/${encodeURIComponent(st.roomId)}/` : 'https://stagetimer.io/';
+  if (frame.getAttribute('src') !== want) frame.src = want;
+}
+
+function wireTimerPage(): void {
+  $('st-overlay-toggle').addEventListener('click', async () => {
+    haptic();
+    const r = await api('/api/stagetimer/overlay', { enabled: !lastStageTimer?.overlayEnabled });
+    $('st-msg').textContent = r.ok ? '' : r.error ?? 'Failed';
+  });
+  const applySettings = async (): Promise<void> => {
+    const position = ($('st-position') as HTMLSelectElement).value;
+    const size = parseInt(($('st-size') as HTMLInputElement).value, 10);
+    const res = await fetch('/api/stagetimer/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ position, size: Number.isFinite(size) ? size : undefined }),
+    });
+    $('st-msg').textContent = res.ok
+      ? ''
+      : res.status === 401 || res.status === 403
+        ? 'Admin session required.'
+        : 'Update failed.';
+  };
+  $('st-position').addEventListener('change', () => void applySettings());
+  $('st-size').addEventListener('change', () => void applySettings());
+  $('st-save').addEventListener('click', async () => {
+    const roomId = ($('st-room') as HTMLInputElement).value.trim();
+    const apiKey = ($('st-key') as HTMLInputElement).value.trim();
+    const res = await fetch('/api/stagetimer/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomId: roomId || null, ...(apiKey ? { apiKey } : {}) }),
+    });
+    $('st-config-msg').textContent = res.ok
+      ? 'Saved.'
+      : res.status === 401 || res.status === 403
+        ? 'Admin session required.'
+        : 'Save failed.';
+    if (res.ok) ($('st-key') as HTMLInputElement).value = '';
+  });
+}
+
 // ---- QR modal + tunnel settings ----
 
 interface TunnelSlice {
@@ -838,9 +1044,12 @@ wireSlidesPage();
 wireL3Page();
 wireStillsPage();
 wirePackagesPage();
+wireUrlsPage();
+wireTimerPage();
 wireOutputCards();
 wireQrAndTunnel();
 void refreshL3Data();
 void refreshStillsData();
 void refreshPackages();
+void refreshUrlPresets();
 connectWs();

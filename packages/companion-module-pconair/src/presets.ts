@@ -302,7 +302,17 @@ export function buildPresets(): Record<string, CompanionPresetDefinition> {
       steps: [{ down: [], up: [] }],
     },
 
-    // 7.10 Offline mode
+    // 7.10 Stagetimer overlay
+    stagetimer_overlay: {
+      type: 'button',
+      category: 'Status',
+      name: 'Toggle Stagetimer Overlay',
+      style: { text: 'Stage\nTimer', size: '14', color: white, bgcolor: gray },
+      feedbacks: [{ feedbackId: 'stagetimer_overlay_active', options: {}, style: { bgcolor: combineRgb(0, 180, 0) } }],
+      steps: [{ down: [{ actionId: 'stagetimer_overlay_toggle', options: {} }], up: [] }],
+    },
+
+    // 7.11 Offline mode
     offline_toggle: {
       type: 'button',
       category: 'Slides',

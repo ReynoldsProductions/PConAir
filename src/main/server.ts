@@ -58,6 +58,8 @@ export interface ServerDeps {
   }) => void;
   showQrOverlay?: (url: string, durationMs: number) => Promise<void>;
   hideQrOverlay?: () => void;
+  /** Stagetimer overlay hooks + settings persistence (Electron main); absent in tests. */
+  stageTimer?: RouteServices['stageTimer'];
   /** Directory (or ordered list: bundled first, then user) scanned for graphics packages; omit to disable the packages system. */
   packagesRoot?: string | string[];
 }
@@ -206,6 +208,7 @@ export function createServer(deps: ServerDeps) {
     saveTunnelSettings: deps.saveTunnelSettings,
     showQrOverlay: deps.showQrOverlay,
     hideQrOverlay: deps.hideQrOverlay,
+    stageTimer: deps.stageTimer,
     packageHub,
   };
 

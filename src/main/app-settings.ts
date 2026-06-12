@@ -19,6 +19,16 @@ export interface AppSettings {
   tunnelToken: string | null;
   /** bcrypt hash of the 4-digit tunnel PIN; null = tunnel access not PIN-gated. */
   tunnelPinHash: string | null;
+  /** Stagetimer.io room id for the notes-display overlay; null = not configured. */
+  stagetimerRoomId: string | null;
+  /** Stagetimer.io API key (paired with the room id); null = not configured. */
+  stagetimerApiKey: string | null;
+  /** Overlay corner on the notes display. */
+  stageTimerOverlayPosition: 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right';
+  /** Overlay size as percent of the notes display (1–100). */
+  stageTimerOverlaySize: number;
+  /** Overlay was showing when the app last ran — restore it at boot. */
+  stageTimerOverlayEnabled: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
@@ -28,6 +38,11 @@ export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
   tunnelDomain: null,
   tunnelToken: null,
   tunnelPinHash: null,
+  stagetimerRoomId: null,
+  stagetimerApiKey: null,
+  stageTimerOverlayPosition: 'bottom-left',
+  stageTimerOverlaySize: 10,
+  stageTimerOverlayEnabled: false,
 });
 
 export function appSettingsPath(userDataDir: string): string {
@@ -40,6 +55,16 @@ function isValidPort(p: unknown): p is number {
 
 function strOrNull(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+const OVERLAY_POSITIONS = new Set(['bottom-left', 'bottom-right', 'top-left', 'top-right']);
+
+export function isValidOverlayPosition(v: unknown): v is AppSettings['stageTimerOverlayPosition'] {
+  return typeof v === 'string' && OVERLAY_POSITIONS.has(v);
+}
+
+export function isValidOverlaySize(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 100;
 }
 
 /** Tolerant load: missing file, unreadable JSON, or bad fields fall back to defaults. */
@@ -61,6 +86,15 @@ export function loadAppSettings(filePath: string): AppSettings {
     tunnelDomain: strOrNull(obj.tunnelDomain),
     tunnelToken: strOrNull(obj.tunnelToken),
     tunnelPinHash: strOrNull(obj.tunnelPinHash),
+    stagetimerRoomId: strOrNull(obj.stagetimerRoomId),
+    stagetimerApiKey: strOrNull(obj.stagetimerApiKey),
+    stageTimerOverlayPosition: isValidOverlayPosition(obj.stageTimerOverlayPosition)
+      ? obj.stageTimerOverlayPosition
+      : DEFAULT_APP_SETTINGS.stageTimerOverlayPosition,
+    stageTimerOverlaySize: isValidOverlaySize(obj.stageTimerOverlaySize)
+      ? obj.stageTimerOverlaySize
+      : DEFAULT_APP_SETTINGS.stageTimerOverlaySize,
+    stageTimerOverlayEnabled: obj.stageTimerOverlayEnabled === true,
   };
 }
 
@@ -74,6 +108,12 @@ export function saveAppSettings(filePath: string, patch: AppSettingsPatch): AppS
     ...patch,
     schemaVersion: 1,
     port: patch.port !== undefined && isValidPort(patch.port) ? patch.port : current.port,
+    stageTimerOverlayPosition: isValidOverlayPosition(patch.stageTimerOverlayPosition)
+      ? patch.stageTimerOverlayPosition
+      : current.stageTimerOverlayPosition,
+    stageTimerOverlaySize: isValidOverlaySize(patch.stageTimerOverlaySize)
+      ? patch.stageTimerOverlaySize
+      : current.stageTimerOverlaySize,
   };
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const tmp = `${filePath}.tmp`;

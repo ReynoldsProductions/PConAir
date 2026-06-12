@@ -323,35 +323,13 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
     windowB = null;
   }
 
-  async function getSpeakerNotes(): Promise<string | null> {
-    const state = store.getState();
-    if (state.currentMode !== 'slides') return null;
-    const activeInstance = state.abState.activeInstance;
-    const win = activeInstance === 'A' ? windowA : windowB;
-    if (!win || win.isDestroyed()) return null;
-    try {
-      const notes = await win.webContents.executeJavaScript(`
-        (() => {
-          const el = document.querySelector('.punch-viewer-speakernotes-text') ||
-                     document.querySelector('[data-font-loaded] .punch-viewer-speakernotes') ||
-                     document.querySelector('.IZ65Hb-YPqjbf');
-          return el ? el.innerText.trim() : null;
-        })()
-      `, true);
-      return typeof notes === 'string' ? notes : null;
-    } catch {
-      return null;
-    }
+  /** Bounds of the presenter-notes popup when open (stagetimer overlay targets its display). */
+  function getNotesWindowBounds(): { x: number; y: number; width: number; height: number } | null {
+    if (!notesWindow || notesWindow.isDestroyed()) return null;
+    return notesWindow.getBounds();
   }
 
-  function getActiveWindow(): BrowserWindow | null {
-    const state = store.getState();
-    const activeInstance = state.abState.activeInstance;
-    const win = activeInstance === 'A' ? windowA : windowB;
-    return win && !win.isDestroyed() ? win : null;
-  }
-
-  return { initialize, loadDeck, navigateToSlide, showInstance, getSpeakerNotes, getActiveWindow, destroy };
+  return { initialize, loadDeck, navigateToSlide, showInstance, getNotesWindowBounds, destroy };
 }
 
 export type SlidesWindowManager = ReturnType<typeof createSlidesWindowManager>;

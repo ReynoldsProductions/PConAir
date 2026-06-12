@@ -50,6 +50,13 @@ const INITIAL_STATE: AppState = {
     stills: { bg: 'transparent', chromaColor: '#00b140', claimedOutput: null },
     url: { bg: 'opaque', chromaColor: '#00b140', claimedOutput: null },
   },
+  stageTimer: {
+    overlayEnabled: false,
+    overlayPosition: 'bottom-left',
+    overlaySize: 10,
+    roomId: null,
+    configured: false,
+  },
 };
 
 type Subscriber = (patch: Partial<AppState>) => void;

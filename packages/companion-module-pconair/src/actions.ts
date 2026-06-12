@@ -134,6 +134,40 @@ export function buildActions(deps: ActionDeps): Record<string, CompanionActionDe
       async (e) => ({ duration: Number(e.options['durationSec']) })
     ),
     hide_share_qr: gscAction('Hide Tunnel QR', '/api/hide-tunnel-qr'),
+    stagetimer_overlay_show: gscAction('Show Stagetimer Overlay', '/api/show-stage-timer-overlay'),
+    stagetimer_overlay_hide: gscAction('Hide Stagetimer Overlay', '/api/hide-stage-timer-overlay'),
+    stagetimer_overlay_toggle: {
+      name: 'Toggle Stagetimer Overlay',
+      options: [],
+      callback: async () => {
+        try {
+          const showing = Boolean(getApp().stageTimer?.overlayEnabled)
+          await gscPost(showing ? '/api/hide-stage-timer-overlay' : '/api/show-stage-timer-overlay', {})
+        } catch (err) {
+          log('error', `Toggle Stagetimer Overlay failed: ${(err as Error).message}`)
+        }
+      },
+    },
+    stagetimer_overlay_settings: gscAction(
+      'Set Stagetimer Overlay Position/Size',
+      '/api/update-stage-timer-overlay-settings',
+      [
+        {
+          id: 'position',
+          type: 'dropdown',
+          label: 'Position',
+          default: 'bottom-left',
+          choices: [
+            { id: 'bottom-left', label: 'Bottom Left' },
+            { id: 'bottom-right', label: 'Bottom Right' },
+            { id: 'top-left', label: 'Top Left' },
+            { id: 'top-right', label: 'Top Right' },
+          ],
+        },
+        { id: 'size', type: 'number', label: 'Size (% of display)', default: 10, min: 1, max: 100, required: true },
+      ],
+      async (e) => ({ position: String(e.options['position']), size: Number(e.options['size']) })
+    ),
     set_backup_controls: gscAction(
       'Set Backup Controls (not supported)',
       '/api/set-backup-controls',

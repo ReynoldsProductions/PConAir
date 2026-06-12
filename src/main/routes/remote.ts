@@ -102,8 +102,9 @@ const REMOTE_JS_CONTENT: Buffer | null = (() => {
   return null;
 })();
 
+// frame-src: the Timer page embeds stagetimer.io (v2 plan §Timer page).
 const REMOTE_CSP =
-  "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' ws: wss:";
+  "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' ws: wss:; frame-src https://stagetimer.io";
 
 export function createRemoteRouter(auth: AuthManager): Router {
   const router = Router();
