@@ -14,6 +14,8 @@ function emptyL3(): L3State {
     activeTheme: null,
     isStacking: false,
     currentPlaylistId: null,
+    playlistPosition: null,
+    playlistLength: null,
   };
 }
 

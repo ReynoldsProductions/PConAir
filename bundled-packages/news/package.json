@@ -2,15 +2,23 @@
   "id": "news",
   "name": "Faire Nightly News",
   "version": "1.0.0",
-  "description": "Broadcast overlay — logo bug, LIVE indicator + clock, lower third, ticker",
+  "description": "Broadcast overlay \u2014 logo bug, LIVE indicator + clock, lower third, ticker",
   "renders": [
-    { "id": "overlay", "label": "Overlay", "file": "render.html" }
+    {
+      "id": "overlay",
+      "label": "Overlay",
+      "file": "render.html"
+    }
   ],
   "stateSchema": {
     "bugVisible": "boolean",
     "liveVisible": "boolean",
     "theme": "string",
-    "l3": { "visible": "boolean", "name": "string", "title": "string" },
+    "l3": {
+      "visible": "boolean",
+      "name": "string",
+      "title": "string"
+    },
     "tickerVisible": "boolean",
     "tickerLabel": "string"
   },
@@ -18,33 +26,195 @@
     "bugVisible": true,
     "liveVisible": true,
     "theme": "light",
-    "l3": { "visible": false, "name": "Jane Smith", "title": "Chief Executive Officer" },
+    "l3": {
+      "visible": false,
+      "name": "Jane Smith",
+      "title": "Chief Executive Officer"
+    },
     "tickerVisible": true,
     "tickerLabel": "Faire Wire",
     "tickerItems": [
-      "Q2 wrap:: — fulfillment hit 99.1% on-time across all four hubs",
+      "Q2 wrap:: \u2014 fulfillment hit 99.1% on-time across all four hubs",
       "Toronto:: clears a record 12,400-order day",
       "New:: Insider perks go live next week",
-      "Brand spotlight:: — Maison Balzac joins Faire Direct"
+      "Brand spotlight:: \u2014 Maison Balzac joins Faire Direct"
     ]
   },
   "companionActions": [
-    { "id": "news_l3_take", "label": "Take lower third" },
-    { "id": "news_l3_clear", "label": "Clear lower third" },
-    { "id": "news_set_ticker", "label": "Set ticker items" },
-    { "id": "news_clear_ticker", "label": "Clear ticker" },
-    { "id": "news_toggle_bug", "label": "Toggle logo bug" },
-    { "id": "news_show_live", "label": "Show LIVE indicator" },
-    { "id": "news_hide_live", "label": "Hide LIVE indicator" }
+    {
+      "id": "news_l3_take",
+      "label": "Take lower third",
+      "options": [
+        {
+          "id": "name",
+          "label": "Name",
+          "type": "textinput",
+          "default": ""
+        },
+        {
+          "id": "title",
+          "label": "Title",
+          "type": "textinput",
+          "default": ""
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "l3.name",
+          "value": {
+            "option": "name",
+            "orState": "l3.name"
+          }
+        },
+        {
+          "op": "set",
+          "field": "l3.title",
+          "value": {
+            "option": "title",
+            "orState": "l3.title"
+          }
+        },
+        {
+          "op": "set",
+          "field": "l3.visible",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "news_l3_clear",
+      "label": "Clear lower third",
+      "ops": [
+        {
+          "op": "set",
+          "field": "l3.visible",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "news_set_ticker",
+      "label": "Set ticker items",
+      "options": [
+        {
+          "id": "items",
+          "label": "Items (separate with |)",
+          "type": "textinput",
+          "default": ""
+        },
+        {
+          "id": "label",
+          "label": "Ticker label",
+          "type": "textinput",
+          "default": ""
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "tickerItems",
+          "value": {
+            "option": "items",
+            "split": "|"
+          }
+        },
+        {
+          "op": "set",
+          "field": "tickerLabel",
+          "value": {
+            "option": "label",
+            "orState": "tickerLabel"
+          }
+        },
+        {
+          "op": "set",
+          "field": "tickerVisible",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "news_clear_ticker",
+      "label": "Clear ticker",
+      "ops": [
+        {
+          "op": "set",
+          "field": "tickerVisible",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "news_toggle_bug",
+      "label": "Toggle logo bug",
+      "ops": [
+        {
+          "op": "toggle",
+          "field": "bugVisible"
+        }
+      ]
+    },
+    {
+      "id": "news_show_live",
+      "label": "Show LIVE indicator",
+      "ops": [
+        {
+          "op": "set",
+          "field": "liveVisible",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "news_hide_live",
+      "label": "Hide LIVE indicator",
+      "ops": [
+        {
+          "op": "set",
+          "field": "liveVisible",
+          "value": false
+        }
+      ]
+    }
   ],
   "companionFeedbacks": [
-    { "id": "l3_visible", "label": "Lower third on air" },
-    { "id": "bug_visible", "label": "Logo bug visible" },
-    { "id": "live_visible", "label": "LIVE indicator visible" },
-    { "id": "ticker_visible", "label": "Ticker visible" }
+    {
+      "id": "l3_visible",
+      "label": "Lower third on air",
+      "field": "l3.visible"
+    },
+    {
+      "id": "bug_visible",
+      "label": "Logo bug visible",
+      "field": "bugVisible"
+    },
+    {
+      "id": "live_visible",
+      "label": "LIVE indicator visible",
+      "field": "liveVisible"
+    },
+    {
+      "id": "ticker_visible",
+      "label": "Ticker visible",
+      "field": "tickerVisible"
+    }
   ],
   "companionVariables": [
-    { "id": "l3_name", "label": "Lower third name" },
-    { "id": "l3_title", "label": "Lower third title" }
+    {
+      "id": "l3_name",
+      "label": "Lower third name",
+      "field": "l3.name"
+    },
+    {
+      "id": "l3_title",
+      "label": "Lower third title",
+      "field": "l3.title"
+    },
+    {
+      "id": "ticker_label",
+      "label": "Ticker label",
+      "field": "tickerLabel"
+    }
   ]
 }

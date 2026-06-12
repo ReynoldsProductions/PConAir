@@ -228,5 +228,88 @@ export function buildPresets(): Record<string, CompanionPresetDefinition> {
       feedbacks: [],
       steps: [{ down: [], up: [] }],
     },
+
+    // 7.7 L3 playlists
+    l3_playlist_next: {
+      type: 'button',
+      category: 'Lower Thirds',
+      name: 'Playlist Next',
+      style: { text: 'L3 ›\n$(pconair:l3_playlist_position)/$(pconair:l3_playlist_length)', size: '14', color: white, bgcolor: blue },
+      feedbacks: [{ feedbackId: 'l3_on_air', options: {}, style: { bgcolor: combineRgb(0, 180, 0) } }],
+      steps: [{ down: [{ actionId: 'l3_next', options: {} }], up: [] }],
+    },
+    l3_playlist_prev: {
+      type: 'button',
+      category: 'Lower Thirds',
+      name: 'Playlist Previous',
+      style: { text: '‹ L3', size: '14', color: white, bgcolor: blue },
+      feedbacks: [{ feedbackId: 'l3_on_air', options: {}, style: { bgcolor: combineRgb(0, 180, 0) } }],
+      steps: [{ down: [{ actionId: 'l3_prev', options: {} }], up: [] }],
+    },
+
+    // 7.8 Still store
+    stills_clear: {
+      type: 'button',
+      category: 'Still Store',
+      name: 'Clear Still',
+      style: { text: 'Clear\nStill', size: '14', color: white, bgcolor: red },
+      feedbacks: [{ feedbackId: 'stills_on_air', options: {}, style: { bgcolor: combineRgb(0, 180, 0) } }],
+      steps: [{ down: [{ actionId: 'stills_clear', options: {} }], up: [] }],
+    },
+    slideshow_play: {
+      type: 'button',
+      category: 'Still Store',
+      name: 'Slideshow Play',
+      style: { text: '▶ Show', size: '14', color: white, bgcolor: gray },
+      feedbacks: [{ feedbackId: 'slideshow_running', options: {}, style: { bgcolor: combineRgb(0, 180, 0) } }],
+      steps: [{ down: [{ actionId: 'stills_slideshow_play', options: { item_ids: '', interval_sec: 5, transition: 'cut' } }], up: [] }],
+    },
+    slideshow_pause: {
+      type: 'button',
+      category: 'Still Store',
+      name: 'Slideshow Pause',
+      style: { text: '⏸', size: '18', color: white, bgcolor: gray },
+      feedbacks: [{ feedbackId: 'slideshow_paused', options: {}, style: { bgcolor: orange } }],
+      steps: [{ down: [{ actionId: 'stills_slideshow_pause', options: {} }], up: [] }],
+    },
+    slideshow_stop: {
+      type: 'button',
+      category: 'Still Store',
+      name: 'Slideshow Stop',
+      style: { text: '⏹', size: '18', color: white, bgcolor: red },
+      feedbacks: [],
+      steps: [{ down: [{ actionId: 'stills_slideshow_stop', options: {} }], up: [] }],
+    },
+
+    // 7.9 Tunnel / QR
+    show_qr: {
+      type: 'button',
+      category: 'Tunnel',
+      name: 'Show Tunnel QR',
+      style: { text: 'QR', size: '18', color: white, bgcolor: gray },
+      feedbacks: [{ feedbackId: 'tunnel_active', options: {}, style: { bgcolor: combineRgb(0, 180, 0) } }],
+      steps: [{ down: [{ actionId: 'show_share_qr', options: { durationSec: 20 } }], up: [] }],
+    },
+    tunnel_status: {
+      type: 'button',
+      category: 'Tunnel',
+      name: 'Tunnel Status',
+      style: { text: '$(pconair:tunnel_status)', size: '14', color: white, bgcolor: gray },
+      feedbacks: [
+        { feedbackId: 'tunnel_active', options: {}, style: { bgcolor: combineRgb(0, 180, 0) } },
+        { feedbackId: 'tunnel_error', options: {}, style: { bgcolor: red } },
+      ],
+      steps: [{ down: [], up: [] }],
+    },
+
+    // 7.10 Offline mode
+    offline_toggle: {
+      type: 'button',
+      category: 'Slides',
+      name: 'Toggle Offline Mode',
+      style: { text: 'Offline\nMode', size: '14', color: white, bgcolor: gray },
+      feedbacks: [{ feedbackId: 'offline_mode_active', options: {}, style: { bgcolor: orange } }],
+      steps: [{ down: [{ actionId: 'toggle_offline_mode', options: {} }], up: [] }],
+    },
   }
 }

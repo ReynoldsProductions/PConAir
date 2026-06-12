@@ -67,6 +67,10 @@ export interface L3State {
   activeTheme: string | null;
   isStacking: boolean;
   currentPlaylistId: string | null;
+  /** 1-based position of the active cue within the active playlist (null when none). */
+  playlistPosition: number | null;
+  /** Cue count of the active playlist (null when none). */
+  playlistLength: number | null;
 }
 
 export type SlideshowTransition = 'cut' | 'fade';

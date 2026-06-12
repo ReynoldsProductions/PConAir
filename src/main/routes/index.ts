@@ -25,6 +25,7 @@ import type { L3CueStore } from '../l3/cue-store';
 import type { L3PlaylistStore } from '../l3/playlist-store';
 import type { L3ThemeStore } from '../l3/theme-store';
 import type { MediaLibraryStore } from '../media-library/item-store';
+import type { SlideshowEngine } from '../media-library/slideshow';
 import type { ActionDispatcher } from '../action-dispatch';
 import type { ProfilePaths } from '../profiles/paths';
 import type { ReliabilityStore } from '../reliability-store';
@@ -40,6 +41,8 @@ export interface RouteServices {
   l3FilesRoot: string;
   graphicsRoot?: string;
   mediaLibrary: MediaLibraryStore;
+  /** Shared slideshow engine (same instance the action dispatcher uses). */
+  slideshow?: SlideshowEngine;
   dispatchAction: ActionDispatcher;
   profilePaths: ProfilePaths;
   getActiveProfileId: () => string;
@@ -119,7 +122,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   app.use('/api/url', createUrlRouter(s.store, s.auth));
   app.use('/api/presets', createPresetsRouter(s.store, s.auth, s.presets));
   app.use('/api/l3', createL3Router(s.store, s.auth, s.l3Cues, s.l3Playlists, s.l3ThemeStore, s.l3FilesRoot, s.renderManualCue));
-  app.use('/api/media-library', createMediaLibraryRouter(s.store, s.auth, s.mediaLibrary));
+  app.use('/api/media-library', createMediaLibraryRouter(s.store, s.auth, s.mediaLibrary, s.slideshow));
   app.use('/api/background', createBackgroundRouter({
     store: s.store,
     auth: s.auth,

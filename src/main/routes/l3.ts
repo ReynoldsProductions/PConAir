@@ -10,6 +10,7 @@ import type { L3ThemeStore } from '../l3/theme-store';
 import type { L3State } from '../../shared/types';
 import { requireOperator, requireAdmin } from './middleware';
 import { l3ClearOp, l3StackingOp, l3TakeOp } from '../l3/take-ops';
+import { playlistActivateOp, playlistStepOp } from '../l3/playlist-ops';
 import { sniffImageMime } from '../media-library/image-meta';
 
 const MIME_TO_EXT: Record<string, string> = {
@@ -33,6 +34,8 @@ function emptyL3(): L3State {
     activeTheme: null,
     isStacking: false,
     currentPlaylistId: null,
+    playlistPosition: null,
+    playlistLength: null,
   };
 }
 
@@ -646,44 +649,32 @@ export function createL3Router(
     playlists.remove(id);
     const st = store.getState();
     if (st.l3?.currentPlaylistId === id) {
-      store.setState({ l3: st.l3 ? { ...st.l3, currentPlaylistId: null } : emptyL3() });
+      store.setState({
+        l3: st.l3
+          ? { ...st.l3, currentPlaylistId: null, playlistPosition: null, playlistLength: null }
+          : emptyL3(),
+      });
     }
     res.status(204).end();
   });
 
   router.post('/playlists/:id/activate', adminGuard, (req: Request, res: Response) => {
-    const id = req.params.id;
-    if (!playlists.findById(id)) {
-      res.status(404).json({ error: { code: 'PRESET_NOT_FOUND', message: `Playlist '${id}' not found` } });
-      return;
-    }
-    const base = ensureL3(store.getState());
-    store.setState({ l3: { ...base, currentPlaylistId: id } });
-    res.json({ l3: { currentPlaylistId: id } });
-  });
-
-  // Step through the active playlist (wraps around). Takes the cue at the new position.
-  function playlistStep(res: Response, direction: 1 | -1): void {
-    const l3 = store.getState().l3;
-    const playlistId = l3?.currentPlaylistId ?? null;
-    const playlist = playlistId ? playlists.findById(playlistId) : null;
-    if (!playlist || playlist.cueIds.length === 0) {
-      res.status(400).json({ error: { code: 'PRESET_NOT_FOUND', message: 'No active playlist (activate one first)' } });
-      return;
-    }
-    const currentIdx = l3?.activeCueId ? playlist.cueIds.indexOf(l3.activeCueId) : -1;
-    const nextIdx =
-      currentIdx === -1
-        ? direction === 1
-          ? 0
-          : playlist.cueIds.length - 1
-        : (currentIdx + direction + playlist.cueIds.length) % playlist.cueIds.length;
-    const r = l3TakeOp(store, cues, { cueId: playlist.cueIds[nextIdx] });
+    const r = playlistActivateOp(store, playlists, req.params.id);
     if (!r.ok) {
       res.status(r.status).json({ error: r.error });
       return;
     }
-    res.json({ ...r.body, playlistPosition: nextIdx + 1, playlistLength: playlist.cueIds.length });
+    res.json({ l3: { currentPlaylistId: store.getState().l3?.currentPlaylistId ?? null } });
+  });
+
+  // Step through the active playlist (wraps around). Takes the cue at the new position.
+  function playlistStep(res: Response, direction: 1 | -1): void {
+    const r = playlistStepOp(store, playlists, cues, direction);
+    if (!r.ok) {
+      res.status(r.status).json({ error: r.error });
+      return;
+    }
+    res.json(r.body);
   }
 
   router.post('/playlists/next', opGuard, (_req: Request, res: Response) => playlistStep(res, 1));

@@ -2,13 +2,21 @@
   "id": "pconair",
   "name": "PC On Air",
   "shortname": "PC On Air",
-  "description": "Control PC On Air live event graphics and playout",
-  "version": "0.1.0",
+  "description": "Control PConAir live event graphics and playout \u2014 slides, lower thirds, still store, packages",
+  "version": "0.2.0",
   "main": "dist/index.js",
   "runtime": "NodeJS",
   "manufacturer": "TomsFaire",
-  "products": ["PC On Air"],
-  "keywords": ["playout", "lower-thirds", "slides", "live-event", "graphics"],
+  "products": [
+    "PC On Air"
+  ],
+  "keywords": [
+    "playout",
+    "lower-thirds",
+    "slides",
+    "live-event",
+    "graphics"
+  ],
   "bugs": "",
   "repository": "https://github.com/TomsFaire/PConAir",
   "license": "MIT"

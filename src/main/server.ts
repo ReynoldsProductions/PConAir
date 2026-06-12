@@ -9,6 +9,7 @@ import type { L3CueStore } from './l3/cue-store';
 import type { L3PlaylistStore } from './l3/playlist-store';
 import type { L3ThemeStore } from './l3/theme-store';
 import type { MediaLibraryStore } from './media-library/item-store';
+import type { SlideshowEngine } from './media-library/slideshow';
 import type { ActionDispatcher } from './action-dispatch';
 import type { WsServerMessage } from '../shared/types';
 
@@ -31,6 +32,8 @@ export interface ServerDeps {
   /** Absolute path to the built-in graphics templates dir; when set, served at /graphics. */
   graphicsRoot?: string;
   mediaLibrary: MediaLibraryStore;
+  /** Shared slideshow engine (same instance the action dispatcher uses). */
+  slideshow?: SlideshowEngine;
   dispatchAction: ActionDispatcher;
   port?: number;
   crashDumpsPath?: string;
@@ -180,6 +183,7 @@ export function createServer(deps: ServerDeps) {
     l3FilesRoot,
     graphicsRoot,
     mediaLibrary,
+    slideshow: deps.slideshow,
     dispatchAction,
     profilePaths,
     getActiveProfileId,
@@ -246,13 +250,24 @@ export function createServer(deps: ServerDeps) {
     server: httpServer,
     path: '/ws',
     verifyClient: (info, cb) => {
-      // Render pages (OBS browser sources) connect cookie-less with ?render=1
-      // and get read-only state push. LAN-only via the IP allowlist below.
+      // Render pages (OBS browser sources, ?render=1) and Companion (?companion=1)
+      // connect cookie-less — LAN-only via the IP allowlist, same model as the
+      // GSC-compat and packages HTTP surfaces. Connections arriving through the
+      // Cloudflare tunnel (cf-* headers) never get the cookie-less path: the
+      // tunnel PIN gate is HTTP middleware and can't protect WS upgrades.
       try {
         const u = new URL(info.req.url || '/', 'http://localhost');
-        if (u.searchParams.get('render') === '1') {
+        const cookieLess = u.searchParams.get('render') === '1' || u.searchParams.get('companion') === '1';
+        const viaTunnel = Boolean(
+          info.req.headers['cf-connecting-ip'] ?? info.req.headers['cf-ray'] ?? info.req.headers['cf-visitor']
+        );
+        if (cookieLess && !viaTunnel) {
           const ip = info.req.socket.remoteAddress ?? '0.0.0.0';
           cb(isClientIpAllowlisted(ip, getSecurityNetworkPrefs()));
+          return;
+        }
+        if (cookieLess && viaTunnel) {
+          cb(false);
           return;
         }
       } catch {
@@ -347,11 +362,16 @@ export function createServer(deps: ServerDeps) {
     const opSessionId = opId && auth.getSession(opId) ? opId : undefined;
     const adSessionId = adId && auth.getSession(adId) ? adId : undefined;
     const sessionIds = [opSessionId, adSessionId].filter(Boolean) as string[];
-    if (sessionIds.length === 0) {
+    // Companion connects cookie-less on LAN (IP-allowlist-gated at upgrade,
+    // same trust model as the GSC-compat HTTP action endpoints).
+    const cookieLessCompanion = isCompanion && sessionIds.length === 0;
+    if (sessionIds.length === 0 && !cookieLessCompanion) {
       ws.close(4001, 'Authentication required');
       return;
     }
-    wsRegistry.register(ws, sessionIds);
+    if (sessionIds.length > 0) {
+      wsRegistry.register(ws, sessionIds);
+    }
     if (isCompanion) {
       companionClients.add(ws);
       setCompanionConnected(companionClients.size > 0);
@@ -376,6 +396,17 @@ export function createServer(deps: ServerDeps) {
           pin?: string;
         };
         if (msg.type !== 'action' || !msg.action_id) return;
+
+        if (cookieLessCompanion) {
+          reliability.touchCompanionHeartbeat();
+          const r = await dispatchAction(msg.action_id, msg.params ?? {});
+          if (!r.ok) {
+            ws.send(JSON.stringify({ type: 'error', payload: r.error }));
+            return;
+          }
+          ws.send(JSON.stringify({ type: 'action_result', payload: r.body }));
+          return;
+        }
 
         const hasOperator = Boolean(opSessionId && auth.getSession(opSessionId));
         const hasAdmin = Boolean(adSessionId && auth.getSession(adSessionId));

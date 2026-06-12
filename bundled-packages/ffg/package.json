@@ -2,13 +2,33 @@
   "id": "ffg",
   "name": "Faire Fulfillment Games",
   "version": "1.0.0",
-  "description": "FFG broadcast package — cardboard/kraft overlays: single cam + PiP, four portrait, four-up grid, head-to-head, champion reveal",
+  "description": "FFG broadcast package \u2014 cardboard/kraft overlays: single cam + PiP, four portrait, four-up grid, head-to-head, champion reveal",
   "renders": [
-    { "id": "single-pip", "label": "Single Cam + PiP", "file": "render-single-pip.html" },
-    { "id": "four-portrait", "label": "Four Portrait (intro)", "file": "render-four-portrait.html" },
-    { "id": "four-up", "label": "Four-Up Live Grid", "file": "render-four-up.html" },
-    { "id": "head-to-head", "label": "Head-to-Head", "file": "render-head-to-head.html" },
-    { "id": "champion", "label": "Champion", "file": "render-champion.html" }
+    {
+      "id": "single-pip",
+      "label": "Single Cam + PiP",
+      "file": "render-single-pip.html"
+    },
+    {
+      "id": "four-portrait",
+      "label": "Four Portrait (intro)",
+      "file": "render-four-portrait.html"
+    },
+    {
+      "id": "four-up",
+      "label": "Four-Up Live Grid",
+      "file": "render-four-up.html"
+    },
+    {
+      "id": "head-to-head",
+      "label": "Head-to-Head",
+      "file": "render-head-to-head.html"
+    },
+    {
+      "id": "champion",
+      "label": "Champion",
+      "file": "render-champion.html"
+    }
   ],
   "stateSchema": {
     "maxScore": "number",
@@ -17,53 +37,584 @@
   },
   "initialState": {
     "teams": [
-      { "name": "Team 1", "city": "CITY 1", "code": "T1", "handle": "" },
-      { "name": "Team 2", "city": "CITY 2", "code": "T2", "handle": "" },
-      { "name": "Team 3", "city": "CITY 3", "code": "T3", "handle": "" },
-      { "name": "Team 4", "city": "CITY 4", "code": "T4", "handle": "" }
+      {
+        "name": "Team 1",
+        "city": "CITY 1",
+        "code": "T1",
+        "handle": ""
+      },
+      {
+        "name": "Team 2",
+        "city": "CITY 2",
+        "code": "T2",
+        "handle": ""
+      },
+      {
+        "name": "Team 3",
+        "city": "CITY 3",
+        "code": "T3",
+        "handle": ""
+      },
+      {
+        "name": "Team 4",
+        "city": "CITY 4",
+        "code": "T4",
+        "handle": ""
+      }
     ],
-    "scores": [0, 0, 0, 0],
-    "h2h": { "slotA": [0, 1], "slotB": [2, 3] },
+    "scores": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "h2h": {
+      "slotA": [
+        0,
+        1
+      ],
+      "slotB": [
+        2,
+        3
+      ]
+    },
     "winner": null,
     "finalScore": null,
     "maxScore": 10,
     "activeTeam": 0,
     "h2hSlot": "a",
-    "timer": { "running": false, "remaining": null, "endsAt": 0 }
+    "timer": {
+      "running": false,
+      "remaining": null,
+      "endsAt": 0
+    }
   },
   "companionActions": [
-    { "id": "ffg_bump_score", "label": "Bump team score (team + delta)" },
-    { "id": "ffg_set_score", "label": "Set team score (team + value)" },
-    { "id": "ffg_reset_scores", "label": "Reset all scores" },
-    { "id": "ffg_set_team_name", "label": "Set team name" },
-    { "id": "ffg_set_matchup", "label": "Set H2H matchup (slot + team indices)" },
-    { "id": "ffg_set_winner", "label": "Set champion" },
-    { "id": "ffg_clear_winner", "label": "Clear champion" },
-    { "id": "ffg_set_max_score", "label": "Set max score (goal)" },
-    { "id": "ffg_start_timer", "label": "Start ship-by timer" },
-    { "id": "ffg_stop_timer", "label": "Stop ship-by timer" },
-    { "id": "ffg_reset_timer", "label": "Reset ship-by timer" }
+    {
+      "id": "ffg_bump_score",
+      "label": "Bump team score",
+      "options": [
+        {
+          "id": "team",
+          "label": "Team",
+          "type": "dropdown",
+          "default": 0,
+          "choices": [
+            {
+              "id": 0,
+              "label": "Team 1"
+            },
+            {
+              "id": 1,
+              "label": "Team 2"
+            },
+            {
+              "id": 2,
+              "label": "Team 3"
+            },
+            {
+              "id": 3,
+              "label": "Team 4"
+            }
+          ]
+        },
+        {
+          "id": "delta",
+          "label": "Delta",
+          "type": "number",
+          "default": 1,
+          "min": -5,
+          "max": 5
+        }
+      ],
+      "ops": [
+        {
+          "op": "add",
+          "field": "scores.{team}",
+          "value": {
+            "option": "delta"
+          },
+          "min": 0
+        }
+      ]
+    },
+    {
+      "id": "ffg_set_score",
+      "label": "Set team score",
+      "options": [
+        {
+          "id": "team",
+          "label": "Team",
+          "type": "dropdown",
+          "default": 0,
+          "choices": [
+            {
+              "id": 0,
+              "label": "Team 1"
+            },
+            {
+              "id": 1,
+              "label": "Team 2"
+            },
+            {
+              "id": 2,
+              "label": "Team 3"
+            },
+            {
+              "id": 3,
+              "label": "Team 4"
+            }
+          ]
+        },
+        {
+          "id": "value",
+          "label": "Score",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "max": 999
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "scores.{team}",
+          "value": {
+            "option": "value"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ffg_reset_scores",
+      "label": "Reset all scores",
+      "ops": [
+        {
+          "op": "set",
+          "field": "scores",
+          "value": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ffg_set_team_name",
+      "label": "Set team name",
+      "options": [
+        {
+          "id": "team",
+          "label": "Team",
+          "type": "dropdown",
+          "default": 0,
+          "choices": [
+            {
+              "id": 0,
+              "label": "Team 1"
+            },
+            {
+              "id": 1,
+              "label": "Team 2"
+            },
+            {
+              "id": 2,
+              "label": "Team 3"
+            },
+            {
+              "id": 3,
+              "label": "Team 4"
+            }
+          ]
+        },
+        {
+          "id": "name",
+          "label": "Name",
+          "type": "textinput",
+          "default": ""
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "teams.{team}.name",
+          "value": {
+            "option": "name"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ffg_set_matchup",
+      "label": "Set H2H matchup",
+      "options": [
+        {
+          "id": "slot",
+          "label": "Slot",
+          "type": "dropdown",
+          "default": "A",
+          "choices": [
+            {
+              "id": "A",
+              "label": "Slot A"
+            },
+            {
+              "id": "B",
+              "label": "Slot B"
+            }
+          ]
+        },
+        {
+          "id": "first",
+          "label": "First team",
+          "type": "dropdown",
+          "default": 0,
+          "choices": [
+            {
+              "id": 0,
+              "label": "Team 1"
+            },
+            {
+              "id": 1,
+              "label": "Team 2"
+            },
+            {
+              "id": 2,
+              "label": "Team 3"
+            },
+            {
+              "id": 3,
+              "label": "Team 4"
+            }
+          ]
+        },
+        {
+          "id": "second",
+          "label": "Second team",
+          "type": "dropdown",
+          "default": 1,
+          "choices": [
+            {
+              "id": 0,
+              "label": "Team 1"
+            },
+            {
+              "id": 1,
+              "label": "Team 2"
+            },
+            {
+              "id": 2,
+              "label": "Team 3"
+            },
+            {
+              "id": 3,
+              "label": "Team 4"
+            }
+          ]
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "h2h.slot{slot}",
+          "value": [
+            {
+              "option": "first"
+            },
+            {
+              "option": "second"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ffg_set_winner",
+      "label": "Set champion",
+      "options": [
+        {
+          "id": "team",
+          "label": "Team",
+          "type": "dropdown",
+          "default": 0,
+          "choices": [
+            {
+              "id": 0,
+              "label": "Team 1"
+            },
+            {
+              "id": 1,
+              "label": "Team 2"
+            },
+            {
+              "id": 2,
+              "label": "Team 3"
+            },
+            {
+              "id": 3,
+              "label": "Team 4"
+            }
+          ]
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "winner",
+          "value": {
+            "option": "team"
+          }
+        },
+        {
+          "op": "set",
+          "field": "finalScore",
+          "value": {
+            "state": "scores.{team}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ffg_clear_winner",
+      "label": "Clear champion",
+      "ops": [
+        {
+          "op": "set",
+          "field": "winner",
+          "value": null
+        },
+        {
+          "op": "set",
+          "field": "finalScore",
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "ffg_set_max_score",
+      "label": "Set max score (goal)",
+      "options": [
+        {
+          "id": "value",
+          "label": "Max score",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "max": 999
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "maxScore",
+          "value": {
+            "option": "value"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ffg_start_timer",
+      "label": "Start ship-by timer",
+      "ops": [
+        {
+          "op": "countdown_start",
+          "deadlineField": "timer.endsAt",
+          "valueField": "timer.remaining",
+          "format": "seconds",
+          "runningField": "timer.running",
+          "defaultValue": 900
+        }
+      ]
+    },
+    {
+      "id": "ffg_stop_timer",
+      "label": "Stop ship-by timer",
+      "ops": [
+        {
+          "op": "countdown_stop",
+          "deadlineField": "timer.endsAt",
+          "valueField": "timer.remaining",
+          "format": "seconds",
+          "runningField": "timer.running"
+        }
+      ]
+    },
+    {
+      "id": "ffg_reset_timer",
+      "label": "Reset ship-by timer",
+      "options": [
+        {
+          "id": "seconds",
+          "label": "Duration (seconds)",
+          "type": "number",
+          "default": 900,
+          "min": 10,
+          "max": 10800
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "timer.running",
+          "value": false
+        },
+        {
+          "op": "set",
+          "field": "timer.endsAt",
+          "value": 0
+        },
+        {
+          "op": "set",
+          "field": "timer.remaining",
+          "value": {
+            "option": "seconds"
+          }
+        }
+      ]
+    }
   ],
   "companionFeedbacks": [
-    { "id": "score_team_1", "label": "Team 1 score display" },
-    { "id": "score_team_2", "label": "Team 2 score display" },
-    { "id": "score_team_3", "label": "Team 3 score display" },
-    { "id": "score_team_4", "label": "Team 4 score display" },
-    { "id": "current_leader", "label": "Current leader" },
-    { "id": "is_tied", "label": "Game is tied" },
-    { "id": "winner_set", "label": "Winner is set" },
-    { "id": "timer_running", "label": "Timer running" }
+    {
+      "id": "is_leader",
+      "label": "Team is current leader",
+      "field": "_leader",
+      "equals": {
+        "option": "team"
+      },
+      "options": [
+        {
+          "id": "team",
+          "label": "Team",
+          "type": "dropdown",
+          "default": 0,
+          "choices": [
+            {
+              "id": 0,
+              "label": "Team 1"
+            },
+            {
+              "id": 1,
+              "label": "Team 2"
+            },
+            {
+              "id": 2,
+              "label": "Team 3"
+            },
+            {
+              "id": 3,
+              "label": "Team 4"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "is_tied",
+      "label": "Game is tied (no single leader)",
+      "field": "_leader",
+      "equals": -1
+    },
+    {
+      "id": "winner_set",
+      "label": "Winner is set",
+      "field": "winner",
+      "notEquals": null
+    },
+    {
+      "id": "timer_running",
+      "label": "Timer running",
+      "field": "timer.running"
+    }
   ],
   "companionVariables": [
-    { "id": "score_1", "label": "Team 1 score" },
-    { "id": "score_2", "label": "Team 2 score" },
-    { "id": "score_3", "label": "Team 3 score" },
-    { "id": "score_4", "label": "Team 4 score" },
-    { "id": "team_1", "label": "Team 1 name" },
-    { "id": "team_2", "label": "Team 2 name" },
-    { "id": "team_3", "label": "Team 3 name" },
-    { "id": "team_4", "label": "Team 4 name" },
-    { "id": "leader", "label": "Current leader name" },
-    { "id": "timer", "label": "Ship-by timer display" }
+    {
+      "id": "score_1",
+      "label": "Team 1 score",
+      "field": "scores.0"
+    },
+    {
+      "id": "score_2",
+      "label": "Team 2 score",
+      "field": "scores.1"
+    },
+    {
+      "id": "score_3",
+      "label": "Team 3 score",
+      "field": "scores.2"
+    },
+    {
+      "id": "score_4",
+      "label": "Team 4 score",
+      "field": "scores.3"
+    },
+    {
+      "id": "team_1",
+      "label": "Team 1 name",
+      "field": "teams.0.name"
+    },
+    {
+      "id": "team_2",
+      "label": "Team 2 name",
+      "field": "teams.1.name"
+    },
+    {
+      "id": "team_3",
+      "label": "Team 3 name",
+      "field": "teams.2.name"
+    },
+    {
+      "id": "team_4",
+      "label": "Team 4 name",
+      "field": "teams.3.name"
+    },
+    {
+      "id": "leader",
+      "label": "Current leader name",
+      "field": "_leaderName"
+    },
+    {
+      "id": "winner_name",
+      "label": "Champion name",
+      "field": "_winnerName"
+    },
+    {
+      "id": "max_score",
+      "label": "Max score (goal)",
+      "field": "maxScore"
+    },
+    {
+      "id": "timer",
+      "label": "Ship-by timer",
+      "countdown": {
+        "deadlineField": "timer.endsAt",
+        "valueField": "timer.remaining",
+        "runningField": "timer.running",
+        "format": "mm:ss"
+      }
+    }
+  ],
+  "companionDerived": [
+    {
+      "field": "_leader",
+      "fn": "argmax",
+      "source": "scores"
+    },
+    {
+      "field": "_leaderName",
+      "fn": "lookup",
+      "source": "teams",
+      "index": "_leader",
+      "path": "name"
+    },
+    {
+      "field": "_winnerName",
+      "fn": "lookup",
+      "source": "teams",
+      "index": "winner",
+      "path": "name"
+    }
   ]
 }

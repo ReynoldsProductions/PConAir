@@ -8,6 +8,7 @@ import { createL3PlaylistStore } from '../src/main/l3/playlist-store';
 import { createL3ThemeStore } from '../src/main/l3/theme-store';
 import { createActionDispatcher } from '../src/main/action-dispatch';
 import { createMediaLibraryStore } from '../src/main/media-library/item-store';
+import { createSlideshowEngine } from '../src/main/media-library/slideshow';
 import { createAuthManager } from '../src/main/auth';
 import { createPresetsStore } from '../src/main/presets';
 import { bootstrapProfiles, syncActiveProfileUrlPresets, getActiveMarker } from '../src/main/profiles/bootstrap';
@@ -71,11 +72,15 @@ export function createFullServer(opts: FullServerTestOpts) {
   fs.mkdirSync(l3FilesRoot, { recursive: true });
   const l3ThemeStore = createL3ThemeStore({ l3FilesRoot });
 
+  const slideshow = createSlideshowEngine({ store: opts.store, media: mediaLibrary });
   const dispatchAction = createActionDispatcher({
     store: opts.store,
     auth,
     presets,
     cues: l3Cues,
+    playlists: l3Playlists,
+    media: mediaLibrary,
+    slideshow,
   });
 
   const server = createServer({
@@ -87,6 +92,7 @@ export function createFullServer(opts: FullServerTestOpts) {
     l3ThemeStore,
     l3FilesRoot,
     mediaLibrary,
+    slideshow,
     dispatchAction,
     port: opts.port,
     profilePaths: boot.paths,

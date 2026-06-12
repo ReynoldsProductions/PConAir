@@ -12,6 +12,85 @@ export interface PackageRenderDecl {
 export type PackageSchemaLeaf = 'number' | 'string' | 'boolean';
 export type PackageSchema = { [key: string]: PackageSchemaLeaf | PackageSchema | unknown[] };
 
+// ── Declarative Companion interface (consumed by companion-module-pconair) ──
+//
+// Packages declare their Companion actions/feedbacks/variables in package.json.
+// The Companion module loads these via GET /api/packages and registers them
+// dynamically. Field paths are dot-separated ("playerCard.visible", "scores.0")
+// and may contain "{optionId}" placeholders substituted from action options.
+// Values are literals, { "option": id } (with optional "orState" fallback path
+// and "split" delimiter), or { "state": path }.
+
+export type PkgValueRef =
+  | string
+  | number
+  | boolean
+  | null
+  | PkgValueRef[]
+  | { option: string; orState?: string; split?: string }
+  | { state: string }
+  | { [key: string]: unknown };
+
+export interface PkgCompanionOption {
+  id: string;
+  label: string;
+  type: 'number' | 'textinput' | 'dropdown' | 'checkbox';
+  default?: string | number | boolean;
+  min?: number;
+  max?: number;
+  choices?: Array<{ id: string | number; label: string }>;
+}
+
+export type PkgCompanionOp =
+  | { op: 'set'; field: string; value: PkgValueRef }
+  | { op: 'add'; field: string; value: PkgValueRef; min?: number; max?: number }
+  | { op: 'toggle'; field: string }
+  // Countdown helpers (deadline epoch-ms pattern used by hoops/ffg):
+  // start: deadlineField = now + remaining(valueField); stop: valueField =
+  // remaining, deadlineField = 0; reset: valueField = value (+ restart if running).
+  | {
+      op: 'countdown_start' | 'countdown_stop' | 'countdown_reset';
+      deadlineField: string;
+      valueField: string;
+      format: 'mm:ss' | 'seconds';
+      runningField?: string;
+      value?: PkgValueRef;
+      defaultValue?: number;
+    };
+
+export interface PkgCompanionAction {
+  id: string;
+  label: string;
+  description?: string;
+  options?: PkgCompanionOption[];
+  ops: PkgCompanionOp[];
+}
+
+export interface PkgCompanionFeedback {
+  id: string;
+  label: string;
+  field: string;
+  /** Active when value === equals; { option } adds a comparison option input. */
+  equals?: PkgValueRef;
+  /** Active when value !== notEquals (e.g. winner set: notEquals null). */
+  notEquals?: PkgValueRef;
+  options?: PkgCompanionOption[];
+  defaultStyle?: { bgcolor?: [number, number, number]; color?: [number, number, number] };
+}
+
+export interface PkgCompanionVariable {
+  id: string;
+  label: string;
+  field?: string;
+  /** Live countdown display computed from deadline/value fields. */
+  countdown?: { deadlineField: string; valueField: string; runningField?: string; format: 'mm:ss' | 'seconds' };
+}
+
+/** Derived fields computed by the Companion module before variables/feedbacks. */
+export type PkgCompanionDerived =
+  | { field: string; fn: 'argmax'; source: string }
+  | { field: string; fn: 'lookup'; source: string; index: string; path: string };
+
 export interface PackageManifest {
   id: string;
   name: string;
@@ -21,9 +100,10 @@ export interface PackageManifest {
   stateSchema?: PackageSchema;
   /** Optional initial state — wins over schema-derived defaults. */
   initialState?: Record<string, unknown>;
-  companionActions?: unknown[];
-  companionFeedbacks?: unknown[];
-  companionVariables?: unknown[];
+  companionActions?: PkgCompanionAction[];
+  companionFeedbacks?: PkgCompanionFeedback[];
+  companionVariables?: PkgCompanionVariable[];
+  companionDerived?: PkgCompanionDerived[];
 }
 
 export interface LoadedPackage {

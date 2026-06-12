@@ -2,10 +2,15 @@ import type { StateStore } from './state';
 import type { AuthManager } from './auth';
 import type { PresetsStore } from './presets';
 import type { L3CueStore } from './l3/cue-store';
-import type { Mode, ScoreboardState } from '../shared/types';
-import { slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideLoadOp } from './services/slide-ops';
+import type { L3PlaylistStore } from './l3/playlist-store';
+import type { MediaLibraryStore } from './media-library/item-store';
+import type { SlideshowEngine } from './media-library/slideshow';
+import type { Mode, SlideshowTransition } from '../shared/types';
+import { slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideLoadOp, slideOfflineModeOp } from './services/slide-ops';
 import { urlLoadOp, urlReloadOp, setDisplayTargetOp } from './services/url-ops';
 import { l3ClearOp, l3StackingOp, l3TakeOp } from './l3/take-ops';
+import { playlistActivateOp, playlistStepOp } from './l3/playlist-ops';
+import { stillsTakeOp, stillsClearOp } from './media-library/stills-ops';
 
 const DEFAULT_SCOREBOARD: ScoreboardState = {
   teamA: 'HME',
@@ -37,8 +42,18 @@ export function createActionDispatcher(deps: {
   auth: AuthManager;
   presets: PresetsStore;
   cues: L3CueStore;
+  /** L3 playlist store — enables l3_next / l3_prev / l3_activate_playlist. */
+  playlists?: L3PlaylistStore;
+  /** Media library — enables stills_take / stills_clear / slideshow actions. */
+  media?: MediaLibraryStore;
+  /** Slideshow engine — must be the same instance the media-library router uses. */
+  slideshow?: SlideshowEngine;
 }) {
-  const { store, presets, cues } = deps;
+  const { store, presets, cues, playlists, media, slideshow } = deps;
+
+  function unavailable(what: string): ActionResult {
+    return { ok: false, status: 501, error: { code: 'INVALID_MODE', message: `${what} is not available on this server` } };
+  }
 
   return async function executeAction(actionId: string, params: Record<string, unknown>): Promise<ActionResult> {
     const p = params ?? {};
@@ -69,7 +84,26 @@ export function createActionDispatcher(deps: {
         if (!deckUrl) {
           return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'deck_url is required' } };
         }
-        const r = slideLoadOp(store, deckUrl);
+        const inst = str(p.instance);
+        const r = slideLoadOp(store, deckUrl, inst === 'A' || inst === 'B' ? inst : undefined, str(p.backup_url));
+        return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
+      }
+      case 'slides_goto_first': {
+        const r = slideGotoOp(store, 0);
+        return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
+      }
+      case 'slides_goto_last': {
+        const slides = store.getState().slides;
+        if (!slides || slides.slideCount < 1) {
+          return { ok: false, status: 409, error: { code: 'NO_ACTIVE_DECK', message: 'No deck is loaded' } };
+        }
+        const r = slideGotoOp(store, slides.slideCount - 1);
+        return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
+      }
+      case 'slides_offline_mode': {
+        // enabled omitted = toggle (Companion "toggle offline mode" button).
+        const enabled = typeof p.enabled === 'boolean' ? p.enabled : !(store.getState().slides?.offlineMode ?? false);
+        const r = slideOfflineModeOp(store, enabled);
         return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
       }
       case 'url_switch_ab':
@@ -172,45 +206,87 @@ export function createActionDispatcher(deps: {
         const r = l3StackingOp(store, false);
         return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
       }
-      case 'graphics_scoreboard_set': {
-        const existing = store.getState().graphics?.scoreboard ?? { ...DEFAULT_SCOREBOARD };
-        const patch: Partial<ScoreboardState> = {};
-        if (typeof p.teamA === 'string') patch.teamA = p.teamA;
-        if (typeof p.teamB === 'string') patch.teamB = p.teamB;
-        if (typeof p.scoreA === 'number') patch.scoreA = p.scoreA;
-        if (typeof p.scoreB === 'number') patch.scoreB = p.scoreB;
-        if (typeof p.quarter === 'string') patch.quarter = p.quarter;
-        if (typeof p.gameClock === 'string') patch.gameClock = p.gameClock;
-        if (typeof p.gameClockRunning === 'boolean') patch.gameClockRunning = p.gameClockRunning;
-        if (typeof p.shotClock === 'number') patch.shotClock = p.shotClock;
-        if (typeof p.shotClockRunning === 'boolean') patch.shotClockRunning = p.shotClockRunning;
-        if (p.possession === 'a' || p.possession === 'b' || p.possession === null) patch.possession = p.possession;
-        if (typeof p.foulsA === 'number') patch.foulsA = p.foulsA;
-        if (typeof p.foulsB === 'number') patch.foulsB = p.foulsB;
-        if (typeof p.timeoutsA === 'number') patch.timeoutsA = p.timeoutsA;
-        if (typeof p.timeoutsB === 'number') patch.timeoutsB = p.timeoutsB;
-        const scoreboard: ScoreboardState = { ...existing, ...patch };
-        store.setState({ graphics: { ...store.getState().graphics, scoreboard } });
-        return { ok: true, body: { graphics: { scoreboard } } };
+      case 'l3_toggle_stacking': {
+        const r = l3StackingOp(store, !(store.getState().l3?.isStacking ?? false));
+        return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
       }
-      case 'graphics_score_bump': {
-        const team = p.team;
-        const delta = p.delta;
-        if (team !== 'a' && team !== 'b') {
-          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'team must be "a" or "b"' } };
+      case 'l3_next':
+      case 'l3_prev': {
+        if (!playlists) return unavailable('Playlist stepping');
+        const r = playlistStepOp(store, playlists, cues, actionId === 'l3_next' ? 1 : -1);
+        return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
+      }
+      case 'l3_activate_playlist': {
+        if (!playlists) return unavailable('Playlist activation');
+        const idOrName = str(p.playlist) ?? str(p.playlist_id);
+        if (!idOrName) {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'playlist (id or name) is required' } };
         }
-        if (typeof delta !== 'number' || !Number.isInteger(delta)) {
-          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'delta must be an integer' } };
+        const r = playlistActivateOp(store, playlists, idOrName);
+        return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
+      }
+      case 'stills_take': {
+        if (!media) return unavailable('Still store');
+        const idOrName = str(p.item) ?? str(p.item_id);
+        if (!idOrName) {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'item (id or name) is required' } };
         }
-        const existing = store.getState().graphics?.scoreboard ?? { ...DEFAULT_SCOREBOARD };
-        const scoreboard: ScoreboardState = { ...existing };
-        if (team === 'a') {
-          scoreboard.scoreA = Math.max(0, existing.scoreA + delta);
-        } else {
-          scoreboard.scoreB = Math.max(0, existing.scoreB + delta);
+        const r = stillsTakeOp(store, media, idOrName);
+        return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
+      }
+      case 'stills_clear': {
+        return { ok: true, body: stillsClearOp(store).body };
+      }
+      case 'stills_slideshow_play': {
+        if (!slideshow || !media) return unavailable('Slideshow');
+        const show = store.getState().mediaLibrary?.slideshow ?? null;
+        const requestedIds = Array.isArray(p.item_ids)
+          ? (p.item_ids as unknown[]).filter((x): x is string => typeof x === 'string')
+          : [];
+        // No items given: resume a paused show, else restart the loaded list,
+        // else play the whole library in upload order.
+        if (requestedIds.length === 0 && show?.running && show.paused) {
+          slideshow.resume();
+          return { ok: true, body: { mediaLibrary: store.getState().mediaLibrary } };
         }
-        store.setState({ graphics: { ...store.getState().graphics, scoreboard } });
-        return { ok: true, body: { graphics: { scoreboard } } };
+        const itemIds =
+          requestedIds.length > 0 ? requestedIds : show?.itemIds.length ? show.itemIds : media.list().map((it) => it.id);
+        const intervalSec =
+          typeof p.interval_sec === 'number' && p.interval_sec >= 1 ? p.interval_sec : show?.intervalSec ?? 5;
+        const transition: SlideshowTransition = p.transition === 'fade' ? 'fade' : p.transition === 'cut' ? 'cut' : show?.transition ?? 'cut';
+        const r = slideshow.play({ itemIds, intervalSec, transition });
+        if (!r.ok) {
+          return { ok: false, status: 400, error: { code: 'ITEM_NOT_FOUND', message: r.error } };
+        }
+        return { ok: true, body: { mediaLibrary: store.getState().mediaLibrary } };
+      }
+      case 'stills_slideshow_pause': {
+        if (!slideshow) return unavailable('Slideshow');
+        if (!slideshow.pause()) {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'No slideshow running' } };
+        }
+        return { ok: true, body: { mediaLibrary: store.getState().mediaLibrary } };
+      }
+      case 'stills_slideshow_resume': {
+        if (!slideshow) return unavailable('Slideshow');
+        if (!slideshow.resume()) {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'No slideshow running' } };
+        }
+        return { ok: true, body: { mediaLibrary: store.getState().mediaLibrary } };
+      }
+      case 'stills_slideshow_stop': {
+        if (!slideshow) return unavailable('Slideshow');
+        slideshow.stop();
+        return { ok: true, body: { mediaLibrary: store.getState().mediaLibrary } };
+      }
+      case 'stills_slideshow_next':
+      case 'stills_slideshow_prev': {
+        if (!slideshow) return unavailable('Slideshow');
+        const moved = actionId === 'stills_slideshow_next' ? slideshow.next() : slideshow.prev();
+        if (!moved) {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'No slideshow loaded' } };
+        }
+        return { ok: true, body: { mediaLibrary: store.getState().mediaLibrary } };
       }
       default:
         return {

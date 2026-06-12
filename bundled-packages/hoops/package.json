@@ -4,7 +4,11 @@
   "version": "1.0.0",
   "description": "NBA-style basketball scorebug with shot clock, player stat card, network bug, and ticker",
   "renders": [
-    { "id": "scorebug", "label": "Scorebug", "file": "render.html" }
+    {
+      "id": "scorebug",
+      "label": "Scorebug",
+      "file": "render.html"
+    }
   ],
   "stateSchema": {
     "teamA": "string",
@@ -57,7 +61,7 @@
       "visible": false,
       "name": "J. TATUM",
       "number": "0",
-      "info": "BOSTON · SF",
+      "info": "BOSTON \u00b7 SF",
       "pts": 31,
       "reb": 9,
       "ast": 7,
@@ -66,50 +70,659 @@
     "tickerVisible": true,
     "tickerTag": "AROUND THE LEAGUE",
     "tickerItems": [
-      "GSW 112 · DEN 108 · FINAL",
-      "MIA 89 · NYK 91 · 3Q 2:14",
-      "DAL 77 · PHX 74 · HALF",
-      "MIL 103 · PHI 99 · 4Q 5:30",
-      "OKC 120 · SAC 118 · FINAL/OT"
+      "GSW 112 \u00b7 DEN 108 \u00b7 FINAL",
+      "MIA 89 \u00b7 NYK 91 \u00b7 3Q 2:14",
+      "DAL 77 \u00b7 PHX 74 \u00b7 HALF",
+      "MIL 103 \u00b7 PHI 99 \u00b7 4Q 5:30",
+      "OKC 120 \u00b7 SAC 118 \u00b7 FINAL/OT"
     ]
   },
   "companionActions": [
-    { "id": "set_score_home", "label": "Set home score" },
-    { "id": "set_score_away", "label": "Set away score" },
-    { "id": "bump_score_home", "label": "Bump home score" },
-    { "id": "bump_score_away", "label": "Bump away score" },
-    { "id": "set_clock", "label": "Set game clock" },
-    { "id": "start_clock", "label": "Start game clock" },
-    { "id": "stop_clock", "label": "Stop game clock" },
-    { "id": "reset_shot_clock", "label": "Reset shot clock" },
-    { "id": "set_quarter", "label": "Set quarter" },
-    { "id": "set_possession", "label": "Set possession" },
-    { "id": "toggle_bonus_home", "label": "Toggle home bonus" },
-    { "id": "toggle_bonus_away", "label": "Toggle away bonus" },
-    { "id": "set_timeout_home", "label": "Set home timeouts" },
-    { "id": "set_timeout_away", "label": "Set away timeouts" },
-    { "id": "show_player_card", "label": "Show player card" },
-    { "id": "hide_player_card", "label": "Hide player card" },
-    { "id": "set_team_name_home", "label": "Set home team name" },
-    { "id": "set_team_name_away", "label": "Set away team name" }
+    {
+      "id": "set_score_home",
+      "label": "Set home score",
+      "options": [
+        {
+          "id": "value",
+          "label": "Score",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "max": 999
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "scoreA",
+          "value": {
+            "option": "value"
+          }
+        }
+      ]
+    },
+    {
+      "id": "set_score_away",
+      "label": "Set away score",
+      "options": [
+        {
+          "id": "value",
+          "label": "Score",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "max": 999
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "scoreB",
+          "value": {
+            "option": "value"
+          }
+        }
+      ]
+    },
+    {
+      "id": "bump_score_home",
+      "label": "Bump home score",
+      "options": [
+        {
+          "id": "delta",
+          "label": "Delta",
+          "type": "number",
+          "default": 1,
+          "min": -3,
+          "max": 3
+        }
+      ],
+      "ops": [
+        {
+          "op": "add",
+          "field": "scoreA",
+          "value": {
+            "option": "delta"
+          },
+          "min": 0
+        }
+      ]
+    },
+    {
+      "id": "bump_score_away",
+      "label": "Bump away score",
+      "options": [
+        {
+          "id": "delta",
+          "label": "Delta",
+          "type": "number",
+          "default": 1,
+          "min": -3,
+          "max": 3
+        }
+      ],
+      "ops": [
+        {
+          "op": "add",
+          "field": "scoreB",
+          "value": {
+            "option": "delta"
+          },
+          "min": 0
+        }
+      ]
+    },
+    {
+      "id": "set_clock",
+      "label": "Set game clock",
+      "options": [
+        {
+          "id": "clock",
+          "label": "Clock (MM:SS)",
+          "type": "textinput",
+          "default": "12:00"
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "clock",
+          "value": {
+            "option": "clock"
+          }
+        },
+        {
+          "op": "set",
+          "field": "clockEndsAt",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "start_clock",
+      "label": "Start game clock",
+      "ops": [
+        {
+          "op": "countdown_start",
+          "deadlineField": "clockEndsAt",
+          "valueField": "clock",
+          "format": "mm:ss"
+        }
+      ]
+    },
+    {
+      "id": "stop_clock",
+      "label": "Stop game clock",
+      "ops": [
+        {
+          "op": "countdown_stop",
+          "deadlineField": "clockEndsAt",
+          "valueField": "clock",
+          "format": "mm:ss"
+        }
+      ]
+    },
+    {
+      "id": "reset_shot_clock",
+      "label": "Reset shot clock",
+      "options": [
+        {
+          "id": "seconds",
+          "label": "Seconds",
+          "type": "number",
+          "default": 24,
+          "min": 1,
+          "max": 60
+        }
+      ],
+      "ops": [
+        {
+          "op": "countdown_reset",
+          "deadlineField": "shotEndsAt",
+          "valueField": "shotClock",
+          "format": "seconds",
+          "value": {
+            "option": "seconds"
+          }
+        }
+      ]
+    },
+    {
+      "id": "start_shot_clock",
+      "label": "Start shot clock",
+      "ops": [
+        {
+          "op": "countdown_start",
+          "deadlineField": "shotEndsAt",
+          "valueField": "shotClock",
+          "format": "seconds"
+        }
+      ]
+    },
+    {
+      "id": "stop_shot_clock",
+      "label": "Stop shot clock",
+      "ops": [
+        {
+          "op": "countdown_stop",
+          "deadlineField": "shotEndsAt",
+          "valueField": "shotClock",
+          "format": "seconds"
+        }
+      ]
+    },
+    {
+      "id": "set_quarter",
+      "label": "Set quarter",
+      "options": [
+        {
+          "id": "quarter",
+          "label": "Quarter",
+          "type": "number",
+          "default": 1,
+          "min": 1,
+          "max": 4
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "quarter",
+          "value": {
+            "option": "quarter"
+          }
+        }
+      ]
+    },
+    {
+      "id": "set_possession",
+      "label": "Set possession",
+      "options": [
+        {
+          "id": "side",
+          "label": "Possession",
+          "type": "dropdown",
+          "default": "a",
+          "choices": [
+            {
+              "id": "a",
+              "label": "Home"
+            },
+            {
+              "id": "b",
+              "label": "Away"
+            },
+            {
+              "id": "",
+              "label": "None"
+            }
+          ]
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "possession",
+          "value": {
+            "option": "side"
+          }
+        }
+      ]
+    },
+    {
+      "id": "toggle_bonus_home",
+      "label": "Toggle home bonus",
+      "ops": [
+        {
+          "op": "toggle",
+          "field": "bonusA"
+        }
+      ]
+    },
+    {
+      "id": "toggle_bonus_away",
+      "label": "Toggle away bonus",
+      "ops": [
+        {
+          "op": "toggle",
+          "field": "bonusB"
+        }
+      ]
+    },
+    {
+      "id": "set_timeout_home",
+      "label": "Set home timeouts",
+      "options": [
+        {
+          "id": "count",
+          "label": "Timeouts",
+          "type": "number",
+          "default": 5,
+          "min": 0,
+          "max": 7
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "timeoutsA",
+          "value": {
+            "option": "count"
+          }
+        }
+      ]
+    },
+    {
+      "id": "set_timeout_away",
+      "label": "Set away timeouts",
+      "options": [
+        {
+          "id": "count",
+          "label": "Timeouts",
+          "type": "number",
+          "default": 4,
+          "min": 0,
+          "max": 7
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "timeoutsB",
+          "value": {
+            "option": "count"
+          }
+        }
+      ]
+    },
+    {
+      "id": "show_player_card",
+      "label": "Show player card",
+      "ops": [
+        {
+          "op": "set",
+          "field": "playerCard.visible",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "hide_player_card",
+      "label": "Hide player card",
+      "ops": [
+        {
+          "op": "set",
+          "field": "playerCard.visible",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "set_player_card",
+      "label": "Set player card fields",
+      "options": [
+        {
+          "id": "name",
+          "label": "Name",
+          "type": "textinput",
+          "default": ""
+        },
+        {
+          "id": "number",
+          "label": "Number",
+          "type": "textinput",
+          "default": ""
+        },
+        {
+          "id": "info",
+          "label": "Info line",
+          "type": "textinput",
+          "default": ""
+        },
+        {
+          "id": "pts",
+          "label": "PTS",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "max": 99
+        },
+        {
+          "id": "reb",
+          "label": "REB",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "max": 99
+        },
+        {
+          "id": "ast",
+          "label": "AST",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "max": 99
+        },
+        {
+          "id": "fg",
+          "label": "FG (e.g. 11-19)",
+          "type": "textinput",
+          "default": ""
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "playerCard.name",
+          "value": {
+            "option": "name",
+            "orState": "playerCard.name"
+          }
+        },
+        {
+          "op": "set",
+          "field": "playerCard.number",
+          "value": {
+            "option": "number",
+            "orState": "playerCard.number"
+          }
+        },
+        {
+          "op": "set",
+          "field": "playerCard.info",
+          "value": {
+            "option": "info",
+            "orState": "playerCard.info"
+          }
+        },
+        {
+          "op": "set",
+          "field": "playerCard.pts",
+          "value": {
+            "option": "pts"
+          }
+        },
+        {
+          "op": "set",
+          "field": "playerCard.reb",
+          "value": {
+            "option": "reb"
+          }
+        },
+        {
+          "op": "set",
+          "field": "playerCard.ast",
+          "value": {
+            "option": "ast"
+          }
+        },
+        {
+          "op": "set",
+          "field": "playerCard.fg",
+          "value": {
+            "option": "fg",
+            "orState": "playerCard.fg"
+          }
+        }
+      ]
+    },
+    {
+      "id": "set_team_name_home",
+      "label": "Set home team name",
+      "options": [
+        {
+          "id": "name",
+          "label": "Team (3-letter)",
+          "type": "textinput",
+          "default": "BOS"
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "teamA",
+          "value": {
+            "option": "name"
+          }
+        }
+      ]
+    },
+    {
+      "id": "set_team_name_away",
+      "label": "Set away team name",
+      "options": [
+        {
+          "id": "name",
+          "label": "Team (3-letter)",
+          "type": "textinput",
+          "default": "LAL"
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "teamB",
+          "value": {
+            "option": "name"
+          }
+        }
+      ]
+    },
+    {
+      "id": "toggle_netbug",
+      "label": "Toggle network bug",
+      "ops": [
+        {
+          "op": "toggle",
+          "field": "netBugVisible"
+        }
+      ]
+    },
+    {
+      "id": "toggle_ticker",
+      "label": "Toggle ticker",
+      "ops": [
+        {
+          "op": "toggle",
+          "field": "tickerVisible"
+        }
+      ]
+    }
   ],
   "companionFeedbacks": [
-    { "id": "score_home", "label": "Home score display" },
-    { "id": "score_away", "label": "Away score display" },
-    { "id": "clock_display", "label": "Game clock display" },
-    { "id": "shot_clock_display", "label": "Shot clock display" },
-    { "id": "quarter_display", "label": "Quarter display" },
-    { "id": "possession", "label": "Possession indicator" },
-    { "id": "bonus_home", "label": "Home bonus active" },
-    { "id": "bonus_away", "label": "Away bonus active" },
-    { "id": "player_card_visible", "label": "Player card visible" }
+    {
+      "id": "bonus_home",
+      "label": "Home bonus active",
+      "field": "bonusA"
+    },
+    {
+      "id": "bonus_away",
+      "label": "Away bonus active",
+      "field": "bonusB"
+    },
+    {
+      "id": "player_card_visible",
+      "label": "Player card visible",
+      "field": "playerCard.visible"
+    },
+    {
+      "id": "possession",
+      "label": "Possession is",
+      "field": "possession",
+      "equals": {
+        "option": "side"
+      },
+      "options": [
+        {
+          "id": "side",
+          "label": "Side",
+          "type": "dropdown",
+          "default": "a",
+          "choices": [
+            {
+              "id": "a",
+              "label": "Home"
+            },
+            {
+              "id": "b",
+              "label": "Away"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "quarter_is",
+      "label": "Quarter is",
+      "field": "quarter",
+      "equals": {
+        "option": "quarter"
+      },
+      "options": [
+        {
+          "id": "quarter",
+          "label": "Quarter",
+          "type": "number",
+          "default": 1,
+          "min": 1,
+          "max": 4
+        }
+      ]
+    },
+    {
+      "id": "clock_running",
+      "label": "Game clock running",
+      "field": "clockEndsAt"
+    },
+    {
+      "id": "shot_clock_running",
+      "label": "Shot clock running",
+      "field": "shotEndsAt"
+    },
+    {
+      "id": "netbug_visible",
+      "label": "Network bug visible",
+      "field": "netBugVisible"
+    },
+    {
+      "id": "ticker_visible",
+      "label": "Ticker visible",
+      "field": "tickerVisible"
+    }
   ],
   "companionVariables": [
-    { "id": "score_home", "label": "Home score" },
-    { "id": "score_away", "label": "Away score" },
-    { "id": "clock", "label": "Game clock" },
-    { "id": "shot_clock", "label": "Shot clock" },
-    { "id": "quarter", "label": "Quarter" },
-    { "id": "possession", "label": "Possession (a/b)" }
+    {
+      "id": "score_home",
+      "label": "Home score",
+      "field": "scoreA"
+    },
+    {
+      "id": "score_away",
+      "label": "Away score",
+      "field": "scoreB"
+    },
+    {
+      "id": "team_home",
+      "label": "Home team",
+      "field": "teamA"
+    },
+    {
+      "id": "team_away",
+      "label": "Away team",
+      "field": "teamB"
+    },
+    {
+      "id": "clock",
+      "label": "Game clock",
+      "countdown": {
+        "deadlineField": "clockEndsAt",
+        "valueField": "clock",
+        "format": "mm:ss"
+      }
+    },
+    {
+      "id": "shot_clock",
+      "label": "Shot clock",
+      "countdown": {
+        "deadlineField": "shotEndsAt",
+        "valueField": "shotClock",
+        "format": "seconds"
+      }
+    },
+    {
+      "id": "quarter",
+      "label": "Quarter",
+      "field": "quarter"
+    },
+    {
+      "id": "possession",
+      "label": "Possession (a/b)",
+      "field": "possession"
+    },
+    {
+      "id": "venue",
+      "label": "Venue",
+      "field": "venue"
+    }
   ]
 }

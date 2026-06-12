@@ -22,6 +22,12 @@ export function createPackagesRouter(hub: PackageHub): Router {
         renders: p.manifest.renders.map((r) => ({ id: r.id, label: r.label ?? r.id })),
         hasControl: p.controlFile !== null,
         live: hub.subscriberCount(p.manifest.id) > 0,
+        // Declarative Companion interface — registered dynamically by the
+        // PConAir Companion module (phase 9).
+        companionActions: p.manifest.companionActions ?? [],
+        companionFeedbacks: p.manifest.companionFeedbacks ?? [],
+        companionVariables: p.manifest.companionVariables ?? [],
+        companionDerived: p.manifest.companionDerived ?? [],
       })),
       errors: hub.errors(),
     });

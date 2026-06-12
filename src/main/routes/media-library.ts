@@ -4,7 +4,8 @@ import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { MediaLibraryStore } from '../media-library/item-store';
 import { requireOperator, requireAdmin } from './middleware';
-import { createSlideshowEngine } from '../media-library/slideshow';
+import { createSlideshowEngine, type SlideshowEngine } from '../media-library/slideshow';
+import { stillsTakeOp, stillsClearOp } from '../media-library/stills-ops';
 import type { SlideshowTransition } from '../../shared/types';
 
 const upload = multer({
@@ -28,11 +29,17 @@ function listPayload(items: ReturnType<MediaLibraryStore['list']>) {
   };
 }
 
-export function createMediaLibraryRouter(store: StateStore, auth: AuthManager, media: MediaLibraryStore): Router {
+export function createMediaLibraryRouter(
+  store: StateStore,
+  auth: AuthManager,
+  media: MediaLibraryStore,
+  slideshowEngine?: SlideshowEngine
+): Router {
   const router = Router();
   const opGuard = requireOperator(auth);
   const adminGuard = requireAdmin(auth);
-  const slideshow = createSlideshowEngine({ store, media });
+  // Shared with the action dispatcher when injected (Companion drives the same engine).
+  const slideshow = slideshowEngine ?? createSlideshowEngine({ store, media });
 
   router.post('/slideshow', opGuard, (req: Request, res: Response) => {
     const body = req.body as {
@@ -134,33 +141,16 @@ export function createMediaLibraryRouter(store: StateStore, auth: AuthManager, m
       res.status(400).json({ error: { code: 'INVALID_MODE', message: 'itemId is required' } });
       return;
     }
-    const item = media.findById(itemId);
-    if (!item) {
-      res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: `Media item '${itemId}' not found` } });
+    const r = stillsTakeOp(store, media, itemId);
+    if (!r.ok) {
+      res.status(r.status).json({ error: r.error });
       return;
     }
-    store.setState({
-      currentMode: 'media-library',
-      l3: null,
-      mediaLibrary: {
-        activeItemId: item.id,
-        activeItemName: item.displayName,
-        slideshow: store.getState().mediaLibrary?.slideshow ?? null,
-      },
-    });
-    const s = store.getState();
-    res.json({
-      currentMode: s.currentMode,
-      mediaLibrary: s.mediaLibrary,
-    });
+    res.json(r.body);
   });
 
   router.post('/clear', opGuard, (_req: Request, res: Response) => {
-    store.setState({
-      currentMode: 'idle',
-      mediaLibrary: null,
-    });
-    res.json({ currentMode: 'idle', mediaLibrary: null });
+    res.json(stillsClearOp(store).body);
   });
 
   // Unauthenticated: consumed by /render pages in OBS (no cookies on LAN).
