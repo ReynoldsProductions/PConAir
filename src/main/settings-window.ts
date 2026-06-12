@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { appSettingsPath, loadAppSettings, saveAppSettings } from './app-settings';
 import { snapshotDisplays } from './displays';
 import { loadProfile, writeProfile, getActiveMarker } from './profiles/bootstrap';
@@ -81,27 +81,40 @@ export function registerSettingsIpc(deps: SettingsWindowDeps): void {
   });
 }
 
-export function openSettingsWindow(): BrowserWindow {
+export function openSettingsWindow(): BrowserWindow | null {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.focus();
     return settingsWindow;
   }
-  settingsWindow = new BrowserWindow({
-    width: 520,
-    height: 720,
-    title: 'PConAir Settings',
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      preload: SETTINGS_WINDOW_PRELOAD_WEBPACK_ENTRY,
-    },
-  });
-  // Loaded from the webpack entry (file/dev-server), not over HTTP, so the
-  // settings window still opens when the server failed to start.
-  void settingsWindow.loadURL(SETTINGS_WINDOW_WEBPACK_ENTRY);
-  settingsWindow.on('closed', () => {
-    settingsWindow = null;
-  });
-  return settingsWindow;
+  try {
+    settingsWindow = new BrowserWindow({
+      width: 520,
+      height: 720,
+      title: 'PConAir Settings',
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        preload: SETTINGS_WINDOW_PRELOAD_WEBPACK_ENTRY,
+      },
+    });
+    // Loaded from the webpack entry (file/dev-server), not over HTTP, so the
+    // settings window still opens when the server failed to start.
+    void settingsWindow.loadURL(SETTINGS_WINDOW_WEBPACK_ENTRY);
+    settingsWindow.on('closed', () => {
+      settingsWindow = null;
+    });
+    return settingsWindow;
+  } catch (e) {
+    if (e instanceof ReferenceError) {
+      void dialog.showMessageBox({
+        type: 'info',
+        title: 'PConAir Settings',
+        message: 'Settings window unavailable in this build.\n\nRebuild the app with electron-forge package to enable it.',
+        buttons: ['OK'],
+      });
+      return null;
+    }
+    throw e;
+  }
 }

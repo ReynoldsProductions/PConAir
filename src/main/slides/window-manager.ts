@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen } from 'electron';
+import { app, BrowserWindow, screen, session } from 'electron';
 import type { StateStore } from '../state';
 import type { ABInstance } from '../../shared/types';
 
@@ -79,6 +79,8 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false, // Needed for Google Slides JS interactions
+        // Persist Google auth cookies across app restarts so sign-in survives relaunches.
+        session: session.fromPartition('persist:google-slides'),
       },
       backgroundColor: '#000000',
       frame: false,
@@ -203,6 +205,7 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
         slides: { ...state.slides, isLoading: false },
       });
       if (instance === state.abState.activeInstance) {
+        win.show(); // make the presentation visible on screen
         openNotesCaptureWindow(win);
         scheduleCacheWarm();
       }

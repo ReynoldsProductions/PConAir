@@ -9,6 +9,8 @@ export interface TrayDeps {
   port: number;
   /** null while the HTTP server failed to start (e.g. port in use). */
   serverError: string | null;
+  operatorPin: string;
+  adminPin: string;
   onOpenSettings: () => void;
   onOpenOperatorWindow: () => void;
 }
@@ -33,6 +35,8 @@ export function updateTrayMenu(deps: TrayDeps): void {
 
   const menu = Menu.buildFromTemplate([
     { label: statusLabel, enabled: false },
+    { label: `Operator PIN: ${deps.operatorPin}`, enabled: false },
+    { label: `Admin PIN: ${deps.adminPin}`, enabled: false },
     { type: 'separator' },
     {
       label: 'Open Web GUI',

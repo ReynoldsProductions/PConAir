@@ -137,9 +137,9 @@
     .loader-buttons { display: flex; gap: 8px; margin-top: 12px; align-items: center; flex-wrap: wrap; }
     .hint-line { font-size: 12px; color: var(--warn); margin: 8px 0 0; min-height: 14px; }
 
-    /* ---- QR modal + header button ---- */
-    .header-btn { margin-left: 10px; padding: 5px 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); color: var(--text); cursor: pointer; }
+    /* ---- QR modal ---- */
     .qr-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .qr-modal[hidden] { display: none; }
     .qr-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; text-align: center; max-width: 340px; }
     .qr-box img { width: 280px; height: 280px; border-radius: 8px; background: #fff; }
     .qr-url { font-size: 12px; color: var(--text-dim); margin: 10px 0; word-break: break-all; }
@@ -176,7 +176,6 @@
 <body>
   <header>
     <h1>PConAir</h1>
-    <button id="qr-btn" class="header-btn" aria-label="Show QR code">QR</button>
     <div class="spacer"></div>
     <span id="conn-label">connecting…</span>
     <div id="conn-dot"></div>
@@ -351,6 +350,7 @@
       <div class="slides-header">
         <span class="deck-title">URLs</span>
         <span id="url-onair" class="chip" hidden>ON AIR</span>
+        <button id="qr-btn" class="small-btn" aria-label="Show QR code for this server">QR code</button>
       </div>
       <div class="l3-active-row"><span id="url-current">No URL loaded</span></div>
 
