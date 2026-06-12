@@ -233,7 +233,15 @@ export function createActionDispatcher(deps: {
           return { ok: true, body: { mediaLibrary: store.getState().mediaLibrary } };
         }
         const itemIds =
-          requestedIds.length > 0 ? requestedIds : show?.itemIds.length ? show.itemIds : media.list().map((it) => it.id);
+          requestedIds.length > 0
+            ? requestedIds
+            : show?.itemIds.length
+              ? show.itemIds
+              : media
+                  .list() // newest-first; re-sort ascending for upload order
+                  .slice()
+                  .sort((x, y) => x.uploadedAt - y.uploadedAt)
+                  .map((it) => it.id);
         const intervalSec =
           typeof p.interval_sec === 'number' && p.interval_sec >= 1 ? p.interval_sec : show?.intervalSec ?? 5;
         const transition: SlideshowTransition = p.transition === 'fade' ? 'fade' : p.transition === 'cut' ? 'cut' : show?.transition ?? 'cut';

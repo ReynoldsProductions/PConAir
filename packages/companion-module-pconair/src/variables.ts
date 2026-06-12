@@ -82,6 +82,13 @@ export const VARIABLE_DEFINITIONS: CompanionVariableDefinition[] = [
   { variableId: 'slideshow_interval', name: 'Slideshow Interval (seconds)' },
   { variableId: 'slideshow_transition', name: 'Slideshow Transition (cut/fade)' },
 
+  // ── stagetimer overlay ──
+  { variableId: 'stagetimer_overlay_enabled', name: 'Stagetimer Overlay Showing (Yes/No)' },
+  { variableId: 'stagetimer_overlay_position', name: 'Stagetimer Overlay Position' },
+  { variableId: 'stagetimer_overlay_size', name: 'Stagetimer Overlay Size (% of display)' },
+  { variableId: 'stagetimer_room_id', name: 'Stagetimer Room ID' },
+  { variableId: 'stagetimer_configured', name: 'Stagetimer Configured (Yes/No)' },
+
   // ── tunnel / system ──
   { variableId: 'tunnel_status', name: 'Tunnel Status (inactive/starting/active/error)' },
   { variableId: 'tunnel_url', name: 'Tunnel Public URL' },
@@ -182,6 +189,12 @@ export function stateToVariables(state: Partial<PcoState>, connected: boolean): 
     slideshow_length: show ? String(show.itemIds.length) : '',
     slideshow_interval: show ? String(show.intervalSec) : '',
     slideshow_transition: show?.transition ?? '',
+
+    stagetimer_overlay_enabled: yn(state.stageTimer?.overlayEnabled),
+    stagetimer_overlay_position: state.stageTimer?.overlayPosition ?? 'bottom-left',
+    stagetimer_overlay_size: state.stageTimer ? String(state.stageTimer.overlaySize) : '',
+    stagetimer_room_id: state.stageTimer?.roomId ?? '',
+    stagetimer_configured: yn(state.stageTimer?.configured),
 
     tunnel_status: tunnel?.status ?? 'inactive',
     tunnel_url: tunnel?.url ?? '',

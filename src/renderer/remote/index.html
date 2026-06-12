@@ -348,15 +348,80 @@
     </section>
 
     <section class="page" id="page-urls">
-      <h2>URLs</h2>
-      <p class="sub">Named URL presets, A/B instances</p>
-      <span class="stub-badge">Coming in Phase 10</span>
+      <div class="slides-header">
+        <span class="deck-title">URLs</span>
+        <span id="url-onair" class="chip" hidden>ON AIR</span>
+      </div>
+      <div class="l3-active-row"><span id="url-current">No URL loaded</span></div>
+
+      <div class="goto-row">
+        <input id="url-input" type="url" placeholder="https://…" class="settings-input" style="flex:1;" />
+        <button id="url-open" class="small-btn primary">Open</button>
+      </div>
+      <div class="loader-buttons">
+        <button id="url-reload" class="small-btn">Reload</button>
+        <button id="url-ab-switch" class="small-btn">Switch A/B</button>
+        <span id="url-ab-status" class="haptic-label"></span>
+      </div>
+      <p class="hint-line" id="url-msg"></p>
+
+      <div class="card">
+        <h3>Presets</h3>
+        <div id="url-preset-list"></div>
+        <p class="hint-line" id="url-preset-msg"></p>
+      </div>
+
+      <details class="card loader-card">
+        <summary>Add preset (admin)</summary>
+        <label class="settings-field" for="url-new-name">Name</label>
+        <input id="url-new-name" class="settings-input" type="text" placeholder="Scoreboard" />
+        <label class="settings-field" for="url-new-url">URL</label>
+        <input id="url-new-url" class="settings-input" type="url" placeholder="https://…" />
+        <div class="loader-buttons">
+          <button id="url-preset-add" class="small-btn primary">Add preset</button>
+        </div>
+        <p class="hint-line" id="url-add-msg"></p>
+      </details>
     </section>
 
     <section class="page" id="page-timer">
-      <h2>Timer</h2>
-      <p class="sub">Stagetimer.io</p>
-      <span class="stub-badge">Coming in Phase 10</span>
+      <div class="slides-header">
+        <span class="deck-title">Timer</span>
+        <span id="st-overlay-chip" class="chip" hidden>OVERLAY ON</span>
+      </div>
+      <p class="sub">stagetimer.io — embedded below; the overlay floats on the notes display</p>
+
+      <iframe id="st-frame" src="about:blank" style="width:100%;aspect-ratio:16/10;border:1px solid var(--border);border-radius:10px;background:#000;" allow="fullscreen"></iframe>
+
+      <div class="card">
+        <h3>Notes-display overlay</h3>
+        <div class="goto-row">
+          <button id="st-overlay-toggle" class="small-btn primary">Show overlay</button>
+          <select id="st-position" class="settings-input" style="max-width:140px;">
+            <option value="bottom-left">Bottom left</option>
+            <option value="bottom-right">Bottom right</option>
+            <option value="top-left">Top left</option>
+            <option value="top-right">Top right</option>
+          </select>
+          <label class="haptic-label">Size
+            <input id="st-size" type="number" min="1" max="100" value="10" style="width:56px;margin-left:6px;" />%
+          </label>
+        </div>
+        <p class="hint-line" id="st-msg"></p>
+      </div>
+
+      <details class="card loader-card">
+        <summary>Stagetimer account (admin)</summary>
+        <label class="settings-field" for="st-room">Room ID</label>
+        <input id="st-room" class="settings-input" type="text" placeholder="ABCD12" />
+        <label class="settings-field" for="st-key">API key</label>
+        <input id="st-key" class="settings-input" type="password" placeholder="••••••" />
+        <div class="loader-buttons">
+          <button id="st-save" class="small-btn primary">Save</button>
+          <span id="st-configured" class="haptic-label"></span>
+        </div>
+        <p class="hint-line" id="st-config-msg"></p>
+      </details>
     </section>
 
     <section class="page" id="page-settings">

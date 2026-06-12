@@ -177,6 +177,24 @@ export interface TunnelState {
   lastError: string | null;
 }
 
+export type StageTimerOverlayPosition = 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right';
+
+/**
+ * Stagetimer.io overlay runtime state (Companion-first). The overlay window
+ * floats over the speaker-notes display; the stagetimer API key is config,
+ * never state — only whether one is set is exposed.
+ */
+export interface StageTimerState {
+  overlayEnabled: boolean;
+  overlayPosition: StageTimerOverlayPosition;
+  /** Overlay size as percent of the notes display (1–100). */
+  overlaySize: number;
+  /** Stagetimer.io room id; null when not configured. */
+  roomId: string | null;
+  /** Room id + API key are both set — the overlay can actually connect. */
+  configured: boolean;
+}
+
 export interface AppState {
   currentMode: Mode;
   currentPreset: Preset | null;
@@ -192,6 +210,7 @@ export interface AppState {
   watchdog: WatchdogState;
   tunnel: TunnelState;
   renderOutputs: RenderOutputsState;
+  stageTimer: StageTimerState;
 }
 
 // ---- HTTP API types ----

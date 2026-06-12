@@ -313,7 +313,13 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
     windowB = null;
   }
 
-  return { initialize, loadDeck, navigateToSlide, showInstance, destroy };
+  /** Bounds of the presenter-notes popup when open (stagetimer overlay targets its display). */
+  function getNotesWindowBounds(): { x: number; y: number; width: number; height: number } | null {
+    if (!notesWindow || notesWindow.isDestroyed()) return null;
+    return notesWindow.getBounds();
+  }
+
+  return { initialize, loadDeck, navigateToSlide, showInstance, getNotesWindowBounds, destroy };
 }
 
 export type SlidesWindowManager = ReturnType<typeof createSlidesWindowManager>;

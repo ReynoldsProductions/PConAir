@@ -5,6 +5,7 @@ import { createOperatorWindow } from './window';
 import { appSettingsPath, loadAppSettings, resolvePort, saveAppSettings } from './app-settings';
 import { createTunnelManager } from './tunnel/manager';
 import { showQrOverlay, hideQrOverlay } from './tunnel/qr-overlay';
+import { createStageTimerOverlay } from './stagetimer/overlay';
 import { createAppTray } from './tray';
 import { registerSettingsIpc, openSettingsWindow } from './settings-window';
 import { createServer } from './server';
@@ -133,6 +134,23 @@ async function main() {
   const mediaLibraryManager = createMediaLibraryWindowManager({ store, media: mediaLibrary });
   mediaLibraryManager.initialize();
 
+  const stageTimerOverlay = createStageTimerOverlay({
+    getCredentials: () => {
+      const s = loadAppSettings(settingsFile);
+      return { roomId: s.stagetimerRoomId, apiKey: s.stagetimerApiKey };
+    },
+    getNotesWindowBounds: () => slidesManager.getNotesWindowBounds(),
+  });
+  store.setState({
+    stageTimer: {
+      overlayEnabled: false, // restored below once the server is up
+      overlayPosition: appSettings.stageTimerOverlayPosition,
+      overlaySize: appSettings.stageTimerOverlaySize,
+      roomId: appSettings.stagetimerRoomId,
+      configured: appSettings.stagetimerRoomId !== null && appSettings.stagetimerApiKey !== null,
+    },
+  });
+
   const tunnelManager = createTunnelManager({
     store,
     getLocalOrigin: () => `http://127.0.0.1:${port}`,
@@ -170,6 +188,15 @@ async function main() {
     },
     showQrOverlay,
     hideQrOverlay,
+    stageTimer: {
+      showOverlay: (position, size) => stageTimerOverlay.show(position, size),
+      hideOverlay: () => stageTimerOverlay.hide(),
+      updateOverlaySettings: (position, size) => stageTimerOverlay.updateSettings(position, size),
+      saveStageTimerSettings: (patch) => {
+        saveAppSettings(settingsFile, patch);
+      },
+      hasApiKey: () => loadAppSettings(settingsFile).stagetimerApiKey !== null,
+    },
     packagesRoot: (() => {
       const userPackages = path.join(userData, 'packages');
       fs.mkdirSync(userPackages, { recursive: true });
@@ -203,6 +230,12 @@ async function main() {
 
   if (!serverError && appSettings.tunnelEnabled) {
     startTunnelFromSettings();
+  }
+
+  // Appliance behavior: the overlay survives restarts like the tunnel does.
+  if (!serverError && appSettings.stageTimerOverlayEnabled) {
+    stageTimerOverlay.show(appSettings.stageTimerOverlayPosition, appSettings.stageTimerOverlaySize);
+    store.setState({ stageTimer: { ...store.getState().stageTimer, overlayEnabled: true } });
   }
 
   if (!serverError) {

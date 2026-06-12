@@ -61,6 +61,13 @@ export interface PcoState {
   reliability: { panicActive: boolean }
   tunnel: { enabled: boolean; status: string; url: string | null; pinRequired: boolean; lastError: string | null }
   renderOutputs: Record<string, { bg: string; chromaColor: string; claimedOutput: string | null }>
+  stageTimer: {
+    overlayEnabled: boolean
+    overlayPosition: string
+    overlaySize: number
+    roomId: string | null
+    configured: boolean
+  }
 }
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'

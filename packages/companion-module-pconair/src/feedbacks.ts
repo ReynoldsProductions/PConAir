@@ -312,6 +312,17 @@ export function buildFeedbacks(getApp: GetAppState, isConnected: () => boolean):
       showInvert: true,
     },
 
+    // ── stagetimer overlay ──
+    stagetimer_overlay_active: {
+      type: 'boolean',
+      name: 'Stagetimer Overlay Showing',
+      description: 'Active while the stagetimer overlay floats on the notes display',
+      defaultStyle: { bgcolor: green, color: white },
+      options: [],
+      callback: () => Boolean(getApp().stageTimer?.overlayEnabled),
+      showInvert: true,
+    },
+
     // ── tunnel / system ──
     tunnel_active: {
       type: 'boolean',

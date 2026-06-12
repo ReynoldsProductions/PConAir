@@ -8,6 +8,7 @@ import { createOperatorRouter } from './operator';
 import { createRemoteRouter } from './remote';
 import { createGscCompatRouter } from './gsc-compat';
 import { createTunnelRouter } from './tunnel';
+import { createStageTimerRouter, type StageTimerRouterDeps } from './stagetimer';
 import { createRenderRouter } from './render';
 import { createPackagesRouter } from './packages';
 import type { PackageHub } from '../packages/state-hub';
@@ -67,6 +68,8 @@ export interface RouteServices {
   }) => void;
   showQrOverlay?: (url: string, durationMs: number) => Promise<void>;
   hideQrOverlay?: () => void;
+  /** Stagetimer overlay hooks (Electron main); absent in tests. */
+  stageTimer?: Omit<StageTimerRouterDeps, 'store' | 'auth'>;
   /** Graphics packages hub; null when the packages system is disabled. */
   packageHub: PackageHub | null;
 }
@@ -109,6 +112,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       hideQrOverlay: s.hideQrOverlay,
     })
   );
+  app.use(createStageTimerRouter({ store: s.store, auth: s.auth, ...s.stageTimer }));
   app.use('/api/url', createUrlRouter(s.store, s.auth));
   app.use('/api/presets', createPresetsRouter(s.store, s.auth, s.presets));
   app.use('/api/l3', createL3Router(s.store, s.auth, s.l3Cues, s.l3Playlists, s.l3ThemeStore, s.l3FilesRoot, s.renderManualCue));
