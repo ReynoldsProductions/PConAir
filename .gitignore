@@ -29,3 +29,5 @@ Icon?
 # macOS AppleDouble files
 ._*
 .webpack/
+cloudflared/cloudflared-darwin-arm64
+cloudflared/
