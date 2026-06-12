@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>FFG — Single Cam + POV PiP</title>
+  <meta name="viewport" content="width=1920, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/packages/ffg/assets/cardboard.css" />
+  <style>
+    /* Score chip — bottom-left corner of wide cam area */
+    .score-chip {
+      position: absolute;
+      left: 100px; bottom: 176px;
+      background: var(--ink);
+      border: 1px solid var(--kraft-light);
+      border-radius: 4px;
+      padding: 10px 20px 12px;
+      font-family: var(--mono);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      z-index: 6;
+    }
+    .score-chip .team-lbl {
+      font-size: 11px; letter-spacing: 0.28em; opacity: 0.6;
+      font-weight: 700; color: var(--cream); margin-bottom: 4px;
+    }
+    .score-chip .score-row {
+      display: flex; align-items: baseline; gap: 6px;
+    }
+    .score-chip .score-row b {
+      font-size: 52px; font-weight: 700;
+      color: var(--kraft-light); line-height: 1;
+    }
+    .score-chip .score-row .mx {
+      font-size: 20px; opacity: 0.5; color: var(--cream);
+    }
+    /* Hide in OBS mode — score chip only shows in preview/non-transparent */
+    body.obs .score-chip { display: none; }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage" data-screen-label="Single Cam + PiP"></div>
+
+  <script src="/packages/ffg/assets/state.js"></script>
+  <script src="/packages/ffg/assets/overlay-kit.js"></script>
+  <script src="/packages/ffg/assets/ffg-common.js"></script>
+  <script>
+    (function () {
+      const { el, makeFrame, makeTitleBanner, makeTimerChip } = window.OverlayKit;
+      const stage = document.getElementById('stage');
+
+      let scoreB, scoreMx, teamLbl, teamIdx = 0;
+
+      function build(s) {
+        const TEAMS = s.teams;
+        teamIdx = FFG.resolveTeamIdx(s);
+        const team = TEAMS[teamIdx];
+
+        // Title banner — top
+        const tb = makeTitleBanner();
+        Object.assign(tb.style, { position: 'absolute', top: '28px', left: '80px', right: '80px' });
+        // Replace right-side stamp with a live timer chip
+        const stamp = tb.querySelector('.stamp');
+        if (stamp) {
+          const chip = makeTimerChip('SHIP-BY');
+          chip.style.transform = 'rotate(0)';
+          stamp.replaceWith(chip);
+          FFG.bindTimer(chip);
+        }
+        stage.appendChild(tb);
+
+        // Wide cam frame
+        const wideWrap = el('div', { style: { position: 'absolute', top: '140px', left: '80px' } });
+        wideWrap.appendChild(makeFrame({
+          width: 1760, height: 860,
+          top: 48, side: 48, bottom: 140,
+          title: 'THE PACKING STATION',
+          sub: 'STATION · WIDE CAM',
+          tape: 'tr',
+          resW: 1664, resH: 672,
+          resLabel: 'WIDE CAM',
+          placeholderLabel: 'WIDE CAMERA FEED',
+        }));
+        stage.appendChild(wideWrap);
+
+        // POV PiP
+        const povWrap = el('div', { style: { position: 'absolute', right: '120px', bottom: '120px' } });
+        povWrap.appendChild(makeFrame({
+          width: 520, height: 360,
+          top: 36, side: 20, bottom: 88,
+          title: 'POV ',
+          sub: 'NECK CAM',
+          resW: 480, resH: 236,
+          resLabel: 'POV',
+          placeholderLabel: 'POV CAM',
+        }));
+        stage.appendChild(povWrap);
+
+        // ── Score chip ──────────────────────────────────────────────────
+        const scoreChip = el('div', { cls: 'score-chip' });
+        teamLbl = el('div', { cls: 'team-lbl', text: team.name.toUpperCase() });
+        const scoreRow = el('div', { cls: 'score-row' });
+        scoreB  = el('b', { text: '0' });
+        scoreMx = el('span', { cls: 'mx', text: '/ 10' });
+        scoreRow.appendChild(scoreB);
+        scoreRow.appendChild(scoreMx);
+        scoreChip.appendChild(teamLbl);
+        scoreChip.appendChild(scoreRow);
+        stage.appendChild(scoreChip);
+      }
+
+      FFG.start(build, (s) => JSON.stringify([s.teams, FFG.resolveTeamIdx(s)]));
+
+      FFG.onUpdate((s) => {
+        if (!scoreB) return;
+        const max = +s.maxScore || 10;
+        scoreB.textContent  = String(Math.max(0, Math.min(max, +s.scores[teamIdx] || 0)));
+        scoreMx.textContent = '/ ' + max;
+        teamLbl.textContent = s.teams[teamIdx].name.toUpperCase();
+      });
+    })();
+  </script>
+</body>
+</html>

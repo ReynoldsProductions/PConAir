@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>FFG Control</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;1,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --kraft:#c9a574; --kraft-deep:#6b4a22; --ink:#2b2622; --cream:#fbf8f6;
+    --paper:#f4ead6; --red:#a8442c; --green:#2d6a2d; --amber:#7a5f00;
+    --mono: ui-monospace,'SF Mono',Menlo,monospace;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    font-family:'Inter',sans-serif; background:#1a1816; color:var(--cream);
+    min-height:100dvh; display:flex; flex-direction:column;
+    padding:16px; gap:12px; max-width:720px; margin:0 auto;
+  }
+
+  /* Header */
+  .header { display:flex; align-items:center; justify-content:space-between; }
+  .header h1 { font-family:'Lora',serif; font-style:italic; font-weight:500;
+               font-size:22px; color:var(--kraft); }
+  .status-pill { font-size:10px; font-weight:700; letter-spacing:.12em;
+                 padding:4px 10px; border-radius:20px; }
+  .status-pill.live    { background:#1a3a1a; color:#6ecf6e; }
+  .status-pill.offline { background:#3a1a1a; color:#cf6e6e; }
+
+  /* Tabs */
+  .tabs { display:flex; gap:8px; }
+  .tabs button {
+    flex:1; padding:11px 0; border:none; border-radius:6px; cursor:pointer;
+    font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.2em;
+    background:#2b2622; color:var(--kraft); touch-action:manipulation;
+  }
+  .tabs button.active { background:var(--kraft); color:var(--ink); }
+  .tab-page { display:none; flex-direction:column; gap:12px; }
+  .tab-page.active { display:flex; }
+
+  .section { background:#2b2622; border-radius:8px; padding:12px 14px;
+             display:flex; flex-direction:column; gap:10px; }
+  .section-label { font-size:10px; letter-spacing:.2em; color:var(--kraft); font-weight:700; }
+
+  /* Timer */
+  .timer-row { display:flex; align-items:center; gap:8px; }
+  .timer-display { font-family:var(--mono); font-size:30px; font-weight:700;
+                   color:var(--kraft); min-width:96px; text-align:center;
+                   font-variant-numeric:tabular-nums; }
+  .timer-row input { width:64px; text-align:center; }
+  .timer-row .unit { font-size:11px; opacity:.5; }
+  .timer-btns { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .timer-btns button, .timer-row button {
+    padding:13px 14px; border:none; border-radius:6px; font-family:var(--mono);
+    font-size:13px; font-weight:700; letter-spacing:.08em; cursor:pointer;
+    touch-action:manipulation;
+  }
+  button:active { opacity:.75; }
+  .btn-start { background:var(--green); color:#fff; }
+  .btn-stop  { background:var(--red);   color:#fff; }
+  .btn-treset{ background:#3a3632;      color:var(--kraft); }
+
+  /* Team rows */
+  .team-row {
+    background:var(--paper); border-radius:8px; padding:12px 14px;
+    display:flex; align-items:center; gap:12px;
+  }
+  .team-info    { flex:1; min-width:0; }
+  .team-city    { font-size:9px; letter-spacing:.2em; color:var(--kraft-deep); opacity:.65; }
+  .team-name    { font-family:'Lora',serif; font-size:17px; color:var(--ink); }
+  .score-ctrls  { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+  .btn-dec, .btn-inc {
+    width:52px; height:52px; border:none; border-radius:6px; cursor:pointer;
+    font-family:var(--mono); font-size:26px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    touch-action:manipulation;
+  }
+  .btn-dec { background:var(--red);  color:#fff; }
+  .btn-inc { background:var(--ink);  color:var(--cream); }
+  .score-display { text-align:center; }
+  .score-val { font-family:var(--mono); font-size:34px; font-weight:700;
+               color:var(--ink); line-height:1; }
+  .score-max { font-size:12px; color:var(--ink); opacity:.35; margin-top:1px; }
+
+  /* Footer / goal */
+  .footer-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .goal-row { display:flex; align-items:center; gap:8px; font-size:12px; opacity:.7; }
+  input, select {
+    padding:8px 10px; font-family:var(--mono); font-size:13px;
+    border:1px solid var(--kraft-deep); border-radius:4px;
+    background:#1a1816; color:var(--cream);
+  }
+  input:focus, select:focus { outline:none; border-color:var(--kraft); }
+  .goal-row input { width:56px; text-align:center; }
+  .btn-reset-all {
+    background:var(--kraft-deep); color:var(--cream); border:none;
+    border-radius:6px; padding:10px 18px; font-family:var(--mono);
+    font-size:11px; letter-spacing:.2em; font-weight:700; cursor:pointer;
+    touch-action:manipulation;
+  }
+
+  /* Champion */
+  .champ-row { display:flex; align-items:center; gap:8px; }
+  .champ-row select { flex:1; appearance:none; font-family:'Inter',sans-serif; }
+  .btn-champ { background:var(--kraft); color:var(--ink); border:none; border-radius:6px;
+               padding:13px 16px; font-family:var(--mono); font-size:12px;
+               letter-spacing:.12em; font-weight:700; cursor:pointer; touch-action:manipulation; }
+  .btn-champ.clear { background:#3a3632; color:var(--kraft); }
+  .champ-now { font-size:12px; opacity:.6; }
+
+  /* Setup tab */
+  .setup-row {
+    display:grid; grid-template-columns:auto 1fr 1fr 1fr 1fr; gap:8px; align-items:center;
+  }
+  .setup-row .idx { width:24px; text-align:center; font-size:11px;
+                    font-family:var(--mono); color:var(--kraft); opacity:.7; }
+  .setup-row input { width:100%; font-family:'Inter',sans-serif; }
+  .col-head { font-size:9px; letter-spacing:.16em; color:var(--kraft); opacity:.5; }
+  .h2h-row { display:flex; align-items:center; gap:10px; }
+  .h2h-row .slot-lbl { font-size:11px; font-family:var(--mono); color:var(--kraft);
+                       width:56px; flex-shrink:0; }
+  .h2h-row select { flex:1; appearance:none; font-family:'Inter',sans-serif; }
+  .h2h-row .vs { font-size:11px; letter-spacing:.12em; color:var(--kraft); opacity:.5; padding:0 4px; }
+  .btn-save {
+    background:var(--green); color:#fff; border:none; border-radius:6px;
+    padding:12px 24px; font-family:var(--mono); font-size:12px;
+    letter-spacing:.2em; font-weight:700; cursor:pointer;
+    touch-action:manipulation; align-self:flex-start;
+  }
+  .save-msg { font-size:11px; opacity:.55; min-height:16px; }
+
+  /* URL guide */
+  .url-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .url-table th { text-align:left; font-size:9px; letter-spacing:.18em; color:var(--kraft);
+    font-weight:700; padding:4px 6px; border-bottom:1px solid rgba(201,165,116,0.2); }
+  .url-table td { padding:5px 6px; border-bottom:1px solid rgba(201,165,116,0.08); vertical-align:middle; }
+  .url-table tr:last-child td { border-bottom:none; }
+  .url-table .url-cell { font-family:var(--mono); font-size:11px; color:var(--kraft); word-break:break-all; }
+  .url-table .lbl-cell { color:var(--cream); opacity:.7; }
+  .url-table a { color:var(--kraft); text-decoration:none; }
+  .url-table a:hover { text-decoration:underline; }
+
+  @media (max-width: 600px) {
+    .setup-row { grid-template-columns:auto 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Faire Fulfillment Games</h1>
+  <div class="status-pill offline" id="status-pill">CONNECTING…</div>
+</div>
+
+<div class="tabs">
+  <button class="active" data-tab="scores">SCORES</button>
+  <button data-tab="setup">SETUP</button>
+</div>
+
+<!-- ── SCORES tab ─────────────────────────────────────────────── -->
+<div class="tab-page active" id="tab-scores">
+
+  <div class="section">
+    <div class="section-label">SHIP-BY TIMER</div>
+    <div class="timer-row">
+      <div class="timer-display" id="timer-display">--:--</div>
+      <input id="timer-min" type="number" min="1" max="180" value="15" />
+      <span class="unit">min</span>
+      <button class="btn-start" id="btn-tstart">▶ START</button>
+      <button class="btn-stop"  id="btn-tstop">■ STOP</button>
+      <button class="btn-treset" id="btn-treset">↺ RESET</button>
+    </div>
+  </div>
+
+  <div id="teams" style="display:flex;flex-direction:column;gap:10px"></div>
+
+  <div class="section">
+    <div class="footer-row">
+      <div class="goal-row">
+        <label for="max-input">Goal:</label>
+        <input id="max-input" type="number" min="1" value="10" />
+      </div>
+      <button class="btn-reset-all" id="btn-reset-all">RESET ALL</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">CHAMPION REVEAL</div>
+    <div class="champ-row">
+      <select id="champ-select"></select>
+      <button class="btn-champ" id="btn-champ-set">SET WINNER</button>
+      <button class="btn-champ clear" id="btn-champ-clear">CLEAR</button>
+    </div>
+    <div class="champ-now" id="champ-now"></div>
+  </div>
+</div>
+
+<!-- ── SETUP tab ──────────────────────────────────────────────── -->
+<div class="tab-page" id="tab-setup">
+
+  <div class="section">
+    <div class="section-label">TEAMS</div>
+    <div class="setup-row" style="margin-bottom:-2px;">
+      <div class="idx"></div>
+      <div class="col-head">NAME</div>
+      <div class="col-head">CITY / LOCATION</div>
+      <div class="col-head">CODE (SHORT)</div>
+      <div class="col-head">PRESENTER</div>
+    </div>
+    <div id="team-edit-rows" style="display:flex;flex-direction:column;gap:6px;"></div>
+    <button class="btn-save" id="btn-save-teams">SAVE TEAMS</button>
+    <div class="save-msg" id="teams-msg"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">HEAD-TO-HEAD MATCHUPS</div>
+    <p style="font-size:12px;opacity:.55;line-height:1.5;">
+      Each H2H render URL has a slot (<code style="font-size:11px;color:var(--kraft);">?slot=a</code> or
+      <code style="font-size:11px;color:var(--kraft);">?slot=b</code>). Set which teams face off in each slot here.
+    </p>
+    <div id="h2h-rows" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <button class="btn-save" id="btn-save-h2h">SAVE MATCHUPS</button>
+    <div class="save-msg" id="h2h-msg"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">OBS BROWSER SOURCE URLS</div>
+    <table class="url-table">
+      <thead><tr><th>OVERLAY</th><th>URL</th></tr></thead>
+      <tbody id="url-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="/packages/ffg/assets/state.js"></script>
+<script>
+  const g = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+
+  let state = null;
+  let teamsKey = '';
+
+  const client = window.PConAirPackage.connect('ffg', (s) => {
+    state = s;
+    g('status-pill').className = 'status-pill live';
+    g('status-pill').textContent = 'LIVE';
+    render();
+  });
+
+  function patch(p) { client.patch(p); }
+
+  // ── Tabs ─────────────────────────────────────────────────────
+  document.querySelectorAll('.tabs button').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
+      document.querySelectorAll('.tab-page').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + b.dataset.tab));
+    });
+  });
+
+  function syncInput(id, value) {
+    const el = g(id);
+    if (el && document.activeElement !== el) el.value = value ?? '';
+  }
+
+  // ── Scores tab ───────────────────────────────────────────────
+  function buildTeamRows() {
+    const teamsEl = g('teams');
+    teamsEl.innerHTML = '';
+    state.teams.forEach((t, i) => {
+      const row = document.createElement('div');
+      row.className = 'team-row';
+      row.innerHTML = `
+        <div class="team-info">
+          <div class="team-city">${esc(t.city)}</div>
+          <div class="team-name">${esc(t.name)}</div>
+        </div>
+        <div class="score-ctrls">
+          <button class="btn-dec" data-idx="${i}" data-delta="-1">−</button>
+          <div class="score-display">
+            <div class="score-val" id="val-t${i}">0</div>
+            <div class="score-max" id="max-t${i}">/ 10</div>
+          </div>
+          <button class="btn-inc" data-idx="${i}" data-delta="1">+</button>
+        </div>`;
+      teamsEl.appendChild(row);
+    });
+  }
+
+  function buildChampSelect() {
+    const sel = g('champ-select');
+    const cur = sel.value;
+    sel.innerHTML = state.teams.map((t, i) => `<option value="${i}">${i + 1} · ${esc(t.name)}</option>`).join('');
+    if (cur !== '') sel.value = cur;
+  }
+
+  function render() {
+    if (!state) return;
+    // Team rows / selects rebuild only when team config changes (keeps taps cheap).
+    const key = JSON.stringify(state.teams);
+    if (key !== teamsKey) {
+      teamsKey = key;
+      buildTeamRows();
+      buildChampSelect();
+      buildTeamEditRows();
+      buildH2HRows();
+      buildUrlTable();
+    }
+    const max = +state.maxScore || 10;
+    state.teams.forEach((t, i) => {
+      g('val-t' + i).textContent = Math.max(0, Math.min(max, +state.scores[i] || 0));
+      g('max-t' + i).textContent = '/ ' + max;
+    });
+    syncInput('max-input', max);
+    g('champ-now').textContent = typeof state.winner === 'number'
+      ? `Winner on air: ${state.teams[state.winner].name} (final ${state.finalScore ?? state.scores[state.winner]})`
+      : 'No winner set — champion page falls back to its ?winner URL param.';
+  }
+
+  // Live timer display
+  setInterval(() => {
+    if (!state) return;
+    const t = state.timer || {};
+    let sec = null;
+    if (t.running && t.endsAt > 0) sec = Math.max(0, (t.endsAt - Date.now()) / 1000);
+    else if (typeof t.remaining === 'number') sec = Math.max(0, t.remaining);
+    g('timer-display').textContent = sec === null
+      ? '--:--'
+      : String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(Math.floor(sec % 60)).padStart(2, '0');
+  }, 250);
+
+  function timerRemainingS() {
+    const t = (state && state.timer) || {};
+    if (t.running && t.endsAt > 0) return Math.max(0, (t.endsAt - Date.now()) / 1000);
+    return typeof t.remaining === 'number' ? t.remaining : +g('timer-min').value * 60 || 900;
+  }
+
+  g('btn-tstart').addEventListener('click', () => {
+    patch({ timer: { running: true, remaining: null, endsAt: Date.now() + timerRemainingS() * 1000 } });
+  });
+  g('btn-tstop').addEventListener('click', () => {
+    patch({ timer: { running: false, remaining: timerRemainingS(), endsAt: 0 } });
+  });
+  g('btn-treset').addEventListener('click', () => {
+    patch({ timer: { running: false, remaining: (+g('timer-min').value || 15) * 60, endsAt: 0 } });
+  });
+
+  // Score bumps (read-modify-write on the shared array)
+  g('teams').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-idx]');
+    if (!btn || !state) return;
+    const i = +btn.dataset.idx;
+    const max = +state.maxScore || 10;
+    const next = state.scores.slice();
+    next[i] = Math.max(0, Math.min(max, (+next[i] || 0) + +btn.dataset.delta));
+    patch({ scores: next });
+  });
+
+  g('max-input').addEventListener('change', (e) => {
+    const max = Math.max(1, +e.target.value || 10);
+    patch({ maxScore: max, scores: state.scores.map((v) => Math.min(max, +v || 0)) });
+  });
+
+  g('btn-reset-all').addEventListener('click', () => {
+    patch({ scores: [0, 0, 0, 0], winner: null, finalScore: null });
+  });
+
+  g('btn-champ-set').addEventListener('click', () => {
+    const i = +g('champ-select').value || 0;
+    patch({ winner: i, finalScore: +state.scores[i] || 0 });
+  });
+  g('btn-champ-clear').addEventListener('click', () => {
+    patch({ winner: null, finalScore: null });
+  });
+
+  // ── Setup tab ────────────────────────────────────────────────
+  function buildTeamEditRows() {
+    const wrap = g('team-edit-rows');
+    wrap.innerHTML = '';
+    state.teams.forEach((t, i) => {
+      const row = document.createElement('div');
+      row.className = 'setup-row';
+      row.innerHTML = `
+        <div class="idx">${i + 1}</div>
+        <input type="text" id="t${i}-name" value="${esc(t.name)}" placeholder="Team ${i + 1}" maxlength="64" />
+        <input type="text" id="t${i}-city" value="${esc(t.city)}" placeholder="CITY" maxlength="64" />
+        <input type="text" id="t${i}-code" value="${esc(t.code)}" placeholder="T${i + 1}" maxlength="8" />
+        <input type="text" id="t${i}-handle" value="${esc(t.handle)}" placeholder="presenter" maxlength="64" />`;
+      wrap.appendChild(row);
+    });
+  }
+
+  function teamOptions(selectedIdx) {
+    return state.teams.map((t, i) =>
+      `<option value="${i}" ${i === selectedIdx ? 'selected' : ''}>${i + 1} · ${esc(t.name)}</option>`
+    ).join('');
+  }
+
+  function buildH2HRows() {
+    const wrap = g('h2h-rows');
+    wrap.innerHTML = '';
+    const h2h = state.h2h || { slotA: [0, 1], slotB: [2, 3] };
+    [['a', h2h.slotA], ['b', h2h.slotB]].forEach(([slot, pair]) => {
+      const row = document.createElement('div');
+      row.className = 'h2h-row';
+      row.innerHTML = `
+        <div class="slot-lbl">SLOT ${slot.toUpperCase()}</div>
+        <select id="h2h-${slot}-left">${teamOptions(pair[0])}</select>
+        <div class="vs">VS</div>
+        <select id="h2h-${slot}-right">${teamOptions(pair[1])}</select>`;
+      wrap.appendChild(row);
+    });
+  }
+
+  g('btn-save-teams').addEventListener('click', () => {
+    const teams = [0, 1, 2, 3].map((i) => ({
+      name: g(`t${i}-name`).value.trim() || `Team ${i + 1}`,
+      city: g(`t${i}-city`).value.trim(),
+      code: g(`t${i}-code`).value.trim() || `T${i + 1}`,
+      handle: g(`t${i}-handle`).value.trim(),
+    }));
+    patch({ teams });
+    flash('teams-msg');
+  });
+
+  g('btn-save-h2h').addEventListener('click', () => {
+    patch({
+      h2h: {
+        slotA: [+g('h2h-a-left').value, +g('h2h-a-right').value],
+        slotB: [+g('h2h-b-left').value, +g('h2h-b-right').value],
+      },
+    });
+    flash('h2h-msg');
+  });
+
+  function flash(id) {
+    g(id).textContent = 'Saved ✓ — render pages reload with the new config';
+    setTimeout(() => { g(id).textContent = ''; }, 4000);
+  }
+
+  function buildUrlTable() {
+    const base = location.origin + '/packages/ffg/render';
+    const h2h = state.h2h || { slotA: [0, 1], slotB: [2, 3] };
+    const name = (i) => state.teams[i].name;
+    const rows = [
+      { label: 'Four-Up Grid', url: `${base}/four-up?obs=1` },
+      { label: 'Four Portrait (intro)', url: `${base}/four-portrait?obs=1` },
+      { label: `H2H — Slot A (${name(h2h.slotA[0])} vs ${name(h2h.slotA[1])})`, url: `${base}/head-to-head?slot=a&obs=1` },
+      { label: `H2H — Slot B (${name(h2h.slotB[0])} vs ${name(h2h.slotB[1])})`, url: `${base}/head-to-head?slot=b&obs=1` },
+      ...state.teams.map((t, i) => ({ label: `Wide + PiP — ${t.name}`, url: `${base}/single-pip?team=${i}&obs=1` })),
+      ...state.teams.map((t, i) => ({ label: `Champion — ${t.name}`, url: `${base}/champion?winner=${i}` })),
+      { label: 'Champion — follows SET WINNER', url: `${base}/champion` },
+    ];
+    g('url-tbody').innerHTML = rows.map((r) =>
+      `<tr><td class="lbl-cell">${esc(r.label)}</td><td class="url-cell"><a href="${esc(r.url)}" target="_blank">${esc(r.url)}</a></td></tr>`
+    ).join('');
+  }
+</script>
+</body>
+</html>

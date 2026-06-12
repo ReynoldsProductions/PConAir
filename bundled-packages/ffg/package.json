@@ -1,0 +1,69 @@
+{
+  "id": "ffg",
+  "name": "Faire Fulfillment Games",
+  "version": "1.0.0",
+  "description": "FFG broadcast package — cardboard/kraft overlays: single cam + PiP, four portrait, four-up grid, head-to-head, champion reveal",
+  "renders": [
+    { "id": "single-pip", "label": "Single Cam + PiP", "file": "render-single-pip.html" },
+    { "id": "four-portrait", "label": "Four Portrait (intro)", "file": "render-four-portrait.html" },
+    { "id": "four-up", "label": "Four-Up Live Grid", "file": "render-four-up.html" },
+    { "id": "head-to-head", "label": "Head-to-Head", "file": "render-head-to-head.html" },
+    { "id": "champion", "label": "Champion", "file": "render-champion.html" }
+  ],
+  "stateSchema": {
+    "maxScore": "number",
+    "activeTeam": "number",
+    "h2hSlot": "string"
+  },
+  "initialState": {
+    "teams": [
+      { "name": "Team 1", "city": "CITY 1", "code": "T1", "handle": "" },
+      { "name": "Team 2", "city": "CITY 2", "code": "T2", "handle": "" },
+      { "name": "Team 3", "city": "CITY 3", "code": "T3", "handle": "" },
+      { "name": "Team 4", "city": "CITY 4", "code": "T4", "handle": "" }
+    ],
+    "scores": [0, 0, 0, 0],
+    "h2h": { "slotA": [0, 1], "slotB": [2, 3] },
+    "winner": null,
+    "finalScore": null,
+    "maxScore": 10,
+    "activeTeam": 0,
+    "h2hSlot": "a",
+    "timer": { "running": false, "remaining": null, "endsAt": 0 }
+  },
+  "companionActions": [
+    { "id": "ffg_bump_score", "label": "Bump team score (team + delta)" },
+    { "id": "ffg_set_score", "label": "Set team score (team + value)" },
+    { "id": "ffg_reset_scores", "label": "Reset all scores" },
+    { "id": "ffg_set_team_name", "label": "Set team name" },
+    { "id": "ffg_set_matchup", "label": "Set H2H matchup (slot + team indices)" },
+    { "id": "ffg_set_winner", "label": "Set champion" },
+    { "id": "ffg_clear_winner", "label": "Clear champion" },
+    { "id": "ffg_set_max_score", "label": "Set max score (goal)" },
+    { "id": "ffg_start_timer", "label": "Start ship-by timer" },
+    { "id": "ffg_stop_timer", "label": "Stop ship-by timer" },
+    { "id": "ffg_reset_timer", "label": "Reset ship-by timer" }
+  ],
+  "companionFeedbacks": [
+    { "id": "score_team_1", "label": "Team 1 score display" },
+    { "id": "score_team_2", "label": "Team 2 score display" },
+    { "id": "score_team_3", "label": "Team 3 score display" },
+    { "id": "score_team_4", "label": "Team 4 score display" },
+    { "id": "current_leader", "label": "Current leader" },
+    { "id": "is_tied", "label": "Game is tied" },
+    { "id": "winner_set", "label": "Winner is set" },
+    { "id": "timer_running", "label": "Timer running" }
+  ],
+  "companionVariables": [
+    { "id": "score_1", "label": "Team 1 score" },
+    { "id": "score_2", "label": "Team 2 score" },
+    { "id": "score_3", "label": "Team 3 score" },
+    { "id": "score_4", "label": "Team 4 score" },
+    { "id": "team_1", "label": "Team 1 name" },
+    { "id": "team_2", "label": "Team 2 name" },
+    { "id": "team_3", "label": "Team 3 name" },
+    { "id": "team_4", "label": "Team 4 name" },
+    { "id": "leader", "label": "Current leader name" },
+    { "id": "timer", "label": "Ship-by timer display" }
+  ]
+}

@@ -1,0 +1,463 @@
+/* Shared cardboard CSS for OBS overlay HTML files.
+   Transparent body so OBS Browser Source composites cleanly. */
+
+:root {
+  --kraft:       #c9a574;
+  --kraft-dark:  #9a7642;
+  --kraft-light: #e6cfa3;
+  --kraft-deep:  #6b4a22;
+  --ink:         #2b2622;
+  --ink-soft:    #3d342c;
+  --cream:       #fbf8f6;
+  --paper:       #f4ead6;
+  --tape:        #d9c896;
+  --red:         #a8442c;
+  --pov:         #1f1d1b;
+  --serif: 'Lora', Georgia, serif;
+  --sans:  'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --mono:  ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  width: 100%; height: 100%;
+  background: transparent;            /* OBS transparency */
+  font-family: var(--sans);
+  color: var(--ink);
+  overflow: hidden;
+}
+
+/* The 1920×1080 stage. Auto-scales to viewport so previews look right
+   in any iframe; OBS will render at exact 1920×1080 source size. */
+.stage {
+  position: relative;
+  width: 1920px; height: 1080px;
+  transform-origin: top left;
+}
+
+/* ── Cardboard textures ───────────────────────────────────────── */
+.cardboard {
+  background:
+    repeating-linear-gradient(180deg,
+      rgba(107,74,34,0.00) 0px,
+      rgba(107,74,34,0.06) 2px,
+      rgba(107,74,34,0.14) 4px,
+      rgba(255,240,210,0.10) 6px,
+      rgba(107,74,34,0.00) 8px),
+    repeating-linear-gradient(90deg,
+      rgba(0,0,0,0.00) 0px,
+      rgba(0,0,0,0.04) 1px,
+      rgba(0,0,0,0.00) 2px,
+      rgba(255,255,255,0.04) 4px),
+    radial-gradient(ellipse at 30% 20%, var(--kraft-light) 0%, var(--kraft) 45%, var(--kraft-dark) 100%);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 0 2px rgba(107,74,34,0.45),
+    inset 0 0 0 4px rgba(255,240,210,0.25),
+    0 8px 24px rgba(0,0,0,0.35);
+}
+
+.paper {
+  background-color: var(--paper);
+  background-image:
+    repeating-radial-gradient(circle at 17% 23%, rgba(0,0,0,0.02) 0 1px, transparent 1px 4px),
+    repeating-radial-gradient(circle at 73% 81%, rgba(0,0,0,0.025) 0 1px, transparent 1px 5px);
+  background-blend-mode: multiply;
+  border: 2px solid var(--kraft-deep);
+  border-radius: 4px;
+}
+
+/* ── Frame: outer cardboard + cutout cam window ───────────────── */
+.frame { position: relative; overflow: hidden; }
+.frame .corner-crease {
+  position: absolute; width: 22px; height: 22px;
+  opacity: 0.55; pointer-events: none;
+}
+.frame .corner-crease.tl { top: 8px; left: 8px;  border-top: 1.5px solid var(--kraft-deep); border-left: 1.5px solid var(--kraft-deep); }
+.frame .corner-crease.tr { top: 8px; right: 8px; border-top: 1.5px solid var(--kraft-deep); border-right: 1.5px solid var(--kraft-deep); }
+.frame .corner-crease.bl { bottom: 8px; left: 8px;  border-bottom: 1.5px solid var(--kraft-deep); border-left: 1.5px solid var(--kraft-deep); }
+.frame .corner-crease.br { bottom: 8px; right: 8px; border-bottom: 1.5px solid var(--kraft-deep); border-right: 1.5px solid var(--kraft-deep); }
+
+.frame .tape {
+  position: absolute;
+  background: rgba(232,210,160,0.55);
+  border: 1px solid rgba(180,140,80,0.4);
+  pointer-events: none;
+}
+.frame .tape.tr { top: -20px; right: -40px; width: 200px; height: 44px; transform: rotate(-32deg); transform-origin: top right; }
+.frame .tape.bl { bottom: 60px; left: -30px; width: 180px; height: 38px; transform: rotate(28deg); }
+
+.frame .corner-label {
+  position: absolute; top: 12px; left: 12px;
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.18em; color: var(--ink); opacity: 0.55;
+  padding: 3px 6px; border: 1px solid var(--ink); border-radius: 2px;
+  pointer-events: none;
+}
+
+.frame .cam {
+  position: absolute;
+  background: var(--pov);
+  box-shadow:
+    inset 0 0 0 2px rgba(0,0,0,0.6),
+    inset 0 0 0 4px rgba(201,165,116,0.3),
+    0 0 0 1px rgba(0,0,0,0.4);
+  overflow: hidden;
+}
+
+/* Banner under the cam window (shipping label) */
+.frame .label-banner {
+  position: absolute;
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 18px;
+  background-color: var(--paper);
+  background-image:
+    repeating-radial-gradient(circle at 17% 23%, rgba(0,0,0,0.02) 0 1px, transparent 1px 4px),
+    repeating-radial-gradient(circle at 73% 81%, rgba(0,0,0,0.025) 0 1px, transparent 1px 5px);
+  background-blend-mode: multiply;
+  border: 1px solid var(--kraft-deep);
+  border-radius: 3px;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.15);
+}
+.frame .barcode {
+  display: flex; align-items: center; gap: 1px; height: 60%;
+}
+.frame .barcode i {
+  display: block; height: 100%; background: var(--ink);
+}
+.frame .label-title {
+  font-family: var(--serif);
+  line-height: 1; color: var(--ink); font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.frame .label-sub {
+  font-size: 11px; margin-top: 4px;
+  color: var(--ink); opacity: 0.65;
+  letter-spacing: 0.18em; font-weight: 500; text-transform: uppercase;
+}
+
+/* Resolution callout */
+.res-chip {
+  position: absolute; z-index: 6;
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px;
+  background: rgba(232,210,160,0.92);
+  border: 1px solid var(--kraft-deep);
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 10px; color: var(--ink);
+  letter-spacing: 0.08em;
+  pointer-events: none;
+}
+.res-chip .dim { font-weight: 700; }
+.res-chip .lab { opacity: 0.55; font-weight: 700; }
+.res-chip .ar  { opacity: 0.45; }
+
+/* Shipping stamp */
+.stamp {
+  border: 2.5px solid var(--red);
+  padding: 8px 14px; border-radius: 4px;
+  text-align: center; white-space: nowrap;
+  color: var(--red);
+}
+.stamp.ground { border-color: var(--kraft-deep); color: var(--kraft-deep); }
+.stamp .top  { font-size: 9px;  letter-spacing: 0.25em; font-weight: 700; }
+.stamp .main { font-size: 22px; font-weight: 700; line-height: 1; margin-top: 2px; }
+.stamp.sm     { padding: 5px 10px; }
+.stamp.sm .top  { font-size: 8px; }
+.stamp.sm .main { font-size: 16px; margin-top: 1px; }
+
+/* Cam-window placeholder content (visible only in design previews) */
+.cam-placeholder {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px;
+  color: rgba(255,255,255,0.32);
+  font-family: var(--mono);
+  font-size: 11px; letter-spacing: 0.22em;
+  background-image: repeating-linear-gradient(45deg,
+    rgba(255,255,255,0.025) 0 8px, transparent 8px 16px);
+}
+.cam-placeholder .icon {
+  position: relative; width: 38px; height: 24px;
+  border: 1.2px solid rgba(255,255,255,0.4); border-radius: 3px;
+}
+.cam-placeholder .icon::after {
+  content: ''; position: absolute; right: -8px; top: 6px;
+  width: 6px; height: 12px; background: rgba(255,255,255,0.4);
+}
+.cam-placeholder .sub { opacity: 0.7; font-size: 9px; }
+
+/* OBS mode: hide design previews. clip-path on .frame (applied via JS in
+   makeFrame) punches the cam area out of the cardboard so the transparent
+   body shows through — giving OBS true alpha=0 pixels to composite through. */
+body.obs .cam-placeholder,
+body.obs .res-chip { display: none !important; }
+body.obs .frame .cam {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Green-key mode: cam windows → #00ff00, page background transparent. */
+body.obs-green .cam-placeholder,
+body.obs-green .res-chip { display: none !important; }
+body.obs-green .frame .cam {
+  background: #00ff00 !important;
+  box-shadow: none !important;
+}
+
+/* Green2: cam windows AND full page background → #00ff00. */
+body.obs-green2 .cam-placeholder,
+body.obs-green2 .res-chip { display: none !important; }
+body.obs-green2 .frame .cam {
+  background: #00ff00 !important;
+  box-shadow: none !important;
+}
+body.obs-green2 { background: #00ff00 !important; }
+
+/* Blue-key mode: cam windows → #0000ff, page background transparent. */
+body.obs-blue .cam-placeholder,
+body.obs-blue .res-chip { display: none !important; }
+body.obs-blue .frame .cam {
+  background: #0000ff !important;
+  box-shadow: none !important;
+}
+
+/* Blue2: cam windows AND full page background → #0000ff. */
+body.obs-blue2 .cam-placeholder,
+body.obs-blue2 .res-chip { display: none !important; }
+body.obs-blue2 .frame .cam {
+  background: #0000ff !important;
+  box-shadow: none !important;
+}
+body.obs-blue2 { background: #0000ff !important; }
+
+/* ── obs=2 mode: opaque cardboard background, transparent cam windows ──────
+   The JS builds a full-page .obs-bg-layer with an even-odd clip-path that
+   punches out the exact camera windows. The page body stays transparent so
+   nothing leaks into the camera holes from behind. */
+body.obs-2 .cam-placeholder,
+body.obs-2 .res-chip { display: none !important; }
+body.obs-2 .frame .cam {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Full-page cardboard fill injected by buildObsBg() */
+.obs-bg-layer {
+  position: absolute;
+  top: 0; left: 0;
+  width: 1920px; height: 1080px;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(180deg,
+      rgba(107,74,34,0.00) 0px,
+      rgba(107,74,34,0.06) 2px,
+      rgba(107,74,34,0.14) 4px,
+      rgba(255,240,210,0.10) 6px,
+      rgba(107,74,34,0.00) 8px),
+    repeating-linear-gradient(90deg,
+      rgba(0,0,0,0.00) 0px,
+      rgba(0,0,0,0.04) 1px,
+      rgba(0,0,0,0.00) 2px,
+      rgba(255,255,255,0.04) 4px),
+    radial-gradient(ellipse at 30% 20%,
+      var(--kraft-light) 0%, var(--kraft) 45%, var(--kraft-dark) 100%);
+}
+
+/* Sticker: white paper backing around a Core Values icon */
+.obs-sticker {
+  position: absolute;
+  background: #fff;
+  border: 2px solid rgba(107,74,34,0.35);
+  border-radius: 10px;
+  padding: 7px;
+  box-shadow: 2px 3px 10px rgba(0,0,0,0.40), inset 0 0 0 1px rgba(255,255,255,0.6);
+}
+.obs-sticker img {
+  display: block;
+  width: 82px;
+  height: 82px;
+  object-fit: contain;
+}
+
+/* Rubber stamp (FRAGILE, THIS SIDE UP, etc.) */
+.obs-stamp {
+  position: absolute;
+  border: 3px solid var(--red);
+  border-radius: 3px;
+  color: var(--red);
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: 0.15em;
+  padding: 5px 9px;
+  opacity: 0.78;
+  white-space: nowrap;
+  text-align: center;
+  line-height: 1.2;
+}
+.obs-stamp--faded { opacity: 0.50; }
+
+/* Torn shipping label — top centre of canvas */
+.obs-shipping-label {
+  position: absolute;
+  top: 4px;
+  left: 560px;
+  width: 800px;
+  background: var(--paper);
+  border: 1px solid rgba(107,74,34,0.45);
+  border-radius: 3px 3px 0 0;
+  padding: 6px 10px 14px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--ink);
+  /* Torn bottom edge via clip-path */
+  clip-path: polygon(
+    0% 0%, 100% 0%, 100% 82%,
+    98% 88%, 96% 80%, 93% 90%, 91% 78%, 88% 88%, 85% 76%,
+    82% 88%, 79% 80%, 76% 90%, 73% 79%, 70% 88%, 67% 77%,
+    64% 89%, 61% 80%, 58% 88%, 55% 79%, 52% 90%, 49% 80%,
+    46% 88%, 43% 78%, 40% 90%, 37% 80%, 34% 88%, 31% 77%,
+    28% 89%, 25% 80%, 22% 90%, 19% 79%, 16% 88%, 13% 77%,
+    10% 89%, 7% 80%, 4% 88%, 2% 82%, 0% 88%
+  );
+}
+.obs-shipping-label__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.obs-shipping-label__track {
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+.obs-shipping-label__from,
+.obs-shipping-label__to {
+  display: inline-block;
+  margin-right: 24px;
+}
+.obs-shipping-label__key {
+  font-weight: 700;
+  font-size: 7px;
+  letter-spacing: 0.1em;
+  display: block;
+}
+
+/* Tracking barcode strip — bottom right */
+.obs-tracking {
+  position: absolute;
+  bottom: 6px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.obs-tracking__label {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 7px;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+}
+
+/* ── Key mode (?key=1) ────────────────────────────────────────────
+   White graphic matte on black — feed into your switcher's KEY input
+   alongside the fill URL on your switcher's FILL input.
+   White = show fill, Black = show program video through. */
+body.key { background: #000000 !important; }
+
+body.key .cam-placeholder,
+body.key .res-chip { display: none !important; }
+
+/* Every graphic element → flat white (no gradients, shadows, or colour) */
+body.key .stage * {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border-color: #ffffff !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+/* Cam windows → black (show-through on the key) */
+body.key .frame .cam,
+body.key .frame .cam * {
+  background-color: #000000 !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border-color: #000000 !important;
+  color: #000000 !important;
+}
+
+/* Title banner header bar */
+.title-banner {
+  position: relative;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 32px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.3);
+}
+.title-banner .corner-dot {
+  position: absolute; width: 14px; height: 14px;
+  border: 1.5px solid var(--ink); border-radius: 50%; opacity: 0.4;
+}
+.title-banner .corner-dot.tl { top: 6px; left: 6px; }
+.title-banner .corner-dot.tr { top: 6px; right: 6px; }
+.title-banner .corner-dot.bl { bottom: 6px; left: 6px; }
+.title-banner .corner-dot.br { bottom: 6px; right: 6px; }
+
+.f-mark {
+  width: 56px; height: 56px;
+  background: var(--ink); color: var(--cream);
+  font-family: var(--serif); font-size: 34px; font-style: italic;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 3px; flex-shrink: 0;
+}
+.from-mark {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.32em;
+  color: var(--ink); opacity: 0.6;
+}
+.from-sub {
+  font-size: 9px; letter-spacing: 0.2em;
+  color: var(--ink); opacity: 0.45; margin-top: 2px;
+}
+.center-title {
+  text-align: center; flex: 1;
+}
+.center-title .primary {
+  font-family: var(--serif); font-size: 48px; line-height: 1;
+  color: var(--ink); font-weight: 500; letter-spacing: 0.005em;
+}
+.center-title .secondary {
+  margin-top: 8px;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.4em;
+  color: var(--red);
+}
+
+/* ── Live timer chip (Stagetimer) ─────────────────────────────── */
+.timer-chip {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 18px;
+  background: var(--ink); color: var(--cream);
+  border-radius: 3px; font-family: var(--mono);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+  border: 1px solid var(--kraft-light);
+}
+.timer-chip .label {
+  font-size: 11px; letter-spacing: 0.3em; opacity: 0.6; font-weight: 600;
+}
+.timer-chip .time {
+  font-size: 28px; font-weight: 700; letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+  min-width: 6ch;
+}
+.timer-chip[data-st-status="offline"] .label::after { content: ' · OFFLINE'; color: var(--red); opacity: 1; }
+.timer-chip[data-st-status="local"]   .label::after { content: ' · LOCAL';   opacity: 0.5; }
+.timer-chip[data-st-status="demo"]    .label::after { content: ' · DEMO';    opacity: 0.5; }

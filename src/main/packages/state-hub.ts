@@ -7,18 +7,33 @@ type NamespaceSubscriber = (state: Record<string, unknown>) => void;
  * Render/control pages subscribe to `package:<id>` over the main WebSocket;
  * state mutations come from the HTTP API (and later, Companion actions).
  * Pages are stateless: they always hydrate from here on (re)connect.
+ *
+ * Accepts one or more roots, scanned in order (bundled packages first, then
+ * the user packages dir); a later package with an already-seen id is skipped
+ * with an error rather than shadowing the earlier one.
  */
-export function createPackageHub(packagesRoot: string) {
+export function createPackageHub(packagesRoot: string | string[]) {
+  const roots = Array.isArray(packagesRoot) ? packagesRoot : [packagesRoot];
   let packages = new Map<string, LoadedPackage>();
   let scanErrors: Array<{ dir: string; error: string }> = [];
   const states = new Map<string, Record<string, unknown>>();
   const subscribers = new Map<string, Set<NamespaceSubscriber>>();
 
   function rescan(): void {
-    const result = scanPackagesDir(packagesRoot);
-    packages = new Map(result.packages.map((p) => [p.manifest.id, p]));
-    scanErrors = result.errors;
-    for (const p of result.packages) {
+    packages = new Map();
+    scanErrors = [];
+    for (const root of roots) {
+      const result = scanPackagesDir(root);
+      scanErrors.push(...result.errors);
+      for (const p of result.packages) {
+        if (packages.has(p.manifest.id)) {
+          scanErrors.push({ dir: p.dir, error: `duplicate package id '${p.manifest.id}' — already loaded from another root` });
+          continue;
+        }
+        packages.set(p.manifest.id, p);
+      }
+    }
+    for (const p of packages.values()) {
       if (!states.has(p.manifest.id)) {
         states.set(p.manifest.id, {
           ...defaultStateFromSchema(p.manifest.stateSchema),

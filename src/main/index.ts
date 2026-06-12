@@ -172,9 +172,14 @@ async function main() {
     showQrOverlay,
     hideQrOverlay,
     packagesRoot: (() => {
-      const p = path.join(userData, 'packages');
-      fs.mkdirSync(p, { recursive: true });
-      return p;
+      const userPackages = path.join(userData, 'packages');
+      fs.mkdirSync(userPackages, { recursive: true });
+      // Bundled packages ship with the app (forge extraResource); user packages
+      // load after them so a user folder can't shadow a bundled id.
+      const bundled = app.isPackaged
+        ? path.join(process.resourcesPath, 'bundled-packages')
+        : path.join(app.getAppPath(), 'bundled-packages');
+      return [bundled, userPackages];
     })(),
     profilePaths: boot.paths,
     getActiveProfileId: () => getActiveMarker(boot.paths)?.id ?? boot.activeId,
