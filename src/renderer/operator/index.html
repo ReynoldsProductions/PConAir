@@ -922,6 +922,14 @@ input[type="radio"] {
         <section data-tab="slides" hidden>
           <h1 class="page-title">Slides</h1>
           <div class="panel">
+            <div class="panel-title">Google Account</div>
+            <p id="google-auth-status" class="field-hint" style="margin-bottom:10px;">Checking authentication…</p>
+            <div class="btn-row">
+              <button type="button" class="btn btn-google" id="google-signin-btn">Sign in to Google</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="google-auth-refresh-btn">Refresh</button>
+            </div>
+          </div>
+          <div class="panel">
             <div class="form-group">
               <label for="deck-url-input">Google Slides URL</label>
               <input type="text" id="deck-url-input" class="input-field" placeholder="https://docs.google.com/presentation/d/…" autocomplete="off" />

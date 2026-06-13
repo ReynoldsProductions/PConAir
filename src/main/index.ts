@@ -197,6 +197,8 @@ async function main() {
       },
       hasApiKey: () => loadAppSettings(settingsFile).stagetimerApiKey !== null,
     },
+    openGoogleAuthWindow: () => slidesManager.openGoogleAuthWindow(),
+    getGoogleAuthState: () => slidesManager.getGoogleAuthState(),
     packagesRoot: (() => {
       const userPackages = path.join(userData, 'packages');
       fs.mkdirSync(userPackages, { recursive: true });

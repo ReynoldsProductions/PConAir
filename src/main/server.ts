@@ -57,6 +57,9 @@ export interface ServerDeps {
   stageTimer?: RouteServices['stageTimer'];
   /** Directory (or ordered list: bundled first, then user) scanned for graphics packages; omit to disable the packages system. */
   packagesRoot?: string | string[];
+  /** Google Slides auth hooks (Electron main only). */
+  openGoogleAuthWindow?: () => void;
+  getGoogleAuthState?: () => Promise<{ loggedIn: boolean; email: string | null }>;
 }
 
 function getRequestClientIp(req: express.Request, trustForwardedFor: boolean): string {
@@ -196,6 +199,8 @@ export function createServer(deps: ServerDeps) {
     hideQrOverlay: deps.hideQrOverlay,
     stageTimer: deps.stageTimer,
     packageHub,
+    openGoogleAuthWindow: deps.openGoogleAuthWindow,
+    getGoogleAuthState: deps.getGoogleAuthState,
   };
 
   const app = express();

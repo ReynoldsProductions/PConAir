@@ -13,7 +13,7 @@ const ADMIN_HTML_CONTENT: string = (() => {
 })();
 
 const HTML_CSP =
-  "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' https:; font-src 'self'";
+  "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'";
 
 const ADMIN_UNLOCK_JS = `(function(){
   var f=document.getElementById('unlock-form');
@@ -140,6 +140,16 @@ export interface AdminRouterDeps {
 
 export function createAdminRouter(d: AdminRouterDeps): Router {
   const router = Router();
+
+  router.get('/index.js', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    const jsPath = path.resolve(__dirname, '../renderer/admin/index.js');
+    if (fs.existsSync(jsPath)) {
+      res.send(fs.readFileSync(jsPath));
+    } else {
+      res.send('/* admin stub */');
+    }
+  });
 
   router.get('/assets/health-dashboard.js', (_req: Request, res: Response) => {
     res.setHeader('Content-Type', 'application/javascript; charset=utf-8');

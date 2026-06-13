@@ -363,6 +363,9 @@
       <div class="nav-item" data-section="l3cues">L3 Cues</div>
       <div class="nav-item" data-section="profiles">Profiles</div>
 
+      <div class="sidebar-label">Content</div>
+      <div class="nav-item" data-section="packages">Packages</div>
+
       <div class="sidebar-label">Show Control</div>
       <div class="nav-item" data-section="showlock">Show Lock</div>
 
@@ -500,6 +503,7 @@ function renderSection() {
     case 'l3themes':   renderL3Themes(); break;
     case 'l3cues':     renderL3Cues(); break;
     case 'profiles':   renderProfiles(); break;
+    case 'packages':   renderPackages(); break;
     case 'showlock':   renderShowLock(); break;
     case 'system':     renderSystem(); break;
   }
@@ -1178,6 +1182,108 @@ async function renderSystem() {
       });
       showSuccess('Allowlist saved — restart the app to apply');
     } catch { /* showError handled in api() */ }
+  });
+}
+
+// ── Section: Packages ─────────────────────────────────────────────────────────
+async function renderPackages() {
+  content().innerHTML = `<div class="section-title">Packages</div><div class="card"><div class="card-title">Loading…</div></div>`;
+  let data;
+  try { data = await api('GET', '/api/packages'); } catch { return; }
+  const packages = (data && data.packages) || [];
+  const errors = (data && data.errors) || [];
+
+  content().innerHTML = `
+    <div class="section-title">Packages</div>
+    ${errors.length ? `
+    <div class="card" style="border-color:var(--red);">
+      <div class="card-title" style="color:var(--red);">Load Errors (${errors.length})</div>
+      <div class="item-list">
+        ${errors.map(e => `<div class="item-row"><div class="item-name" style="color:var(--red);">${escHtml(e.dir)}</div><div class="item-meta">${escHtml(e.error)}</div></div>`).join('')}
+      </div>
+    </div>` : ''}
+    ${packages.length === 0 ? `
+    <div class="card"><div class="empty-state">No packages loaded. Place package folders in the packages directory.</div></div>
+    ` : packages.map(pkg => `
+    <div class="card" id="pkg-card-${escHtml(pkg.id)}">
+      <div class="card-title">
+        ${escHtml(pkg.name)}
+        <span class="badge ${pkg.live ? 'badge-active' : ''}" style="margin-left:8px;">${pkg.live ? 'LIVE' : 'idle'}</span>
+        <span style="font-size:11px;color:var(--text-dim);margin-left:8px;">v${escHtml(pkg.version)}</span>
+      </div>
+      ${pkg.description ? `<p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">${escHtml(pkg.description)}</p>` : ''}
+      <div class="btn-row" style="margin-bottom:12px;">
+        ${pkg.renders.map(r => `<a href="/packages/${escHtml(pkg.id)}/render/${escHtml(r.id)}" target="_blank" class="btn btn-sm" style="text-decoration:none;">↗ ${escHtml(r.label)}</a>`).join('')}
+        ${pkg.hasControl ? `<a href="/packages/${escHtml(pkg.id)}/control" target="_blank" class="btn btn-sm btn-primary" style="text-decoration:none;">Open Control</a>` : ''}
+      </div>
+      <hr class="sep">
+      <div class="card-title" style="margin-top:8px;">Assets</div>
+      <div class="item-list" id="pkg-assets-${escHtml(pkg.id)}">
+        <div class="empty-state" style="font-size:11px;">Loading assets…</div>
+      </div>
+      <div class="btn-row" style="margin-top:8px;">
+        <input type="file" id="pkg-upload-file-${escHtml(pkg.id)}" accept="image/*" style="font-size:12px;flex:1;" />
+        <button class="btn btn-sm btn-primary pkg-upload-btn" data-pkg="${escHtml(pkg.id)}">Upload Image</button>
+      </div>
+    </div>`).join('')}
+    <div class="card">
+      <div class="card-title">Rescan</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">Reload all package manifests from disk without restarting.</p>
+      <button class="btn btn-primary" id="rescan-packages-btn">Rescan Packages</button>
+    </div>
+  `;
+
+  // Load assets for each package
+  for (const pkg of packages) {
+    loadPackageAssets(pkg.id);
+  }
+
+  document.querySelectorAll('.pkg-upload-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const pkgId = btn.dataset.pkg;
+      const fileInput = document.getElementById(`pkg-upload-file-${pkgId}`);
+      if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        showError('Select an image file first'); return;
+      }
+      const fd = new FormData();
+      fd.append('file', fileInput.files[0]);
+      try {
+        const result = await api('POST', `/api/packages/${pkgId}/assets`, fd, true);
+        showSuccess(`Uploaded: ${result.filename}`);
+        loadPackageAssets(pkgId);
+        fileInput.value = '';
+      } catch { /* showError handled in api() */ }
+    });
+  });
+
+  document.getElementById('rescan-packages-btn')?.addEventListener('click', async () => {
+    const r = await api('POST', '/api/packages/rescan');
+    if (r) showSuccess(`Rescan complete — ${r.count} package(s) loaded`);
+    renderPackages();
+  });
+}
+
+async function loadPackageAssets(pkgId) {
+  const container = document.getElementById(`pkg-assets-${pkgId}`);
+  if (!container) return;
+  let data;
+  try { data = await api('GET', `/api/packages/${pkgId}/assets`); } catch { return; }
+  const assets = (data && data.assets) || [];
+  if (assets.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="font-size:11px;">No uploaded assets yet.</div>';
+    return;
+  }
+  container.innerHTML = assets.map(a => `
+    <div class="item-row">
+      <img src="${escHtml(a.path)}" style="width:32px;height:32px;object-fit:contain;border-radius:3px;background:#222;flex-shrink:0;" onerror="this.style.display='none'" />
+      <div class="item-name" style="font-size:12px;">${escHtml(a.filename)}</div>
+      <button class="btn btn-sm copy-asset-path-btn" data-path="${escHtml(a.path)}" title="Copy path">Copy URL</button>
+    </div>`).join('');
+
+  container.querySelectorAll('.copy-asset-path-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(btn.dataset.path).then(() => showSuccess('Path copied'));
+    });
   });
 }
 
