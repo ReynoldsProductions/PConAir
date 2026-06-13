@@ -316,6 +316,31 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
     thumbTimer = setInterval(() => void captureCurrentThumbnail(), THUMBNAIL_REFRESH_MS);
   }
 
+  async function getGoogleAuthState(): Promise<{ loggedIn: boolean; email: string | null }> {
+    const googleSession = session.fromPartition('persist:google-slides');
+    const cookies = await googleSession.cookies.get({ domain: '.google.com' });
+    const loggedIn = cookies.some(
+      (c) => c.name === 'SID' || c.name === 'SSID' || c.name === 'SAPISID'
+    );
+    return { loggedIn, email: null };
+  }
+
+  function openGoogleAuthWindow(): void {
+    const win = new BrowserWindow({
+      width: 920,
+      height: 720,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        session: session.fromPartition('persist:google-slides'),
+      },
+      title: 'Sign in to Google',
+    });
+    win.loadURL('https://accounts.google.com/');
+    win.once('ready-to-show', () => win.show());
+  }
+
   function destroy(): void {
     unsubscribe?.();
     unsubscribe = null;
@@ -336,7 +361,7 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
     return notesWindow.getBounds();
   }
 
-  return { initialize, loadDeck, navigateToSlide, showInstance, getNotesWindowBounds, destroy };
+  return { initialize, loadDeck, navigateToSlide, showInstance, getNotesWindowBounds, destroy, openGoogleAuthWindow, getGoogleAuthState };
 }
 
 export type SlidesWindowManager = ReturnType<typeof createSlidesWindowManager>;

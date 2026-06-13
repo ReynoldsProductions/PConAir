@@ -5,9 +5,36 @@ import { requireOperator, isValidUrl } from './middleware';
 import { slideLoadOp, slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideOfflineModeOp } from '../services/slide-ops';
 import { gscStatusFields } from '../services/gsc-status';
 
-export function createSlidesRouter(store: StateStore, auth: AuthManager): Router {
+export interface SlidesRouterDeps {
+  openGoogleAuthWindow?: () => void;
+  getGoogleAuthState?: () => Promise<{ loggedIn: boolean; email: string | null }>;
+}
+
+export function createSlidesRouter(store: StateStore, auth: AuthManager, deps: SlidesRouterDeps = {}): Router {
   const router = Router();
   const opGuard = requireOperator(auth);
+
+  router.get('/auth', opGuard, async (_req: Request, res: Response) => {
+    if (!deps.getGoogleAuthState) {
+      res.json({ loggedIn: false, email: null });
+      return;
+    }
+    try {
+      const state = await deps.getGoogleAuthState();
+      res.json(state);
+    } catch {
+      res.json({ loggedIn: false, email: null });
+    }
+  });
+
+  router.post('/auth/open', opGuard, (_req: Request, res: Response) => {
+    if (!deps.openGoogleAuthWindow) {
+      res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'Google auth window not available in this environment' } });
+      return;
+    }
+    deps.openGoogleAuthWindow();
+    res.json({ opened: true });
+  });
 
   router.post('/load', opGuard, (req: Request, res: Response) => {
     const { deckUrl, instance, backupUrl } = req.body as { deckUrl?: string; instance?: string; backupUrl?: string };

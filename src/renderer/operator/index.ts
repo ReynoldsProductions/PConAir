@@ -44,6 +44,24 @@ async function refreshL3CueSelect(): Promise<void> {
   if (prev && cues.some((x) => x.id === prev)) sel.value = prev;
 }
 
+async function refreshGoogleAuth(): Promise<void> {
+  const statusEl = document.getElementById('google-auth-status');
+  const signinBtn = document.getElementById('google-signin-btn') as HTMLButtonElement | null;
+  if (!statusEl) return;
+  try {
+    const auth = await api.getGoogleAuthState();
+    if (auth.loggedIn) {
+      statusEl.textContent = auth.email ? `Signed in as ${auth.email}` : 'Signed in to Google ✓';
+      if (signinBtn) signinBtn.textContent = 'Sign in again';
+    } else {
+      statusEl.textContent = 'Not signed in — private slides will not load';
+      if (signinBtn) signinBtn.textContent = 'Sign in to Google';
+    }
+  } catch {
+    statusEl.textContent = 'Could not check Google auth status';
+  }
+}
+
 async function refreshActiveProfile(): Promise<void> {
   try {
     const p = await api.fetchActiveProfile();
@@ -337,6 +355,18 @@ function bindEvents(): void {
     });
   };
 
+  document.getElementById('google-signin-btn')?.addEventListener('click', async () => {
+    try {
+      await api.openGoogleAuth();
+    } catch (e) {
+      showError((e as Error).message);
+    }
+  });
+
+  document.getElementById('google-auth-refresh-btn')?.addEventListener('click', () => {
+    void refreshGoogleAuth().catch(() => {});
+  });
+
   on('load-btn', () => api.loadDeck(
     (document.getElementById('deck-url-input') as HTMLInputElement).value.trim()
   ));
@@ -486,6 +516,7 @@ bindEvents();
 void refreshL3CueSelect().catch(() => { /* no session yet */ });
 void refreshMediaSelect().catch(() => { /* no session yet */ });
 void refreshActiveProfile().catch(() => { /* public endpoint */ });
+void refreshGoogleAuth().catch(() => { /* non-critical */ });
 setInterval(() => {
   void refreshActiveProfile().catch(() => {});
 }, 60000);

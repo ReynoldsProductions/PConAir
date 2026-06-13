@@ -32,6 +32,11 @@ export interface L3CueListItem {
   title: string;
 }
 
+export const getGoogleAuthState = () =>
+  apiGet<{ loggedIn: boolean; email: string | null }>('/api/slides/auth');
+export const openGoogleAuth = () =>
+  apiPost<{ opened: boolean }>('/api/slides/auth/open');
+
 export const loadDeck    = (deckUrl: string)           => apiPost('/api/slides/load',  { deckUrl });
 export const slideNext   = ()                          => apiPost('/api/slides/next');
 export const slidePrev   = ()                          => apiPost('/api/slides/prev');

@@ -2,7 +2,7 @@ import express, { Express } from 'express';
 import cookieParser from 'cookie-parser';
 import { createAuthRouter } from './auth';
 import { createApiRouter } from './api';
-import { createSlidesRouter } from './slides';
+import { createSlidesRouter, type SlidesRouterDeps } from './slides';
 import { createUrlRouter } from './url';
 import { createOperatorRouter } from './operator';
 import { createRemoteRouter } from './remote';
@@ -77,6 +77,9 @@ export interface RouteServices {
   stageTimer?: Omit<StageTimerRouterDeps, 'store' | 'auth'>;
   /** Graphics packages hub; null when the packages system is disabled. */
   packageHub: PackageHub | null;
+  /** Google Slides auth hooks (Electron main only). */
+  openGoogleAuthWindow?: SlidesRouterDeps['openGoogleAuthWindow'];
+  getGoogleAuthState?: SlidesRouterDeps['getGoogleAuthState'];
 }
 
 export function mountRoutes(app: Express, s: RouteServices): void {
@@ -103,7 +106,10 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       getAdminShowLocked: s.getAdminShowLocked,
     })
   );
-  app.use('/api/slides', createSlidesRouter(s.store, s.auth));
+  app.use('/api/slides', createSlidesRouter(s.store, s.auth, {
+    openGoogleAuthWindow: s.openGoogleAuthWindow,
+    getGoogleAuthState: s.getGoogleAuthState,
+  }));
   // GSC Companion module compat — cookie-less, IP-allowlist-gated (see gsc-compat.ts)
   app.use('/api', createGscCompatRouter(s.store));
   app.use(createRenderRouter(s.store, s.auth));

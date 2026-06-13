@@ -368,6 +368,9 @@
       <div class="nav-item" data-section="l3cues">L3 Cues</div>
       <div class="nav-item" data-section="profiles">Profiles</div>
 
+      <div class="sidebar-label">Content</div>
+      <div class="nav-item" data-section="packages">Packages</div>
+
       <div class="sidebar-label">Show Control</div>
       <div class="nav-item" data-section="showlock">Show Lock</div>
 
@@ -510,6 +513,7 @@ function renderSection() {
     case 'l3themes':   renderL3Themes(); break;
     case 'l3cues':     renderL3Cues(); break;
     case 'profiles':   renderProfiles(); break;
+    case 'packages':   renderPackages(); break;
     case 'showlock':   renderShowLock(); break;
     case 'advanced':   renderAdvanced(); break;
     case 'logs':       renderLogs(); break;
@@ -1249,326 +1253,105 @@ async function renderSystem() {
   });
 }
 
-// ── Network ──────────────────────────────────────────────────────────────────
-async function renderNetwork() {
-  content().innerHTML = '<div class="section-title">Network</div><div class="card"><div class="card-title">Loading…</div></div>';
-  let info, profile;
-  try {
-    const [infoR, profileR] = await Promise.all([
-      fetch('/api/server-info', { credentials: 'include' }),
-      fetch('/api/profiles/active', { credentials: 'include' }),
-    ]);
-    info = await infoR.json();
-    profile = await profileR.json();
-  } catch (e) { showError(e.message); return; }
-
-  const allowlist = (profile.appPreferences?.ipAllowlist ?? []).slice();
-  const allowlistEnabled = profile.appPreferences?.ipAllowlistEnabled ?? false;
-
-  function renderAllowlistItems() {
-    return allowlist.length
-      ? allowlist.map((ip, i) => `
-          <div class="item-row" data-idx="${i}">
-            <span class="item-name">${escHtml(ip)}</span>
-            <button class="btn btn-sm btn-danger allowlist-del-btn" data-idx="${i}">Remove</button>
-          </div>`).join('')
-      : '<p style="color:var(--text-dim);font-size:12px;">No entries — all IPs allowed.</p>';
-  }
+// ── Section: Packages ─────────────────────────────────────────────────────────
+async function renderPackages() {
+  content().innerHTML = `<div class="section-title">Packages</div><div class="card"><div class="card-title">Loading…</div></div>`;
+  let data;
+  try { data = await api('GET', '/api/packages'); } catch { return; }
+  const packages = (data && data.packages) || [];
+  const errors = (data && data.errors) || [];
 
   content().innerHTML = `
-    <div class="section-title">Network</div>
-
-    <div class="card">
-      <div class="card-title">Share URLs — Operator (port ${info.port})</div>
-      ${info.operatorUrls.map(u => `<div style="font-family:monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;margin-bottom:4px;word-break:break-all;user-select:all;">${escHtml(u)}</div>`).join('')}
-    </div>
-
-    <div class="card">
-      <div class="card-title">Share URLs — Companion API (port ${info.port})</div>
-      ${info.companionUrls.map(u => `<div style="font-family:monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;margin-bottom:4px;word-break:break-all;user-select:all;">${escHtml(u)}</div>`).join('')}
-    </div>
-
-    <div class="card">
-      <div class="card-title">Ports</div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;">
-        <tr><td style="padding:4px 8px;color:var(--text-dim);width:180px;">Web UI / API Port</td><td>${info.port}</td></tr>
-      </table>
-      <p style="color:var(--text-dim);font-size:12px;margin-top:8px;">To change the port, restart the app with the <code>--port</code> flag.</p>
-    </div>
-
-    <div class="card">
-      <div class="card-title">IP Allowlist</div>
-      <label style="display:flex;gap:8px;align-items:center;margin-bottom:12px;cursor:pointer;">
-        <input type="checkbox" id="allowlist-enabled-cb" ${allowlistEnabled ? 'checked' : ''} />
-        <span>Enable IP allowlist (block all other IPs)</span>
-      </label>
-      <div id="allowlist-items">${renderAllowlistItems()}</div>
-      <div style="display:flex;gap:8px;margin-top:12px;">
-        <input type="text" id="new-allowlist-ip" placeholder="192.168.1.0/24 or hostname" style="flex:1;" />
-        <button class="btn btn-sm btn-primary" id="add-allowlist-btn">Add</button>
+    <div class="section-title">Packages</div>
+    ${errors.length ? `
+    <div class="card" style="border-color:var(--red);">
+      <div class="card-title" style="color:var(--red);">Load Errors (${errors.length})</div>
+      <div class="item-list">
+        ${errors.map(e => `<div class="item-row"><div class="item-name" style="color:var(--red);">${escHtml(e.dir)}</div><div class="item-meta">${escHtml(e.error)}</div></div>`).join('')}
       </div>
-      <div class="btn-row" style="margin-top:10px;">
-        <button class="btn btn-sm btn-primary" id="save-allowlist-btn">Save Allowlist</button>
+    </div>` : ''}
+    ${packages.length === 0 ? `
+    <div class="card"><div class="empty-state">No packages loaded. Place package folders in the packages directory.</div></div>
+    ` : packages.map(pkg => `
+    <div class="card" id="pkg-card-${escHtml(pkg.id)}">
+      <div class="card-title">
+        ${escHtml(pkg.name)}
+        <span class="badge ${pkg.live ? 'badge-active' : ''}" style="margin-left:8px;">${pkg.live ? 'LIVE' : 'idle'}</span>
+        <span style="font-size:11px;color:var(--text-dim);margin-left:8px;">v${escHtml(pkg.version)}</span>
       </div>
+      ${pkg.description ? `<p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">${escHtml(pkg.description)}</p>` : ''}
+      <div class="btn-row" style="margin-bottom:12px;">
+        ${pkg.renders.map(r => `<a href="/packages/${escHtml(pkg.id)}/render/${escHtml(r.id)}" target="_blank" class="btn btn-sm" style="text-decoration:none;">↗ ${escHtml(r.label)}</a>`).join('')}
+        ${pkg.hasControl ? `<a href="/packages/${escHtml(pkg.id)}/control" target="_blank" class="btn btn-sm btn-primary" style="text-decoration:none;">Open Control</a>` : ''}
+      </div>
+      <hr class="sep">
+      <div class="card-title" style="margin-top:8px;">Assets</div>
+      <div class="item-list" id="pkg-assets-${escHtml(pkg.id)}">
+        <div class="empty-state" style="font-size:11px;">Loading assets…</div>
+      </div>
+      <div class="btn-row" style="margin-top:8px;">
+        <input type="file" id="pkg-upload-file-${escHtml(pkg.id)}" accept="image/*" style="font-size:12px;flex:1;" />
+        <button class="btn btn-sm btn-primary pkg-upload-btn" data-pkg="${escHtml(pkg.id)}">Upload Image</button>
+      </div>
+    </div>`).join('')}
+    <div class="card">
+      <div class="card-title">Rescan</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">Reload all package manifests from disk without restarting.</p>
+      <button class="btn btn-primary" id="rescan-packages-btn">Rescan Packages</button>
     </div>
   `;
 
-  function bindDelButtons() {
-    document.querySelectorAll('.allowlist-del-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const idx = parseInt(btn.dataset.idx);
-        allowlist.splice(idx, 1);
-        document.getElementById('allowlist-items').innerHTML = renderAllowlistItems();
-        bindDelButtons();
-      });
+  // Load assets for each package
+  for (const pkg of packages) {
+    loadPackageAssets(pkg.id);
+  }
+
+  document.querySelectorAll('.pkg-upload-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const pkgId = btn.dataset.pkg;
+      const fileInput = document.getElementById(`pkg-upload-file-${pkgId}`);
+      if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        showError('Select an image file first'); return;
+      }
+      const fd = new FormData();
+      fd.append('file', fileInput.files[0]);
+      try {
+        const result = await api('POST', `/api/packages/${pkgId}/assets`, fd, true);
+        showSuccess(`Uploaded: ${result.filename}`);
+        loadPackageAssets(pkgId);
+        fileInput.value = '';
+      } catch { /* showError handled in api() */ }
     });
+  });
+
+  document.getElementById('rescan-packages-btn')?.addEventListener('click', async () => {
+    const r = await api('POST', '/api/packages/rescan');
+    if (r) showSuccess(`Rescan complete — ${r.count} package(s) loaded`);
+    renderPackages();
+  });
+}
+
+async function loadPackageAssets(pkgId) {
+  const container = document.getElementById(`pkg-assets-${pkgId}`);
+  if (!container) return;
+  let data;
+  try { data = await api('GET', `/api/packages/${pkgId}/assets`); } catch { return; }
+  const assets = (data && data.assets) || [];
+  if (assets.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="font-size:11px;">No uploaded assets yet.</div>';
+    return;
   }
-  bindDelButtons();
+  container.innerHTML = assets.map(a => `
+    <div class="item-row">
+      <img src="${escHtml(a.path)}" style="width:32px;height:32px;object-fit:contain;border-radius:3px;background:#222;flex-shrink:0;" onerror="this.style.display='none'" />
+      <div class="item-name" style="font-size:12px;">${escHtml(a.filename)}</div>
+      <button class="btn btn-sm copy-asset-path-btn" data-path="${escHtml(a.path)}" title="Copy path">Copy URL</button>
+    </div>`).join('');
 
-  document.getElementById('allowlist-enabled-cb').addEventListener('change', async (e) => {
-    const enabled = e.target.checked;
-    try {
-      const activeJ = await api('GET', '/api/profiles/active');
-      await api('PATCH', '/api/profiles/' + activeJ.id, { appPreferences: { ipAllowlistEnabled: enabled } });
-      showSuccess('Allowlist ' + (enabled ? 'enabled' : 'disabled'));
-    } catch { /* handled */ }
-  });
-
-  document.getElementById('add-allowlist-btn').addEventListener('click', () => {
-    const val = document.getElementById('new-allowlist-ip').value.trim();
-    if (!val) return;
-    allowlist.push(val);
-    document.getElementById('allowlist-items').innerHTML = renderAllowlistItems();
-    document.getElementById('new-allowlist-ip').value = '';
-    bindDelButtons();
-  });
-
-  document.getElementById('save-allowlist-btn').addEventListener('click', async () => {
-    try {
-      const activeJ = await api('GET', '/api/profiles/active');
-      await api('PATCH', '/api/profiles/' + activeJ.id, { appPreferences: { ipAllowlist: allowlist.slice() } });
-      showSuccess('Allowlist saved');
-    } catch { /* handled */ }
-  });
-}
-
-// ── Monitors ─────────────────────────────────────────────────────────────────
-async function renderMonitors() {
-  content().innerHTML = '<div class="section-title">Monitors</div><div class="card"><div class="card-title">Loading…</div></div>';
-  let displays, profile;
-  try {
-    const [dR, pR] = await Promise.all([
-      fetch('/api/displays', { credentials: 'include' }),
-      fetch('/api/profiles/active', { credentials: 'include' }),
-    ]);
-    displays = (await dR.json()).displays ?? [];
-    const activeProfile = await pR.json();
-    // /api/profiles/active only returns id/name/dates; fetch full profile for displayPreference
-    profile = await api('GET', '/api/profiles/' + activeProfile.id);
-    if (!profile) profile = activeProfile;
-  } catch (e) { showError(e.message); return; }
-
-  const currentPref = profile.displayPreference ?? '';
-
-  content().innerHTML = `
-    <div class="section-title">Monitors</div>
-
-    <div class="card">
-      <div class="card-title">Connected Displays</div>
-      ${displays.length === 0
-        ? '<p style="color:var(--text-dim);font-size:12px;">No displays detected.</p>'
-        : displays.map(d => `
-          <div class="item-row">
-            <span class="item-name">${escHtml(d.name || ('Display ' + d.id))}</span>
-            <span class="item-meta">${d.bounds ? (d.bounds.width + '×' + d.bounds.height) : ''} ${d.isPrimary ? '(primary)' : ''}</span>
-          </div>`).join('')}
-    </div>
-
-    <div class="card">
-      <div class="card-title">Presentation Monitor</div>
-      <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">Select which display the program output window uses. Takes effect on next mode change or app restart.</p>
-      <select id="display-select" style="width:100%;margin-bottom:12px;">
-        <option value="">Auto (primary display)</option>
-        ${displays.map(d => `<option value="${escHtml(String(d.id))}" ${currentPref === String(d.id) ? 'selected' : ''}>${escHtml(d.name || ('Display ' + d.id))}</option>`).join('')}
-      </select>
-      <button class="btn btn-sm btn-primary" id="save-display-btn">Save</button>
-    </div>
-  `;
-
-  document.getElementById('save-display-btn').addEventListener('click', async () => {
-    const val = document.getElementById('display-select').value;
-    try {
-      await api('PATCH', '/api/profiles/' + profile.id, { displayPreference: val || null });
-      showSuccess('Display preference saved. Restart or change mode to apply.');
-    } catch { /* handled */ }
-  });
-}
-
-// ── Appearance ───────────────────────────────────────────────────────────────
-async function renderAppearance() {
-  content().innerHTML = '<div class="section-title">Appearance</div><div class="card"><div class="card-title">Loading…</div></div>';
-  let profile, profileFull;
-  try {
-    const activeR = await fetch('/api/profiles/active', { credentials: 'include' });
-    profile = await activeR.json();
-    const fullR = await fetch('/api/profiles/' + profile.id, { credentials: 'include' });
-    profileFull = await fullR.json();
-  } catch (e) { showError(e.message); return; }
-
-  const theme = profileFull.appPreferences?.operatorTheme ?? 'light';
-
-  content().innerHTML = `
-    <div class="section-title">Appearance</div>
-
-    <div class="card">
-      <div class="card-title">Operator Web UI Theme</div>
-      <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">Changes how the operator web remote looks for anyone accessing it in a browser.</p>
-      <div style="display:flex;gap:16px;margin-bottom:16px;">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-          <input type="radio" name="op-theme" value="light" ${theme === 'light' ? 'checked' : ''} />
-          Light
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-          <input type="radio" name="op-theme" value="dark" ${theme === 'dark' ? 'checked' : ''} />
-          Dark
-        </label>
-      </div>
-      <button class="btn btn-sm btn-primary" id="save-theme-btn">Save Theme</button>
-    </div>
-  `;
-
-  document.getElementById('save-theme-btn').addEventListener('click', async () => {
-    const selected = document.querySelector('input[name="op-theme"]:checked')?.value ?? 'light';
-    try {
-      await api('PATCH', '/api/profiles/' + profileFull.id, { appPreferences: { operatorTheme: selected } });
-      showSuccess('Theme saved. Operator web UI will use the new theme on next load.');
-    } catch { /* handled */ }
-  });
-}
-
-// ── Advanced ─────────────────────────────────────────────────────────────────
-async function renderAdvanced() {
-  content().innerHTML = '<div class="section-title">Advanced</div><div class="card"><div class="card-title">Loading…</div></div>';
-  let profileFull;
-  try {
-    const activeR = await fetch('/api/profiles/active', { credentials: 'include' });
-    const profile = await activeR.json();
-    const fullR = await fetch('/api/profiles/' + profile.id, { credentials: 'include' });
-    profileFull = await fullR.json();
-  } catch (e) { showError(e.message); return; }
-
-  const gpuMode = profileFull.appPreferences?.gpuMode ?? 'default';
-  const verboseLogging = profileFull.appPreferences?.verboseLogging ?? false;
-
-  content().innerHTML = `
-    <div class="section-title">Advanced</div>
-
-    <div class="card">
-      <div class="card-title">Logging</div>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px;">
-        <input type="checkbox" id="verbose-log-cb" ${verboseLogging ? 'checked' : ''} />
-        <span>Enable verbose logging (console.log captured to Logs tab)</span>
-      </label>
-      <button class="btn btn-sm btn-primary" id="save-verbose-btn">Save</button>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Presentation Rendering</div>
-      <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">GPU mode for rendering Google Slides. Change if slide images show transparency or rendering glitches. <strong>Restart required.</strong></p>
-      <select id="gpu-mode-select" style="width:100%;margin-bottom:12px;">
-        <option value="default" ${gpuMode === 'default' ? 'selected' : ''}>Default (Chromium decides)</option>
-        <option value="angle" ${gpuMode === 'angle' ? 'selected' : ''}>ANGLE Metal (macOS)</option>
-        <option value="disabled" ${gpuMode === 'disabled' ? 'selected' : ''}>Disable GPU</option>
-      </select>
-      <button class="btn btn-sm btn-primary" id="save-gpu-btn">Save (restart required)</button>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Primary / Backup Mode</div>
-      <p style="color:var(--text-dim);font-size:12px;">Multi-machine failover is planned for v1.5 and is not yet available.</p>
-      <p style="color:var(--accent);font-size:12px;margin-top:4px;">Coming in v1.5</p>
-    </div>
-  `;
-
-  document.getElementById('save-verbose-btn').addEventListener('click', async () => {
-    const enabled = document.getElementById('verbose-log-cb').checked;
-    try {
-      await api('POST', '/api/logs/verbose', { enabled });
-      const activeR = await fetch('/api/profiles/active', { credentials: 'include' });
-      const activeJ = await activeR.json();
-      await api('PATCH', '/api/profiles/' + activeJ.id, { appPreferences: { verboseLogging: enabled } });
-      showSuccess('Logging setting saved');
-    } catch { /* handled */ }
-  });
-
-  document.getElementById('save-gpu-btn').addEventListener('click', async () => {
-    const mode = document.getElementById('gpu-mode-select').value;
-    try {
-      const activeR = await fetch('/api/profiles/active', { credentials: 'include' });
-      const activeJ = await activeR.json();
-      await api('PATCH', '/api/profiles/' + activeJ.id, { appPreferences: { gpuMode: mode } });
-      showSuccess('GPU mode saved. Restart the app to apply.');
-    } catch { /* handled */ }
-  });
-}
-
-// ── Logs ─────────────────────────────────────────────────────────────────────
-async function renderLogs() {
-  content().innerHTML = '<div class="section-title">Logs</div><div class="card"><div class="card-title">Loading…</div></div>';
-  let logsData;
-  try {
-    const r = await fetch('/api/logs', { credentials: 'include' });
-    logsData = await r.json();
-  } catch (e) { showError(e.message); return; }
-
-  const entries = logsData.entries ?? [];
-
-  function formatEntries(list) {
-    if (!list.length) return '<em style="color:var(--text-dim)">No log entries yet.</em>';
-    return list.map(e => {
-      const color = e.level === 'error' ? '#ff6b6b' : e.level === 'warn' ? '#ffd93d' : 'var(--text-dim)';
-      return `<div style="color:${color};font-size:11px;line-height:1.5;word-break:break-all;">[${escHtml(e.ts.slice(11,19))}] ${escHtml(e.level.toUpperCase())} ${escHtml(e.message)}</div>`;
-    }).join('');
-  }
-
-  content().innerHTML = `
-    <div class="section-title">Logs</div>
-
-    <div class="card">
-      <div class="card-title">Debug Console</div>
-      <div class="btn-row" style="margin-bottom:10px;">
-        <button class="btn btn-sm" id="logs-refresh-btn">↺ Refresh</button>
-        <button class="btn btn-sm btn-danger" id="logs-clear-btn">Clear</button>
-        <button class="btn btn-sm" id="logs-save-btn">Save as file</button>
-      </div>
-      <div id="log-output" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:12px;max-height:400px;overflow-y:auto;font-family:monospace;">
-        ${formatEntries(entries)}
-      </div>
-    </div>
-  `;
-
-  document.getElementById('logs-refresh-btn').addEventListener('click', async () => {
-    const r = await fetch('/api/logs', { credentials: 'include' });
-    const j = await r.json();
-    document.getElementById('log-output').innerHTML = formatEntries(j.entries ?? []);
-  });
-
-  document.getElementById('logs-clear-btn').addEventListener('click', async () => {
-    await api('POST', '/api/logs/clear');
-    document.getElementById('log-output').innerHTML = formatEntries([]);
-  });
-
-  document.getElementById('logs-save-btn').addEventListener('click', async () => {
-    const r = await fetch('/api/logs', { credentials: 'include' });
-    const j = await r.json();
-    const text = (j.entries ?? []).map(e => `[${e.ts}] ${e.level.toUpperCase()} ${e.message}`).join('\n');
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'pconair-log-' + new Date().toISOString().slice(0,19).replace(/:/g,'-') + '.txt';
-    a.click();
-    URL.revokeObjectURL(url);
+  container.querySelectorAll('.copy-asset-path-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(btn.dataset.path).then(() => showSuccess('Path copied'));
+    });
   });
 }
 
