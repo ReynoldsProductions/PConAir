@@ -13,7 +13,7 @@ const ADMIN_HTML_CONTENT: string = (() => {
 })();
 
 const HTML_CSP =
-  "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'";
+  "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data: https:; font-src 'self'";
 
 const ADMIN_UNLOCK_JS = `(function(){
   var f=document.getElementById('unlock-form');
