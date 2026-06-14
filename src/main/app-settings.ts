@@ -29,6 +29,10 @@ export interface AppSettings {
   stageTimerOverlaySize: number;
   /** Overlay was showing when the app last ran — restore it at boot. */
   stageTimerOverlayEnabled: boolean;
+  /** Absolute path to a custom brand logo (PNG/JPG/SVG); null = no logo. */
+  customLogoPath: string | null;
+  /** Absolute path to a custom CSS file for white-labeling the web remote; null = no override. */
+  customCssPath: string | null;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
@@ -43,6 +47,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
   stageTimerOverlayPosition: 'bottom-left',
   stageTimerOverlaySize: 10,
   stageTimerOverlayEnabled: false,
+  customLogoPath: null,
+  customCssPath: null,
 });
 
 export function appSettingsPath(userDataDir: string): string {
@@ -95,6 +101,8 @@ export function loadAppSettings(filePath: string): AppSettings {
       ? obj.stageTimerOverlaySize
       : DEFAULT_APP_SETTINGS.stageTimerOverlaySize,
     stageTimerOverlayEnabled: obj.stageTimerOverlayEnabled === true,
+    customLogoPath: strOrNull(obj.customLogoPath),
+    customCssPath: strOrNull(obj.customCssPath),
   };
 }
 
