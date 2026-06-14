@@ -412,7 +412,7 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
   return {
     initialize, loadDeck, navigateToSlide, showInstance,
     getNotesWindowBounds, destroy, openGoogleAuthWindow, getGoogleAuthState,
-    getSpeakerNotes, getActiveWindow,
+    getActiveWindow,
     scrollNotesUp, scrollNotesDown, zoomInNotes, zoomOutNotes,
   };
 }
