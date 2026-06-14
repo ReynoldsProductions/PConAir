@@ -456,8 +456,10 @@ function showSuccess(msg) {
 }
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
-function connectWS() {
-  const ws = new WebSocket('ws://' + location.host + '/ws');
+function connectWS(delay) {
+  delay = delay || 1000;
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(protocol + '//' + location.host + '/ws');
 
   ws.onopen = () => {
     document.getElementById('ws-dot').classList.add('connected');
@@ -467,14 +469,18 @@ function connectWS() {
   ws.onclose = () => {
     document.getElementById('ws-dot').classList.remove('connected');
     document.getElementById('ws-label').textContent = 'Disconnected';
-    setTimeout(connectWS, 2000);
+    setTimeout(() => connectWS(Math.min(delay * 2, 30000)), delay);
   };
 
   ws.onmessage = (ev) => {
     try {
       const msg = JSON.parse(ev.data);
-      if (msg.type === 'state' || msg.type === 'stateUpdate') {
-        state = msg.payload || msg.state || msg;
+      if (msg.type === 'state') {
+        state = msg.payload || {};
+        updateTopBar();
+        if (section === 'status') renderStatus();
+      } else if (msg.type === 'state_patch' && msg.payload) {
+        Object.assign(state, msg.payload);
         updateTopBar();
         if (section === 'dashboard') renderDashboard();
       }
