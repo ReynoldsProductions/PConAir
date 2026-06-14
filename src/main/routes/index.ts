@@ -32,6 +32,7 @@ import type { ActionDispatcher } from '../action-dispatch';
 import type { ProfilePaths } from '../profiles/paths';
 import type { ReliabilityStore } from '../reliability-store';
 import type { L3Cue } from '../l3/cue-store';
+import type { SlidesWindowManager } from '../slides/window-manager';
 
 export interface RouteServices {
   store: StateStore;
@@ -87,6 +88,8 @@ export interface RouteServices {
   getCustomCssPath: () => string | null;
   /** Persists a branding settings patch to app-settings.json. */
   saveBrandingSettings: (patch: { customLogoPath?: string | null; customCssPath?: string | null }) => void;
+  /** Slides window manager — enables notes scroll/zoom HTTP endpoints. */
+  slidesWindowManager?: SlidesWindowManager;
 }
 
 export function mountRoutes(app: Express, s: RouteServices): void {
@@ -125,6 +128,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   app.use('/api/slides', createSlidesRouter(s.store, s.auth, {
     openGoogleAuthWindow: s.openGoogleAuthWindow,
     getGoogleAuthState: s.getGoogleAuthState,
+    windowManager: s.slidesWindowManager,
   }));
   // GSC Companion module compat — cookie-less, IP-allowlist-gated (see gsc-compat.ts)
   app.use('/api', createGscCompatRouter(s.store));

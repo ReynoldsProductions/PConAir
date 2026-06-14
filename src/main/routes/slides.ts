@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
+import type { SlidesWindowManager } from '../slides/window-manager';
 import { requireOperator, isValidUrl } from './middleware';
 import { slideLoadOp, slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideOfflineModeOp } from '../services/slide-ops';
 import { gscStatusFields } from '../services/gsc-status';
@@ -8,9 +9,11 @@ import { gscStatusFields } from '../services/gsc-status';
 export interface SlidesRouterDeps {
   openGoogleAuthWindow?: () => void;
   getGoogleAuthState?: () => Promise<{ loggedIn: boolean; email: string | null }>;
+  windowManager?: SlidesWindowManager;
 }
 
 export function createSlidesRouter(store: StateStore, auth: AuthManager, deps: SlidesRouterDeps = {}): Router {
+  const windowManager = deps.windowManager;
   const router = Router();
   const opGuard = requireOperator(auth);
 
@@ -124,6 +127,34 @@ export function createSlidesRouter(store: StateStore, auth: AuthManager, deps: S
       return;
     }
     res.json(r.body);
+  });
+
+  router.post('/notes/scroll', opGuard, (req: Request, res: Response) => {
+    const { direction } = req.body as { direction?: string };
+    if (direction !== 'up' && direction !== 'down') {
+      res.status(400).json({ error: { code: 'INVALID_PARAM', message: 'direction must be "up" or "down"' } });
+      return;
+    }
+    if (direction === 'up') {
+      windowManager?.scrollNotesUp();
+    } else {
+      windowManager?.scrollNotesDown();
+    }
+    res.json({ ok: true });
+  });
+
+  router.post('/notes/zoom', opGuard, (req: Request, res: Response) => {
+    const { direction } = req.body as { direction?: string };
+    if (direction !== 'in' && direction !== 'out') {
+      res.status(400).json({ error: { code: 'INVALID_PARAM', message: 'direction must be "in" or "out"' } });
+      return;
+    }
+    if (direction === 'in') {
+      windowManager?.zoomInNotes();
+    } else {
+      windowManager?.zoomOutNotes();
+    }
+    res.json({ ok: true });
   });
 
   return router;

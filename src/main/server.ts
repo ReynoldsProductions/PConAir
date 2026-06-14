@@ -11,6 +11,7 @@ import type { L3ThemeStore } from './l3/theme-store';
 import type { MediaLibraryStore } from './media-library/item-store';
 import type { SlideshowEngine } from './media-library/slideshow';
 import type { ActionDispatcher } from './action-dispatch';
+import type { SlidesWindowManager } from './slides/window-manager';
 import type { WsServerMessage } from '../shared/types';
 
 import type { ProfilePaths } from './profiles/paths';
@@ -71,6 +72,8 @@ export interface ServerDeps {
   getCustomCssPath?: () => string | null;
   /** Persists branding settings to app-settings.json. */
   saveBrandingSettings?: (patch: { customLogoPath?: string | null; customCssPath?: string | null }) => void;
+  /** Slides window manager — enables notes scroll/zoom HTTP endpoints; absent in tests. */
+  slidesWindowManager?: SlidesWindowManager;
 }
 
 function getRequestClientIp(req: express.Request, trustForwardedFor: boolean): string {
@@ -135,9 +138,7 @@ export function createServer(deps: ServerDeps) {
     onProfileActivate,
     trustForwardedFor = false,
     renderManualCue: renderManualCueDep,
-    crashDumpsPath = '',
-    getSlidesNotes = async (): Promise<string | null> => null,
-    getProfileName = () => 'PC On Air',
+    slidesWindowManager,
   } = deps;
 
   let adminShowLocked = false;
@@ -224,6 +225,7 @@ export function createServer(deps: ServerDeps) {
     getCustomLogoPath: deps.getCustomLogoPath ?? (() => null),
     getCustomCssPath: deps.getCustomCssPath ?? (() => null),
     saveBrandingSettings: deps.saveBrandingSettings ?? (() => { /* no-op in tests */ }),
+    slidesWindowManager,
   };
 
   const app = express();
