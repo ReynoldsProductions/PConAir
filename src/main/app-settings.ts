@@ -1,6 +1,20 @@
 import fs from 'fs';
 import path from 'path';
 
+/** One PerfectCue TCP listener configuration. */
+export interface PerfectCuePortConfig {
+  /** Stable id used by toggle-port (independent of the port number). */
+  id: string;
+  /** Human label shown in the admin UI. */
+  name: string;
+  /** TCP port the extender connects to. */
+  port: number;
+  /** Hardware family — selects the keep-alive/idle timing preset. */
+  adapterType: 'dsan' | 'waveshare';
+  /** Per-port dispatch gate; false = connection stays open but commands ignored. */
+  enabled: boolean;
+}
+
 /**
  * App-level settings that must be known before the Express server starts
  * (the port cannot come from a profile — profiles load after boot, and the
@@ -33,6 +47,10 @@ export interface AppSettings {
   customLogoPath: string | null;
   /** Absolute path to a custom CSS file for white-labeling the web remote; null = no override. */
   customCssPath: string | null;
+  /** Master enable for the PerfectCue TCP listeners. */
+  perfectcueEnabled: boolean;
+  /** Per-port PerfectCue listener configs. */
+  perfectcuePorts: PerfectCuePortConfig[];
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
@@ -49,6 +67,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
   stageTimerOverlayEnabled: false,
   customLogoPath: null,
   customCssPath: null,
+  perfectcueEnabled: false,
+  perfectcuePorts: [],
 });
 
 export function appSettingsPath(userDataDir: string): string {
@@ -71,6 +91,35 @@ export function isValidOverlayPosition(v: unknown): v is AppSettings['stageTimer
 
 export function isValidOverlaySize(v: unknown): v is number {
   return typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 100;
+}
+
+let perfectcueIdSeq = 0;
+function nextPerfectcueId(): string {
+  perfectcueIdSeq += 1;
+  return `pc-${Date.now().toString(36)}-${perfectcueIdSeq}`;
+}
+
+/**
+ * Coerce an unknown value into a clean PerfectCuePortConfig[]. Drops entries
+ * without a valid port, fills missing names, defaults the adapter to 'dsan',
+ * and synthesises an id when one is missing (legacy/imported configs).
+ */
+export function normalizePerfectCuePorts(value: unknown): PerfectCuePortConfig[] {
+  if (!Array.isArray(value)) return [];
+  const out: PerfectCuePortConfig[] = [];
+  for (const entry of value) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const e = entry as Record<string, unknown>;
+    if (!isValidPort(e.port)) continue;
+    out.push({
+      id: typeof e.id === 'string' && e.id.length > 0 ? e.id : nextPerfectcueId(),
+      name: typeof e.name === 'string' ? e.name : '',
+      port: e.port,
+      adapterType: e.adapterType === 'waveshare' ? 'waveshare' : 'dsan',
+      enabled: e.enabled !== false,
+    });
+  }
+  return out;
 }
 
 /** Tolerant load: missing file, unreadable JSON, or bad fields fall back to defaults. */
@@ -103,6 +152,8 @@ export function loadAppSettings(filePath: string): AppSettings {
     stageTimerOverlayEnabled: obj.stageTimerOverlayEnabled === true,
     customLogoPath: strOrNull(obj.customLogoPath),
     customCssPath: strOrNull(obj.customCssPath),
+    perfectcueEnabled: obj.perfectcueEnabled === true,
+    perfectcuePorts: normalizePerfectCuePorts(obj.perfectcuePorts),
   };
 }
 
@@ -122,6 +173,10 @@ export function saveAppSettings(filePath: string, patch: AppSettingsPatch): AppS
     stageTimerOverlaySize: isValidOverlaySize(patch.stageTimerOverlaySize)
       ? patch.stageTimerOverlaySize
       : current.stageTimerOverlaySize,
+    perfectcuePorts:
+      patch.perfectcuePorts !== undefined
+        ? normalizePerfectCuePorts(patch.perfectcuePorts)
+        : current.perfectcuePorts,
   };
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const tmp = `${filePath}.tmp`;

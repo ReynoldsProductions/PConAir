@@ -12,6 +12,7 @@ import type { MediaLibraryStore } from './media-library/item-store';
 import type { SlideshowEngine } from './media-library/slideshow';
 import type { ActionDispatcher } from './action-dispatch';
 import type { SlidesWindowManager } from './slides/window-manager';
+import type { PerfectCueRouterDeps } from './routes/gsc-compat';
 import type { WsServerMessage } from '../shared/types';
 
 import type { ProfilePaths } from './profiles/paths';
@@ -77,6 +78,8 @@ export interface ServerDeps {
     keyBgColor: string;
   }) => Promise<void>;
   closeKeyFillDisplays?: () => void;
+  /** PerfectCue HTTP control hooks (Electron main only); absent in tests. */
+  perfectcue?: PerfectCueRouterDeps;
 }
 
 function getRequestClientIp(req: express.Request, trustForwardedFor: boolean): string {
@@ -225,6 +228,7 @@ export function createServer(deps: ServerDeps) {
     slidesWindowManager,
     openKeyFillDisplays: deps.openKeyFillDisplays,
     closeKeyFillDisplays: deps.closeKeyFillDisplays,
+    perfectcue: deps.perfectcue,
   };
 
   const app = express();

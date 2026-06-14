@@ -11,6 +11,20 @@ import {
 } from '../services/slide-ops';
 import { urlLoadOp } from '../services/url-ops';
 import { validateKeyFillUrl } from '../services/key-fill';
+import type { PerfectCuePortConfig } from '../app-settings';
+
+/**
+ * Electron-main hooks for the PerfectCue HTTP control surface. Absent in tests
+ * and on servers without the listener wired (endpoints then 400 like before).
+ */
+export interface PerfectCueRouterDeps {
+  /** Current PerfectCue settings (global enable + port configs). */
+  getSettings: () => { perfectcueEnabled: boolean; perfectcuePorts: PerfectCuePortConfig[] };
+  /** Persist a PerfectCue settings patch to app-settings.json. */
+  saveSettings: (patch: { perfectcueEnabled?: boolean; perfectcuePorts?: PerfectCuePortConfig[] }) => void;
+  /** Restart the TCP listeners (called after the global enable flag changes). */
+  restart: () => void;
+}
 
 /**
  * Backwards-compatibility surface for the Google Slides Controller Companion
@@ -45,9 +59,12 @@ export interface GscCompatRouterDeps {
   }) => Promise<void>;
   /** Close key/fill windows in Electron (absent in tests — no-op acknowledged). */
   closeKeyFillDisplays?: () => void;
+  /** PerfectCue listener control hooks (Electron main); absent in tests. */
+  perfectcue?: PerfectCueRouterDeps;
 }
 
 export function createGscCompatRouter(store: StateStore, deps: GscCompatRouterDeps = {}): Router {
+  const perfectcue = deps.perfectcue;
   const router = Router();
 
   router.post('/open-presentation', (req: Request, res: Response) => {
@@ -176,11 +193,51 @@ export function createGscCompatRouter(store: StateStore, deps: GscCompatRouterDe
     'open-preset',
     'set-backup-controls',
     'preferences',
-    'set-perfectcue-enabled',
-    'toggle-perfectcue-port',
   ]) {
     router.post(`/${ep}`, (_req: Request, res: Response) => notSupported(res, `/${ep}`));
   }
+
+  // ── PerfectCue control ────────────────────────────────────────────────────
+  // Master enable/disable. Restarts the TCP listeners (ports may differ once
+  // re-enabled; disabling tears them down so no hardware can advance slides).
+  router.post('/set-perfectcue-enabled', (req: Request, res: Response) => {
+    if (!perfectcue) {
+      notSupported(res, '/set-perfectcue-enabled');
+      return;
+    }
+    const { enabled } = req.body as { enabled?: boolean };
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled (boolean) is required' });
+      return;
+    }
+    perfectcue.saveSettings({ perfectcueEnabled: enabled });
+    perfectcue.restart();
+    res.json({ success: true, enabled });
+  });
+
+  // Per-port enable/disable. Applied immediately via the dispatch gate — the
+  // TCP connection is NOT restarted, so the extender never disconnects.
+  router.post('/toggle-perfectcue-port', (req: Request, res: Response) => {
+    if (!perfectcue) {
+      notSupported(res, '/toggle-perfectcue-port');
+      return;
+    }
+    const { port, enabled } = req.body as { port?: number; enabled?: boolean };
+    if (typeof port !== 'number' || typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'port (number) and enabled (boolean) are required' });
+      return;
+    }
+    const { perfectcuePorts } = perfectcue.getSettings();
+    const target = perfectcuePorts.find((p) => p.port === port);
+    if (!target) {
+      res.status(404).json({ error: `No PerfectCue port configured on ${port}` });
+      return;
+    }
+    const updated = perfectcuePorts.map((p) => (p.port === port ? { ...p, enabled } : p));
+    perfectcue.saveSettings({ perfectcuePorts: updated });
+    // No restart: gate reads settings live, so the change takes effect at once.
+    res.json({ success: true, port, enabled });
+  });
 
   return router;
 }
