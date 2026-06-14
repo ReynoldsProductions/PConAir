@@ -6,6 +6,8 @@ import type { ReliabilityStore } from '../reliability-store';
 import type { AppState, Mode, ABInstance } from '../../shared/types';
 import { requireOperator, requireAdmin } from './middleware';
 import { getLogs, clearLogs, setVerboseLogging, isVerboseLogging } from '../logger';
+import type { ProfilePaths } from '../profiles/paths';
+import { loadProfile, writeProfile, patchShowProfile } from '../profiles/bootstrap';
 
 const VALID_MODES: Mode[] = ['slides', 'url', 'l3', 'media-library', 'idle'];
 
@@ -24,11 +26,15 @@ export interface CreateApiRouterDeps {
   crashDumpsPath: string;
   getSlidesNotes: () => Promise<string | null>;
   getProfileName: () => string;
+  profilePaths: ProfilePaths;
 }
 
 function instKey(instance: ABInstance): 'instanceA' | 'instanceB' {
   return instance === 'A' ? 'instanceA' : 'instanceB';
 }
+
+const VALID_BACKUP_ROLES = ['primary', 'backup', 'standalone'] as const;
+type BackupRole = (typeof VALID_BACKUP_ROLES)[number];
 
 export function createApiRouter(deps: CreateApiRouterDeps): Router {
   const {
@@ -45,6 +51,7 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
     crashDumpsPath,
     getSlidesNotes,
     getProfileName,
+    profilePaths,
   } = deps;
 
   const router = Router();
@@ -364,6 +371,72 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
     res.json({
       notes,
       slideIndex: state.slides?.slideIndex ?? null,
+    });
+  });
+
+  /**
+   * POST /api/set-backup-controls
+   *
+   * Configure the primary/backup/standalone role and the list of backup machine
+   * IPs to fan-out slide commands to (primary mode only).
+   *
+   * Body: { role: 'primary' | 'backup' | 'standalone', backupIps: string[] }
+   * Response: { success: true, backupRole, backupMachineIps }
+   *
+   * TODO: admin UI for backup settings
+   */
+  router.post('/set-backup-controls', adminGuard, (req: Request, res: Response) => {
+    const { role, backupIps } = req.body as { role?: unknown; backupIps?: unknown };
+
+    if (!role || !VALID_BACKUP_ROLES.includes(role as BackupRole)) {
+      res.status(400).json({
+        error: {
+          code: 'INVALID_ROLE',
+          message: `role must be one of: ${VALID_BACKUP_ROLES.join(', ')}`,
+        },
+      });
+      return;
+    }
+
+    const normalizedIps: string[] = [];
+    if (backupIps !== undefined) {
+      if (!Array.isArray(backupIps)) {
+        res.status(400).json({
+          error: { code: 'INVALID_PARAM', message: 'backupIps must be an array of strings' },
+        });
+        return;
+      }
+      for (const ip of backupIps) {
+        if (typeof ip !== 'string' || ip.trim().length === 0) {
+          res.status(400).json({
+            error: { code: 'INVALID_PARAM', message: 'each entry in backupIps must be a non-empty string' },
+          });
+          return;
+        }
+        normalizedIps.push(ip.trim());
+      }
+    }
+
+    const activeId = getActiveProfileId();
+    const profile = loadProfile(profilePaths, activeId);
+    if (!profile) {
+      res.status(500).json({ error: { code: 'PROFILE_NOT_FOUND', message: 'Active profile could not be loaded' } });
+      return;
+    }
+
+    const next = patchShowProfile(profile, {
+      appPreferences: {
+        ...profile.appPreferences,
+        backupRole: role as BackupRole,
+        backupMachineIps: normalizedIps,
+      },
+    });
+    writeProfile(profilePaths, next, 'automatic');
+
+    res.json({
+      success: true,
+      backupRole: role as BackupRole,
+      backupMachineIps: normalizedIps,
     });
   });
 

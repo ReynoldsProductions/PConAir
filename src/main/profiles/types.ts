@@ -35,6 +35,15 @@ export interface AppPreferences {
   operatorTheme?: 'light' | 'dark';
   verboseLogging?: boolean;
   gpuMode?: 'default' | 'angle' | 'disabled';
+  /**
+   * Machine role in the primary/backup system.
+   * - 'primary'    — fans out slide commands to all `backupMachineIps` via HTTP
+   * - 'backup'     — receives fan-out commands; does not re-broadcast
+   * - 'standalone' — no fan-out (default)
+   */
+  backupRole?: 'primary' | 'backup' | 'standalone';
+  /** IP addresses of backup machines to fan-out slide commands to (primary mode only). */
+  backupMachineIps?: string[];
 }
 
 /** Full profile as stored on disk (includes PIN hashes). */

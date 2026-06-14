@@ -23,6 +23,8 @@ import type { ActionDispatcher } from '../action-dispatch';
 import type { ProfilePaths } from '../profiles/paths';
 import type { ReliabilityStore } from '../reliability-store';
 import type { L3Cue } from '../l3/cue-store';
+import { loadProfile } from '../profiles/bootstrap';
+import type { BackupSettings } from './slides';
 
 export interface RouteServices {
   store: StateStore;
@@ -75,7 +77,16 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       getAdminShowLocked: s.getAdminShowLocked,
     })
   );
-  app.use('/api/slides', createSlidesRouter(s.store, s.auth));
+  function getBackupSettings(): BackupSettings {
+    const profile = loadProfile(s.profilePaths, s.getActiveProfileId());
+    const prefs = profile?.appPreferences;
+    return {
+      backupRole: prefs?.backupRole ?? 'standalone',
+      backupMachineIps: prefs?.backupMachineIps ?? [],
+    };
+  }
+
+  app.use('/api/slides', createSlidesRouter(s.store, s.auth, getBackupSettings));
   app.use('/api/url', createUrlRouter(s.store, s.auth));
   app.use('/api/presets', createPresetsRouter(s.store, s.auth, s.presets));
   app.use('/api/l3', createL3Router(s.store, s.auth, s.l3Cues, s.l3Playlists, s.l3ThemeStore, s.l3FilesRoot, s.renderManualCue));
@@ -116,6 +127,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       crashDumpsPath: s.crashDumpsPath,
       getSlidesNotes: s.getSlidesNotes,
       getProfileName: s.getProfileName,
+      profilePaths: s.profilePaths,
     })
   );
 }
