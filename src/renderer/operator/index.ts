@@ -4,6 +4,52 @@ import * as api from './api';
 
 const store = createClientStore();
 
+// ── Keyboard shortcut presets ─────────────────────────────────────
+
+type KbdPreset = 'google' | 'powerpoint' | 'keynote';
+
+interface PresetMap {
+  next: string[];
+  prev: string[];
+}
+
+const KBD_PRESETS: Record<KbdPreset, PresetMap> = {
+  google: {
+    next: ['ArrowRight', ' ', 'PageDown'],
+    prev: ['ArrowLeft', 'PageUp'],
+  },
+  powerpoint: {
+    next: ['ArrowRight', 'Enter', 'PageDown', 'n', 'N'],
+    prev: ['ArrowLeft', 'Backspace', 'PageUp', 'p', 'P'],
+  },
+  keynote: {
+    next: ['ArrowRight', ' ', 'Enter'],
+    prev: ['ArrowLeft', 'Delete'],
+  },
+};
+
+const KBD_PRESET_KEY = 'pconair-kbd-preset';
+
+function getSavedPreset(): KbdPreset {
+  const v = localStorage.getItem(KBD_PRESET_KEY);
+  if (v === 'google' || v === 'powerpoint' || v === 'keynote') return v;
+  return 'google';
+}
+
+let activeKbdPreset: KbdPreset = getSavedPreset();
+
+function setKbdPreset(preset: KbdPreset): void {
+  activeKbdPreset = preset;
+  localStorage.setItem(KBD_PRESET_KEY, preset);
+  renderKbdPresetButtons();
+}
+
+function renderKbdPresetButtons(): void {
+  document.querySelectorAll<HTMLButtonElement>('[data-kbd-preset]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.kbdPreset === activeKbdPreset);
+  });
+}
+
 /** Ignore checkbox `change` while syncing from server state. */
 let l3StackingUiLock = false;
 
@@ -340,8 +386,27 @@ function bindEvents(): void {
 
   document.addEventListener('keydown', (e) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-    if (e.key !== 'p' && e.key !== 'P') return;
-    void api.panicAction('toggle').catch((err) => showError((err as Error).message));
+    const preset = KBD_PRESETS[activeKbdPreset];
+    if (preset.next.includes(e.key)) {
+      if (e.key === ' ' || e.key === 'Enter') e.preventDefault();
+      const btn = document.getElementById('next-btn') as HTMLButtonElement | null;
+      if (btn && !btn.disabled) void api.slideNext().catch((err) => showError((err as Error).message));
+    } else if (preset.prev.includes(e.key)) {
+      if (e.key === 'Backspace') e.preventDefault();
+      const btn = document.getElementById('prev-btn') as HTMLButtonElement | null;
+      if (btn && !btn.disabled) void api.slidePrev().catch((err) => showError((err as Error).message));
+    } else if (e.key === 'p' || e.key === 'P') {
+      if (!preset.prev.includes(e.key)) {
+        void api.panicAction('toggle').catch((err) => showError((err as Error).message));
+      }
+    }
+  });
+
+  // Keyboard preset toggle buttons
+  document.querySelectorAll<HTMLButtonElement>('[data-kbd-preset]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setKbdPreset(btn.dataset.kbdPreset as KbdPreset);
+    });
   });
 
   (document.getElementById('l3-stacking-checkbox') as HTMLInputElement).addEventListener(
@@ -396,6 +461,7 @@ function bindEvents(): void {
 
 store.subscribe(renderState);
 bindEvents();
+renderKbdPresetButtons();
 void refreshL3CueSelect().catch(() => { /* no session yet */ });
 void refreshMediaSelect().catch(() => { /* no session yet */ });
 void refreshActiveProfile().catch(() => { /* public endpoint */ });
