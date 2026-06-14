@@ -60,6 +60,15 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
     res.json({ ...state, ...gscStatusFields(state) });
   });
 
+  router.get('/debug/logs', adminGuard, (_req: Request, res: Response) => {
+    res.json({
+      errors: reliability.getErrors(),
+      warnings: reliability.getWarnings(),
+      processUptimeMs: process.uptime() * 1000,
+      nodeVersion: process.version,
+    });
+  });
+
   router.get('/health', adminGuard, (_req: Request, res: Response) => {
     const state = store.getState();
     const mem = process.memoryUsage();
