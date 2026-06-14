@@ -636,6 +636,7 @@ function bindEvents(): void {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     const preset = KBD_PRESETS[activeKbdPreset];
     if (preset.next.includes(e.key)) {
+      // Space/Enter can scroll the page — prevent default only for slide nav
       if (e.key === ' ' || e.key === 'Enter') e.preventDefault();
       const btn = document.getElementById('next-btn') as HTMLButtonElement | null;
       if (btn && !btn.disabled) void api.slideNext().catch((err) => showError((err as Error).message));
@@ -644,6 +645,7 @@ function bindEvents(): void {
       const btn = document.getElementById('prev-btn') as HTMLButtonElement | null;
       if (btn && !btn.disabled) void api.slidePrev().catch((err) => showError((err as Error).message));
     } else if (e.key === 'p' || e.key === 'P') {
+      // Only trigger panic if 'P'/'p' is NOT already claimed by the active prev set
       if (!preset.prev.includes(e.key)) {
         void api.panicAction('toggle').catch((err) => showError((err as Error).message));
       }
