@@ -60,6 +60,12 @@ export interface ServerDeps {
   /** Google Slides auth hooks (Electron main only). */
   openGoogleAuthWindow?: () => void;
   getGoogleAuthState?: () => Promise<{ loggedIn: boolean; email: string | null }>;
+  /** Returns the current custom logo path from app settings. */
+  getCustomLogoPath?: () => string | null;
+  /** Returns the current custom CSS path from app settings. */
+  getCustomCssPath?: () => string | null;
+  /** Persists branding settings to app-settings.json. */
+  saveBrandingSettings?: (patch: { customLogoPath?: string | null; customCssPath?: string | null }) => void;
 }
 
 function getRequestClientIp(req: express.Request, trustForwardedFor: boolean): string {
@@ -201,6 +207,9 @@ export function createServer(deps: ServerDeps) {
     packageHub,
     openGoogleAuthWindow: deps.openGoogleAuthWindow,
     getGoogleAuthState: deps.getGoogleAuthState,
+    getCustomLogoPath: deps.getCustomLogoPath ?? (() => null),
+    getCustomCssPath: deps.getCustomCssPath ?? (() => null),
+    saveBrandingSettings: deps.saveBrandingSettings ?? (() => { /* no-op in tests */ }),
   };
 
   const app = express();

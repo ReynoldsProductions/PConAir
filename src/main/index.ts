@@ -1,4 +1,4 @@
-import { app, screen, session } from 'electron';
+import { app, screen, session, ipcMain, dialog, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { createOperatorWindow } from './window';
@@ -217,6 +217,11 @@ async function main() {
     },
     trustForwardedFor: cli.trustForwardedFor,
     renderManualCue: (cue) => renderCueToPng(cue, l3ThemeStore.getThemeCss(cue.theme)),
+    getCustomLogoPath: () => loadAppSettings(settingsFile).customLogoPath,
+    getCustomCssPath: () => loadAppSettings(settingsFile).customCssPath,
+    saveBrandingSettings: (patch) => {
+      saveAppSettings(settingsFile, patch);
+    },
   });
   let serverError: string | null = null;
   try {
@@ -257,6 +262,76 @@ async function main() {
     serverError: () => serverError,
     profilePaths: boot.paths,
     getActiveProfileId: () => getActiveMarker(boot.paths)?.id ?? boot.activeId,
+  });
+
+  // ── Branding IPC ──────────────────────────────────────────────────────────
+  // File picker: choose a logo image
+  ipcMain.handle('branding:choose-logo', async () => {
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
+    const result = await dialog.showOpenDialog(win as BrowserWindow, {
+      title: 'Select brand logo',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'svg', 'webp'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths.length) {
+      return { canceled: true, filePath: null };
+    }
+    return { canceled: false, filePath: result.filePaths[0] };
+  });
+
+  // File picker: choose a CSS file
+  ipcMain.handle('branding:choose-css', async () => {
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
+    const result = await dialog.showOpenDialog(win as BrowserWindow, {
+      title: 'Select custom CSS file',
+      properties: ['openFile'],
+      filters: [
+        { name: 'CSS', extensions: ['css'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths.length) {
+      return { canceled: true, filePath: null };
+    }
+    return { canceled: false, filePath: result.filePaths[0] };
+  });
+
+  // Save-dialog: download CSS template to a location the user chooses
+  ipcMain.handle('branding:download-template', async () => {
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
+    const result = await dialog.showSaveDialog(win as BrowserWindow, {
+      title: 'Save CSS template',
+      defaultPath: path.join(app.getPath('downloads'), 'pconair-branding-template.css'),
+      filters: [
+        { name: 'CSS', extensions: ['css'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePath) {
+      return { canceled: true, filePath: null };
+    }
+    // The template content is served at GET /branding/template.css but we also
+    // write it here so the IPC caller gets a local file without an HTTP round-trip.
+    // Keep in sync with the CSS_TEMPLATE constant in routes/branding.ts.
+    try {
+      // Fetch from local server to avoid duplicating the template string.
+      const http = await import('http');
+      const templateCss: string = await new Promise((resolve, reject) => {
+        const req = http.get(`http://127.0.0.1:${port}/branding/template.css`, (res) => {
+          let data = '';
+          res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+          res.on('end', () => resolve(data));
+        });
+        req.on('error', reject);
+      });
+      fs.writeFileSync(result.filePath, templateCss, 'utf-8');
+      return { canceled: false, filePath: result.filePath };
+    } catch (err) {
+      return { canceled: false, error: String((err as Error).message ?? err) };
+    }
   });
 
   // Appliance model: no windows at boot. The tray is the only persistent UI;

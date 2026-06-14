@@ -370,6 +370,7 @@
       <div class="nav-item" data-section="showlock">Show Lock</div>
 
       <div class="sidebar-label">System</div>
+      <div class="nav-item" data-section="branding">Branding</div>
       <div class="nav-item" data-section="system">System</div>
 
       <div class="sidebar-spacer"></div>
@@ -511,6 +512,7 @@ function renderSection() {
     case 'profiles':   renderProfiles(); break;
     case 'packages':   renderPackages(); break;
     case 'showlock':   renderShowLock(); break;
+    case 'branding':   renderBranding(); break;
     case 'system':     renderSystem(); break;
   }
 }
@@ -1239,7 +1241,6 @@ async function renderPackages() {
     </div>
   `;
 
-  // Load assets for each package
   for (const pkg of packages) {
     loadPackageAssets(pkg.id);
   }
@@ -1290,6 +1291,119 @@ async function loadPackageAssets(pkgId) {
     btn.addEventListener('click', () => {
       navigator.clipboard.writeText(btn.dataset.path).then(() => showSuccess('Path copied'));
     });
+  });
+}
+
+// ── Section: Branding ─────────────────────────────────────────────────────────
+async function renderBranding() {
+  content().innerHTML = `<div class="section-title">Branding</div><div class="card"><div class="card-title">Loading…</div></div>`;
+  let data;
+  try { data = await api('GET', '/branding/settings'); } catch { return; }
+
+  const logoPath   = (data && data.customLogoPath)  || '';
+  const cssPath    = (data && data.customCssPath)   || '';
+
+  content().innerHTML = `
+    <div class="section-title">Branding</div>
+    <div class="card">
+      <div class="card-title">Custom Logo</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+        Replaces the default icon in the web remote header. PNG, JPG, SVG, or WebP.
+      </p>
+      <div class="field">
+        <div class="field-label">Current logo file</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="branding-logo-path" value="${escHtml(logoPath)}"
+            placeholder="No file selected" readonly
+            style="flex:1;min-width:180px;background:#0d0d0d;color:var(--text);border:1px solid var(--border);border-radius:5px;padding:8px 10px;font-size:13px;" />
+          <button class="btn" id="branding-logo-choose">Choose file…</button>
+          <button class="btn btn-danger" id="branding-logo-clear">Clear</button>
+        </div>
+      </div>
+      ${logoPath ? `<div style="margin-top:8px;"><img src="/branding/logo?v=${Date.now()}" alt="Current logo" style="max-height:48px;max-width:200px;object-fit:contain;background:#222;border-radius:4px;padding:4px;" /></div>` : ''}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Custom CSS</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+        Select a CSS file to override styles in the web remote and operator UI (white-labelling).
+        Download the template below as a starting point.
+      </p>
+      <div class="field">
+        <div class="field-label">Current CSS file</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="branding-css-path" value="${escHtml(cssPath)}"
+            placeholder="No file selected" readonly
+            style="flex:1;min-width:180px;background:#0d0d0d;color:var(--text);border:1px solid var(--border);border-radius:5px;padding:8px 10px;font-size:13px;" />
+          <button class="btn" id="branding-css-choose">Choose file…</button>
+          <button class="btn btn-danger" id="branding-css-clear">Clear</button>
+        </div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn" id="branding-download-template">Download CSS template…</button>
+        <a href="/branding/template.css" class="btn" style="text-decoration:none;" download="pconair-branding-template.css">Download (browser)</a>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="branding-save">Save Branding</button>
+  `;
+
+  const logoInput  = document.getElementById('branding-logo-path');
+  const cssInput   = document.getElementById('branding-css-path');
+
+  // Choose logo
+  document.getElementById('branding-logo-choose').addEventListener('click', async () => {
+    if (window.electronAPI && window.electronAPI.brandingChooseLogo) {
+      const result = await window.electronAPI.brandingChooseLogo();
+      if (!result.canceled && result.filePath) logoInput.value = result.filePath;
+    } else {
+      showError('File picker only available in the desktop app.');
+    }
+  });
+
+  // Clear logo
+  document.getElementById('branding-logo-clear').addEventListener('click', () => {
+    logoInput.value = '';
+  });
+
+  // Choose CSS
+  document.getElementById('branding-css-choose').addEventListener('click', async () => {
+    if (window.electronAPI && window.electronAPI.brandingChooseCss) {
+      const result = await window.electronAPI.brandingChooseCss();
+      if (!result.canceled && result.filePath) cssInput.value = result.filePath;
+    } else {
+      showError('File picker only available in the desktop app.');
+    }
+  });
+
+  // Clear CSS
+  document.getElementById('branding-css-clear').addEventListener('click', () => {
+    cssInput.value = '';
+  });
+
+  // Download CSS template via IPC (saves to Downloads folder via save dialog)
+  document.getElementById('branding-download-template').addEventListener('click', async () => {
+    if (window.electronAPI && window.electronAPI.brandingDownloadTemplate) {
+      const result = await window.electronAPI.brandingDownloadTemplate();
+      if (!result.canceled) {
+        showSuccess(result.error ? `Error: ${result.error}` : `Template saved to ${result.filePath}`);
+      }
+    } else {
+      showError('Use the "Download (browser)" link instead when running outside the app.');
+    }
+  });
+
+  // Save
+  document.getElementById('branding-save').addEventListener('click', async () => {
+    const body = {
+      customLogoPath: logoInput.value.trim() || null,
+      customCssPath:  cssInput.value.trim()  || null,
+    };
+    try {
+      await api('POST', '/branding/settings', body);
+      showSuccess('Branding saved — reload the remote to apply');
+      renderBranding();
+    } catch { /* showError handled in api() */ }
   });
 }
 

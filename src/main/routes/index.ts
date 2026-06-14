@@ -19,6 +19,7 @@ import { createActionRouter } from './action';
 import { createBackgroundRouter } from './background';
 import { createMediaLibraryRouter } from './media-library';
 import { createProfilesRouter } from './profiles';
+import { createBrandingRouter } from './branding';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { PresetsStore } from '../presets';
@@ -75,6 +76,12 @@ export interface RouteServices {
   /** Google Slides auth hooks (Electron main only). */
   openGoogleAuthWindow?: SlidesRouterDeps['openGoogleAuthWindow'];
   getGoogleAuthState?: SlidesRouterDeps['getGoogleAuthState'];
+  /** Returns the current custom logo path from app settings (live, not cached). */
+  getCustomLogoPath: () => string | null;
+  /** Returns the current custom CSS path from app settings (live, not cached). */
+  getCustomCssPath: () => string | null;
+  /** Persists a branding settings patch to app-settings.json. */
+  saveBrandingSettings: (patch: { customLogoPath?: string | null; customCssPath?: string | null }) => void;
 }
 
 export function mountRoutes(app: Express, s: RouteServices): void {
@@ -89,6 +96,15 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   );
   app.use('/operator', createOperatorRouter(s.auth));
   app.use('/remote', createRemoteRouter(s.auth));
+  app.use(
+    '/branding',
+    createBrandingRouter({
+      auth: s.auth,
+      getCustomLogoPath: s.getCustomLogoPath,
+      getCustomCssPath: s.getCustomCssPath,
+      saveBrandingSettings: s.saveBrandingSettings,
+    })
+  );
   app.use(
     '/admin',
     createAdminRouter({
