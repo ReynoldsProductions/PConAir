@@ -365,6 +365,7 @@
 
       <div class="sidebar-label">Content</div>
       <div class="nav-item" data-section="packages">Packages</div>
+      <div class="nav-item" data-section="slides">Slides / Cache</div>
 
       <div class="sidebar-label">Show Control</div>
       <div class="nav-item" data-section="showlock">Show Lock</div>
@@ -511,6 +512,7 @@ function renderSection() {
     case 'l3cues':     renderL3Cues(); break;
     case 'profiles':   renderProfiles(); break;
     case 'packages':   renderPackages(); break;
+    case 'slides':     renderSlides(); break;
     case 'showlock':   renderShowLock(); break;
     case 'branding':   renderBranding(); break;
     case 'system':     renderSystem(); break;
@@ -1001,6 +1003,88 @@ async function renderProfiles() {
     await api('POST', '/api/profiles', { name });
     showSuccess('Profile created'); renderProfiles();
   });
+}
+
+// ── Section: Slides / Offline Cache ──────────────────────────────────────────
+async function renderSlides() {
+  content().innerHTML = `<div class="section-title">Slides / Cache</div><div class="card"><div class="card-title">Loading…</div></div>`;
+  let slidesStatus;
+  try { slidesStatus = await api('GET', '/api/slides/status'); } catch { return; }
+
+  const deckLoaded    = !!(slidesStatus && slidesStatus.deckLoaded);
+  const deckTitle     = (slidesStatus && slidesStatus.deckTitle) || null;
+  const slide         = (slidesStatus && slidesStatus.slide) || 0;
+  const total         = (slidesStatus && slidesStatus.total) || 0;
+  const backupLoaded  = !!(slidesStatus && slidesStatus.backupLoaded);
+  const offlineMode   = !!(slidesStatus && slidesStatus.offlineMode);
+  const cacheWarmed   = !!(slidesStatus && slidesStatus.cacheWarmed);
+  const contentKind   = (slidesStatus && slidesStatus.contentKind) || 'none';
+
+  // Also pull deck URL from WebSocket state if available
+  const deckUrl       = (state.slides && state.slides.deckUrl) || null;
+  const backupDeckId  = (state.slides && state.slides.backupDeckId) || null;
+
+  const offlineDotColor = offlineMode ? 'var(--orange)' : 'var(--green)';
+  const offlineModeLabel = offlineMode ? 'Offline' : 'Live';
+  const cacheColor = cacheWarmed ? 'var(--green)' : 'var(--text-dim)';
+  const cacheLabel = cacheWarmed ? 'Warmed' : 'Not warmed';
+
+  content().innerHTML = `
+    <div class="section-title">Slides / Cache</div>
+
+    <div class="card">
+      <div class="card-title">Presentation Info</div>
+      ${!deckLoaded ? `<div class="empty-state">No presentation loaded.</div>` : `
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        ${deckTitle ? `<tr><td style="padding:4px 8px;color:var(--text-dim);width:140px;">Title</td><td><strong>${escHtml(deckTitle)}</strong></td></tr>` : ''}
+        ${deckUrl   ? `<tr><td style="padding:4px 8px;color:var(--text-dim);">Deck URL</td><td style="word-break:break-all;font-size:11px;color:var(--text-dim);">${escHtml(deckUrl)}</td></tr>` : ''}
+        <tr><td style="padding:4px 8px;color:var(--text-dim);">Slide</td><td>${slide} / ${total}</td></tr>
+        <tr><td style="padding:4px 8px;color:var(--text-dim);">Content Kind</td><td>${escHtml(contentKind)}</td></tr>
+        <tr><td style="padding:4px 8px;color:var(--text-dim);">Backup loaded</td><td>${backupLoaded ? '<span style="color:var(--green);">Yes</span>' : 'No'}</td></tr>
+        ${backupDeckId ? `<tr><td style="padding:4px 8px;color:var(--text-dim);">Backup ID</td><td style="font-size:11px;color:var(--text-dim);">${escHtml(backupDeckId)}</td></tr>` : ''}
+      </table>`}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Offline Mode</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
+        <tr>
+          <td style="padding:4px 8px;color:var(--text-dim);width:140px;">Mode</td>
+          <td>
+            <span style="display:inline-flex;align-items:center;gap:6px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:${offlineDotColor};display:inline-block;"></span>
+              <strong>${offlineModeLabel}</strong>
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:4px 8px;color:var(--text-dim);">Cache</td>
+          <td><span style="color:${cacheColor};">${cacheLabel}</span></td>
+        </tr>
+      </table>
+      <div class="btn-row" style="margin-bottom:12px;">
+        <button class="btn ${offlineMode ? 'btn-danger' : 'btn-primary'}" id="toggle-offline-btn">
+          ${offlineMode ? 'Disable Offline Mode' : 'Enable Offline Mode'}
+        </button>
+        <button class="btn btn-sm" id="slides-refresh-btn">↺ Refresh</button>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);line-height:1.6;">
+        Offline mode serves slides from a local cache instead of fetching from Google.
+        Enable after loading a presentation — the cache warms automatically in the background.
+        ${offlineMode && !cacheWarmed ? '<br><span style="color:var(--orange);">Cache is still warming. Wait a moment before presenting.</span>' : ''}
+      </p>
+    </div>
+  `;
+
+  document.getElementById('toggle-offline-btn').addEventListener('click', async () => {
+    try {
+      await api('POST', '/api/slides/offline-mode', { enabled: !offlineMode });
+      showSuccess(offlineMode ? 'Offline mode disabled' : 'Offline mode enabled');
+      renderSlides();
+    } catch { /* showError handled in api() */ }
+  });
+
+  document.getElementById('slides-refresh-btn').addEventListener('click', () => renderSlides());
 }
 
 // ── Section: Show Lock ────────────────────────────────────────────────────────
