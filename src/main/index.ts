@@ -107,15 +107,6 @@ async function main() {
   const l3ThemeStore = createL3ThemeStore({ l3FilesRoot });
 
   const slideshow = createSlideshowEngine({ store, media: mediaLibrary });
-  const dispatchAction = createActionDispatcher({
-    store,
-    auth,
-    presets,
-    cues: l3Cues,
-    playlists: l3Playlists,
-    media: mediaLibrary,
-    slideshow,
-  });
 
   syncDisplaysToStore();
   screen.on('display-added', syncDisplaysToStore);
@@ -124,6 +115,17 @@ async function main() {
 
   const slidesManager = createSlidesWindowManager({ store });
   slidesManager.initialize();
+
+  const dispatchAction = createActionDispatcher({
+    store,
+    auth,
+    presets,
+    cues: l3Cues,
+    playlists: l3Playlists,
+    media: mediaLibrary,
+    slideshow,
+    windowManager: slidesManager,
+  });
 
   const urlManager = createUrlWindowManager({ store });
   urlManager.initialize();
@@ -222,6 +224,7 @@ async function main() {
     saveBrandingSettings: (patch) => {
       saveAppSettings(settingsFile, patch);
     },
+    slidesWindowManager: slidesManager,
   });
   let serverError: string | null = null;
   try {

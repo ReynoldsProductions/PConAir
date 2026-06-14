@@ -56,6 +56,7 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
   let cacheWarmTimer: ReturnType<typeof setTimeout> | null = null;
   /** Last slide index confirmed from the presenter DOM — used to tell API intent from echo. */
   let domSlideIndex: number | null = null;
+  let notesFontSizePx = 16;
 
   function createSlidesWindow(): BrowserWindow {
     const display = screen.getPrimaryDisplay();
@@ -351,7 +352,59 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
     return notesWindow.getBounds();
   }
 
-  return { initialize, loadDeck, navigateToSlide, showInstance, getNotesWindowBounds, destroy, openGoogleAuthWindow, getGoogleAuthState };
+  function getActiveWindow(): BrowserWindow | null {
+    const state = store.getState();
+    const activeInstance = state.abState.activeInstance;
+    const win = activeInstance === 'A' ? windowA : windowB;
+    return win && !win.isDestroyed() ? win : null;
+  }
+
+  function getNotesWin(): BrowserWindow | null {
+    return notesWindow && !notesWindow.isDestroyed() ? notesWindow : null;
+  }
+
+  function scrollNotesUp(): void {
+    const win = getNotesWin();
+    if (!win) return;
+    void win.webContents.executeJavaScript(
+      `(function(){var el=document.querySelector('div.punch-viewer-speakernotes-text-body-scrollable');if(el)el.scrollTop=Math.max(0,el.scrollTop-80);})()`
+    ).catch(() => {});
+  }
+
+  function scrollNotesDown(): void {
+    const win = getNotesWin();
+    if (!win) return;
+    void win.webContents.executeJavaScript(
+      `(function(){var el=document.querySelector('div.punch-viewer-speakernotes-text-body-scrollable');if(el)el.scrollTop+=80;})()`
+    ).catch(() => {});
+  }
+
+  function zoomInNotes(): void {
+    const win = getNotesWin();
+    if (!win) return;
+    notesFontSizePx += 2;
+    const px = notesFontSizePx;
+    void win.webContents.executeJavaScript(
+      `(function(){var el=document.querySelector('div.punch-viewer-speakernotes-text-body-scrollable');if(el)el.style.fontSize='${px}px';})()`
+    ).catch(() => {});
+  }
+
+  function zoomOutNotes(): void {
+    const win = getNotesWin();
+    if (!win) return;
+    notesFontSizePx = Math.max(12, notesFontSizePx - 2);
+    const px = notesFontSizePx;
+    void win.webContents.executeJavaScript(
+      `(function(){var el=document.querySelector('div.punch-viewer-speakernotes-text-body-scrollable');if(el)el.style.fontSize='${px}px';})()`
+    ).catch(() => {});
+  }
+
+  return {
+    initialize, loadDeck, navigateToSlide, showInstance,
+    getNotesWindowBounds, destroy, openGoogleAuthWindow, getGoogleAuthState,
+    getSpeakerNotes, getActiveWindow,
+    scrollNotesUp, scrollNotesDown, zoomInNotes, zoomOutNotes,
+  };
 }
 
 export type SlidesWindowManager = ReturnType<typeof createSlidesWindowManager>;

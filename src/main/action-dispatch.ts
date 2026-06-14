@@ -5,6 +5,7 @@ import type { L3CueStore } from './l3/cue-store';
 import type { L3PlaylistStore } from './l3/playlist-store';
 import type { MediaLibraryStore } from './media-library/item-store';
 import type { SlideshowEngine } from './media-library/slideshow';
+import type { SlidesWindowManager } from './slides/window-manager';
 import type { Mode, SlideshowTransition } from '../shared/types';
 import { slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideLoadOp, slideOfflineModeOp } from './services/slide-ops';
 import { urlLoadOp, urlReloadOp, setDisplayTargetOp } from './services/url-ops';
@@ -31,8 +32,10 @@ export function createActionDispatcher(deps: {
   media?: MediaLibraryStore;
   /** Slideshow engine — must be the same instance the media-library router uses. */
   slideshow?: SlideshowEngine;
+  /** Slides window manager — enables notes scroll/zoom actions. */
+  windowManager?: SlidesWindowManager;
 }) {
-  const { store, presets, cues, playlists, media, slideshow } = deps;
+  const { store, presets, cues, playlists, media, slideshow, windowManager } = deps;
 
   function unavailable(what: string): ActionResult {
     return { ok: false, status: 501, error: { code: 'INVALID_MODE', message: `${what} is not available on this server` } };
@@ -278,6 +281,22 @@ export function createActionDispatcher(deps: {
           return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'No slideshow loaded' } };
         }
         return { ok: true, body: { mediaLibrary: store.getState().mediaLibrary } };
+      }
+      case 'slides_notes_scroll_up': {
+        windowManager?.scrollNotesUp();
+        return { ok: true, body: {} };
+      }
+      case 'slides_notes_scroll_down': {
+        windowManager?.scrollNotesDown();
+        return { ok: true, body: {} };
+      }
+      case 'slides_notes_zoom_in': {
+        windowManager?.zoomInNotes();
+        return { ok: true, body: {} };
+      }
+      case 'slides_notes_zoom_out': {
+        windowManager?.zoomOutNotes();
+        return { ok: true, body: {} };
       }
       default:
         return {
