@@ -371,6 +371,7 @@
       <div class="nav-item" data-section="showlock">Show Lock</div>
 
       <div class="sidebar-label">System</div>
+      <div class="nav-item" data-section="monitors">Monitors</div>
       <div class="nav-item" data-section="branding">Branding</div>
       <div class="nav-item" data-section="logs">Logs</div>
       <div class="nav-item" data-section="system">System</div>
@@ -515,6 +516,7 @@ function renderSection() {
     case 'packages':   renderPackages(); break;
     case 'slides':     renderSlides(); break;
     case 'showlock':   renderShowLock(); break;
+    case 'monitors':   renderMonitors(); break;
     case 'branding':   renderBranding(); break;
     case 'logs':       renderLogs(); break;
     case 'system':     renderSystem(); break;
@@ -1377,6 +1379,58 @@ async function loadPackageAssets(pkgId) {
     btn.addEventListener('click', () => {
       navigator.clipboard.writeText(btn.dataset.path).then(() => showSuccess('Path copied'));
     });
+  });
+}
+
+// ── Monitors ─────────────────────────────────────────────────────────────────
+async function renderMonitors() {
+  content().innerHTML = '<div class="section-title">Monitors</div><div class="card"><div class="card-title">Loading…</div></div>';
+  let data;
+  try {
+    data = await api('GET', '/api/profiles/display-preference');
+  } catch { return; }
+
+  const displays = (data && data.displays) || [];
+  const currentPref = (data && data.displayPreference) ? String(data.displayPreference) : '';
+
+  content().innerHTML = `
+    <div class="section-title">Monitors</div>
+    <div class="card">
+      <div class="card-title">Connected Displays</div>
+      ${displays.length === 0
+        ? '<p style="color:var(--text-dim);font-size:12px;">No displays detected.</p>'
+        : displays.map(d => `
+          <div class="item-row">
+            <span class="item-name">${escHtml(d.name || ('Display ' + d.id))}</span>
+            <span class="item-meta">${d.isPrimary ? '(primary)' : ''}</span>
+          </div>`).join('')}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Slides Presentation Monitor</div>
+      <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">
+        Select which connected display the Google Slides presentation window targets.
+        Changes take effect after reloading the current presentation.
+      </p>
+      <div class="field">
+        <div class="field-label">Target display</div>
+        <select id="display-select" style="width:100%;">
+          <option value="">None (use primary display)</option>
+          ${displays.map(d => `<option value="${escHtml(String(d.id))}" ${currentPref === String(d.id) ? 'selected' : ''}>${escHtml(d.name || ('Display ' + d.id))}${d.isPrimary ? ' (primary)' : ''}</option>`).join('')}
+        </select>
+      </div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn btn-primary" id="save-display-btn">Save</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('save-display-btn').addEventListener('click', async () => {
+    const val = document.getElementById('display-select').value;
+    try {
+      await api('PATCH', '/api/profiles/display-preference', { displayPreference: val || null });
+      showSuccess('Monitor preference saved. Changes take effect after reloading the presentation.');
+    } catch { /* handled */ }
   });
 }
 
