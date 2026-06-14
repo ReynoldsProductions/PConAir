@@ -372,6 +372,7 @@
 
       <div class="sidebar-label">System</div>
       <div class="nav-item" data-section="branding">Branding</div>
+      <div class="nav-item" data-section="logs">Logs</div>
       <div class="nav-item" data-section="system">System</div>
 
       <div class="sidebar-spacer"></div>
@@ -515,6 +516,7 @@ function renderSection() {
     case 'slides':     renderSlides(); break;
     case 'showlock':   renderShowLock(); break;
     case 'branding':   renderBranding(); break;
+    case 'logs':       renderLogs(); break;
     case 'system':     renderSystem(); break;
   }
 }
@@ -1488,6 +1490,109 @@ async function renderBranding() {
       showSuccess('Branding saved — reload the remote to apply');
       renderBranding();
     } catch { /* showError handled in api() */ }
+  });
+}
+
+// ── Logs ─────────────────────────────────────────────────────────────────────
+async function renderLogs() {
+  content().innerHTML = '<div class="section-title">Logs</div><div class="card"><div class="card-title">Loading…</div></div>';
+  let logsData;
+  try { logsData = await api('GET', '/api/debug/logs'); } catch { return; }
+
+  function formatLogEntries(list, emptyMsg) {
+    if (!list || !list.length) return `<div class="empty-state">${emptyMsg}</div>`;
+    return list.map(e => {
+      const ts = new Date(e.timestamp).toLocaleString();
+      return `<div style="font-family:monospace;font-size:12px;line-height:1.6;border-bottom:1px solid var(--border);padding:4px 0;word-break:break-all;">
+        <span style="color:var(--text-dim);">${escHtml(ts)}</span>
+        <span style="margin:0 6px;font-weight:600;">[${escHtml(e.type)}]</span>
+        <span>${escHtml(e.description)}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function buildLogsText(data) {
+    const lines = [];
+    lines.push('=== PConAir Debug Logs ===');
+    lines.push(`Generated: ${new Date().toISOString()}`);
+    lines.push(`Node.js: ${data.nodeVersion}`);
+    lines.push(`Process uptime: ${Math.round((data.processUptimeMs || 0) / 1000)}s`);
+    lines.push('');
+    lines.push('--- ERRORS ---');
+    (data.errors || []).forEach(e => lines.push(`[${e.timestamp}] [${e.type}] ${e.description}`));
+    if (!data.errors || !data.errors.length) lines.push('(none)');
+    lines.push('');
+    lines.push('--- WARNINGS ---');
+    (data.warnings || []).forEach(e => lines.push(`[${e.timestamp}] [${e.type}] ${e.description}`));
+    if (!data.warnings || !data.warnings.length) lines.push('(none)');
+    return lines.join('\n');
+  }
+
+  const uptimeSec = Math.round((logsData.processUptimeMs || 0) / 1000);
+  const uptimeStr = uptimeSec >= 3600
+    ? `${Math.floor(uptimeSec / 3600)}h ${Math.floor((uptimeSec % 3600) / 60)}m ${uptimeSec % 60}s`
+    : uptimeSec >= 60
+      ? `${Math.floor(uptimeSec / 60)}m ${uptimeSec % 60}s`
+      : `${uptimeSec}s`;
+
+  content().innerHTML = `
+    <div class="section-title">Logs</div>
+
+    <div class="card">
+      <div class="card-title">Process Info</div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap;">
+        <div>
+          <div class="field-label">Node.js Version</div>
+          <div style="font-family:monospace;font-size:13px;color:var(--text);">${escHtml(logsData.nodeVersion || '—')}</div>
+        </div>
+        <div>
+          <div class="field-label">Process Uptime</div>
+          <div style="font-family:monospace;font-size:13px;color:var(--text);">${escHtml(uptimeStr)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="logs-errors-card">
+      <div class="card-title" style="color:var(--red);">Errors (${(logsData.errors || []).length})</div>
+      <div id="logs-errors-list">
+        ${formatLogEntries(logsData.errors, 'No errors')}
+      </div>
+    </div>
+
+    <div class="card" id="logs-warnings-card">
+      <div class="card-title" style="color:var(--orange);">Warnings (${(logsData.warnings || []).length})</div>
+      <div id="logs-warnings-list">
+        ${formatLogEntries(logsData.warnings, 'No warnings')}
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:8px;">
+      <button class="btn btn-sm" id="logs-refresh-btn">Refresh</button>
+      <button class="btn btn-sm" id="logs-download-btn">Download logs</button>
+    </div>
+  `;
+
+  document.getElementById('logs-refresh-btn').addEventListener('click', async () => {
+    let fresh;
+    try { fresh = await api('GET', '/api/debug/logs'); } catch { return; }
+    document.getElementById('logs-errors-list').innerHTML = formatLogEntries(fresh.errors, 'No errors');
+    document.getElementById('logs-warnings-list').innerHTML = formatLogEntries(fresh.warnings, 'No warnings');
+    document.querySelector('#logs-errors-card .card-title').innerHTML = `Errors (${(fresh.errors || []).length})`;
+    document.querySelector('#logs-warnings-card .card-title').innerHTML = `Warnings (${(fresh.warnings || []).length})`;
+    showSuccess('Logs refreshed');
+  });
+
+  document.getElementById('logs-download-btn').addEventListener('click', async () => {
+    let fresh;
+    try { fresh = await api('GET', '/api/debug/logs'); } catch { return; }
+    const text = buildLogsText(fresh);
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'pconair-logs.txt';
+    a.click();
+    URL.revokeObjectURL(url);
   });
 }
 
