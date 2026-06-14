@@ -31,6 +31,13 @@ export interface FullServerTestOpts {
   saveTunnelSettings?: (patch: Record<string, unknown>) => void;
   packagesRoot?: string | string[];
   stageTimer?: import('../src/main/routes/index').RouteServices['stageTimer'];
+  openKeyFillDisplays?: (opts: {
+    fillUrl: string;
+    keyUrl: string;
+    fillBgColor: string;
+    keyBgColor: string;
+  }) => Promise<void>;
+  closeKeyFillDisplays?: () => void;
 }
 
 export function createFullServer(opts: FullServerTestOpts) {
@@ -105,6 +112,8 @@ export function createFullServer(opts: FullServerTestOpts) {
     saveTunnelSettings: opts.saveTunnelSettings,
     packagesRoot: opts.packagesRoot,
     stageTimer: opts.stageTimer,
+    openKeyFillDisplays: opts.openKeyFillDisplays,
+    closeKeyFillDisplays: opts.closeKeyFillDisplays,
   });
 
   return {

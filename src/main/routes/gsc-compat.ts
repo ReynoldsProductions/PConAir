@@ -10,6 +10,7 @@ import {
   slideOfflineModeOp,
 } from '../services/slide-ops';
 import { urlLoadOp } from '../services/url-ops';
+import { validateKeyFillUrl } from '../services/key-fill';
 
 /**
  * Backwards-compatibility surface for the Google Slides Controller Companion
@@ -34,7 +35,19 @@ function notSupported(res: Response, what: string): void {
   res.status(400).json({ error: `${what} is not supported by PConAir` });
 }
 
-export function createGscCompatRouter(store: StateStore): Router {
+export interface GscCompatRouterDeps {
+  /** Open key/fill windows in Electron (absent in tests — returns 503). */
+  openKeyFillDisplays?: (opts: {
+    fillUrl: string;
+    keyUrl: string;
+    fillBgColor: string;
+    keyBgColor: string;
+  }) => Promise<void>;
+  /** Close key/fill windows in Electron (absent in tests — no-op acknowledged). */
+  closeKeyFillDisplays?: () => void;
+}
+
+export function createGscCompatRouter(store: StateStore, deps: GscCompatRouterDeps = {}): Router {
   const router = Router();
 
   router.post('/open-presentation', (req: Request, res: Response) => {
@@ -98,6 +111,60 @@ export function createGscCompatRouter(store: StateStore): Router {
     res.json({ success: true });
   });
 
+  // POST /open-key-fill — open fill window (color) on presentation display and
+  // key window (grayscale luminance key) on notes display.
+  router.post('/open-key-fill', (req: Request, res: Response) => {
+    const body = req.body as {
+      fillUrl?: unknown;
+      keyUrl?: unknown;
+      fillBgColor?: unknown;
+      keyBgColor?: unknown;
+    };
+    const fillUrl = typeof body.fillUrl === 'string' ? body.fillUrl.trim() : '';
+    const keyUrl = typeof body.keyUrl === 'string' ? body.keyUrl.trim() : '';
+    const fillBgColor = typeof body.fillBgColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(body.fillBgColor.trim())
+      ? body.fillBgColor.trim()
+      : '#000000';
+    const keyBgColor = typeof body.keyBgColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(body.keyBgColor.trim())
+      ? body.keyBgColor.trim()
+      : '#000000';
+
+    const fillErr = validateKeyFillUrl(fillUrl);
+    if (fillErr) {
+      res.status(400).json({ error: `fillUrl: ${fillErr}` });
+      return;
+    }
+    const keyErr = validateKeyFillUrl(keyUrl);
+    if (keyErr) {
+      res.status(400).json({ error: `keyUrl: ${keyErr}` });
+      return;
+    }
+
+    if (!deps.openKeyFillDisplays) {
+      res.status(503).json({ error: 'Key/fill display not available in this context' });
+      return;
+    }
+
+    console.log('[API] Opening key/fill — fill:', fillUrl, 'key:', keyUrl, 'fillBg:', fillBgColor, 'keyBg:', keyBgColor);
+    deps.openKeyFillDisplays({ fillUrl, keyUrl, fillBgColor, keyBgColor }).then(() => {
+      res.json({ success: true, message: 'Key/fill opened' });
+    }).catch((err: unknown) => {
+      console.error('[API] Error opening key/fill:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: (err as Error).message ?? String(err) });
+      }
+    });
+  });
+
+  // POST /close-key-fill — close both key/fill windows.
+  router.post('/close-key-fill', (_req: Request, res: Response) => {
+    if (deps.closeKeyFillDisplays) {
+      console.log('[API] Closing key/fill');
+      deps.closeKeyFillDisplays();
+    }
+    res.json({ success: true, message: 'Key/fill closed' });
+  });
+
   // Not (yet) supported by PConAir — honest failures so operators notice.
   for (const ep of [
     'toggle-video',
@@ -106,8 +173,6 @@ export function createGscCompatRouter(store: StateStore): Router {
     'zoom-in-notes',
     'zoom-out-notes',
     'relaunch-speaker-notes',
-    'open-key-fill',
-    'close-key-fill',
     'open-preset',
     'set-backup-controls',
     'preferences',

@@ -85,6 +85,14 @@ export interface RouteServices {
   saveBrandingSettings: (patch: { customLogoPath?: string | null; customCssPath?: string | null }) => void;
   /** Slides window manager — enables notes scroll/zoom HTTP endpoints. */
   slidesWindowManager?: SlidesWindowManager;
+  /** Key/fill window hooks (Electron main only); absent in tests. */
+  openKeyFillDisplays?: (opts: {
+    fillUrl: string;
+    keyUrl: string;
+    fillBgColor: string;
+    keyBgColor: string;
+  }) => Promise<void>;
+  closeKeyFillDisplays?: () => void;
 }
 
 export function mountRoutes(app: Express, s: RouteServices): void {
@@ -121,7 +129,10 @@ export function mountRoutes(app: Express, s: RouteServices): void {
     windowManager: s.slidesWindowManager,
   }));
   // GSC Companion module compat — cookie-less, IP-allowlist-gated (see gsc-compat.ts)
-  app.use('/api', createGscCompatRouter(s.store));
+  app.use('/api', createGscCompatRouter(s.store, {
+    openKeyFillDisplays: s.openKeyFillDisplays,
+    closeKeyFillDisplays: s.closeKeyFillDisplays,
+  }));
   app.use(createRenderRouter(s.store, s.auth));
   if (s.packageHub) {
     app.use(createPackagesRouter(s.packageHub));

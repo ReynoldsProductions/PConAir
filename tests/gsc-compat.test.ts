@@ -154,11 +154,23 @@ describe('GSC-compat action endpoints (no auth required)', () => {
   });
 
   it('unsupported endpoints return an honest error', async () => {
-    for (const ep of ['toggle-video', 'open-key-fill', 'set-perfectcue-enabled']) {
+    for (const ep of ['toggle-video', 'set-perfectcue-enabled']) {
       const res = await request(app).post(`/api/${ep}`);
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('not supported');
     }
+  });
+
+  it('open-key-fill validates URLs (400 for missing fillUrl)', async () => {
+    const res = await request(app).post('/api/open-key-fill').send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/fillUrl/);
+  });
+
+  it('close-key-fill acknowledges even without Electron hooks wired', async () => {
+    const res = await request(app).post('/api/close-key-fill').send({});
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
   });
 });
 

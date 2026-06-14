@@ -28,6 +28,7 @@ import { snapshotDisplays } from './displays';
 import { bootstrapProfiles, parseProfileCliArg, getActiveMarker, syncActiveProfileUrlPresets, clearIpAllowlistForActiveProfile } from './profiles/bootstrap';
 import { profileRuntimeStatePath } from './profiles/paths';
 import { parsePconairCli } from './cli-options';
+import { openKeyFillDisplays, closeKeyFillDisplays } from './services/key-fill';
 
 const cli = parsePconairCli(process.argv);
 const OPERATOR_PIN = cli.operatorPin ?? process.env.PCONAIR_OPERATOR_PIN ?? '0000';
@@ -225,6 +226,8 @@ async function main() {
       saveAppSettings(settingsFile, patch);
     },
     slidesWindowManager: slidesManager,
+    openKeyFillDisplays,
+    closeKeyFillDisplays,
   });
   let serverError: string | null = null;
   try {

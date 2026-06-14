@@ -69,6 +69,14 @@ export interface ServerDeps {
   saveBrandingSettings?: (patch: { customLogoPath?: string | null; customCssPath?: string | null }) => void;
   /** Slides window manager — enables notes scroll/zoom HTTP endpoints; absent in tests. */
   slidesWindowManager?: SlidesWindowManager;
+  /** Key/fill window hooks (Electron main only); absent in tests. */
+  openKeyFillDisplays?: (opts: {
+    fillUrl: string;
+    keyUrl: string;
+    fillBgColor: string;
+    keyBgColor: string;
+  }) => Promise<void>;
+  closeKeyFillDisplays?: () => void;
 }
 
 function getRequestClientIp(req: express.Request, trustForwardedFor: boolean): string {
@@ -215,6 +223,8 @@ export function createServer(deps: ServerDeps) {
     getCustomCssPath: deps.getCustomCssPath ?? (() => null),
     saveBrandingSettings: deps.saveBrandingSettings ?? (() => { /* no-op in tests */ }),
     slidesWindowManager,
+    openKeyFillDisplays: deps.openKeyFillDisplays,
+    closeKeyFillDisplays: deps.closeKeyFillDisplays,
   };
 
   const app = express();
