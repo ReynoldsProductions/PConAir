@@ -828,6 +828,31 @@ input[type="radio"] {
   margin: 0;
 }
 
+.kbd-preset-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.kbd-preset-label {
+  font-size: 12px;
+  color: var(--text-subdued);
+  margin-right: 2px;
+  white-space: nowrap;
+}
+
+.kbd-preset-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+.kbd-preset-btn.active {
+  background: var(--text);
+  color: #fff;
+  border-color: var(--text);
+}
+
 .ml-l3-select-wrap { display: flex; gap: 8px; align-items: stretch; }
 
 .ml-l3-select-wrap .select-input { flex: 1; min-width: 0; }
@@ -965,6 +990,16 @@ input[type="radio"] {
               </div>
             </div>
             <button type="button" class="btn btn-secondary" id="reload-btn" disabled>Reload Deck</button>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Keyboard Shortcuts</div>
+            <div class="kbd-preset-row">
+              <span class="kbd-preset-label">Preset:</span>
+              <button type="button" class="btn btn-secondary kbd-preset-btn" data-kbd-preset="google">Google</button>
+              <button type="button" class="btn btn-secondary kbd-preset-btn" data-kbd-preset="powerpoint">PowerPoint</button>
+              <button type="button" class="btn btn-secondary kbd-preset-btn" data-kbd-preset="keynote">Keynote</button>
+            </div>
+            <p class="field-hint" style="margin-top:8px;">Maps arrow keys and software-specific shortcuts to slide navigation.</p>
           </div>
           <div class="panel">
             <div class="panel-title">Slide Presets</div>
