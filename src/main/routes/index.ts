@@ -170,6 +170,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       l3Cues: s.l3Cues,
       l3Playlists: s.l3Playlists,
       mediaLibrary: s.mediaLibrary,
+      store: s.store,
       onProfileActivate: s.onProfileActivate,
     })
   );
