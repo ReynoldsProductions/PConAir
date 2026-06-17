@@ -2,7 +2,7 @@ import { app, screen, session, ipcMain, dialog, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { createOperatorWindow } from './window';
-import { appSettingsPath, loadAppSettings, resolvePort, saveAppSettings } from './app-settings';
+import { appSettingsPath, loadAppSettings, resolvePort, saveAppSettings, type AppSettings } from './app-settings';
 import { createTunnelManager } from './tunnel/manager';
 import { showQrOverlay, hideQrOverlay } from './tunnel/qr-overlay';
 import { createStageTimerOverlay } from './stagetimer/overlay';
@@ -132,6 +132,12 @@ async function main() {
     media: mediaLibrary,
     slideshow,
     windowManager: slidesManager,
+    getTeleprompterHost: () => loadAppSettings(settingsFile).teleprompterHost,
+    isTeleprompterEnabled: () => loadAppSettings(settingsFile).teleprompterEnabled,
+    getBackupSettings: () => {
+      const s = loadAppSettings(settingsFile);
+      return { operationMode: s.operationMode, backupIps: s.backupIps, port };
+    },
   });
 
   const urlManager = createUrlWindowManager({ store });
@@ -157,6 +163,13 @@ async function main() {
       overlaySize: appSettings.stageTimerOverlaySize,
       roomId: appSettings.stagetimerRoomId,
       configured: appSettings.stagetimerRoomId !== null && appSettings.stagetimerApiKey !== null,
+    },
+    teleprompter: {
+      enabled: appSettings.teleprompterEnabled,
+      host: appSettings.teleprompterHost,
+      scrolling: false,
+      speed: 40,
+      fontSize: 72,
     },
   });
 
@@ -233,6 +246,21 @@ async function main() {
       saveAppSettings(settingsFile, patch);
     },
     slidesWindowManager: slidesManager,
+    getTeleprompterHost: () => loadAppSettings(settingsFile).teleprompterHost,
+    isTeleprompterEnabled: () => loadAppSettings(settingsFile).teleprompterEnabled,
+    saveTeleprompterSettings: (patch) => {
+      saveAppSettings(settingsFile, {
+        ...(patch.host !== undefined ? { teleprompterHost: patch.host } : {}),
+        ...(patch.enabled !== undefined ? { teleprompterEnabled: patch.enabled } : {}),
+      });
+    },
+    getBackupSettings: () => {
+      const s = loadAppSettings(settingsFile);
+      return { operationMode: s.operationMode, backupIps: s.backupIps, port };
+    },
+    getAppSettings: () => loadAppSettings(settingsFile),
+    saveAppSettingsPatch: (patch: Partial<Omit<AppSettings, 'schemaVersion'>>) =>
+      saveAppSettings(settingsFile, patch),
   });
   let serverError: string | null = null;
   try {

@@ -74,6 +74,16 @@ export interface ServerDeps {
   saveBrandingSettings?: (patch: { customLogoPath?: string | null; customCssPath?: string | null }) => void;
   /** Slides window manager — enables notes scroll/zoom HTTP endpoints; absent in tests. */
   slidesWindowManager?: SlidesWindowManager;
+  /** Teleprompter proxy hooks; absent in tests (no-ops applied). */
+  getTeleprompterHost?: () => string;
+  isTeleprompterEnabled?: () => boolean;
+  saveTeleprompterSettings?: (patch: { host?: string; enabled?: boolean }) => void;
+  /** Returns backup settings for fan-out and GSC status. */
+  getBackupSettings?: RouteServices['getBackupSettings'];
+  /** Returns all app settings (GET /api/app-settings). */
+  getAppSettings?: RouteServices['getAppSettings'];
+  /** Persists an app settings patch (PATCH /api/app-settings). */
+  saveAppSettingsPatch?: RouteServices['saveAppSettingsPatch'];
 }
 
 function getRequestClientIp(req: express.Request, trustForwardedFor: boolean): string {
@@ -226,6 +236,12 @@ export function createServer(deps: ServerDeps) {
     getCustomCssPath: deps.getCustomCssPath ?? (() => null),
     saveBrandingSettings: deps.saveBrandingSettings ?? (() => { /* no-op in tests */ }),
     slidesWindowManager,
+    getTeleprompterHost: deps.getTeleprompterHost ?? (() => ''),
+    isTeleprompterEnabled: deps.isTeleprompterEnabled ?? (() => false),
+    saveTeleprompterSettings: deps.saveTeleprompterSettings ?? (() => { /* no-op in tests */ }),
+    getBackupSettings: deps.getBackupSettings,
+    getAppSettings: deps.getAppSettings,
+    saveAppSettingsPatch: deps.saveAppSettingsPatch,
   };
 
   const app = express();

@@ -33,6 +33,14 @@ export interface AppSettings {
   customLogoPath: string | null;
   /** Absolute path to a custom CSS file for white-labeling the web remote; null = no override. */
   customCssPath: string | null;
+  /** Teleprompter proxy: base URL of the remote teleprompter service. */
+  teleprompterHost: string;
+  /** Teleprompter proxy: whether PConAir should forward control commands. */
+  teleprompterEnabled: boolean;
+  /** Multi-machine mode: primary fans out slide commands; backup receives only; standalone = off. */
+  operationMode: 'primary' | 'backup' | 'standalone';
+  /** IPs of backup machines to receive fan-out commands when operationMode is 'primary'. */
+  backupIps: string[];
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
@@ -49,6 +57,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
   stageTimerOverlayEnabled: false,
   customLogoPath: null,
   customCssPath: null,
+  teleprompterHost: '',
+  teleprompterEnabled: false,
+  operationMode: 'standalone',
+  backupIps: [],
 });
 
 export function appSettingsPath(userDataDir: string): string {
@@ -64,6 +76,15 @@ function strOrNull(v: unknown): string | null {
 }
 
 const OVERLAY_POSITIONS = new Set(['bottom-left', 'bottom-right', 'top-left', 'top-right']);
+const OPERATION_MODES = new Set(['primary', 'backup', 'standalone']);
+
+function isValidOperationMode(v: unknown): v is AppSettings['operationMode'] {
+  return typeof v === 'string' && OPERATION_MODES.has(v);
+}
+
+function isStringArray(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((x) => typeof x === 'string');
+}
 
 export function isValidOverlayPosition(v: unknown): v is AppSettings['stageTimerOverlayPosition'] {
   return typeof v === 'string' && OVERLAY_POSITIONS.has(v);
@@ -103,6 +124,12 @@ export function loadAppSettings(filePath: string): AppSettings {
     stageTimerOverlayEnabled: obj.stageTimerOverlayEnabled === true,
     customLogoPath: strOrNull(obj.customLogoPath),
     customCssPath: strOrNull(obj.customCssPath),
+    teleprompterHost: typeof obj.teleprompterHost === 'string' ? obj.teleprompterHost : '',
+    teleprompterEnabled: obj.teleprompterEnabled === true,
+    operationMode: isValidOperationMode(obj.operationMode)
+      ? obj.operationMode
+      : DEFAULT_APP_SETTINGS.operationMode,
+    backupIps: isStringArray(obj.backupIps) ? obj.backupIps : DEFAULT_APP_SETTINGS.backupIps,
   };
 }
 
@@ -122,6 +149,10 @@ export function saveAppSettings(filePath: string, patch: AppSettingsPatch): AppS
     stageTimerOverlaySize: isValidOverlaySize(patch.stageTimerOverlaySize)
       ? patch.stageTimerOverlaySize
       : current.stageTimerOverlaySize,
+    operationMode: isValidOperationMode(patch.operationMode)
+      ? patch.operationMode
+      : current.operationMode,
+    backupIps: isStringArray(patch.backupIps) ? patch.backupIps : current.backupIps,
   };
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const tmp = `${filePath}.tmp`;

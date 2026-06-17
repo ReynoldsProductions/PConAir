@@ -378,6 +378,7 @@
       <div class="sidebar-label">System</div>
       <div class="nav-item" data-section="monitors">Monitors</div>
       <div class="nav-item" data-section="branding">Branding</div>
+      <div class="nav-item" data-section="teleprompter">Teleprompter</div>
       <div class="nav-item" data-section="logs">Logs</div>
       <div class="nav-item" data-section="system">System</div>
 
@@ -525,8 +526,9 @@ function renderSection() {
     case 'slides':     renderSlides(); break;
     case 'showlock':   renderShowLock(); break;
     case 'monitors':   renderMonitors(); break;
-    case 'branding':   renderBranding(); break;
-    case 'logs':       renderLogs(); break;
+    case 'branding':      renderBranding(); break;
+    case 'teleprompter':  renderTeleprompter(); break;
+    case 'logs':          renderLogs(); break;
     case 'system':     renderSystem(); break;
   }
 }
@@ -1230,7 +1232,7 @@ function renderShowLock() {
 async function renderSystem() {
   content().innerHTML = `<div class="section-title">System</div><div class="card"><div class="card-title">Loading…</div></div>`;
 
-  let statusData, displaysData, activeProfileData, fullProfileData;
+  let statusData, displaysData, activeProfileData, fullProfileData, appSettingsData;
   try {
     [statusData, displaysData, activeProfileData] = await Promise.all([
       api('GET', '/api/status'),
@@ -1243,12 +1245,19 @@ async function renderSystem() {
     fullProfileData = await api('GET', `/api/profiles/${activeProfileData.id}`);
   } catch { fullProfileData = null; }
 
+  try {
+    appSettingsData = await api('GET', '/api/app-settings');
+  } catch { appSettingsData = null; }
+
   const displays = (displaysData && displaysData.displays) || [];
   const instA = (statusData && statusData.abState && statusData.abState.instanceA) || {};
   const instB = (statusData && statusData.abState && statusData.abState.instanceB) || {};
   const prefs = (fullProfileData && fullProfileData.appPreferences) || {};
   const allowlistEnabled = !!prefs.ipAllowlistEnabled;
   const allowlist = Array.isArray(prefs.ipAllowlist) ? prefs.ipAllowlist : [];
+
+  const operationMode = (appSettingsData && appSettingsData.operationMode) || 'standalone';
+  const backupIps = Array.isArray(appSettingsData && appSettingsData.backupIps) ? appSettingsData.backupIps : [];
 
   const displayOptions = [
     '<option value="">— None —</option>',
@@ -1300,6 +1309,34 @@ async function renderSystem() {
     </div>
 
     <div class="card">
+      <div class="card-title">Multi-machine</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+        Enable primary mode to fan slide commands to backup machines in real time.
+      </p>
+      <div class="field" style="margin-bottom:10px;">
+        <div class="field-label">Operation mode</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+            <input type="radio" name="op-mode" value="standalone" ${operationMode === 'standalone' ? 'checked' : ''} style="accent-color:var(--accent);"> Standalone
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+            <input type="radio" name="op-mode" value="primary" ${operationMode === 'primary' ? 'checked' : ''}  style="accent-color:var(--accent);"> Primary
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+            <input type="radio" name="op-mode" value="backup" ${operationMode === 'backup' ? 'checked' : ''}   style="accent-color:var(--accent);"> Backup
+          </label>
+        </div>
+      </div>
+      <div id="backup-ips-field" style="display:${operationMode === 'primary' ? 'block' : 'none'};">
+        <div class="field">
+          <div class="field-label">Backup machine IPs (one per line; port defaults to ${escHtml(port)})</div>
+          <textarea id="backup-ips-textarea" rows="4" placeholder="192.168.1.101&#10;192.168.1.102:8080">${escHtml(backupIps.join('\n'))}</textarea>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="save-multimachine-btn" style="margin-top:8px;">Save Multi-machine</button>
+    </div>
+
+    <div class="card">
       <div class="card-title">Server Port</div>
       <p style="font-size:13px;color:var(--text-dim);line-height:1.5;">
         Current port: <strong style="color:var(--text);font-size:16px;">${escHtml(port)}</strong>
@@ -1341,6 +1378,28 @@ async function renderSystem() {
         },
       });
       showSuccess('Allowlist saved — restart the app to apply');
+    } catch { /* showError handled in api() */ }
+  });
+
+  // Show/hide backup IPs textarea based on mode selection
+  document.querySelectorAll('input[name="op-mode"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const mode = document.querySelector('input[name="op-mode"]:checked').value;
+      document.getElementById('backup-ips-field').style.display = mode === 'primary' ? 'block' : 'none';
+    });
+  });
+
+  // Save multi-machine settings
+  document.getElementById('save-multimachine-btn').addEventListener('click', async () => {
+    const mode = document.querySelector('input[name="op-mode"]:checked').value;
+    const raw = (document.getElementById('backup-ips-textarea') || { value: '' }).value;
+    const ips = raw.split('\n').map(s => s.trim()).filter(Boolean);
+    try {
+      await api('PATCH', '/api/app-settings', {
+        operationMode: mode,
+        backupIps: mode === 'primary' ? ips : [],
+      });
+      showSuccess('Multi-machine settings saved');
     } catch { /* showError handled in api() */ }
   });
 }
@@ -1608,6 +1667,81 @@ async function renderBranding() {
       showSuccess('Branding saved — reload the remote to apply');
       renderBranding();
     } catch { /* showError handled in api() */ }
+  });
+}
+
+// ── Teleprompter ─────────────────────────────────────────────────────────────
+async function renderTeleprompter() {
+  const c = content();
+  c.innerHTML = '<div class="section-title">Teleprompter</div><div class="card"><div class="card-title">Loading…</div></div>';
+  let cfg, status;
+  try {
+    [cfg, status] = await Promise.all([
+      api('GET', '/api/status').then(s => ({ host: s.teleprompter?.host ?? '', enabled: s.teleprompter?.enabled ?? false })),
+      api('GET', '/api/teleprompter/status').catch(() => ({ connected: false })),
+    ]);
+  } catch (e) {
+    c.innerHTML = '<div class="section-title">Teleprompter</div><div class="card"><p class="field-label">Failed to load.</p></div>';
+    return;
+  }
+  const connLabel = status.connected ? `<span style="color:#22c55e">● Connected</span> — scrolling: ${status.scrolling ? 'yes' : 'no'}, speed: ${status.speed}, font: ${status.fontSize}px` : '<span style="color:#ef4444">● Not connected</span>';
+  c.innerHTML = `
+    <div class="section-title">Teleprompter</div>
+    <div class="card">
+      <div class="card-title">Connection</div>
+      <p style="margin-bottom:12px">${connLabel}</p>
+      <div class="field">
+        <div class="field-label">Service URL</div>
+        <input id="tp-host" type="text" class="input" value="${cfg.host}" placeholder="http://192.168.1.245:8082" style="width:100%;max-width:360px" />
+      </div>
+      <label class="field" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input id="tp-enabled" type="checkbox" ${cfg.enabled ? 'checked' : ''} />
+        <span class="field-label" style="margin:0">Enable teleprompter proxy</span>
+      </label>
+      <button id="tp-save-cfg" class="btn btn-primary" style="margin-top:12px">Save</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Transport</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="tp-start" class="btn btn-primary">▶ Start</button>
+        <button id="tp-stop" class="btn">■ Stop</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Speed</div>
+      <div style="display:flex;gap:8px">
+        <button id="tp-faster" class="btn">Faster +10</button>
+        <button id="tp-slower" class="btn">Slower −10</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Font Size</div>
+      <div style="display:flex;gap:8px">
+        <button id="tp-font-in" class="btn">A+ (larger)</button>
+        <button id="tp-font-out" class="btn">A− (smaller)</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Script</div>
+      <textarea id="tp-script" class="input" rows="8" style="width:100%;resize:vertical;font-family:monospace;font-size:13px" placeholder="Paste script here…"></textarea>
+      <button id="tp-set-script" class="btn btn-primary" style="margin-top:8px">Set Script</button>
+    </div>
+  `;
+  document.getElementById('tp-save-cfg').addEventListener('click', async () => {
+    await api('POST', '/api/teleprompter/config', { host: document.getElementById('tp-host').value.trim(), enabled: document.getElementById('tp-enabled').checked });
+    showSuccess('Teleprompter settings saved');
+    renderTeleprompter();
+  });
+  document.getElementById('tp-start').addEventListener('click', async () => { await api('POST', '/api/teleprompter/start'); renderTeleprompter(); });
+  document.getElementById('tp-stop').addEventListener('click', async () => { await api('POST', '/api/teleprompter/stop'); renderTeleprompter(); });
+  document.getElementById('tp-faster').addEventListener('click', () => api('POST', '/api/teleprompter/scroll', { direction: 'faster' }));
+  document.getElementById('tp-slower').addEventListener('click', () => api('POST', '/api/teleprompter/scroll', { direction: 'slower' }));
+  document.getElementById('tp-font-in').addEventListener('click', () => api('POST', '/api/teleprompter/font-size', { direction: 'in' }));
+  document.getElementById('tp-font-out').addEventListener('click', () => api('POST', '/api/teleprompter/font-size', { direction: 'out' }));
+  document.getElementById('tp-set-script').addEventListener('click', async () => {
+    const text = document.getElementById('tp-script').value;
+    await api('POST', '/api/teleprompter/script', { text });
+    showSuccess('Script updated');
   });
 }
 

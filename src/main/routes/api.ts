@@ -4,6 +4,7 @@ import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { ReliabilityStore } from '../reliability-store';
 import type { AppState, Mode, ABInstance } from '../../shared/types';
+import type { AppSettings } from '../app-settings';
 import { requireOperator, requireAdmin } from './middleware';
 import { gscStatusFields } from '../services/gsc-status';
 
@@ -19,11 +20,12 @@ export interface CreateApiRouterDeps {
   setAdminShowLocked: (locked: boolean) => void;
   syncAdminShowLockedToStore: () => void;
   getActiveProfileId: () => string;
-  // New for GSC parity:
-  port: number;
-  crashDumpsPath: string;
-  getSlidesNotes: () => Promise<string | null>;
-  getProfileName: () => string;
+  /** Returns current backup settings for GSC status field population. */
+  getBackupSettings?: () => Pick<AppSettings, 'operationMode' | 'backupIps'>;
+  /** Returns all app settings (for GET /api/app-settings). */
+  getAppSettings?: () => AppSettings;
+  /** Persists a patch to app settings (for PATCH /api/app-settings). */
+  saveAppSettingsPatch?: (patch: Partial<Omit<AppSettings, 'schemaVersion'>>) => AppSettings;
 }
 
 function instKey(instance: ABInstance): 'instanceA' | 'instanceB' {
@@ -41,10 +43,9 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
     setAdminShowLocked,
     syncAdminShowLockedToStore,
     getActiveProfileId,
-    port,
-    crashDumpsPath,
-    getSlidesNotes,
-    getProfileName,
+    getBackupSettings,
+    getAppSettings,
+    saveAppSettingsPatch,
   } = deps;
 
   const router = Router();
@@ -57,7 +58,7 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
   // GSC-compat flat fields are merged alongside the AppState fields.
   router.get('/status', (_req: Request, res: Response) => {
     const state = store.getState();
-    res.json({ ...state, ...gscStatusFields(state) });
+    res.json({ ...state, ...gscStatusFields(state, getBackupSettings?.()) });
   });
 
   router.get('/debug/logs', adminGuard, (_req: Request, res: Response) => {
@@ -326,57 +327,41 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
     res.json({ abState: { activeInstance: instance as 'A' | 'B' } });
   });
 
-  router.get('/server-info', opGuard, (_req: Request, res: Response) => {
-    const nics = os.networkInterfaces();
-    const addresses: Array<{ name: string; address: string; family: string }> = [];
-    for (const [name, list] of Object.entries(nics)) {
-      for (const entry of list ?? []) {
-        if (!entry.internal) {
-          addresses.push({ name, address: entry.address, family: entry.family });
-        }
-      }
-    }
-    addresses.unshift({ name: 'localhost', address: '127.0.0.1', family: 'IPv4' });
-    res.json({
-      machineName: getProfileName(),
-      port,
-      networkAddresses: addresses,
-      operatorUrls: addresses.map((a) => `http://${a.address}:${port}/operator/`),
-      adminUrls: addresses.map((a) => `http://${a.address}:${port}/admin/`),
-      companionUrls: addresses.map((a) => `http://${a.address}:${port}`),
-      crashDumpsPath,
-      uptime: Math.floor((Date.now() - serverStartedAt) / 1000),
-    });
-  });
-
-  router.get('/logs', adminGuard, (_req: Request, res: Response) => {
-    res.json({
-      entries: getLogs(),
-      verboseLogging: isVerboseLogging(),
-    });
-  });
-
-  router.post('/logs/clear', adminGuard, (_req: Request, res: Response) => {
-    clearLogs();
-    res.json({ ok: true });
-  });
-
-  router.post('/logs/verbose', adminGuard, (req: Request, res: Response) => {
-    const { enabled } = req.body as { enabled?: boolean };
-    if (typeof enabled !== 'boolean') {
-      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'enabled must be boolean' } });
+  // App settings — read and patch (admin-level; these are machine-wide)
+  router.get('/app-settings', adminGuard, (_req: Request, res: Response) => {
+    if (!getAppSettings) {
+      res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'App settings not available in this environment' } });
       return;
     }
-    setVerboseLogging(enabled);
-    res.json({ verboseLogging: enabled });
+    const s = getAppSettings();
+    // Never expose secrets over the wire
+    res.json({
+      operationMode: s.operationMode,
+      backupIps: s.backupIps,
+      port: s.port,
+      tunnelEnabled: s.tunnelEnabled,
+      tunnelDomain: s.tunnelDomain,
+      stageTimerOverlayPosition: s.stageTimerOverlayPosition,
+      stageTimerOverlaySize: s.stageTimerOverlaySize,
+      stageTimerOverlayEnabled: s.stageTimerOverlayEnabled,
+      teleprompterEnabled: s.teleprompterEnabled,
+      teleprompterHost: s.teleprompterHost,
+    });
   });
 
-  router.get('/slides/notes', opGuard, async (_req: Request, res: Response) => {
-    const notes = await getSlidesNotes();
-    const state = store.getState();
+  router.patch('/app-settings', adminGuard, (req: Request, res: Response) => {
+    if (!saveAppSettingsPatch) {
+      res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'App settings not available in this environment' } });
+      return;
+    }
+    const body = req.body as Record<string, unknown>;
+    const patch: Partial<Omit<AppSettings, 'schemaVersion'>> = {};
+    if (body.operationMode !== undefined) patch.operationMode = body.operationMode as AppSettings['operationMode'];
+    if (body.backupIps !== undefined) patch.backupIps = body.backupIps as string[];
+    const next = saveAppSettingsPatch(patch);
     res.json({
-      notes,
-      slideIndex: state.slides?.slideIndex ?? null,
+      operationMode: next.operationMode,
+      backupIps: next.backupIps,
     });
   });
 

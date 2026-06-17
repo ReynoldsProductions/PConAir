@@ -70,3 +70,59 @@ describe('resolvePort', () => {
     expect(resolvePort('nope', { ...DEFAULT_APP_SETTINGS, port: 8123 })).toBe(8123);
   });
 });
+
+describe('operationMode', () => {
+  it('defaults to standalone when the field is missing', () => {
+    fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, port: 8080 }));
+    expect(loadAppSettings(file).operationMode).toBe('standalone');
+  });
+
+  it('accepts primary, backup, and standalone', () => {
+    for (const mode of ['primary', 'backup', 'standalone'] as const) {
+      fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, operationMode: mode }));
+      expect(loadAppSettings(file).operationMode).toBe(mode);
+    }
+  });
+
+  it('falls back to standalone for an invalid value', () => {
+    fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, operationMode: 'leader' }));
+    expect(loadAppSettings(file).operationMode).toBe('standalone');
+  });
+
+  it('round-trips operationMode through save', () => {
+    saveAppSettings(file, { operationMode: 'primary' });
+    expect(loadAppSettings(file).operationMode).toBe('primary');
+  });
+
+  it('ignores invalid operationMode in patch and keeps current value', () => {
+    saveAppSettings(file, { operationMode: 'backup' });
+    const result = saveAppSettings(file, { operationMode: 'bad-value' as never });
+    expect(result.operationMode).toBe('backup');
+  });
+});
+
+describe('backupIps', () => {
+  it('defaults to empty array when the field is missing', () => {
+    fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1 }));
+    expect(loadAppSettings(file).backupIps).toEqual([]);
+  });
+
+  it('round-trips a non-empty backupIps array', () => {
+    saveAppSettings(file, { backupIps: ['192.168.1.10', '192.168.1.11'] });
+    expect(loadAppSettings(file).backupIps).toEqual(['192.168.1.10', '192.168.1.11']);
+  });
+
+  it('falls back to empty array when backupIps is not a string array', () => {
+    fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, backupIps: [1, 2, 3] }));
+    expect(loadAppSettings(file).backupIps).toEqual([]);
+
+    fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, backupIps: 'single' }));
+    expect(loadAppSettings(file).backupIps).toEqual([]);
+  });
+
+  it('ignores invalid backupIps in patch and keeps current value', () => {
+    saveAppSettings(file, { backupIps: ['10.0.0.1'] });
+    const result = saveAppSettings(file, { backupIps: 'bad' as never });
+    expect(result.backupIps).toEqual(['10.0.0.1']);
+  });
+});
