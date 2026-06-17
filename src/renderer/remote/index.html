@@ -172,10 +172,21 @@
     .status-dot.active { background: var(--live); }
     .status-dot.error { background: var(--err); }
     .status-dot.starting { background: var(--warn); }
+
+    /* ── Custom branding ── */
+    .branding-logo {
+      height: 28px;
+      width: auto;
+      object-fit: contain;
+      flex: 0 0 auto;
+    }
   </style>
+  <!-- Custom branding stylesheet (returns empty CSS when no file is configured) -->
+  <link rel="stylesheet" href="/branding/style.css" />
 </head>
 <body>
   <header>
+    <img id="branding-logo" class="branding-logo" alt="" hidden />
     <h1>PConAir</h1>
     <div class="spacer"></div>
     <span id="conn-label">connecting…</span>

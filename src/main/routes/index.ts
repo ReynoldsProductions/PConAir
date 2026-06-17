@@ -2,7 +2,7 @@ import { Express } from 'express';
 import cookieParser from 'cookie-parser';
 import { createAuthRouter } from './auth';
 import { createApiRouter } from './api';
-import { createSlidesRouter } from './slides';
+import { createSlidesRouter, type SlidesRouterDeps } from './slides';
 import { createUrlRouter } from './url';
 import { createOperatorRouter } from './operator';
 import { createRemoteRouter } from './remote';
@@ -19,6 +19,7 @@ import { createActionRouter } from './action';
 import { createBackgroundRouter } from './background';
 import { createMediaLibraryRouter } from './media-library';
 import { createProfilesRouter } from './profiles';
+import { createBrandingRouter } from './branding';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { PresetsStore } from '../presets';
@@ -31,6 +32,7 @@ import type { ActionDispatcher } from '../action-dispatch';
 import type { ProfilePaths } from '../profiles/paths';
 import type { ReliabilityStore } from '../reliability-store';
 import type { L3Cue } from '../l3/cue-store';
+import type { SlidesWindowManager } from '../slides/window-manager';
 
 export interface RouteServices {
   store: StateStore;
@@ -72,6 +74,25 @@ export interface RouteServices {
   stageTimer?: Omit<StageTimerRouterDeps, 'store' | 'auth'>;
   /** Graphics packages hub; null when the packages system is disabled. */
   packageHub: PackageHub | null;
+  /** Google Slides auth hooks (Electron main only). */
+  openGoogleAuthWindow?: SlidesRouterDeps['openGoogleAuthWindow'];
+  getGoogleAuthState?: SlidesRouterDeps['getGoogleAuthState'];
+  /** Returns the current custom logo path from app settings (live, not cached). */
+  getCustomLogoPath: () => string | null;
+  /** Returns the current custom CSS path from app settings (live, not cached). */
+  getCustomCssPath: () => string | null;
+  /** Persists a branding settings patch to app-settings.json. */
+  saveBrandingSettings: (patch: { customLogoPath?: string | null; customCssPath?: string | null }) => void;
+  /** Slides window manager — enables notes scroll/zoom HTTP endpoints. */
+  slidesWindowManager?: SlidesWindowManager;
+  /** Key/fill window hooks (Electron main only); absent in tests. */
+  openKeyFillDisplays?: (opts: {
+    fillUrl: string;
+    keyUrl: string;
+    fillBgColor: string;
+    keyBgColor: string;
+  }) => Promise<void>;
+  closeKeyFillDisplays?: () => void;
 }
 
 export function mountRoutes(app: Express, s: RouteServices): void {
@@ -87,15 +108,31 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   app.use('/operator', createOperatorRouter(s.auth));
   app.use('/remote', createRemoteRouter(s.auth));
   app.use(
+    '/branding',
+    createBrandingRouter({
+      auth: s.auth,
+      getCustomLogoPath: s.getCustomLogoPath,
+      getCustomCssPath: s.getCustomCssPath,
+      saveBrandingSettings: s.saveBrandingSettings,
+    })
+  );
+  app.use(
     '/admin',
     createAdminRouter({
       auth: s.auth,
       getAdminShowLocked: s.getAdminShowLocked,
     })
   );
-  app.use('/api/slides', createSlidesRouter(s.store, s.auth));
+  app.use('/api/slides', createSlidesRouter(s.store, s.auth, {
+    openGoogleAuthWindow: s.openGoogleAuthWindow,
+    getGoogleAuthState: s.getGoogleAuthState,
+    windowManager: s.slidesWindowManager,
+  }));
   // GSC Companion module compat — cookie-less, IP-allowlist-gated (see gsc-compat.ts)
-  app.use('/api', createGscCompatRouter(s.store));
+  app.use('/api', createGscCompatRouter(s.store, {
+    openKeyFillDisplays: s.openKeyFillDisplays,
+    closeKeyFillDisplays: s.closeKeyFillDisplays,
+  }));
   app.use(createRenderRouter(s.store, s.auth));
   if (s.packageHub) {
     app.use(createPackagesRouter(s.packageHub));
@@ -134,6 +171,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       l3Cues: s.l3Cues,
       l3Playlists: s.l3Playlists,
       mediaLibrary: s.mediaLibrary,
+      store: s.store,
       onProfileActivate: s.onProfileActivate,
     })
   );

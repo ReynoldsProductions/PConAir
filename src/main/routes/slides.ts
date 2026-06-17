@@ -1,13 +1,43 @@
 import { Router, Request, Response } from 'express';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
+import type { SlidesWindowManager } from '../slides/window-manager';
 import { requireOperator, isValidUrl } from './middleware';
 import { slideLoadOp, slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideOfflineModeOp } from '../services/slide-ops';
 import { gscStatusFields } from '../services/gsc-status';
 
-export function createSlidesRouter(store: StateStore, auth: AuthManager): Router {
+export interface SlidesRouterDeps {
+  openGoogleAuthWindow?: () => void;
+  getGoogleAuthState?: () => Promise<{ loggedIn: boolean; email: string | null }>;
+  windowManager?: SlidesWindowManager;
+}
+
+export function createSlidesRouter(store: StateStore, auth: AuthManager, deps: SlidesRouterDeps = {}): Router {
+  const windowManager = deps.windowManager;
   const router = Router();
   const opGuard = requireOperator(auth);
+
+  router.get('/auth', opGuard, async (_req: Request, res: Response) => {
+    if (!deps.getGoogleAuthState) {
+      res.json({ loggedIn: false, email: null });
+      return;
+    }
+    try {
+      const state = await deps.getGoogleAuthState();
+      res.json(state);
+    } catch {
+      res.json({ loggedIn: false, email: null });
+    }
+  });
+
+  router.post('/auth/open', opGuard, (_req: Request, res: Response) => {
+    if (!deps.openGoogleAuthWindow) {
+      res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'Google auth window not available in this environment' } });
+      return;
+    }
+    deps.openGoogleAuthWindow();
+    res.json({ opened: true });
+  });
 
   router.post('/load', opGuard, (req: Request, res: Response) => {
     const { deckUrl, instance, backupUrl } = req.body as { deckUrl?: string; instance?: string; backupUrl?: string };
@@ -97,6 +127,34 @@ export function createSlidesRouter(store: StateStore, auth: AuthManager): Router
       return;
     }
     res.json(r.body);
+  });
+
+  router.post('/notes/scroll', opGuard, (req: Request, res: Response) => {
+    const { direction } = req.body as { direction?: string };
+    if (direction !== 'up' && direction !== 'down') {
+      res.status(400).json({ error: { code: 'INVALID_PARAM', message: 'direction must be "up" or "down"' } });
+      return;
+    }
+    if (direction === 'up') {
+      windowManager?.scrollNotesUp();
+    } else {
+      windowManager?.scrollNotesDown();
+    }
+    res.json({ ok: true });
+  });
+
+  router.post('/notes/zoom', opGuard, (req: Request, res: Response) => {
+    const { direction } = req.body as { direction?: string };
+    if (direction !== 'in' && direction !== 'out') {
+      res.status(400).json({ error: { code: 'INVALID_PARAM', message: 'direction must be "in" or "out"' } });
+      return;
+    }
+    if (direction === 'in') {
+      windowManager?.zoomInNotes();
+    } else {
+      windowManager?.zoomOutNotes();
+    }
+    res.json({ ok: true });
   });
 
   return router;

@@ -1037,6 +1037,21 @@ function wireQrAndTunnel(): void {
   });
 }
 
+// ── Custom branding logo ──────────────────────────────────────────────────────
+// Check whether the server has a custom logo configured. The /branding/logo
+// endpoint returns 404 when no logo is set; 200 when one exists.
+(function initBrandingLogo() {
+  const logoEl = document.getElementById('branding-logo') as HTMLImageElement | null;
+  if (!logoEl) return;
+  const img = new Image();
+  img.onload = () => {
+    logoEl.src = img.src;
+    logoEl.hidden = false;
+  };
+  // Cache-bust so the logo refreshes if the user changes it without a full page reload.
+  img.src = '/branding/logo?v=' + Date.now();
+})();
+
 renderNav();
 showPage(currentPageId());
 window.addEventListener('hashchange', () => showPage(currentPageId()));
