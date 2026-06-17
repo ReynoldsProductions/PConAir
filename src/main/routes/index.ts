@@ -177,7 +177,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       hideQrOverlay: s.hideQrOverlay,
     })
   );
-  app.use(createStageTimerRouter({ store: s.store, auth: s.auth, ...s.stageTimer }));
+  app.use(createStageTimerRouter({ store: s.store, auth: s.auth, getBackupSettings: s.getBackupSettings, ...s.stageTimer }));
   app.use('/api/url', createUrlRouter(s.store, s.auth));
   app.use('/api/presets', createPresetsRouter(s.store, s.auth, s.presets));
   app.use('/api/l3', createL3Router(s.store, s.auth, s.l3Cues, s.l3Playlists, s.l3ThemeStore, s.l3FilesRoot, s.renderManualCue));

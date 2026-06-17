@@ -2,8 +2,10 @@ import { Router, Request, Response } from 'express';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { StageTimerOverlayPosition } from '../../shared/types';
+import type { AppSettings } from '../app-settings';
 import { isValidOverlayPosition, isValidOverlaySize } from '../app-settings';
 import { requireAdmin, requireOperator } from './middleware';
+import { fanOutSlideCommand } from '../services/backup-fanout';
 
 export interface StageTimerRouterDeps {
   store: StateStore;
@@ -22,6 +24,8 @@ export interface StageTimerRouterDeps {
   }) => void;
   /** Current API key presence (config, not state); used to compute `configured`. */
   hasApiKey?: () => boolean;
+  /** Returns backup settings for fan-out; absent in tests → no fan-out. */
+  getBackupSettings?: () => { operationMode: AppSettings['operationMode']; backupIps: string[]; port: number };
 }
 
 /**
@@ -35,14 +39,24 @@ export function createStageTimerRouter(deps: StageTimerRouterDeps): Router {
   const adminGuard = requireAdmin(auth);
   const opGuard = requireOperator(auth);
 
+  /** Fire-and-forget fan-out to backup machines, only when we are the primary. */
+  function fanOutIfPrimary(endpoint: string, body: Record<string, unknown>): void {
+    if (!deps.getBackupSettings) return;
+    const { operationMode, backupIps, port } = deps.getBackupSettings();
+    if (operationMode !== 'primary' || backupIps.length === 0) return;
+    void fanOutSlideCommand(backupIps, port, endpoint, body, (msg) => console.log(msg));
+  }
+
   function setOverlayEnabled(enabled: boolean): void {
     const st = store.getState().stageTimer;
     store.setState({ stageTimer: { ...st, overlayEnabled: enabled } });
     deps.saveStageTimerSettings?.({ stageTimerOverlayEnabled: enabled });
     if (enabled) {
       deps.showOverlay?.(st.overlayPosition, st.overlaySize);
+      fanOutIfPrimary('/api/stagetimer/overlay/show', { position: st.overlayPosition, size: st.overlaySize });
     } else {
       deps.hideOverlay?.();
+      fanOutIfPrimary('/api/stagetimer/overlay/hide', {});
     }
   }
 
@@ -57,6 +71,7 @@ export function createStageTimerRouter(deps: StageTimerRouterDeps): Router {
     });
     if (st.overlayEnabled) {
       deps.updateOverlaySettings?.(newPosition, newSize);
+      fanOutIfPrimary('/api/stagetimer/overlay/settings', { position: newPosition, size: newSize });
     }
   }
 
