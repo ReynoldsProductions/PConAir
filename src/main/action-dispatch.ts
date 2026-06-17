@@ -9,6 +9,8 @@ import type { SlidesWindowManager } from './slides/window-manager';
 import type { Mode, SlideshowTransition } from '../shared/types';
 import { slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideLoadOp, slideOfflineModeOp } from './services/slide-ops';
 import { urlLoadOp, urlReloadOp, setDisplayTargetOp } from './services/url-ops';
+import { fanOutSlideCommand } from './services/backup-fanout';
+import type { AppSettings } from './app-settings';
 import { l3ClearOp, l3StackingOp, l3TakeOp } from './l3/take-ops';
 import { playlistActivateOp, playlistStepOp } from './l3/playlist-ops';
 import { stillsTakeOp, stillsClearOp } from './media-library/stills-ops';
@@ -34,8 +36,21 @@ export function createActionDispatcher(deps: {
   slideshow?: SlideshowEngine;
   /** Slides window manager — enables notes scroll/zoom actions. */
   windowManager?: SlidesWindowManager;
+  /** Returns the active teleprompter base URL (empty string when not configured). */
+  getTeleprompterHost?: () => string;
+  /** Returns whether teleprompter proxy is enabled. */
+  isTeleprompterEnabled?: () => boolean;
+  /** Returns the current backup fan-out settings (primary mode only). */
+  getBackupSettings?: () => { operationMode: AppSettings['operationMode']; backupIps: string[]; port: number };
 }) {
-  const { store, presets, cues, playlists, media, slideshow, windowManager } = deps;
+  const { store, presets, cues, playlists, media, slideshow, windowManager, getTeleprompterHost, isTeleprompterEnabled, getBackupSettings } = deps;
+
+  function fanOut(endpoint: string, body: Record<string, unknown>): void {
+    if (!getBackupSettings) return;
+    const { operationMode, backupIps, port } = getBackupSettings();
+    if (operationMode !== 'primary' || backupIps.length === 0) return;
+    void fanOutSlideCommand(backupIps, port, endpoint, body, (msg) => console.warn(msg));
+  }
 
   function unavailable(what: string): ActionResult {
     return { ok: false, status: 501, error: { code: 'INVALID_MODE', message: `${what} is not available on this server` } };
@@ -47,10 +62,12 @@ export function createActionDispatcher(deps: {
     switch (actionId) {
       case 'slides_next': {
         const r = slideNextOp(store);
+        if (r.ok) fanOut('/api/next-slide', {});
         return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
       }
       case 'slides_prev': {
         const r = slidePrevOp(store);
+        if (r.ok) fanOut('/api/previous-slide', {});
         return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
       }
       case 'slides_goto': {
@@ -59,10 +76,12 @@ export function createActionDispatcher(deps: {
           return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'slide_number must be a positive integer' } };
         }
         const r = slideGotoOp(store, n - 1);
+        if (r.ok) fanOut('/api/go-to-slide', { slide: n });
         return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
       }
       case 'slides_reload': {
         const r = slideReloadOp(store);
+        if (r.ok) fanOut('/api/reload-presentation', {});
         return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
       }
       case 'slides_load': {
@@ -72,6 +91,7 @@ export function createActionDispatcher(deps: {
         }
         const inst = str(p.instance);
         const r = slideLoadOp(store, deckUrl, inst === 'A' || inst === 'B' ? inst : undefined, str(p.backup_url));
+        if (r.ok) fanOut('/api/open-presentation', { url: deckUrl });
         return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
       }
       case 'slides_goto_first': {
@@ -296,6 +316,37 @@ export function createActionDispatcher(deps: {
       }
       case 'slides_notes_zoom_out': {
         windowManager?.zoomOutNotes();
+        return { ok: true, body: {} };
+      }
+      case 'teleprompter_start':
+      case 'teleprompter_stop':
+      case 'teleprompter_scroll_faster':
+      case 'teleprompter_scroll_slower':
+      case 'teleprompter_font_size_in':
+      case 'teleprompter_font_size_out': {
+        const host = getTeleprompterHost?.() ?? '';
+        if (!isTeleprompterEnabled?.() || !host) return { ok: true, body: { skipped: true } };
+        const tp = store.getState().teleprompter;
+        let patch: Record<string, unknown> = {};
+        if (actionId === 'teleprompter_start') patch = { scrolling: true };
+        else if (actionId === 'teleprompter_stop') patch = { scrolling: false };
+        else if (actionId === 'teleprompter_scroll_faster') patch = { speed: Math.min(200, tp.speed + 10) };
+        else if (actionId === 'teleprompter_scroll_slower') patch = { speed: Math.max(0, tp.speed - 10) };
+        else if (actionId === 'teleprompter_font_size_in') patch = { font_size: Math.min(200, tp.fontSize + 4) };
+        else patch = { font_size: Math.max(24, tp.fontSize - 4) };
+        try {
+          await fetch(`${host}/api/state`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch),
+            signal: AbortSignal.timeout(3000),
+          });
+          const stateUpdate: Record<string, unknown> = {};
+          if ('scrolling' in patch) stateUpdate['scrolling'] = patch['scrolling'];
+          if ('speed' in patch) stateUpdate['speed'] = patch['speed'];
+          if ('font_size' in patch) stateUpdate['fontSize'] = patch['font_size'];
+          store.setState({ teleprompter: { ...tp, ...stateUpdate } });
+        } catch { /* fire-and-forget from Companion; log nothing */ }
         return { ok: true, body: {} };
       }
       default:
