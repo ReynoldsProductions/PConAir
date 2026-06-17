@@ -25,10 +25,12 @@ import { createActionDispatcher } from './action-dispatch';
 import { renderCueToPng } from './l3/cue-renderer';
 import { wireRuntimePersistence } from './runtime-persistence';
 import { snapshotDisplays } from './displays';
-import { bootstrapProfiles, parseProfileCliArg, getActiveMarker, syncActiveProfileUrlPresets, clearIpAllowlistForActiveProfile } from './profiles/bootstrap';
+import { bootstrapProfiles, parseProfileCliArg, getActiveMarker, syncActiveProfileUrlPresets, clearIpAllowlistForActiveProfile, loadProfile } from './profiles/bootstrap';
 import { profileRuntimeStatePath } from './profiles/paths';
 import { parsePconairCli } from './cli-options';
 import { openKeyFillDisplays, closeKeyFillDisplays } from './services/key-fill';
+import { createPerfectCueServer } from './services/perfectcue-server';
+import { isClientIpAllowlisted } from './security/ip-allowlist';
 
 const cli = parsePconairCli(process.argv);
 const OPERATOR_PIN = cli.operatorPin ?? process.env.PCONAIR_OPERATOR_PIN ?? '0000';
@@ -126,6 +128,29 @@ async function main() {
     media: mediaLibrary,
     slideshow,
     windowManager: slidesManager,
+  });
+
+  // PerfectCue clicker hardware: TCP listeners for DSAN / WaveShare extenders.
+  // Commands feed the same slide-advance path as the GSC-compat HTTP surface.
+  // IP allowlist is the active profile's network allowlist (same as the server).
+  const perfectcueServer = createPerfectCueServer({
+    getSettings: () => {
+      const s = loadAppSettings(settingsFile);
+      return { perfectcueEnabled: s.perfectcueEnabled, perfectcuePorts: s.perfectcuePorts };
+    },
+    dispatch: (action) => {
+      void dispatchAction(action === 'next-slide' ? 'slides_next' : 'slides_prev', {});
+    },
+    isAllowed: (remoteIp) => {
+      const id = getActiveMarker(boot.paths)?.id ?? boot.activeId;
+      const p = loadProfile(boot.paths, id);
+      const prefs = {
+        enabled: p?.appPreferences.ipAllowlistEnabled === true,
+        entries: p?.appPreferences.ipAllowlist ?? [],
+      };
+      return isClientIpAllowlisted(remoteIp ?? '0.0.0.0', prefs);
+    },
+    log: (msg) => console.log(`[perfectcue] ${msg}`),
   });
 
   const urlManager = createUrlWindowManager({ store });
@@ -228,6 +253,16 @@ async function main() {
     slidesWindowManager: slidesManager,
     openKeyFillDisplays,
     closeKeyFillDisplays,
+    perfectcue: {
+      getSettings: () => {
+        const s = loadAppSettings(settingsFile);
+        return { perfectcueEnabled: s.perfectcueEnabled, perfectcuePorts: s.perfectcuePorts };
+      },
+      saveSettings: (patch) => {
+        saveAppSettings(settingsFile, patch);
+      },
+      restart: () => perfectcueServer.start(),
+    },
   });
   let serverError: string | null = null;
   try {
@@ -243,6 +278,13 @@ async function main() {
 
   if (!serverError && appSettings.tunnelEnabled) {
     startTunnelFromSettings();
+  }
+
+  // Appliance behavior: PerfectCue listeners survive restarts like the tunnel.
+  // start() is a no-op gate-wise until perfectcueEnabled is true (the dispatch
+  // gate also re-checks), but only open the TCP ports when enabled.
+  if (!serverError && appSettings.perfectcueEnabled) {
+    perfectcueServer.start();
   }
 
   // Appliance behavior: the overlay survives restarts like the tunnel does.

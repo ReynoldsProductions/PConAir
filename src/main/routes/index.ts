@@ -6,7 +6,8 @@ import { createSlidesRouter, type SlidesRouterDeps } from './slides';
 import { createUrlRouter } from './url';
 import { createOperatorRouter } from './operator';
 import { createRemoteRouter } from './remote';
-import { createGscCompatRouter } from './gsc-compat';
+import { createGscCompatRouter, type PerfectCueRouterDeps } from './gsc-compat';
+import { createPerfectCueRouter } from './perfectcue';
 import { createTunnelRouter } from './tunnel';
 import { createStageTimerRouter, type StageTimerRouterDeps } from './stagetimer';
 import { createRenderRouter } from './render';
@@ -93,6 +94,8 @@ export interface RouteServices {
     keyBgColor: string;
   }) => Promise<void>;
   closeKeyFillDisplays?: () => void;
+  /** PerfectCue listener control hooks (Electron main); absent in tests. */
+  perfectcue?: PerfectCueRouterDeps;
 }
 
 export function mountRoutes(app: Express, s: RouteServices): void {
@@ -123,6 +126,9 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       getAdminShowLocked: s.getAdminShowLocked,
     })
   );
+  if (s.perfectcue) {
+    app.use('/perfectcue', createPerfectCueRouter({ auth: s.auth, ...s.perfectcue }));
+  }
   app.use('/api/slides', createSlidesRouter(s.store, s.auth, {
     openGoogleAuthWindow: s.openGoogleAuthWindow,
     getGoogleAuthState: s.getGoogleAuthState,
@@ -132,6 +138,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   app.use('/api', createGscCompatRouter(s.store, {
     openKeyFillDisplays: s.openKeyFillDisplays,
     closeKeyFillDisplays: s.closeKeyFillDisplays,
+    perfectcue: s.perfectcue,
   }));
   app.use(createRenderRouter(s.store, s.auth));
   if (s.packageHub) {

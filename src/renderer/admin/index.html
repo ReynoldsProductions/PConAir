@@ -373,6 +373,7 @@
       <div class="sidebar-label">System</div>
       <div class="nav-item" data-section="monitors">Monitors</div>
       <div class="nav-item" data-section="branding">Branding</div>
+      <div class="nav-item" data-section="perfectcue">PerfectCue</div>
       <div class="nav-item" data-section="logs">Logs</div>
       <div class="nav-item" data-section="system">System</div>
 
@@ -518,6 +519,7 @@ function renderSection() {
     case 'showlock':   renderShowLock(); break;
     case 'monitors':   renderMonitors(); break;
     case 'branding':   renderBranding(); break;
+    case 'perfectcue': renderPerfectCue(); break;
     case 'logs':       renderLogs(); break;
     case 'system':     renderSystem(); break;
   }
@@ -1543,6 +1545,123 @@ async function renderBranding() {
       await api('POST', '/branding/settings', body);
       showSuccess('Branding saved — reload the remote to apply');
       renderBranding();
+    } catch { /* showError handled in api() */ }
+  });
+}
+
+// ── Section: PerfectCue ───────────────────────────────────────────────────────
+let _pcState = { enabled: false, ports: [] };
+
+function _pcRowHtml(p, i) {
+  const dsanSel = p.adapterType === 'waveshare' ? '' : 'selected';
+  const wsSel   = p.adapterType === 'waveshare' ? 'selected' : '';
+  return `
+    <tr data-i="${i}">
+      <td><input type="text" class="pc-name" value="${escHtml(p.name || '')}" placeholder="Name"
+        style="width:140px;background:#0d0d0d;color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-size:13px;" /></td>
+      <td><input type="number" class="pc-port" value="${escHtml(String(p.port || ''))}" min="1" max="65535"
+        style="width:90px;background:#0d0d0d;color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-size:13px;" /></td>
+      <td><select class="pc-adapter"
+        style="background:#0d0d0d;color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-size:13px;">
+        <option value="dsan" ${dsanSel}>DSAN</option>
+        <option value="waveshare" ${wsSel}>WaveShare</option>
+      </select></td>
+      <td style="text-align:center;"><input type="checkbox" class="pc-enabled" ${p.enabled !== false ? 'checked' : ''} /></td>
+      <td><button class="btn btn-danger pc-remove" data-i="${i}">Remove</button></td>
+    </tr>`;
+}
+
+function _pcRenderRows() {
+  const tbody = document.getElementById('pc-rows');
+  if (!tbody) return;
+  tbody.innerHTML = _pcState.ports.length
+    ? _pcState.ports.map((p, i) => _pcRowHtml(p, i)).join('')
+    : `<tr><td colspan="5" style="color:var(--text-dim);padding:10px;">No ports configured.</td></tr>`;
+  tbody.querySelectorAll('.pc-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _pcReadRowsIntoState();
+      _pcState.ports.splice(Number(btn.dataset.i), 1);
+      _pcRenderRows();
+    });
+  });
+}
+
+function _pcReadRowsIntoState() {
+  const rows = document.querySelectorAll('#pc-rows tr[data-i]');
+  const next = [];
+  rows.forEach(row => {
+    const i = Number(row.dataset.i);
+    const existing = _pcState.ports[i] || {};
+    next.push({
+      id: existing.id,
+      name: row.querySelector('.pc-name').value.trim(),
+      port: Number(row.querySelector('.pc-port').value),
+      adapterType: row.querySelector('.pc-adapter').value === 'waveshare' ? 'waveshare' : 'dsan',
+      enabled: row.querySelector('.pc-enabled').checked,
+    });
+  });
+  _pcState.ports = next;
+}
+
+async function renderPerfectCue() {
+  content().innerHTML = `<div class="section-title">PerfectCue</div><div class="card"><div class="card-title">Loading…</div></div>`;
+  try { _pcState = await api('GET', '/perfectcue/settings'); } catch { return; }
+  if (!Array.isArray(_pcState.ports)) _pcState.ports = [];
+
+  content().innerHTML = `
+    <div class="section-title">PerfectCue</div>
+    <div class="card">
+      <div class="card-title">Clicker Listener</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+        TCP listeners for PerfectCue network extenders (DSAN and WaveShare). Each port
+        accepts a hardware connection and advances/reverses slides. The connection stays
+        open even when a port is disabled — only the slide commands are suppressed.
+      </p>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="pc-enabled-global" ${_pcState.enabled ? 'checked' : ''} />
+        <span>Enable PerfectCue listener (master switch)</span>
+      </label>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Ports</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="text-align:left;color:var(--text-dim);">
+            <th style="padding:4px 6px;">Name</th>
+            <th style="padding:4px 6px;">Port</th>
+            <th style="padding:4px 6px;">Adapter</th>
+            <th style="padding:4px 6px;text-align:center;">Enabled</th>
+            <th style="padding:4px 6px;"></th>
+          </tr>
+        </thead>
+        <tbody id="pc-rows"></tbody>
+      </table>
+      <div style="margin-top:10px;">
+        <button class="btn" id="pc-add">Add port</button>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="pc-save">Save PerfectCue</button>
+  `;
+
+  _pcRenderRows();
+
+  document.getElementById('pc-add').addEventListener('click', () => {
+    _pcReadRowsIntoState();
+    _pcState.ports.push({ name: '', port: 8899, adapterType: 'dsan', enabled: true });
+    _pcRenderRows();
+  });
+
+  document.getElementById('pc-save').addEventListener('click', async () => {
+    _pcReadRowsIntoState();
+    const enabled = document.getElementById('pc-enabled-global').checked;
+    const body = { enabled, ports: _pcState.ports };
+    try {
+      _pcState = await api('POST', '/perfectcue/settings', body);
+      if (!Array.isArray(_pcState.ports)) _pcState.ports = [];
+      showSuccess('PerfectCue settings saved');
+      renderPerfectCue();
     } catch { /* showError handled in api() */ }
   });
 }

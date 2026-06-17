@@ -203,10 +203,10 @@ export function buildActions(deps: ActionDeps): Record<string, CompanionActionDe
       async (e) => ({ notesLayout: e.options['layout'] })
     ),
     relaunch_speaker_notes: gscAction('Relaunch Speaker Notes (not supported)', '/api/relaunch-speaker-notes'),
-    perfectcue_enable_all: gscAction('PerfectCue: Enable All Ports (not supported)', '/api/set-perfectcue-enabled', [], async () => ({ enabled: true })),
-    perfectcue_disable_all: gscAction('PerfectCue: Disable All Ports (not supported)', '/api/set-perfectcue-enabled', [], async () => ({ enabled: false })),
+    perfectcue_enable_all: gscAction('PerfectCue: Enable Listener', '/api/set-perfectcue-enabled', [], async () => ({ enabled: true })),
+    perfectcue_disable_all: gscAction('PerfectCue: Disable Listener', '/api/set-perfectcue-enabled', [], async () => ({ enabled: false })),
     perfectcue_set_port_enabled: gscAction(
-      'PerfectCue: Enable/Disable Port (not supported)',
+      'PerfectCue: Enable/Disable Port',
       '/api/toggle-perfectcue-port',
       [
         { id: 'port', type: 'number', label: 'Port Number', default: 8899, min: 1024, max: 65535 },
