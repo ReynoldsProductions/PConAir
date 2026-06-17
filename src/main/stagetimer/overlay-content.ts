@@ -63,44 +63,62 @@ export function buildOverlayHtml(roomId: string, apiKey: string): string {
       height: 100%;
       display: flex;
       flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+      gap: 2px;
+      padding: 6px 8px 5px;
+      min-height: 0;
+    }
+
+    #header {
+      flex: 0 0 auto;
+      display: flex;
       align-items: center;
       justify-content: center;
-      gap: 2%;
-      padding: 4%;
+      gap: 0.45em;
+      width: 100%;
+      min-width: 0;
+    }
+
+    #label {
+      font-size: clamp(12px, 6.5vh, 22px);
+      font-weight: 600;
+      color: rgba(255,255,255,0.85);
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+      line-height: 1.15;
+    }
+
+    #status-dot {
+      flex-shrink: 0;
+      width: clamp(6px, 1.8vh, 12px);
+      height: clamp(6px, 1.8vh, 12px);
+      border-radius: 50%;
+      background: rgba(255,255,255,0.3);
+      transition: background 0.3s ease;
+    }
+
+    #time-wrap {
+      flex: 1 1 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 0;
+      overflow: hidden;
     }
 
     #time {
-      font-size: 22vw;
       font-weight: bold;
       line-height: 1;
       color: #ffffff;
       letter-spacing: -0.02em;
       transition: color 0.3s ease;
       text-align: center;
-      width: 100%;
-    }
-
-    #label {
-      font-size: 4.5vw;
-      color: rgba(255,255,255,0.65);
-      text-align: center;
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      width: 100%;
-      line-height: 1.2;
-    }
-
-    #status-dot {
-      width: 2vw;
-      height: 2vw;
-      min-width: 6px;
-      min-height: 6px;
-      max-width: 14px;
-      max-height: 14px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.3);
-      transition: background 0.3s ease;
     }
 
     /* State colors */
@@ -118,9 +136,11 @@ export function buildOverlayHtml(roomId: string, apiKey: string): string {
 </head>
 <body>
   <div id="clock">
-    <div id="time">--:--</div>
-    <div id="label">Connecting…</div>
-    <div id="status-dot"></div>
+    <div id="header">
+      <div id="label">Connecting…</div>
+      <div id="status-dot"></div>
+    </div>
+    <div id="time-wrap"><div id="time">--:--</div></div>
   </div>
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
@@ -128,9 +148,29 @@ export function buildOverlayHtml(roomId: string, apiKey: string): string {
     const roomId = ${JSON.stringify(roomId)};
     const apiKey = ${JSON.stringify(apiKey)};
 
-    const clockEl = document.getElementById('clock');
-    const timeEl  = document.getElementById('time');
-    const labelEl = document.getElementById('label');
+    const clockEl   = document.getElementById('clock');
+    const timeEl    = document.getElementById('time');
+    const labelEl   = document.getElementById('label');
+    const timeWrapEl = document.getElementById('time-wrap');
+    const TIME_MIN_PX = 8;
+
+    function fitTimeDisplay() {
+      if (!timeWrapEl || !timeEl) return;
+      const maxW = timeWrapEl.clientWidth;
+      const maxH = timeWrapEl.clientHeight;
+      if (!maxW || !maxH) return;
+      let lo = TIME_MIN_PX, hi = maxH * 2;
+      timeEl.style.fontSize = hi + 'px';
+      while (hi - lo > 1) {
+        const mid = Math.floor((lo + hi) / 2);
+        timeEl.style.fontSize = mid + 'px';
+        if (timeEl.scrollWidth <= maxW && timeEl.scrollHeight <= maxH) lo = mid;
+        else hi = mid;
+      }
+      timeEl.style.fontSize = Math.floor(lo * 0.98) + 'px';
+    }
+
+    window.addEventListener('resize', fitTimeDisplay);
 
     let state = null;
     let currentTimer = null;
@@ -165,6 +205,7 @@ export function buildOverlayHtml(roomId: string, apiKey: string): string {
           const remainMs = new Date(finish).getTime() - new Date(pause).getTime();
           const lbl = currentTimer ? (currentTimer.name || 'Paused') : 'Paused';
           setState('', formatMs(remainMs), lbl);
+          fitTimeDisplay();
         }
         return;
       }
@@ -181,6 +222,7 @@ export function buildOverlayHtml(roomId: string, apiKey: string): string {
         if (startMs) {
           const elapsedSec = Math.floor((serverNow - startMs) / 1000);
           setState('running', formatMs(elapsedSec * 1000), lbl);
+          fitTimeDisplay();
         }
         return;
       }
@@ -192,6 +234,7 @@ export function buildOverlayHtml(roomId: string, apiKey: string): string {
       else                        cls = 'running';
 
       setState(cls, formatMs(remainMs), lbl);
+      fitTimeDisplay();
     }
 
     function startTick() {
