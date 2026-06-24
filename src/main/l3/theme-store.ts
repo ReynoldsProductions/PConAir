@@ -25,6 +25,14 @@ body {
   font-family: var(--font-family);
   overflow: hidden;
 }
+@keyframes l3-slide-in {
+  from { opacity: 0; transform: translateX(-24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes l3-slide-out {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(-24px); }
+}
 .lower-third {
   position: fixed; bottom: 0; left: 0;
   width: 100%; height: 200px;
@@ -32,6 +40,12 @@ body {
   display: flex; flex-direction: column;
   justify-content: center; padding-left: 40px;
   box-sizing: border-box;
+}
+.lower-third.l3-entering {
+  animation: l3-slide-in 0.35s ease-out forwards;
+}
+.lower-third.l3-exiting {
+  animation: l3-slide-out 0.3s ease-in forwards;
 }
 .name { font-size: 48px; font-weight: bold; color: var(--color-text); margin: 0; padding: 0; }
 .title { font-size: 32px; color: var(--color-text); margin: 5px 0 0 0; padding: 0; }

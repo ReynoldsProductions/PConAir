@@ -53,7 +53,7 @@ export const urlReload = (instance?: 'A' | 'B') =>
 
 export const l3ListCues = () => apiGet<{ cues: L3CueListItem[] }>('/api/l3/cues');
 
-export const l3Take = (body: { cueId?: string; name?: string; title?: string }) =>
+export const l3Take = (body: { cueId?: string; name?: string; title?: string; autoOutMs?: number }) =>
   apiPost<unknown>('/api/l3/take', body);
 
 export const l3Clear = () => apiPost<unknown>('/api/l3/clear');

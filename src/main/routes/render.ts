@@ -60,6 +60,8 @@ function renderPageHtml(type: RenderContentType): string {
 
   var stage = document.getElementById('stage');
   var lastKey = null;
+  var currentL3El = null;
+  var l3Clearing = false;
 
   function renderStills() {
     var m = state.mediaLibrary;
@@ -86,8 +88,25 @@ function renderPageHtml(type: RenderContentType): string {
     var l3 = state.l3;
     var key = 'l3:' + (l3 ? (l3.activeCueId || '') + ':' + (l3.activeCueName || '') + ':' + (l3.activeTheme || '') : '');
     if (key === lastKey) return;
+
+    if (!l3 || !l3.activeCueName) {
+      // CLEAR path — animate out then remove
+      if (currentL3El && !l3Clearing) {
+        l3Clearing = true;
+        lastKey = key;
+        currentL3El.classList.add('l3-exiting');
+        var elToRemove = currentL3El;
+        setTimeout(function () {
+          if (elToRemove.parentNode) elToRemove.parentNode.removeChild(elToRemove);
+          currentL3El = null;
+          l3Clearing = false;
+        }, 500);
+      }
+      return;
+    }
+
+    // TAKE path
     lastKey = key;
-    if (!l3 || !l3.activeCueName) { stage.innerHTML = ''; return; }
     var theme = l3.activeTheme || 'default';
     if (themeCssLoaded !== theme) {
       var old = document.getElementById('l3-theme-css');
@@ -99,9 +118,15 @@ function renderPageHtml(type: RenderContentType): string {
       document.head.appendChild(link);
       themeCssLoaded = theme;
     }
-    stage.innerHTML = '';
+
+    // Remove old element immediately (new cue replaces old)
+    if (currentL3El && currentL3El.parentNode) {
+      currentL3El.parentNode.removeChild(currentL3El);
+    }
+    l3Clearing = false;
+
     var lt = document.createElement('div');
-    lt.className = 'lower-third';
+    lt.className = 'lower-third l3-entering';
     var name = document.createElement('p');
     name.className = 'name';
     name.textContent = l3.activeCueName;
@@ -113,6 +138,13 @@ function renderPageHtml(type: RenderContentType): string {
       lt.appendChild(title);
     }
     stage.appendChild(lt);
+    currentL3El = lt;
+
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (lt.parentNode) lt.classList.remove('l3-entering');
+      });
+    });
   }
 
   function renderSlides() {

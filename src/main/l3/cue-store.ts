@@ -6,6 +6,7 @@ export interface L3Cue {
   title: string;
   subtitle: string | null;
   theme: string;
+  autoOutMs?: number | null;
   sourceType: 'manual' | 'csv' | 'image';
   originalImagePath?: string | null;
   originalImageFormat?: string | null;
@@ -18,12 +19,13 @@ export interface CreateL3CueInput {
   title: string;
   subtitle?: string | null;
   theme: string;
+  autoOutMs?: number | null;
   sourceType?: 'manual' | 'csv' | 'image';
   originalImagePath?: string | null;
   originalImageFormat?: string | null;
 }
 
-export type UpdateL3CueInput = Partial<Pick<L3Cue, 'name' | 'title' | 'subtitle' | 'theme'>>;
+export type UpdateL3CueInput = Partial<Pick<L3Cue, 'name' | 'title' | 'subtitle' | 'theme' | 'autoOutMs'>>;
 
 export function createL3CueStore(onChange?: () => void) {
   const cues = new Map<string, L3Cue>();
@@ -48,6 +50,7 @@ export function createL3CueStore(onChange?: () => void) {
       title: input.title,
       subtitle: input.subtitle ?? null,
       theme: input.theme,
+      autoOutMs: input.autoOutMs ?? null,
       sourceType: input.sourceType ?? 'manual',
       originalImagePath: input.originalImagePath ?? null,
       originalImageFormat: input.originalImageFormat ?? null,

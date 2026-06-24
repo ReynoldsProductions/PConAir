@@ -463,14 +463,15 @@ export function createL3Router(
   // ── Original cue/playlist CRUD routes ──────────────────────────────────────
 
   router.post('/take', opGuard, (req: Request, res: Response) => {
-    const { cueId, name, title, theme } = req.body as {
+    const { cueId, name, title, theme, autoOutMs } = req.body as {
       cueId?: string;
       name?: string;
       title?: string;
       theme?: string;
+      autoOutMs?: number | null;
     };
     void theme;
-    const r = l3TakeOp(store, cues, { cueId, name, title, theme });
+    const r = l3TakeOp(store, cues, { cueId, name, title, theme, autoOutMs });
     if (!r.ok) {
       res.status(r.status).json({ error: r.error });
       return;
@@ -502,12 +503,13 @@ export function createL3Router(
   });
 
   router.post('/cues', adminGuard, (req: Request, res: Response) => {
-    const { name, title, subtitle, theme, themeId } = req.body as {
+    const { name, title, subtitle, theme, themeId, autoOutMs } = req.body as {
       name?: string;
       title?: string;
       subtitle?: string | null;
       theme?: string;
       themeId?: string;
+      autoOutMs?: number | null;
     };
     if (!name || typeof name !== 'string' || !name.trim()) {
       res.status(400).json({ error: { code: 'INVALID_MODE', message: 'name is required' } });
@@ -520,11 +522,13 @@ export function createL3Router(
     // Accept themeId (preferred) or theme (legacy)
     const themeRaw = themeId ?? theme;
     const th = themeRaw && typeof themeRaw === 'string' && themeRaw.trim() ? themeRaw.trim() : 'default';
+    const parsedAutoOutMs = typeof autoOutMs === 'number' && autoOutMs > 0 ? Math.round(autoOutMs) : null;
     const cue = cues.create({
       name: name.trim().slice(0, 100),
       title: title.trim().slice(0, 100),
       subtitle: subtitle != null ? String(subtitle).slice(0, 100) : null,
       theme: th,
+      autoOutMs: parsedAutoOutMs,
     });
     res.status(201).json(cue);
   });
@@ -535,12 +539,13 @@ export function createL3Router(
       res.status(404).json({ error: { code: 'CUE_NOT_FOUND', message: `Cue '${cueId}' not found` } });
       return;
     }
-    const { name, title, subtitle, themeId, theme } = req.body as {
+    const { name, title, subtitle, themeId, theme, autoOutMs } = req.body as {
       name?: string;
       title?: string;
       subtitle?: string | null;
       themeId?: string;
       theme?: string;
+      autoOutMs?: number | null;
     };
     const patch: import('../l3/cue-store').UpdateL3CueInput = {};
     if (name !== undefined) patch.name = String(name).trim().slice(0, 100);
@@ -549,6 +554,7 @@ export function createL3Router(
     // Accept themeId (preferred) or theme (legacy)
     const themeRaw = themeId ?? theme;
     if (themeRaw !== undefined) patch.theme = String(themeRaw).trim();
+    if (autoOutMs !== undefined) patch.autoOutMs = typeof autoOutMs === 'number' && autoOutMs > 0 ? Math.round(autoOutMs) : null;
     const updated = cues.update(cueId, patch);
     if (!updated) {
       res.status(404).json({ error: { code: 'CUE_NOT_FOUND', message: `Cue '${cueId}' not found` } });

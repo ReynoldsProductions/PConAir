@@ -444,14 +444,16 @@ function bindEvents(): void {
   });
 
   on('l3-take-btn', async () => {
+    const autoOutSec = parseFloat((document.getElementById('l3-auto-out-input') as HTMLInputElement).value);
+    const autoOutMs = Number.isFinite(autoOutSec) && autoOutSec > 0 ? Math.round(autoOutSec * 1000) : null;
     const sel = document.getElementById('l3-cue-select') as HTMLSelectElement;
     if (sel.value) {
-      await api.l3Take({ cueId: sel.value });
+      await api.l3Take({ cueId: sel.value, autoOutMs: autoOutMs ?? undefined });
       return;
     }
     const name = (document.getElementById('l3-name-input') as HTMLInputElement).value.trim();
     const title = (document.getElementById('l3-title-input') as HTMLInputElement).value.trim();
-    await api.l3Take({ name, title });
+    await api.l3Take({ name, title, autoOutMs: autoOutMs ?? undefined });
   });
   on('l3-clear-btn', () => api.l3Clear());
 
