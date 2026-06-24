@@ -32,3 +32,9 @@ graphics/_fonts/
 .idea/
 *.swp
 *.swo
+
+# macOS AppleDouble files
+._*
+.webpack/
+cloudflared/cloudflared-darwin-arm64
+cloudflared/

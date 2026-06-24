@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Score Demo — Champion</title>
+<style>
+  :root {
+    --bg: #1a1a1e;
+    --ink: #f0f0f2;
+    --sub: #888890;
+    --accent: #6c8fff;
+    --gold: #f5c842;
+    --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 1920px; height: 1080px; overflow: hidden;
+    background: var(--bg); color: var(--ink);
+    font-family: var(--sans); -webkit-font-smoothing: antialiased;
+  }
+  body.obs { background: transparent; }
+  #stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+
+  .standby { text-align: center; opacity: .3; font-style: italic; font-size: 42px; color: var(--sub); transition: opacity .6s; }
+  .champion {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    opacity: 0; transition: opacity .6s; pointer-events: none;
+  }
+  .champion.visible { opacity: 1; pointer-events: auto; }
+  .champ-label { font-family: var(--mono); font-size: 18px; font-weight: 700; letter-spacing: .3em; color: var(--gold); }
+  .champ-name { font-size: 120px; font-weight: 700; line-height: 1; color: #fff; }
+  .champ-city { font-size: 22px; letter-spacing: .2em; color: var(--sub); text-transform: uppercase; }
+  .champ-score { font-family: var(--mono); font-size: 60px; font-weight: 700; color: var(--gold); margin-top: 8px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="standby" id="standby">STANDING BY</div>
+  <div class="champion" id="champion">
+    <div class="champ-label">CHAMPION</div>
+    <div class="champ-name" id="champ-name"></div>
+    <div class="champ-city" id="champ-city"></div>
+    <div class="champ-score" id="champ-score"></div>
+  </div>
+</div>
+
+<script src="/packages/demo-scores/assets/state.js"></script>
+<script src="/packages/demo-scores/assets/pconair-kit.js"></script>
+<script>
+  const kit = PConAirKit.init('demo-scores');
+
+  kit.onState(s => {
+    const hasWinner = s.winner !== null && s.winner !== undefined;
+    document.getElementById('standby').style.opacity = hasWinner ? '0' : '0.3';
+    document.getElementById('champion').classList.toggle('visible', hasWinner);
+    if (hasWinner) {
+      const t = (s.teams || [])[s.winner] || {};
+      document.getElementById('champ-name').textContent = t.name || '';
+      document.getElementById('champ-city').textContent = t.city || '';
+      document.getElementById('champ-score').textContent = (s.scores || [])[s.winner] ?? '';
+    }
+  });
+
+  if (new URLSearchParams(location.search).get('obs')) document.body.classList.add('obs');
+</script>
+</body>
+</html>

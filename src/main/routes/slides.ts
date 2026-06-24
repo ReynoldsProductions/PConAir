@@ -1,20 +1,106 @@
 import { Router, Request, Response } from 'express';
+import http from 'http';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
+import type { SlidesWindowManager } from '../slides/window-manager';
+import type { AppSettings } from '../app-settings';
 import { requireOperator, isValidUrl } from './middleware';
-import { slideLoadOp, slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp } from '../services/slide-ops';
+import { slideLoadOp, slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideOfflineModeOp } from '../services/slide-ops';
+import { gscStatusFields } from '../services/gsc-status';
 
-export function createSlidesRouter(store: StateStore, auth: AuthManager): Router {
+export interface SlidesRouterDeps {
+  openGoogleAuthWindow?: () => void;
+  getGoogleAuthState?: () => Promise<{ loggedIn: boolean; email: string | null }>;
+  windowManager?: SlidesWindowManager;
+  /** Returns backup settings for the /backup-status pull endpoint. */
+  getBackupSettings?: () => { operationMode: AppSettings['operationMode']; backupIps: string[]; port: number };
+}
+
+/** HEAD or GET a single backup IP to check reachability. Returns true on a 2xx response. */
+function probeBackup(ip: string, port: number, timeoutMs = 2000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const req = http.request(
+      { hostname: ip, port, path: '/api/status', method: 'GET', timeout: timeoutMs },
+      (res) => {
+        res.resume(); // drain
+        resolve((res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 300);
+      },
+    );
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.on('error', () => resolve(false));
+    req.end();
+  });
+}
+
+export function createSlidesRouter(store: StateStore, auth: AuthManager, deps: SlidesRouterDeps = {}): Router {
+  const windowManager = deps.windowManager;
   const router = Router();
   const opGuard = requireOperator(auth);
 
+  router.get('/auth', opGuard, async (_req: Request, res: Response) => {
+    if (!deps.getGoogleAuthState) {
+      res.json({ loggedIn: false, email: null });
+      return;
+    }
+    try {
+      const state = await deps.getGoogleAuthState();
+      res.json(state);
+    } catch {
+      res.json({ loggedIn: false, email: null });
+    }
+  });
+
+  router.post('/auth/open', opGuard, (_req: Request, res: Response) => {
+    if (!deps.openGoogleAuthWindow) {
+      res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'Google auth window not available in this environment' } });
+      return;
+    }
+    deps.openGoogleAuthWindow();
+    res.json({ opened: true });
+  });
+
   router.post('/load', opGuard, (req: Request, res: Response) => {
-    const { deckUrl, instance } = req.body as { deckUrl?: string; instance?: string };
+    const { deckUrl, instance, backupUrl } = req.body as { deckUrl?: string; instance?: string; backupUrl?: string };
     if (!deckUrl || !isValidUrl(deckUrl)) {
       res.status(400).json({ error: { code: 'INVALID_URL', message: 'deckUrl must be a valid URL' } });
       return;
     }
-    const r = slideLoadOp(store, deckUrl, instance);
+    const r = slideLoadOp(store, deckUrl, instance, backupUrl);
+    if (!r.ok) {
+      res.status(r.status).json({ error: r.error });
+      return;
+    }
+    res.json(r.body);
+  });
+
+  // Read-only; unauthenticated on LAN (gated by global IP allowlist).
+  router.get('/status', (_req: Request, res: Response) => {
+    const state = store.getState();
+    const gsc = gscStatusFields(state);
+    res.json({
+      slide: gsc.currentSlide,
+      total: gsc.totalSlides,
+      notes: state.slides?.notes ?? '',
+      deckTitle: state.slides?.deckTitle ?? null,
+      contentKind: state.slides?.contentKind ?? 'none',
+      deckLoaded: state.slides !== null && !state.slides.isLoading,
+      backupLoaded: state.slides?.backupLoaded ?? false,
+      offlineMode: state.slides?.offlineMode ?? false,
+      cacheWarmed: state.slides?.cacheWarmed ?? false,
+    });
+  });
+
+  router.get('/thumbnails', (_req: Request, res: Response) => {
+    const slides = store.getState().slides;
+    res.json({
+      current: slides?.thumbnailCurrent ?? null,
+      next: slides?.thumbnailNext ?? null,
+    });
+  });
+
+  router.post('/offline-mode', opGuard, (req: Request, res: Response) => {
+    const { enabled } = req.body as { enabled?: boolean };
+    const r = slideOfflineModeOp(store, enabled === true);
     if (!r.ok) {
       res.status(r.status).json({ error: r.error });
       return;
@@ -61,6 +147,51 @@ export function createSlidesRouter(store: StateStore, auth: AuthManager): Router
       return;
     }
     res.json(r.body);
+  });
+
+  router.post('/notes/scroll', opGuard, (req: Request, res: Response) => {
+    const { direction } = req.body as { direction?: string };
+    if (direction !== 'up' && direction !== 'down') {
+      res.status(400).json({ error: { code: 'INVALID_PARAM', message: 'direction must be "up" or "down"' } });
+      return;
+    }
+    if (direction === 'up') {
+      windowManager?.scrollNotesUp();
+    } else {
+      windowManager?.scrollNotesDown();
+    }
+    res.json({ ok: true });
+  });
+
+  router.post('/notes/zoom', opGuard, (req: Request, res: Response) => {
+    const { direction } = req.body as { direction?: string };
+    if (direction !== 'in' && direction !== 'out') {
+      res.status(400).json({ error: { code: 'INVALID_PARAM', message: 'direction must be "in" or "out"' } });
+      return;
+    }
+    if (direction === 'in') {
+      windowManager?.zoomInNotes();
+    } else {
+      windowManager?.zoomOutNotes();
+    }
+    res.json({ ok: true });
+  });
+
+  // Pull-based backup status — fires one GET /api/status per backup IP on request.
+  router.get('/backup-status', opGuard, async (_req: Request, res: Response) => {
+    if (!deps.getBackupSettings) {
+      res.json({ backups: [] });
+      return;
+    }
+    const { backupIps, port } = deps.getBackupSettings();
+    const results = await Promise.all(
+      backupIps.map(async (ip) => {
+        const start = Date.now();
+        const reachable = await probeBackup(ip, port);
+        return { ip, port, reachable, lastCheckMs: Date.now() - start };
+      }),
+    );
+    res.json({ backups: results });
   });
 
   return router;

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'self'" />
+  <title>PConAir Settings</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #111315; color: #e8eaec; margin: 0; padding: 20px; font-size: 13px; }
+    h1 { font-size: 16px; margin: 0 0 4px; }
+    p.sub { color: #9aa0a6; margin: 0 0 18px; font-size: 12px; }
+    section { background: #1c1f22; border: 1px solid #33383d; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; }
+    h2 { font-size: 13px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #9aa0a6; }
+    label { display: block; font-weight: 500; margin: 8px 0 4px; }
+    input[type="number"], textarea { width: 100%; box-sizing: border-box; background: #111315; color: #e8eaec; border: 1px solid #33383d; border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: inherit; }
+    textarea { min-height: 64px; resize: vertical; font-family: ui-monospace, monospace; }
+    button { background: #4da3ff; color: #08111c; border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 10px; }
+    button.secondary { background: #25292d; color: #e8eaec; border: 1px solid #33383d; }
+    .hint { color: #9aa0a6; font-size: 12px; margin-top: 6px; }
+    .warn { color: #e5a53a; }
+    .err-banner { background: #3a1715; border: 1px solid #e53935; color: #ffb3ae; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; display: none; }
+    ul#displays { margin: 0; padding-left: 18px; }
+    ul#displays li { margin: 3px 0; }
+    .row { display: flex; align-items: center; gap: 8px; }
+    .row label { margin: 0; }
+    #save-status { margin-left: 10px; color: #2ecc71; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>PConAir Settings</h1>
+  <p class="sub">Security-critical configuration. Everything else lives in the web GUI.</p>
+
+  <div class="err-banner" id="server-error"></div>
+
+  <section>
+    <h2>Network</h2>
+    <label for="port">Server port</label>
+    <input id="port" type="number" min="1" max="65535" />
+    <p class="hint">Takes effect after restart. Avoid 9595 — that's Google Slides Controller's port.</p>
+    <button id="save-port">Save port</button>
+    <button id="restart" class="secondary">Restart PConAir</button>
+    <span id="save-status"></span>
+  </section>
+
+  <section>
+    <h2>Security — IP allowlist</h2>
+    <div class="row">
+      <input id="allowlist-enabled" type="checkbox" />
+      <label for="allowlist-enabled">Only allow listed IPs / CIDRs</label>
+    </div>
+    <label for="allowlist">Allowed addresses (one per line)</label>
+    <textarea id="allowlist" placeholder="192.168.1.0/24&#10;10.0.0.5"></textarea>
+    <p class="hint warn">Enabling with an empty or wrong list can lock you out. Localhost access from this machine always works via <code>--clear-allowlist</code>.</p>
+    <button id="save-security">Save security</button>
+    <span id="security-status"></span>
+  </section>
+
+  <section>
+    <h2>Displays</h2>
+    <ul id="displays"></ul>
+    <p class="hint">Output assignment per content type is done in the web GUI, per page.</p>
+  </section>
+
+  <section>
+    <h2>About</h2>
+    <p class="hint" id="about"></p>
+  </section>
+</body>
+</html>

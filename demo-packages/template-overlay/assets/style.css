@@ -1,0 +1,86 @@
+:root {
+  --bg: #0d0d0f;
+  --surface: #18181c;
+  --border: rgba(255,255,255,0.08);
+  --ink: #f0f0f2;
+  --sub: #888890;
+  --accent: #6c8fff;
+  --red: #ff4444;
+  --green: #44cc88;
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100dvh;
+  padding: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+h1 { font-size: 20px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+.status-pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+.status-pill.live { background: rgba(68,204,136,.15); color: var(--green); }
+.status-pill.offline { background: rgba(255,68,68,.15); color: var(--red); }
+.section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  color: var(--sub);
+  text-transform: uppercase;
+}
+label { font-size: 12px; color: var(--sub); }
+input, select, textarea {
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.04);
+  color: var(--ink);
+  width: 100%;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+button {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  cursor: pointer;
+  touch-action: manipulation;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+button:active { opacity: .75; }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-success { background: var(--green); color: #000; border-color: var(--green); }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mono { font-family: var(--mono); }

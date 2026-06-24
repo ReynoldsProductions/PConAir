@@ -1,0 +1,311 @@
+{
+  "id": "demo-scores",
+  "name": "Score Demo",
+  "version": "1.0.0",
+  "description": "Sideloadable template — exercises all standard fields and Companion actions",
+  "renders": [
+    { "id": "scoreboard", "label": "Scoreboard", "file": "renders/scoreboard.html" },
+    { "id": "h2h", "label": "Head-to-Head", "file": "renders/h2h.html" },
+    { "id": "champion", "label": "Champion", "file": "renders/champion.html" },
+    { "id": "ticker", "label": "Ticker", "file": "renders/ticker.html" }
+  ],
+  "stateSchema": {
+    "teams": "array",
+    "scores": "array",
+    "clock": { "deadline": "number", "value": "number", "running": "boolean", "format": "string" },
+    "ticker": { "visible": "boolean", "messages": "array", "speed": "number", "label": "string" },
+    "h2h": { "a": { "left": "number", "right": "number" }, "b": { "left": "number", "right": "number" } },
+    "winner": "number",
+    "activeRender": "string",
+    "shotClock": "number",
+    "shotEndsAt": "number"
+  },
+  "initialState": {
+    "teams": [
+      { "name": "Alpha", "city": "ALPHA", "code": "AL", "presenter": "" },
+      { "name": "Beta",  "city": "BETA",  "code": "BE", "presenter": "" },
+      { "name": "Gamma", "city": "GAMMA", "code": "GA", "presenter": "" },
+      { "name": "Delta", "city": "DELTA", "code": "DE", "presenter": "" }
+    ],
+    "scores": [0, 0, 0, 0],
+    "clock": { "deadline": 0, "value": 300, "running": false, "format": "mm:ss" },
+    "ticker": {
+      "visible": false,
+      "messages": ["Demo message one", "Demo message two", "Demo message three"],
+      "speed": 80,
+      "label": "DEMO"
+    },
+    "h2h": {
+      "a": { "left": 0, "right": 1 },
+      "b": { "left": 2, "right": 3 }
+    },
+    "winner": null,
+    "activeRender": "scoreboard",
+    "shotClock": 24,
+    "shotEndsAt": 0
+  },
+  "companionActions": [
+    {
+      "id": "score_add",
+      "label": "Add to team score",
+      "options": [
+        { "id": "team", "label": "Team", "type": "dropdown", "default": 0,
+          "choices": [
+            { "id": 0, "label": "Team 1 (Alpha)" },
+            { "id": 1, "label": "Team 2 (Beta)" },
+            { "id": 2, "label": "Team 3 (Gamma)" },
+            { "id": 3, "label": "Team 4 (Delta)" }
+          ]
+        },
+        { "id": "value", "label": "Delta", "type": "number", "default": 1, "min": -5, "max": 5 }
+      ],
+      "ops": [
+        { "op": "add", "field": "scores.{team}", "value": { "option": "value" }, "min": 0 }
+      ]
+    },
+    {
+      "id": "score_set",
+      "label": "Set team score",
+      "options": [
+        { "id": "team", "label": "Team", "type": "dropdown", "default": 0,
+          "choices": [
+            { "id": 0, "label": "Team 1 (Alpha)" },
+            { "id": 1, "label": "Team 2 (Beta)" },
+            { "id": 2, "label": "Team 3 (Gamma)" },
+            { "id": 3, "label": "Team 4 (Delta)" }
+          ]
+        },
+        { "id": "value", "label": "Score", "type": "number", "default": 0, "min": 0, "max": 999 }
+      ],
+      "ops": [
+        { "op": "set", "field": "scores.{team}", "value": { "option": "value" } }
+      ]
+    },
+    {
+      "id": "score_reset_all",
+      "label": "Reset all scores",
+      "ops": [
+        { "op": "set", "field": "scores", "value": [0, 0, 0, 0] }
+      ]
+    },
+    {
+      "id": "team_set_name",
+      "label": "Set team name",
+      "options": [
+        { "id": "team", "label": "Team", "type": "dropdown", "default": 0,
+          "choices": [
+            { "id": 0, "label": "Team 1 (Alpha)" },
+            { "id": 1, "label": "Team 2 (Beta)" },
+            { "id": 2, "label": "Team 3 (Gamma)" },
+            { "id": 3, "label": "Team 4 (Delta)" }
+          ]
+        },
+        { "id": "name", "label": "Name", "type": "textinput", "default": "" }
+      ],
+      "ops": [
+        { "op": "set", "field": "teams.{team}.name", "value": { "option": "name" } }
+      ]
+    },
+    {
+      "id": "h2h_set_slot",
+      "label": "Set H2H slot matchup",
+      "options": [
+        { "id": "slot", "label": "Slot", "type": "dropdown", "default": "a",
+          "choices": [{ "id": "a", "label": "Slot A" }, { "id": "b", "label": "Slot B" }]
+        },
+        { "id": "left", "label": "Left team index", "type": "number", "default": 0, "min": 0, "max": 3 },
+        { "id": "right", "label": "Right team index", "type": "number", "default": 1, "min": 0, "max": 3 }
+      ],
+      "ops": [
+        { "op": "set", "field": "h2h.{slot}.left", "value": { "option": "left" } },
+        { "op": "set", "field": "h2h.{slot}.right", "value": { "option": "right" } }
+      ]
+    },
+    {
+      "id": "set_winner",
+      "label": "Set winner",
+      "options": [
+        { "id": "team", "label": "Team", "type": "dropdown", "default": 0,
+          "choices": [
+            { "id": 0, "label": "Team 1 (Alpha)" },
+            { "id": 1, "label": "Team 2 (Beta)" },
+            { "id": 2, "label": "Team 3 (Gamma)" },
+            { "id": 3, "label": "Team 4 (Delta)" }
+          ]
+        }
+      ],
+      "ops": [
+        { "op": "set", "field": "winner", "value": { "option": "team" } }
+      ]
+    },
+    {
+      "id": "clear_winner",
+      "label": "Clear winner",
+      "ops": [
+        { "op": "set", "field": "winner", "value": null }
+      ]
+    },
+    {
+      "id": "clock_start",
+      "label": "Start clock",
+      "ops": [
+        {
+          "op": "countdown_start",
+          "deadlineField": "clock.deadline",
+          "valueField": "clock.value",
+          "format": "mm:ss",
+          "runningField": "clock.running",
+          "defaultValue": 300
+        }
+      ]
+    },
+    {
+      "id": "clock_stop",
+      "label": "Stop clock",
+      "ops": [
+        {
+          "op": "countdown_stop",
+          "deadlineField": "clock.deadline",
+          "valueField": "clock.value",
+          "format": "mm:ss",
+          "runningField": "clock.running"
+        }
+      ]
+    },
+    {
+      "id": "clock_reset",
+      "label": "Reset clock",
+      "options": [
+        { "id": "seconds", "label": "Duration (seconds)", "type": "number", "default": 300, "min": 10, "max": 10800 }
+      ],
+      "ops": [
+        { "op": "set", "field": "clock.running", "value": false },
+        { "op": "set", "field": "clock.deadline", "value": 0 },
+        { "op": "set", "field": "clock.value", "value": { "option": "seconds" } }
+      ]
+    },
+    {
+      "id": "shot_clock_reset",
+      "label": "Reset shot clock",
+      "options": [
+        { "id": "seconds", "label": "Seconds", "type": "number", "default": 24, "min": 1, "max": 60 }
+      ],
+      "ops": [
+        { "op": "countdown_reset", "deadlineField": "shotEndsAt", "valueField": "shotClock", "format": "seconds", "value": { "option": "seconds" } }
+      ]
+    },
+    {
+      "id": "shot_clock_start",
+      "label": "Start shot clock",
+      "ops": [
+        { "op": "countdown_start", "deadlineField": "shotEndsAt", "valueField": "shotClock", "format": "seconds" }
+      ]
+    },
+    {
+      "id": "shot_clock_stop",
+      "label": "Stop shot clock",
+      "ops": [
+        { "op": "countdown_stop", "deadlineField": "shotEndsAt", "valueField": "shotClock", "format": "seconds" }
+      ]
+    },
+    {
+      "id": "ticker_show",
+      "label": "Show ticker",
+      "ops": [
+        { "op": "set", "field": "ticker.visible", "value": true }
+      ]
+    },
+    {
+      "id": "ticker_hide",
+      "label": "Hide ticker",
+      "ops": [
+        { "op": "set", "field": "ticker.visible", "value": false }
+      ]
+    },
+    {
+      "id": "ticker_toggle",
+      "label": "Toggle ticker",
+      "ops": [
+        { "op": "toggle", "field": "ticker.visible" }
+      ]
+    },
+    {
+      "id": "ticker_set",
+      "label": "Set ticker content",
+      "options": [
+        { "id": "messages", "label": "Messages (| separated)", "type": "textinput", "default": "" },
+        { "id": "label", "label": "Label", "type": "textinput", "default": "" }
+      ],
+      "ops": [
+        { "op": "set", "field": "ticker.messages", "value": { "option": "messages", "split": "|" } },
+        { "op": "set", "field": "ticker.label", "value": { "option": "label", "orState": "ticker.label" } },
+        { "op": "set", "field": "ticker.visible", "value": true }
+      ]
+    }
+  ],
+  "companionFeedbacks": [
+    {
+      "id": "winner_set",
+      "label": "Winner is set",
+      "field": "winner",
+      "notEquals": null
+    },
+    {
+      "id": "clock_running",
+      "label": "Clock is running",
+      "field": "clock.running"
+    },
+    {
+      "id": "render_active",
+      "label": "Render is active",
+      "field": "activeRender",
+      "equals": { "option": "render" },
+      "options": [
+        { "id": "render", "label": "Render", "type": "dropdown", "default": "scoreboard",
+          "choices": [
+            { "id": "scoreboard", "label": "Scoreboard" },
+            { "id": "h2h", "label": "Head-to-Head" },
+            { "id": "champion", "label": "Champion" },
+            { "id": "ticker", "label": "Ticker" }
+          ]
+        }
+      ]
+    }
+  ],
+  "companionVariables": [
+    { "id": "score_0", "label": "Team 1 score", "field": "scores.0" },
+    { "id": "score_1", "label": "Team 2 score", "field": "scores.1" },
+    { "id": "score_2", "label": "Team 3 score", "field": "scores.2" },
+    { "id": "score_3", "label": "Team 4 score", "field": "scores.3" },
+    { "id": "team_0_name", "label": "Team 1 name", "field": "teams.0.name" },
+    { "id": "team_1_name", "label": "Team 2 name", "field": "teams.1.name" },
+    { "id": "team_2_name", "label": "Team 3 name", "field": "teams.2.name" },
+    { "id": "team_3_name", "label": "Team 4 name", "field": "teams.3.name" },
+    {
+      "id": "clock_display",
+      "label": "Clock display",
+      "countdown": {
+        "deadlineField": "clock.deadline",
+        "valueField": "clock.value",
+        "runningField": "clock.running",
+        "format": "mm:ss"
+      }
+    },
+    {
+      "id": "shot_clock_display",
+      "label": "Shot clock",
+      "countdown": {
+        "deadlineField": "shotEndsAt",
+        "valueField": "shotClock",
+        "format": "seconds"
+      }
+    },
+    { "id": "winner_name", "label": "Winner name", "field": "_winnerName" },
+    { "id": "active_render", "label": "Active render", "field": "activeRender" }
+  ],
+  "companionDerived": [
+    { "field": "_leader", "fn": "argmax", "source": "scores" },
+    { "field": "_leaderName", "fn": "lookup", "source": "teams", "index": "_leader", "path": "name" },
+    { "field": "_winnerName", "fn": "lookup", "source": "teams", "index": "winner", "path": "name" }
+  ]
+}

@@ -219,6 +219,67 @@ describe('set_display action via POST /api/action', () => {
   });
 });
 
+describe('render WebSocket connections (cookie-less, read-only)', () => {
+  let server: ReturnType<typeof makeHttpServer>['server'];
+  let store: ReturnType<typeof makeHttpServer>['store'];
+  let port: number;
+
+  beforeEach(async () => {
+    ({ server, store } = makeHttpServer());
+    await server.listen();
+    const addr = server.httpServer.address();
+    port = typeof addr === 'object' && addr ? addr.port : 0;
+  });
+
+  afterEach(async () => {
+    await server.close();
+  });
+
+  it('accepts ?render=1 without a cookie and pushes state', async () => {
+    const ws = new WebSocket(`ws://localhost:${port}/ws?render=1`);
+    const first = await new Promise<WsServerMessage>((resolve, reject) => {
+      ws.on('message', (data) => resolve(JSON.parse(data.toString())));
+      ws.on('error', reject);
+      ws.on('close', (code) => reject(new Error(`closed ${code}`)));
+    });
+    expect(first.type).toBe('state');
+
+    const patchPromise = new Promise<WsServerMessage>((resolve) => {
+      ws.on('message', (data) => {
+        const msg = JSON.parse(data.toString()) as WsServerMessage;
+        if (msg.type === 'state_patch' && 'currentUrl' in (msg.payload as Record<string, unknown>)) resolve(msg);
+      });
+    });
+    store.setState({ currentUrl: 'https://example.com' });
+    const patch = await patchPromise;
+    expect(patch.type).toBe('state_patch');
+    ws.close();
+  });
+
+  it('ignores action messages from render connections', async () => {
+    const ws = new WebSocket(`ws://localhost:${port}/ws?render=1`);
+    await new Promise<void>((resolve, reject) => {
+      ws.on('message', () => resolve());
+      ws.on('error', reject);
+    });
+    ws.send(JSON.stringify({ type: 'action', action_id: 'panic_toggle', params: {} }));
+    // Give the server a beat; the action must not mutate state.
+    await new Promise((r) => setTimeout(r, 150));
+    expect(store.getState().reliability.panicActive).toBe(false);
+    ws.close();
+  });
+
+  it('still rejects normal connections without a cookie', async () => {
+    const ws = new WebSocket(`ws://localhost:${port}/ws`);
+    const result = await new Promise<string>((resolve) => {
+      ws.on('close', () => resolve('closed'));
+      ws.on('error', () => resolve('error'));
+      ws.on('open', () => setTimeout(() => resolve('open'), 300));
+    });
+    expect(result === 'closed' || result === 'error').toBe(true);
+  });
+});
+
 describe('Graphics viewer WebSocket (?graphics=1)', () => {
   it('allows connection without auth and receives initial state', async () => {
     const store = createStateStore();

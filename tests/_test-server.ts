@@ -8,6 +8,7 @@ import { createL3PlaylistStore } from '../src/main/l3/playlist-store';
 import { createL3ThemeStore } from '../src/main/l3/theme-store';
 import { createActionDispatcher } from '../src/main/action-dispatch';
 import { createMediaLibraryStore } from '../src/main/media-library/item-store';
+import { createSlideshowEngine } from '../src/main/media-library/slideshow';
 import { createAuthManager } from '../src/main/auth';
 import { createPresetsStore } from '../src/main/presets';
 import { bootstrapProfiles, syncActiveProfileUrlPresets, getActiveMarker } from '../src/main/profiles/bootstrap';
@@ -24,7 +25,13 @@ export interface FullServerTestOpts {
   port?: number;
   mediaLibraryRoot?: string;
   trustForwardedFor?: boolean;
+  getTunnelPinHash?: () => string | null;
+  startTunnel?: () => void;
+  stopTunnel?: () => void;
+  saveTunnelSettings?: (patch: Record<string, unknown>) => void;
+  packagesRoot?: string | string[];
   graphicsRoot?: string;
+  stageTimer?: import('../src/main/routes/index').RouteServices['stageTimer'];
 }
 
 export function createFullServer(opts: FullServerTestOpts) {
@@ -67,11 +74,15 @@ export function createFullServer(opts: FullServerTestOpts) {
   fs.mkdirSync(l3FilesRoot, { recursive: true });
   const l3ThemeStore = createL3ThemeStore({ l3FilesRoot });
 
+  const slideshow = createSlideshowEngine({ store: opts.store, media: mediaLibrary });
   const dispatchAction = createActionDispatcher({
     store: opts.store,
     auth,
     presets,
     cues: l3Cues,
+    playlists: l3Playlists,
+    media: mediaLibrary,
+    slideshow,
   });
 
   const server = createServer({
@@ -83,12 +94,19 @@ export function createFullServer(opts: FullServerTestOpts) {
     l3ThemeStore,
     l3FilesRoot,
     mediaLibrary,
+    slideshow,
     dispatchAction,
     port: opts.port,
     profilePaths: boot.paths,
     getActiveProfileId: () => getActiveMarker(boot.paths)?.id ?? boot.activeId,
     trustForwardedFor: opts.trustForwardedFor,
+    getTunnelPinHash: opts.getTunnelPinHash,
+    startTunnel: opts.startTunnel,
+    stopTunnel: opts.stopTunnel,
+    saveTunnelSettings: opts.saveTunnelSettings,
+    packagesRoot: opts.packagesRoot,
     graphicsRoot: opts.graphicsRoot,
+    stageTimer: opts.stageTimer,
   });
 
   return {

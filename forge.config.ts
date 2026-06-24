@@ -2,7 +2,7 @@ import type { ForgeConfig } from '@electron-forge/shared-types';
 import { WebpackPlugin } from '@electron-forge/plugin-webpack';
 
 const config: ForgeConfig = {
-  packagerConfig: { asar: true, extraResource: ['graphics'] },
+  packagerConfig: { name: 'PConAir', asar: true, extraResource: ['./bundled-packages', './cloudflared'] },
   rebuildConfig: {},
   makers: [
     { name: '@electron-forge/maker-zip', platforms: ['darwin', 'linux'] },
@@ -40,6 +40,20 @@ const config: ForgeConfig = {
             name: 'admin',
             html: './src/renderer/admin/index.html',
             js: './src/renderer/admin/index.ts',
+          },
+          {
+            // Web remote SPA — served by Express at /remote (webpack copies it next to admin).
+            name: 'remote',
+            html: './src/renderer/remote/index.html',
+            js: './src/renderer/remote/index.ts',
+          },
+          {
+            // Settings window loads directly from the webpack entry (not HTTP) so it
+            // still opens when the server failed to start (e.g. port conflict).
+            name: 'settings',
+            html: './src/renderer/settings/index.html',
+            js: './src/renderer/settings/index.ts',
+            preload: { js: './src/renderer/settings-preload.ts' },
           },
         ],
       },

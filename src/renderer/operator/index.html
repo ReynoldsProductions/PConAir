@@ -828,6 +828,31 @@ input[type="radio"] {
   margin: 0;
 }
 
+.kbd-preset-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.kbd-preset-label {
+  font-size: 12px;
+  color: var(--text-subdued);
+  margin-right: 2px;
+  white-space: nowrap;
+}
+
+.kbd-preset-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+.kbd-preset-btn.active {
+  background: var(--text);
+  color: #fff;
+  border-color: var(--text);
+}
+
 .ml-l3-select-wrap { display: flex; gap: 8px; align-items: stretch; }
 
 .ml-l3-select-wrap .select-input { flex: 1; min-width: 0; }
@@ -845,6 +870,8 @@ input[type="radio"] {
 }
 
   </style>
+  <!-- Custom branding stylesheet (returns empty CSS when no file is configured) -->
+  <link rel="stylesheet" href="/branding/style.css" />
 </head>
 <body>
 
@@ -934,6 +961,14 @@ input[type="radio"] {
         <section data-tab="slides" hidden>
           <h1 class="page-title">Slides</h1>
           <div class="panel">
+            <div class="panel-title">Google Account</div>
+            <p id="google-auth-status" class="field-hint" style="margin-bottom:10px;">Checking authentication…</p>
+            <div class="btn-row">
+              <button type="button" class="btn btn-google" id="google-signin-btn">Sign in to Google</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="google-auth-refresh-btn">Refresh</button>
+            </div>
+          </div>
+          <div class="panel">
             <div class="form-group">
               <label for="deck-url-input">Google Slides URL</label>
               <input type="text" id="deck-url-input" class="input-field" placeholder="https://docs.google.com/presentation/d/…" autocomplete="off" />
@@ -955,6 +990,16 @@ input[type="radio"] {
               </div>
             </div>
             <button type="button" class="btn btn-secondary" id="reload-btn" disabled>Reload Deck</button>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Keyboard Shortcuts</div>
+            <div class="kbd-preset-row">
+              <span class="kbd-preset-label">Preset:</span>
+              <button type="button" class="btn btn-secondary kbd-preset-btn" data-kbd-preset="google">Google</button>
+              <button type="button" class="btn btn-secondary kbd-preset-btn" data-kbd-preset="powerpoint">PowerPoint</button>
+              <button type="button" class="btn btn-secondary kbd-preset-btn" data-kbd-preset="keynote">Keynote</button>
+            </div>
+            <p class="field-hint" style="margin-top:8px;">Maps arrow keys and software-specific shortcuts to slide navigation.</p>
           </div>
           <div class="panel">
             <div class="panel-title">Slide Presets</div>
@@ -1008,6 +1053,10 @@ input[type="radio"] {
               <input type="checkbox" id="l3-stacking-checkbox" />
               <span>Stack with active</span>
             </label>
+            <div class="form-group" style="margin-top:8px;">
+              <label for="l3-auto-out-input">Auto-out (sec, 0 = manual)</label>
+              <input type="number" id="l3-auto-out-input" class="input-field" placeholder="0" min="0" step="1" value="0" style="width:100px;" />
+            </div>
             <div class="btn-row" style="margin-top:16px;">
               <button type="button" class="btn btn-primary" id="l3-take-btn">Take</button>
               <button type="button" class="btn btn-secondary" id="l3-clear-btn">Clear</button>

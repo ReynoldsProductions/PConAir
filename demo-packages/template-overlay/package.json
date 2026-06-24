@@ -1,0 +1,126 @@
+{
+  "id": "template-overlay",
+  "name": "Broadcast Overlay Template",
+  "version": "1.0.0",
+  "description": "Starter template — lower third, ticker, logo bug. Copy this folder, change the id, and restyle.",
+  "renders": [
+    { "id": "overlay", "label": "Overlay", "file": "renders/overlay.html" }
+  ],
+  "stateSchema": {
+    "bugVisible": "boolean",
+    "liveVisible": "boolean",
+    "theme": "string",
+    "l3": {
+      "visible": "boolean",
+      "name": "string",
+      "title": "string"
+    },
+    "ticker": {
+      "visible": "boolean",
+      "messages": [],
+      "label": "string",
+      "speed": "number"
+    }
+  },
+  "initialState": {
+    "bugVisible": true,
+    "liveVisible": true,
+    "theme": "light",
+    "l3": {
+      "visible": false,
+      "name": "Jane Smith",
+      "title": "Chief Executive Officer"
+    },
+    "ticker": {
+      "visible": true,
+      "messages": [
+        "Welcome:: to the broadcast",
+        "Customize:: this message in the control page",
+        "Add more:: items separated by the pipe character"
+      ],
+      "label": "ON AIR",
+      "speed": 80
+    }
+  },
+  "companionActions": [
+    {
+      "id": "l3_take",
+      "label": "Take lower third",
+      "options": [
+        { "id": "name",  "label": "Name",  "type": "textinput", "default": "" },
+        { "id": "title", "label": "Title", "type": "textinput", "default": "" }
+      ],
+      "ops": [
+        { "op": "set", "field": "l3.name",  "value": { "option": "name",  "orState": "l3.name"  } },
+        { "op": "set", "field": "l3.title", "value": { "option": "title", "orState": "l3.title" } },
+        { "op": "set", "field": "l3.visible", "value": true }
+      ]
+    },
+    {
+      "id": "l3_clear",
+      "label": "Clear lower third",
+      "ops": [
+        { "op": "set", "field": "l3.visible", "value": false }
+      ]
+    },
+    {
+      "id": "ticker_show",
+      "label": "Show ticker",
+      "ops": [ { "op": "set", "field": "ticker.visible", "value": true } ]
+    },
+    {
+      "id": "ticker_hide",
+      "label": "Hide ticker",
+      "ops": [ { "op": "set", "field": "ticker.visible", "value": false } ]
+    },
+    {
+      "id": "ticker_toggle",
+      "label": "Toggle ticker",
+      "ops": [ { "op": "toggle", "field": "ticker.visible" } ]
+    },
+    {
+      "id": "ticker_set",
+      "label": "Set ticker content",
+      "options": [
+        { "id": "messages", "label": "Messages (| separated)", "type": "textinput", "default": "" },
+        { "id": "label",    "label": "Label",                  "type": "textinput", "default": "" }
+      ],
+      "ops": [
+        { "op": "set", "field": "ticker.messages", "value": { "option": "messages", "split": "|" } },
+        { "op": "set", "field": "ticker.label",    "value": { "option": "label", "orState": "ticker.label" } },
+        { "op": "set", "field": "ticker.visible",  "value": true }
+      ]
+    },
+    {
+      "id": "bug_toggle",
+      "label": "Toggle logo bug",
+      "ops": [ { "op": "toggle", "field": "bugVisible" } ]
+    },
+    {
+      "id": "live_show",
+      "label": "Show LIVE indicator",
+      "ops": [ { "op": "set", "field": "liveVisible", "value": true } ]
+    },
+    {
+      "id": "live_hide",
+      "label": "Hide LIVE indicator",
+      "ops": [ { "op": "set", "field": "liveVisible", "value": false } ]
+    },
+    {
+      "id": "theme_toggle",
+      "label": "Toggle dark/light theme",
+      "ops": [ { "op": "toggle", "field": "theme" } ]
+    }
+  ],
+  "companionFeedbacks": [
+    { "id": "l3_visible",    "label": "Lower third on air", "field": "l3.visible" },
+    { "id": "ticker_visible","label": "Ticker visible",     "field": "ticker.visible" },
+    { "id": "bug_visible",   "label": "Logo bug visible",   "field": "bugVisible" },
+    { "id": "live_visible",  "label": "LIVE indicator visible", "field": "liveVisible" }
+  ],
+  "companionVariables": [
+    { "id": "l3_name",     "label": "Lower third name",  "field": "l3.name" },
+    { "id": "l3_title",    "label": "Lower third title", "field": "l3.title" },
+    { "id": "ticker_label","label": "Ticker label",      "field": "ticker.label" }
+  ]
+}

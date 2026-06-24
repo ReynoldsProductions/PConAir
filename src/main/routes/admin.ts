@@ -13,7 +13,7 @@ const ADMIN_HTML_CONTENT: string = (() => {
 })();
 
 const HTML_CSP =
-  "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' https:; font-src 'self'";
+  "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data: https:; font-src 'self'";
 
 const ADMIN_UNLOCK_JS = `(function(){
   var f=document.getElementById('unlock-form');
@@ -35,41 +35,41 @@ const FALLBACK_ADMIN_HTML = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>PC On Air — Admin</title></head>
 <body><p>PC On Air Admin UI</p></body></html>`;
 
-const LOGIN_HINTS: Record<string, string> = {
-  bad: 'Incorrect PIN. Try again.',
+const LOGIN_QUERY_HINTS: Record<string, string> = {
+  bad: 'Incorrect admin PIN. Try again.',
   locked: 'Too many failed attempts. Wait five minutes, then try again.',
-  missing: 'Enter your admin PIN.',
+  missing: 'Enter the admin PIN.',
+  ratelimited: 'Too many failed attempts. Please try again later.',
 };
 
-function adminLoginHtml(hint: string): string {
-  const msg = hint ? `<p class="err">${hint.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</p>` : '';
+function adminLoginHtml(message: string): string {
+  const msg = message ? `<p class="err">${message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>` : '';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PC On Air — Admin sign-in</title>
+  <title>PConAir — Admin</title>
   <style>
-    body { font-family: system-ui, sans-serif; background: #111; color: #e0e0e0; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .box { background: #1e1e1e; border: 1px solid #333; border-radius: 6px; padding: 28px 32px; max-width: 22rem; width: 100%; box-sizing: border-box; }
-    h1 { font-size: 1.1rem; font-weight: 600; margin: 0 0 6px; }
-    p.sub { font-size: 13px; color: #888; margin: 0 0 20px; line-height: 1.45; }
-    .err { color: #ff6b6b; font-size: 13px; margin: 0 0 14px; }
-    label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: #aaa; }
-    input { width: 100%; box-sizing: border-box; padding: 8px 12px; font-size: 15px; border: 1px solid #444; border-radius: 4px; background: #0d0d0d; color: #e0e0e0; margin-bottom: 16px; }
-    button { width: 100%; padding: 10px 16px; font-size: 14px; font-weight: 600; border: none; border-radius: 4px; background: #4a9eff; color: #fff; cursor: pointer; }
-    button:hover { background: #3a8eef; }
+    body { font-family: system-ui, sans-serif; background: #111315; color: #e8eaec; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .box { background: #1c1f22; border: 1px solid #33383d; border-radius: 10px; padding: 28px 32px; max-width: 22rem; width: 100%; box-sizing: border-box; }
+    h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 8px; }
+    p.sub { font-size: 13px; color: #9aa0a6; margin: 0 0 20px; line-height: 1.45; }
+    .err { color: #ff6e62; font-size: 13px; margin: 0 0 14px; }
+    label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+    input { width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 16px; border: 1px solid #33383d; border-radius: 6px; margin-bottom: 16px; background: #111315; color: #e8eaec; }
+    button { width: 100%; padding: 12px 16px; font-size: 14px; font-weight: 600; border: none; border-radius: 6px; background: #e5a53a; color: #08111c; cursor: pointer; }
   </style>
 </head>
 <body>
   <div class="box">
-    <h1>PC On Air — Admin</h1>
-    <p class="sub">Enter the admin PIN to access setup and configuration.</p>
+    <h1>PConAir Admin</h1>
+    <p class="sub">Enter the admin PIN to access the dashboard.</p>
     ${msg}
     <form method="post" action="/auth/admin/browser" autocomplete="off">
       <label for="pin">Admin PIN</label>
       <input id="pin" name="pin" type="password" inputmode="numeric" required autofocus />
-      <button type="submit">Sign in</button>
+      <button type="submit">Continue</button>
     </form>
   </div>
 </body>
@@ -141,6 +141,16 @@ export interface AdminRouterDeps {
 export function createAdminRouter(d: AdminRouterDeps): Router {
   const router = Router();
 
+  router.get('/index.js', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    const jsPath = path.resolve(__dirname, '../renderer/admin/index.js');
+    if (fs.existsSync(jsPath)) {
+      res.send(fs.readFileSync(jsPath));
+    } else {
+      res.send('/* admin stub */');
+    }
+  });
+
   router.get('/assets/health-dashboard.js', (_req: Request, res: Response) => {
     res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
     res.setHeader('Content-Security-Policy', "default-src 'none'");
@@ -170,11 +180,23 @@ export function createAdminRouter(d: AdminRouterDeps): Router {
     const adminSession = adminSid ? d.auth.getSession(adminSid) : null;
 
     if (!adminSession || adminSession.role !== 'admin') {
-      const code = typeof req.query.login === 'string' ? req.query.login : '';
-      const hint = LOGIN_HINTS[code] ?? '';
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.setHeader('Content-Security-Policy', HTML_CSP);
-      res.status(adminSession ? 403 : 401).send(adminLoginHtml(hint));
+      // Browser navigations (sec-fetch-dest: document) get an HTML login page.
+      // API clients get JSON errors.
+      const isBrowserNav = req.headers['sec-fetch-dest'] === 'document';
+      if (isBrowserNav) {
+        const loginCode = typeof req.query.login === 'string' ? req.query.login : '';
+        res.status(401).setHeader('Content-Type', 'text/html; charset=utf-8').send(
+          adminLoginHtml(LOGIN_QUERY_HINTS[loginCode] ?? '')
+        );
+        return;
+      }
+      if (adminSession) {
+        res.status(403).json({
+          error: { code: 'FORBIDDEN', message: 'Admin access required' },
+        });
+        return;
+      }
+      res.status(401).json({ error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } });
       return;
     }
 

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>FFG — Four Portrait</title>
+  <meta name="viewport" content="width=1920, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/packages/ffg/assets/cardboard.css" />
+</head>
+<body>
+  <div class="stage" id="stage" data-screen-label="Four Portrait"></div>
+
+  <script src="/packages/ffg/assets/state.js"></script>
+  <script src="/packages/ffg/assets/overlay-kit.js"></script>
+  <script src="/packages/ffg/assets/ffg-common.js"></script>
+  <script>
+    (function () {
+      const { el, makeFrame, makeTitleBanner, makeTimerChip } = window.OverlayKit;
+      const stage = document.getElementById('stage');
+
+      function build(s) {
+        const TEAMS = s.teams;
+
+        // Title banner — top, swap stamp for timer
+        const tb = makeTitleBanner();
+        Object.assign(tb.style, { position: 'absolute', top: '28px', left: '80px', right: '80px' });
+        const stamp = tb.querySelector('.stamp');
+        if (stamp) {
+          const chip = makeTimerChip('SHIP-BY');
+          chip.style.transform = 'rotate(0)';
+          stamp.replaceWith(chip);
+          FFG.bindTimer(chip);
+        }
+        stage.appendChild(tb);
+
+        // Four frame row
+        const frameW = 360, frameH = 820;
+        const gap = (1920 - 160 - frameW * 4) / 3;
+        const camW = frameW - 24 * 2;
+        const camH = frameH - 36 - 140;
+
+        const row = el('div', {
+          style: {
+            position: 'absolute', top: '160px', left: '80px', right: '80px',
+            display: 'flex', gap: gap + 'px', justifyContent: 'space-between',
+          },
+        });
+        TEAMS.forEach((t, i) => {
+          const wrap = el('div', { style: { position: 'relative' } });
+          wrap.appendChild(makeFrame({
+            width: frameW, height: frameH,
+            top: 36, side: 24, bottom: 140,
+            title: t.name.toUpperCase(),
+            sub: t.city,
+            tape: i % 2 === 0 ? 'tr' : 'bl',
+            corner: t.code,
+            titleSize: 22,
+            hideMiniStamp: true,
+            resW: camW, resH: camH,
+            resLabel: 'PORTRAIT',
+            placeholderLabel: 'WIDE CAM',
+          }));
+          row.appendChild(wrap);
+        });
+        stage.appendChild(row);
+
+        // Bottom subtitle strip
+        const sub = el('div', {
+          style: {
+            position: 'absolute', left: '0', right: '0', bottom: '24px',
+            textAlign: 'center', fontSize: '12px',
+            letterSpacing: '0.5em', color: 'rgba(232,210,160,0.7)', fontWeight: '600',
+          },
+          text: 'FOUR OFFICES · ONE CHAMPIONSHIP · MAY 2026',
+        });
+        stage.appendChild(sub);
+      }
+
+      FFG.start(build, (s) => JSON.stringify(s.teams));
+    })();
+  </script>
+</body>
+</html>

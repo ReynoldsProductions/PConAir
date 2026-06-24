@@ -4,6 +4,52 @@ import * as api from './api';
 
 const store = createClientStore();
 
+// ── Keyboard shortcut presets ─────────────────────────────────────
+
+type KbdPreset = 'google' | 'powerpoint' | 'keynote';
+
+interface PresetMap {
+  next: string[];
+  prev: string[];
+}
+
+const KBD_PRESETS: Record<KbdPreset, PresetMap> = {
+  google: {
+    next: ['ArrowRight', ' ', 'PageDown'],
+    prev: ['ArrowLeft', 'PageUp'],
+  },
+  powerpoint: {
+    next: ['ArrowRight', 'Enter', 'PageDown', 'n', 'N'],
+    prev: ['ArrowLeft', 'Backspace', 'PageUp', 'p', 'P'],
+  },
+  keynote: {
+    next: ['ArrowRight', ' ', 'Enter'],
+    prev: ['ArrowLeft', 'Delete'],
+  },
+};
+
+const KBD_PRESET_KEY = 'pconair-kbd-preset';
+
+function getSavedPreset(): KbdPreset {
+  const v = localStorage.getItem(KBD_PRESET_KEY);
+  if (v === 'google' || v === 'powerpoint' || v === 'keynote') return v;
+  return 'google';
+}
+
+let activeKbdPreset: KbdPreset = getSavedPreset();
+
+function setKbdPreset(preset: KbdPreset): void {
+  activeKbdPreset = preset;
+  localStorage.setItem(KBD_PRESET_KEY, preset);
+  renderKbdPresetButtons();
+}
+
+function renderKbdPresetButtons(): void {
+  document.querySelectorAll<HTMLButtonElement>('[data-kbd-preset]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.kbdPreset === activeKbdPreset);
+  });
+}
+
 /** Ignore checkbox `change` while syncing from server state. */
 let l3StackingUiLock = false;
 let notesPollingInterval: ReturnType<typeof setInterval> | null = null;
@@ -42,6 +88,24 @@ async function refreshL3CueSelect(): Promise<void> {
     sel.appendChild(o);
   }
   if (prev && cues.some((x) => x.id === prev)) sel.value = prev;
+}
+
+async function refreshGoogleAuth(): Promise<void> {
+  const statusEl = document.getElementById('google-auth-status');
+  const signinBtn = document.getElementById('google-signin-btn') as HTMLButtonElement | null;
+  if (!statusEl) return;
+  try {
+    const auth = await api.getGoogleAuthState();
+    if (auth.loggedIn) {
+      statusEl.textContent = auth.email ? `Signed in as ${auth.email}` : 'Signed in to Google ✓';
+      if (signinBtn) signinBtn.textContent = 'Sign in again';
+    } else {
+      statusEl.textContent = 'Not signed in — private slides will not load';
+      if (signinBtn) signinBtn.textContent = 'Sign in to Google';
+    }
+  } catch {
+    statusEl.textContent = 'Could not check Google auth status';
+  }
 }
 
 async function refreshActiveProfile(): Promise<void> {
@@ -337,6 +401,18 @@ function bindEvents(): void {
     });
   };
 
+  document.getElementById('google-signin-btn')?.addEventListener('click', async () => {
+    try {
+      await api.openGoogleAuth();
+    } catch (e) {
+      showError((e as Error).message);
+    }
+  });
+
+  document.getElementById('google-auth-refresh-btn')?.addEventListener('click', () => {
+    void refreshGoogleAuth().catch(() => {});
+  });
+
   on('load-btn', () => api.loadDeck(
     (document.getElementById('deck-url-input') as HTMLInputElement).value.trim()
   ));
@@ -368,14 +444,16 @@ function bindEvents(): void {
   });
 
   on('l3-take-btn', async () => {
+    const autoOutSec = parseFloat((document.getElementById('l3-auto-out-input') as HTMLInputElement).value);
+    const autoOutMs = Number.isFinite(autoOutSec) && autoOutSec > 0 ? Math.round(autoOutSec * 1000) : null;
     const sel = document.getElementById('l3-cue-select') as HTMLSelectElement;
     if (sel.value) {
-      await api.l3Take({ cueId: sel.value });
+      await api.l3Take({ cueId: sel.value, autoOutMs: autoOutMs ?? undefined });
       return;
     }
     const name = (document.getElementById('l3-name-input') as HTMLInputElement).value.trim();
     const title = (document.getElementById('l3-title-input') as HTMLInputElement).value.trim();
-    await api.l3Take({ name, title });
+    await api.l3Take({ name, title, autoOutMs: autoOutMs ?? undefined });
   });
   on('l3-clear-btn', () => api.l3Clear());
 
@@ -415,15 +493,27 @@ function bindEvents(): void {
 
   document.addEventListener('keydown', (e) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-    if (e.key === 'ArrowRight' || e.key === ' ') {
+    const preset = KBD_PRESETS[activeKbdPreset];
+    if (preset.next.includes(e.key)) {
+      if (e.key === ' ' || e.key === 'Enter') e.preventDefault();
       const btn = document.getElementById('next-btn') as HTMLButtonElement | null;
       if (btn && !btn.disabled) void api.slideNext().catch((err) => showError((err as Error).message));
-    } else if (e.key === 'ArrowLeft') {
+    } else if (preset.prev.includes(e.key)) {
+      if (e.key === 'Backspace') e.preventDefault();
       const btn = document.getElementById('prev-btn') as HTMLButtonElement | null;
       if (btn && !btn.disabled) void api.slidePrev().catch((err) => showError((err as Error).message));
     } else if (e.key === 'p' || e.key === 'P') {
-      void api.panicAction('toggle').catch((err) => showError((err as Error).message));
+      if (!preset.prev.includes(e.key)) {
+        void api.panicAction('toggle').catch((err) => showError((err as Error).message));
+      }
     }
+  });
+
+  // Keyboard preset toggle buttons
+  document.querySelectorAll<HTMLButtonElement>('[data-kbd-preset]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setKbdPreset(btn.dataset.kbdPreset as KbdPreset);
+    });
   });
 
   (document.getElementById('l3-stacking-checkbox') as HTMLInputElement).addEventListener(
@@ -483,9 +573,11 @@ function bindEvents(): void {
 
 store.subscribe(renderState);
 bindEvents();
+renderKbdPresetButtons();
 void refreshL3CueSelect().catch(() => { /* no session yet */ });
 void refreshMediaSelect().catch(() => { /* no session yet */ });
 void refreshActiveProfile().catch(() => { /* public endpoint */ });
+void refreshGoogleAuth().catch(() => { /* non-critical */ });
 setInterval(() => {
   void refreshActiveProfile().catch(() => {});
 }, 60000);

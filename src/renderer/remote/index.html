@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>PConAir</title>
+  <style>
+    :root {
+      --bg: #111315;
+      --surface: #1c1f22;
+      --surface-2: #25292d;
+      --border: #33383d;
+      --text: #e8eaec;
+      --text-dim: #9aa0a6;
+      --accent: #4da3ff;
+      --live: #2ecc71;
+      --warn: #e5a53a;
+      --err: #e53935;
+      --nav-h: 64px;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex: 0 0 auto;
+    }
+    header h1 { font-size: 15px; font-weight: 700; margin: 0; letter-spacing: 0.04em; }
+    header .spacer { flex: 1; }
+    #conn-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--err);
+      flex: 0 0 auto;
+    }
+    #conn-dot.connected { background: var(--live); }
+    #conn-label { font-size: 12px; color: var(--text-dim); }
+    main {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 16px;
+      padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    }
+    .page { display: none; max-width: 760px; margin: 0 auto; }
+    .page.active { display: block; }
+    .page h2 { font-size: 18px; margin: 0 0 4px; }
+    .page p.sub { font-size: 13px; color: var(--text-dim); margin: 0 0 16px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .card h3 { margin: 0 0 8px; font-size: 14px; }
+    .card p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+    .stub-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--warn);
+      border: 1px solid var(--warn);
+      border-radius: 999px;
+      padding: 2px 10px;
+      margin-bottom: 12px;
+    }
+    dl.status { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; margin: 0; font-size: 13px; }
+    dl.status dt { color: var(--text-dim); }
+    dl.status dd { margin: 0; font-variant-numeric: tabular-nums; }
+    nav {
+      flex: 0 0 auto;
+      display: flex;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding-bottom: env(safe-area-inset-bottom);
+      height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+    }
+    nav button {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 6px 2px;
+    }
+    nav button .glyph { font-size: 20px; line-height: 1; }
+    nav button.active { color: var(--accent); }
+
+    /* ---- Slides page (V2-C adaptation) ---- */
+    .slides-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+    .deck-title { font-size: 15px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .slide-counter { font-size: 14px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+    .slide-strip { display: grid; grid-template-columns: 3fr 2fr; gap: 10px; margin-bottom: 12px; }
+    .slide-strip[hidden] { display: none; }
+    .slide-thumb-card { display: flex; flex-direction: column; gap: 4px; }
+    .slide-thumb-card img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); background: #000; }
+    .thumb-label { font-size: 10.5px; letter-spacing: 0.7px; text-transform: uppercase; color: var(--text-dim); }
+    .notes-card { padding: 0; overflow: hidden; }
+    .notes-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+    .notes-title { flex: 1; font-size: 10.5px; letter-spacing: 0.7px; text-transform: uppercase; color: var(--text-dim); }
+    .icon-btn { width: 32px; height: 30px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 15px; cursor: pointer; }
+    #notes-zoom-readout { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text-dim); padding: 0 6px; }
+    .notes-body { max-height: 32vh; min-height: 100px; overflow-y: auto; padding: 14px 16px; }
+    #speaker-notes-content { font-family: Georgia, 'Times New Roman', serif; font-size: 19px; line-height: 30px; white-space: pre-wrap; }
+    .slide-controls { display: flex; gap: 10px; margin: 12px 0; }
+    .nav-btn { flex: 1; height: 72px; border-radius: 8px; font-size: 13px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer; }
+    .nav-prev { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+    .nav-next { background: var(--accent); border: 1px solid var(--accent); color: #08111c; }
+    .nav-btn:disabled { opacity: 0.4; }
+    .goto-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .goto-row input[type="number"] { width: 90px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 14px; }
+    .small-btn { padding: 9px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; }
+    .small-btn.primary { background: var(--accent); border-color: var(--accent); color: #08111c; }
+    .haptic-label { font-size: 12px; color: var(--text-dim); display: inline-flex; align-items: center; gap: 5px; }
+    .chip { font-size: 10px; font-weight: 700; letter-spacing: 0.6px; border-radius: 999px; padding: 3px 10px; border: 1px solid var(--live); color: var(--live); }
+    .loader-card summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+    .loader-card label { display: block; font-size: 12px; color: var(--text-dim); margin: 10px 0 4px; }
+    .loader-card input[type="url"] { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 9px 10px; font-size: 13px; }
+    .loader-buttons { display: flex; gap: 8px; margin-top: 12px; align-items: center; flex-wrap: wrap; }
+    .hint-line { font-size: 12px; color: var(--warn); margin: 8px 0 0; min-height: 14px; }
+
+    /* ---- QR modal ---- */
+    .qr-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .qr-modal[hidden] { display: none; }
+    .qr-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; text-align: center; max-width: 340px; }
+    .qr-box img { width: 280px; height: 280px; border-radius: 8px; background: #fff; }
+    .qr-url { font-size: 12px; color: var(--text-dim); margin: 10px 0; word-break: break-all; }
+
+    /* ---- L3 page ---- */
+    .l3-active-row { font-size: 14px; color: var(--text-dim); margin-bottom: 12px; min-height: 18px; }
+    .l3-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .l3-cue { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; cursor: pointer; text-align: left; color: var(--text); }
+    .l3-cue.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .l3-cue.live { border-color: var(--live); box-shadow: 0 0 0 1px var(--live); }
+    .l3-cue .cue-name { font-size: 13px; font-weight: 600; margin: 0 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .l3-cue .cue-title { font-size: 11px; color: var(--text-dim); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .l3-cue .cue-theme { font-size: 9.5px; color: var(--text-dim); letter-spacing: 0.5px; text-transform: uppercase; margin-top: 6px; }
+
+    /* ---- Stills page ---- */
+    .stills-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .still-card { position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; background: var(--surface); padding: 0; }
+    .still-card img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; }
+    .still-card .still-name { font-size: 10px; color: var(--text-dim); padding: 4px 6px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .still-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .still-card.live { border-color: var(--live); box-shadow: 0 0 0 1px var(--live); }
+    .still-card .ss-badge { position: absolute; top: 4px; right: 4px; background: var(--accent); color: #08111c; font-size: 10px; font-weight: 700; border-radius: 999px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
+
+    /* ---- Settings page tunnel section ---- */
+    .settings-field { display: block; font-size: 12px; color: var(--text-dim); margin: 10px 0 4px; }
+    .settings-input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 9px 10px; font-size: 13px; box-sizing: border-box; }
+    .tunnel-status-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; }
+    .status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-dim); }
+    .status-dot.active { background: var(--live); }
+    .status-dot.error { background: var(--err); }
+    .status-dot.starting { background: var(--warn); }
+
+    /* ── Custom branding ── */
+    .branding-logo {
+      height: 28px;
+      width: auto;
+      object-fit: contain;
+      flex: 0 0 auto;
+    }
+  </style>
+  <!-- Custom branding stylesheet (returns empty CSS when no file is configured) -->
+  <link rel="stylesheet" href="/branding/style.css" />
+</head>
+<body>
+  <header>
+    <img id="branding-logo" class="branding-logo" alt="" hidden />
+    <h1>PConAir</h1>
+    <div class="spacer"></div>
+    <span id="conn-label">connecting…</span>
+    <div id="conn-dot"></div>
+  </header>
+
+  <div id="qr-modal" class="qr-modal" hidden>
+    <div class="qr-box">
+      <img id="qr-img" alt="QR code for remote URL" />
+      <div id="qr-url" class="qr-url"></div>
+      <button id="qr-close" class="small-btn">Close</button>
+    </div>
+  </div>
+
+  <main>
+    <section class="page" id="page-slides">
+      <div class="slides-header">
+        <span id="deck-title" class="deck-title">No deck loaded</span>
+        <span id="slide-counter" class="slide-counter">– / –</span>
+      </div>
+
+      <div class="slide-strip" id="slide-strip" hidden>
+        <div class="slide-thumb-card">
+          <img id="thumb-current" alt="Current slide" />
+          <span class="thumb-label">Current</span>
+        </div>
+        <div class="slide-thumb-card">
+          <img id="thumb-next" alt="Next slide" />
+          <span class="thumb-label">Next</span>
+        </div>
+      </div>
+
+      <div class="card notes-card" id="notes-card">
+        <div class="notes-toolbar">
+          <span class="notes-title">Speaker notes</span>
+          <button id="notes-zoom-out" class="icon-btn" aria-label="Smaller notes text">−</button>
+          <span id="notes-zoom-readout">19px</span>
+          <button id="notes-zoom-in" class="icon-btn" aria-label="Larger notes text">+</button>
+        </div>
+        <div class="notes-body" id="notes-body">
+          <div id="speaker-notes-content">Load a deck to see speaker notes.</div>
+        </div>
+      </div>
+
+      <div class="slide-controls">
+        <button id="btn-prev" class="nav-btn nav-prev">‹ Previous</button>
+        <button id="btn-next" class="nav-btn nav-next">Next slide ›</button>
+      </div>
+
+      <div class="goto-row">
+        <input id="goto-input" type="number" min="1" placeholder="Slide #" />
+        <button id="btn-goto" class="small-btn">Go</button>
+        <label class="haptic-label"><input type="checkbox" id="haptic-toggle" checked /> Haptics</label>
+        <span id="offline-chip" class="chip" hidden>OFFLINE READY</span>
+        <span id="backup-chip" class="chip" hidden>BACKUP LOADED</span>
+      </div>
+
+      <details class="card loader-card" id="loader-card">
+        <summary>Load deck</summary>
+        <label for="deck-url">Primary deck URL</label>
+        <input id="deck-url" type="url" placeholder="https://docs.google.com/presentation/d/…" />
+        <label for="backup-url">Backup deck URL (optional, A/B failover)</label>
+        <input id="backup-url" type="url" placeholder="https://docs.google.com/presentation/d/…" />
+        <div class="loader-buttons">
+          <button id="btn-load" class="small-btn primary">Load</button>
+          <button id="btn-reload" class="small-btn">Reload</button>
+          <button id="btn-ab-switch" class="small-btn">Switch A/B</button>
+          <label class="haptic-label"><input type="checkbox" id="offline-toggle" /> Offline mode</label>
+        </div>
+        <p class="hint-line" id="slides-msg"></p>
+      </details>
+
+      <div class="card"><h3>Server status</h3><dl class="status" id="status-grid"></dl></div>
+    </section>
+
+    <section class="page" id="page-l3">
+      <div class="slides-header">
+        <span class="deck-title">Lower Thirds</span>
+        <span id="l3-onair" class="chip" hidden>ON AIR</span>
+      </div>
+
+      <div class="l3-active-row">
+        <span id="l3-active-name">Nothing on air</span>
+      </div>
+
+      <div class="slide-controls">
+        <button id="l3-clear" class="nav-btn nav-prev">Clear</button>
+        <button id="l3-take" class="nav-btn nav-next">Take selected</button>
+      </div>
+
+      <div class="goto-row">
+        <label class="haptic-label"><input type="checkbox" id="l3-stacking" /> Stacking</label>
+        <select id="l3-playlist" class="settings-input" style="flex:1;max-width:220px;"></select>
+        <button id="l3-pl-prev" class="small-btn">‹ Prev</button>
+        <button id="l3-pl-next" class="small-btn">Next ›</button>
+      </div>
+
+      <div id="l3-gallery" class="l3-gallery"></div>
+
+      <details class="card loader-card">
+        <summary>Add / import cues</summary>
+        <label class="settings-field" for="l3-new-name">Name</label>
+        <input id="l3-new-name" class="settings-input" type="text" placeholder="Jane Doe" />
+        <label class="settings-field" for="l3-new-title">Title</label>
+        <input id="l3-new-title" class="settings-input" type="text" placeholder="Director of Things" />
+        <label class="settings-field" for="l3-new-theme">Template</label>
+        <select id="l3-new-theme" class="settings-input"></select>
+        <div class="loader-buttons">
+          <button id="l3-add" class="small-btn primary">Add cue</button>
+          <label class="small-btn" for="l3-csv" style="cursor:pointer;">Import CSV<input id="l3-csv" type="file" accept=".csv" hidden /></label>
+        </div>
+        <p class="hint-line" id="l3-msg"></p>
+      </details>
+    </section>
+
+    <section class="page" id="page-stills">
+      <div class="slides-header">
+        <span class="deck-title">Still Store</span>
+        <span id="stills-onair" class="chip" hidden>ON AIR</span>
+      </div>
+      <div class="l3-active-row"><span id="stills-active-name">Nothing on air</span></div>
+
+      <div class="slide-controls">
+        <button id="stills-clear" class="nav-btn nav-prev">Clear</button>
+        <button id="stills-take" class="nav-btn nav-next">Take selected</button>
+      </div>
+
+      <div id="stills-gallery" class="stills-gallery"></div>
+
+      <div class="card">
+        <h3>Slideshow <span id="ss-status" class="chip" hidden>PLAYING</span></h3>
+        <p class="hint-line" style="color:var(--text-dim)">Tap images above to add them to the slideshow in order. Selected: <span id="ss-count">0</span></p>
+        <div class="goto-row">
+          <label class="haptic-label">Interval
+            <input id="ss-interval" type="number" min="1" max="3600" value="5" style="width:64px;margin-left:6px;" />s
+          </label>
+          <select id="ss-transition" class="settings-input" style="max-width:110px;">
+            <option value="cut">Hard cut</option>
+            <option value="fade">Fade</option>
+          </select>
+        </div>
+        <div class="loader-buttons">
+          <button id="ss-play" class="small-btn primary">Play</button>
+          <button id="ss-pause" class="small-btn">Pause</button>
+          <button id="ss-stop" class="small-btn">Stop</button>
+          <button id="ss-prev" class="small-btn">‹ Prev</button>
+          <button id="ss-next" class="small-btn">Next ›</button>
+          <span id="ss-pos" class="haptic-label"></span>
+        </div>
+        <p class="hint-line" id="stills-msg"></p>
+      </div>
+
+      <details class="card loader-card">
+        <summary>Upload images</summary>
+        <div class="loader-buttons">
+          <label class="small-btn" for="stills-upload" style="cursor:pointer;">Choose images<input id="stills-upload" type="file" accept="image/*" multiple hidden /></label>
+        </div>
+        <p class="hint-line" id="stills-upload-msg"></p>
+      </details>
+    </section>
+
+    <section class="page" id="page-packages">
+      <div class="slides-header">
+        <span class="deck-title">Packages</span>
+        <button id="pkg-rescan" class="small-btn">Rescan</button>
+      </div>
+      <p class="sub">Graphics packages from the packages/ folder in app data</p>
+      <div id="pkg-list"></div>
+      <p class="hint-line" id="pkg-msg"></p>
+    </section>
+
+    <section class="page" id="page-urls">
+      <div class="slides-header">
+        <span class="deck-title">URLs</span>
+        <span id="url-onair" class="chip" hidden>ON AIR</span>
+        <button id="qr-btn" class="small-btn" aria-label="Show QR code for this server">QR code</button>
+      </div>
+      <div class="l3-active-row"><span id="url-current">No URL loaded</span></div>
+
+      <div class="goto-row">
+        <input id="url-input" type="url" placeholder="https://…" class="settings-input" style="flex:1;" />
+        <button id="url-open" class="small-btn primary">Open</button>
+      </div>
+      <div class="loader-buttons">
+        <button id="url-reload" class="small-btn">Reload</button>
+        <button id="url-ab-switch" class="small-btn">Switch A/B</button>
+        <span id="url-ab-status" class="haptic-label"></span>
+      </div>
+      <p class="hint-line" id="url-msg"></p>
+
+      <div class="card">
+        <h3>Presets</h3>
+        <div id="url-preset-list"></div>
+        <p class="hint-line" id="url-preset-msg"></p>
+      </div>
+
+      <details class="card loader-card">
+        <summary>Add preset (admin)</summary>
+        <label class="settings-field" for="url-new-name">Name</label>
+        <input id="url-new-name" class="settings-input" type="text" placeholder="Scoreboard" />
+        <label class="settings-field" for="url-new-url">URL</label>
+        <input id="url-new-url" class="settings-input" type="url" placeholder="https://…" />
+        <div class="loader-buttons">
+          <button id="url-preset-add" class="small-btn primary">Add preset</button>
+        </div>
+        <p class="hint-line" id="url-add-msg"></p>
+      </details>
+    </section>
+
+    <section class="page" id="page-timer">
+      <div class="slides-header">
+        <span class="deck-title">Timer</span>
+        <span id="st-overlay-chip" class="chip" hidden>OVERLAY ON</span>
+      </div>
+      <p class="sub">stagetimer.io — embedded below; the overlay floats on the notes display</p>
+
+      <iframe id="st-frame" src="about:blank" style="width:100%;aspect-ratio:16/10;border:1px solid var(--border);border-radius:10px;background:#000;" allow="fullscreen"></iframe>
+
+      <div class="card">
+        <h3>Notes-display overlay</h3>
+        <div class="goto-row">
+          <button id="st-overlay-toggle" class="small-btn primary">Show overlay</button>
+          <select id="st-position" class="settings-input" style="max-width:140px;">
+            <option value="bottom-left">Bottom left</option>
+            <option value="bottom-right">Bottom right</option>
+            <option value="top-left">Top left</option>
+            <option value="top-right">Top right</option>
+          </select>
+          <label class="haptic-label">Size
+            <input id="st-size" type="number" min="1" max="100" value="10" style="width:56px;margin-left:6px;" />%
+          </label>
+        </div>
+        <p class="hint-line" id="st-msg"></p>
+      </div>
+
+      <details class="card loader-card">
+        <summary>Stagetimer account (admin)</summary>
+        <label class="settings-field" for="st-room">Room ID</label>
+        <input id="st-room" class="settings-input" type="text" placeholder="ABCD12" />
+        <label class="settings-field" for="st-key">API key</label>
+        <input id="st-key" class="settings-input" type="password" placeholder="••••••" />
+        <div class="loader-buttons">
+          <button id="st-save" class="small-btn primary">Save</button>
+          <span id="st-configured" class="haptic-label"></span>
+        </div>
+        <p class="hint-line" id="st-config-msg"></p>
+      </details>
+    </section>
+
+    <section class="page" id="page-settings">
+      <h2>Settings</h2>
+      <p class="sub">Network, tunnel, displays, profiles, security</p>
+
+      <div class="card">
+        <h3>Cloudflare tunnel</h3>
+        <div class="tunnel-status-row">
+          <span id="tunnel-dot" class="status-dot"></span>
+          <span id="tunnel-status-text">inactive</span>
+        </div>
+        <div id="tunnel-url" class="qr-url"></div>
+        <label class="settings-field" for="tunnel-domain">Custom domain (optional, requires token)</label>
+        <input id="tunnel-domain" class="settings-input" type="text" placeholder="show.example.com" />
+        <label class="settings-field" for="tunnel-token">Cloudflare tunnel token (optional)</label>
+        <input id="tunnel-token" class="settings-input" type="password" placeholder="eyJh…" />
+        <label class="settings-field" for="tunnel-pin">Access PIN for tunnel clients (4–8 digits, blank = off)</label>
+        <input id="tunnel-pin" class="settings-input" type="text" inputmode="numeric" placeholder="1234" />
+        <div class="loader-buttons">
+          <button id="tunnel-save" class="small-btn">Save config</button>
+          <button id="tunnel-toggle" class="small-btn primary">Start tunnel</button>
+        </div>
+        <p class="hint-line" id="tunnel-msg"></p>
+        <p style="font-size:12px;color:var(--text-dim);margin:8px 0 0;">Tunnel config requires an admin session — sign in via the admin dashboard first.</p>
+      </div>
+
+      <div class="card">
+        <h3>Admin dashboard</h3>
+        <p>Profiles, presets, security, and show lock are managed in the <a href="/admin" style="color: var(--accent)">admin dashboard</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <nav id="nav"></nav>
+</body>
+</html>

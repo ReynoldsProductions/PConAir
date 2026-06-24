@@ -1,5 +1,6 @@
 import type { StateStore } from '../state';
 import { isValidUrl } from '../routes/middleware';
+import { makeSlidesState } from '../../shared/types';
 
 type Err = { ok: false; status: number; error: { code: string; message: string } };
 type Ok<T> = { ok: true; body: T };
@@ -85,7 +86,8 @@ export function slideReloadOp(store: StateStore): Err | Ok<{ slides: { isLoading
 export function slideLoadOp(
   store: StateStore,
   deckUrl: string,
-  instance?: string
+  instance?: string,
+  backupUrl?: string
 ): Err | Ok<{ currentMode: string; slides: NonNullable<ReturnType<StateStore['getState']>['slides']>; abState: ReturnType<StateStore['getState']>['abState'] }> {
   if (!deckUrl || !isValidUrl(deckUrl)) {
     return { ok: false, status: 400, error: { code: 'INVALID_URL', message: 'deckUrl must be a valid URL' } };
@@ -97,21 +99,50 @@ export function slideLoadOp(
   if (!deckId) {
     return { ok: false, status: 400, error: { code: 'INVALID_URL', message: 'deckUrl must be a Google Slides presentation URL' } };
   }
+  let backupDeckId: string | null = null;
+  if (backupUrl !== undefined && backupUrl !== '') {
+    if (!isValidUrl(backupUrl)) {
+      return { ok: false, status: 400, error: { code: 'INVALID_URL', message: 'backupUrl must be a valid URL' } };
+    }
+    backupDeckId = extractDeckId(backupUrl);
+    if (!backupDeckId) {
+      return { ok: false, status: 400, error: { code: 'INVALID_URL', message: 'backupUrl must be a Google Slides presentation URL' } };
+    }
+  }
+  const prev = store.getState().slides;
   store.setState({
     currentMode: 'slides',
     l3: null,
     mediaLibrary: null,
-    slides: {
+    slides: makeSlidesState({
       deckId,
       deckTitle: deckId,
       slideIndex: 0,
       slideCount: 1,
       isLoading: true,
-    },
+      deckUrl,
+      backupDeckId,
+      backupDeckUrl: backupDeckId ? backupUrl ?? null : null,
+      offlineMode: prev?.offlineMode ?? false,
+    }),
   });
   const s = store.getState();
   return {
     ok: true,
     body: { currentMode: s.currentMode, slides: s.slides!, abState: s.abState },
   };
+}
+
+export function slideCloseOp(store: StateStore): Ok<{ currentMode: string }> {
+  store.setState({ currentMode: 'idle', slides: null });
+  return { ok: true, body: { currentMode: 'idle' } };
+}
+
+export function slideOfflineModeOp(store: StateStore, enabled: boolean): Err | Ok<{ slides: { offlineMode: boolean } }> {
+  const state = store.getState();
+  if (!state.slides) {
+    return { ok: false, status: 400, error: { code: 'NO_ACTIVE_DECK', message: 'No deck is currently loaded' } };
+  }
+  store.setState({ slides: { ...state.slides, offlineMode: enabled, cacheWarmed: enabled ? state.slides.cacheWarmed : false } });
+  return { ok: true, body: { slides: { offlineMode: enabled } } };
 }

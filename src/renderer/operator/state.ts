@@ -27,9 +27,28 @@ const DEFAULT_STATE: AppState = {
     memoryHeapTotalGb: 0,
     lastRendererCrashAt: null,
   },
-  graphics: {
-    scoreboard: null,
+  tunnel: {
+    enabled: false,
+    status: 'inactive',
+    url: null,
+    pinRequired: false,
+    lastError: null,
   },
+  renderOutputs: {
+    slides: { bg: 'opaque', chromaColor: '#00b140', claimedOutput: null },
+    l3: { bg: 'transparent', chromaColor: '#00b140', claimedOutput: null },
+    stills: { bg: 'transparent', chromaColor: '#00b140', claimedOutput: null },
+    url: { bg: 'opaque', chromaColor: '#00b140', claimedOutput: null },
+  },
+  stageTimer: {
+    overlayEnabled: false,
+    overlayPosition: 'bottom-left',
+    overlaySize: 10,
+    roomId: null,
+    configured: false,
+  },
+  teleprompter: { enabled: false, host: '', scrolling: false, speed: 40, fontSize: 72 },
+  graphics: { scoreboard: null },
 };
 
 export function createClientStore() {

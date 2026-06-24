@@ -10,6 +10,7 @@ import type { L3ThemeStore } from '../l3/theme-store';
 import type { L3State } from '../../shared/types';
 import { requireOperator, requireAdmin } from './middleware';
 import { l3ClearOp, l3StackingOp, l3TakeOp } from '../l3/take-ops';
+import { playlistActivateOp, playlistStepOp } from '../l3/playlist-ops';
 import { sniffImageMime } from '../media-library/image-meta';
 
 const MIME_TO_EXT: Record<string, string> = {
@@ -30,8 +31,11 @@ function emptyL3(): L3State {
     activeCueId: null,
     activeCueName: null,
     activeTitle: null,
+    activeTheme: null,
     isStacking: false,
     currentPlaylistId: null,
+    playlistPosition: null,
+    playlistLength: null,
   };
 }
 
@@ -113,6 +117,17 @@ export function createL3Router(
     const sample = themes.findByName('default');
     res.setHeader('Content-Type', 'text/css');
     res.send(sample?.cssContent ?? '');
+  });
+
+  // Unauthenticated: consumed by /render pages in OBS (no cookies on LAN).
+  router.get('/themes/:name/css', (req: Request, res: Response) => {
+    const theme = themes.findByName(req.params.name);
+    if (!theme) {
+      res.status(404).type('text/plain').send('Theme not found');
+      return;
+    }
+    res.setHeader('Content-Type', 'text/css');
+    res.send(theme.cssContent);
   });
 
   router.post(
@@ -448,14 +463,15 @@ export function createL3Router(
   // ── Original cue/playlist CRUD routes ──────────────────────────────────────
 
   router.post('/take', opGuard, (req: Request, res: Response) => {
-    const { cueId, name, title, theme } = req.body as {
+    const { cueId, name, title, theme, autoOutMs } = req.body as {
       cueId?: string;
       name?: string;
       title?: string;
       theme?: string;
+      autoOutMs?: number | null;
     };
     void theme;
-    const r = l3TakeOp(store, cues, { cueId, name, title, theme });
+    const r = l3TakeOp(store, cues, { cueId, name, title, theme, autoOutMs });
     if (!r.ok) {
       res.status(r.status).json({ error: r.error });
       return;
@@ -487,12 +503,13 @@ export function createL3Router(
   });
 
   router.post('/cues', adminGuard, (req: Request, res: Response) => {
-    const { name, title, subtitle, theme, themeId } = req.body as {
+    const { name, title, subtitle, theme, themeId, autoOutMs } = req.body as {
       name?: string;
       title?: string;
       subtitle?: string | null;
       theme?: string;
       themeId?: string;
+      autoOutMs?: number | null;
     };
     if (!name || typeof name !== 'string' || !name.trim()) {
       res.status(400).json({ error: { code: 'INVALID_MODE', message: 'name is required' } });
@@ -505,11 +522,13 @@ export function createL3Router(
     // Accept themeId (preferred) or theme (legacy)
     const themeRaw = themeId ?? theme;
     const th = themeRaw && typeof themeRaw === 'string' && themeRaw.trim() ? themeRaw.trim() : 'default';
+    const parsedAutoOutMs = typeof autoOutMs === 'number' && autoOutMs > 0 ? Math.round(autoOutMs) : null;
     const cue = cues.create({
       name: name.trim().slice(0, 100),
       title: title.trim().slice(0, 100),
       subtitle: subtitle != null ? String(subtitle).slice(0, 100) : null,
       theme: th,
+      autoOutMs: parsedAutoOutMs,
     });
     res.status(201).json(cue);
   });
@@ -520,12 +539,13 @@ export function createL3Router(
       res.status(404).json({ error: { code: 'CUE_NOT_FOUND', message: `Cue '${cueId}' not found` } });
       return;
     }
-    const { name, title, subtitle, themeId, theme } = req.body as {
+    const { name, title, subtitle, themeId, theme, autoOutMs } = req.body as {
       name?: string;
       title?: string;
       subtitle?: string | null;
       themeId?: string;
       theme?: string;
+      autoOutMs?: number | null;
     };
     const patch: import('../l3/cue-store').UpdateL3CueInput = {};
     if (name !== undefined) patch.name = String(name).trim().slice(0, 100);
@@ -534,6 +554,7 @@ export function createL3Router(
     // Accept themeId (preferred) or theme (legacy)
     const themeRaw = themeId ?? theme;
     if (themeRaw !== undefined) patch.theme = String(themeRaw).trim();
+    if (autoOutMs !== undefined) patch.autoOutMs = typeof autoOutMs === 'number' && autoOutMs > 0 ? Math.round(autoOutMs) : null;
     const updated = cues.update(cueId, patch);
     if (!updated) {
       res.status(404).json({ error: { code: 'CUE_NOT_FOUND', message: `Cue '${cueId}' not found` } });
@@ -634,21 +655,36 @@ export function createL3Router(
     playlists.remove(id);
     const st = store.getState();
     if (st.l3?.currentPlaylistId === id) {
-      store.setState({ l3: st.l3 ? { ...st.l3, currentPlaylistId: null } : emptyL3() });
+      store.setState({
+        l3: st.l3
+          ? { ...st.l3, currentPlaylistId: null, playlistPosition: null, playlistLength: null }
+          : emptyL3(),
+      });
     }
     res.status(204).end();
   });
 
   router.post('/playlists/:id/activate', adminGuard, (req: Request, res: Response) => {
-    const id = req.params.id;
-    if (!playlists.findById(id)) {
-      res.status(404).json({ error: { code: 'PRESET_NOT_FOUND', message: `Playlist '${id}' not found` } });
+    const r = playlistActivateOp(store, playlists, req.params.id);
+    if (!r.ok) {
+      res.status(r.status).json({ error: r.error });
       return;
     }
-    const base = ensureL3(store.getState());
-    store.setState({ l3: { ...base, currentPlaylistId: id } });
-    res.json({ l3: { currentPlaylistId: id } });
+    res.json({ l3: { currentPlaylistId: store.getState().l3?.currentPlaylistId ?? null } });
   });
+
+  // Step through the active playlist (wraps around). Takes the cue at the new position.
+  function playlistStep(res: Response, direction: 1 | -1): void {
+    const r = playlistStepOp(store, playlists, cues, direction);
+    if (!r.ok) {
+      res.status(r.status).json({ error: r.error });
+      return;
+    }
+    res.json(r.body);
+  }
+
+  router.post('/playlists/next', opGuard, (_req: Request, res: Response) => playlistStep(res, 1));
+  router.post('/playlists/prev', opGuard, (_req: Request, res: Response) => playlistStep(res, -1));
 
   return router;
 }

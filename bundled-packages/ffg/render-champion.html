@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>FFG — Champion</title>
+  <meta name="viewport" content="width=1920, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/packages/ffg/assets/cardboard.css" />
+  <style>
+    .champ-kicker {
+      position: absolute; top: 28px; left: 80px; right: 80px;
+      height: 110px;
+      display: flex; align-items: center;
+      padding: 0 28px; gap: 24px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+    }
+    .champ-kicker .text { flex: 1; }
+    .champ-kicker .lead {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.4em;
+      color: var(--red);
+    }
+    .champ-kicker .name {
+      font-family: var(--serif); font-size: 50px;
+      line-height: 1; color: var(--ink); font-weight: 500;
+      margin-top: 4px;
+    }
+    .champ-kicker .meta {
+      margin-top: 6px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.3em;
+      color: var(--ink); opacity: 0.6;
+    }
+    .champ-kicker .final {
+      padding: 12px 22px;
+      background: var(--ink); color: var(--cream);
+      border-radius: 3px;
+      font-family: var(--mono); text-align: center;
+      border: 1px solid var(--kraft-light);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    .champ-kicker .final .lbl {
+      font-size: 10px; letter-spacing: 0.3em; opacity: 0.6; font-weight: 600;
+    }
+    .champ-kicker .final .num {
+      display: flex; align-items: baseline; gap: 6px;
+      justify-content: center; margin-top: 2px;
+    }
+    .champ-kicker .final .num b {
+      font-size: 44px; font-weight: 700;
+      color: var(--kraft-light); line-height: 0.9;
+    }
+    .champ-kicker .final .num span { font-size: 18px; opacity: 0.55; }
+
+    /* 1st-place Faire postage badge */
+    .champ-badge {
+      position: absolute; top: 20px; left: 20px; z-index: 8;
+      width: 116px; height: 116px;
+      background: var(--cream);
+      border: 2px solid var(--red);
+      padding: 5px;
+      display: flex; align-items: center; justify-content: center;
+      transform: rotate(-6deg);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    }
+    .champ-badge .inner {
+      width: 100%; height: 100%;
+      border: 2px solid var(--red);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: var(--red); background: var(--cream); gap: 2px;
+    }
+    .champ-badge .faire {
+      font-family: var(--serif);
+      font-size: 26px; font-style: italic; font-weight: 600;
+      line-height: 1;
+    }
+    .champ-badge .place {
+      font-family: var(--serif);
+      font-size: 30px; font-style: italic; font-weight: 600;
+      line-height: 1;
+    }
+    .champ-badge .place sup { font-size: 13px; }
+    .champ-badge .lbl {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.28em;
+      font-family: var(--sans);
+    }
+
+    /* DELIVERED stamp */
+    .delivered {
+      position: absolute;
+      left: 50%; bottom: 70px;
+      transform: translateX(-50%) rotate(-8deg);
+      pointer-events: none; z-index: 7;
+      text-align: center;
+    }
+    .delivered .stamp {
+      border: 7px solid var(--red);
+      color: var(--red);
+      padding: 14px 44px; border-radius: 6px;
+      font-family: var(--serif);
+      font-style: italic; font-weight: 600;
+      font-size: 92px; line-height: 1;
+      letter-spacing: 0.04em;
+      background: rgba(168,68,44,0.04);
+      box-shadow: inset 0 0 0 2px rgba(168,68,44,0.18);
+      opacity: 0.95;
+      text-shadow: 2px 2px 0 rgba(168,68,44,0.15);
+    }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage" data-screen-label="Champion"></div>
+
+  <script src="/packages/ffg/assets/state.js"></script>
+  <script src="/packages/ffg/assets/overlay-kit.js"></script>
+  <script src="/packages/ffg/assets/ffg-common.js"></script>
+  <script>
+    (function () {
+      const { el, makeFrame } = window.OverlayKit;
+      const stage = document.getElementById('stage');
+
+      let winnerIdx = 0, scoreB, maxSpan;
+
+      function build(s) {
+        const TEAMS = s.teams;
+        winnerIdx = FFG.resolveWinnerIdx(s);
+        const winner = TEAMS[winnerIdx];
+
+        // ── Top kicker banner ──────────────────────────────────────────
+        const top = el('div', { cls: 'champ-kicker paper' });
+        const tx = el('div', { cls: 'text' });
+        tx.appendChild(el('div', { cls: 'lead', text: '· FFG 2026 CHAMPION ·' }));
+        tx.appendChild(el('div', { cls: 'name', text: winner.name }));
+        tx.appendChild(el('div', { cls: 'meta', text: `${winner.city} · ${winner.presenter} · DELIVERED IN FULL` }));
+        top.appendChild(tx);
+
+        const fs = el('div', { cls: 'final' });
+        fs.appendChild(el('div', { cls: 'lbl', text: 'FINAL' }));
+        const fsn = el('div', { cls: 'num' });
+        scoreB = el('b', { text: '0' });
+        maxSpan = el('span', { text: '/ 10' });
+        fsn.appendChild(scoreB);
+        fsn.appendChild(maxSpan);
+        fs.appendChild(fsn);
+        top.appendChild(fs);
+        stage.appendChild(top);
+
+        // ── Wide hero cam ──────────────────────────────────────────────
+        const wideWrap = el('div', { style: { position: 'absolute', top: '160px', left: '80px' } });
+        wideWrap.appendChild(makeFrame({
+          width: 1760, height: 860,
+          top: 48, side: 48, bottom: 140,
+          title: winner.name.toUpperCase(),
+          sub: `${winner.code} · ${winner.presenter} · CHAMPION`,
+          tape: 'tr',
+          corner: `${winner.code} · WINNER`,
+          resW: 1664, resH: 672,
+          resLabel: 'CHAMPION',
+          placeholderLabel: `HERO CAM · ${winner.name.toUpperCase()}`,
+        }));
+
+        // 1st-place postage badge
+        const badge = el('div', { cls: 'champ-badge' });
+        const bi = el('div', { cls: 'inner' });
+        bi.appendChild(el('div', { cls: 'faire', text: 'Faire' }));
+        bi.appendChild(el('div', { cls: 'place', html: '1<sup>st</sup>' }));
+        bi.appendChild(el('div', { cls: 'lbl', text: 'PLACE' }));
+        badge.appendChild(bi);
+        wideWrap.appendChild(badge);
+
+        // DELIVERED stamp
+        const del = el('div', { cls: 'delivered' });
+        del.appendChild(el('div', { cls: 'stamp', text: 'DELIVERED' }));
+        wideWrap.appendChild(del);
+
+        stage.appendChild(wideWrap);
+      }
+
+      FFG.start(build, (s) => JSON.stringify([s.teams, FFG.resolveWinnerIdx(s)]));
+
+      FFG.onUpdate((s) => {
+        if (!scoreB) return;
+        const max = +s.maxScore || 10;
+        const final = typeof s.finalScore === 'number' ? s.finalScore : (+s.scores[winnerIdx] || 0);
+        scoreB.textContent = String(Math.max(0, Math.min(max, final)));
+        maxSpan.textContent = '/ ' + max;
+      });
+    })();
+  </script>
+</body>
+</html>

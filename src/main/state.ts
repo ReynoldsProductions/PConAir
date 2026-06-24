@@ -1,4 +1,5 @@
 import type { AppState } from '../shared/types';
+import { makeTeleprompterState } from '../shared/types';
 
 const INITIAL_STATE: AppState = {
   currentMode: 'idle',
@@ -37,6 +38,27 @@ const INITIAL_STATE: AppState = {
     memoryHeapTotalGb: 0,
     lastRendererCrashAt: null,
   },
+  tunnel: {
+    enabled: false,
+    status: 'inactive',
+    url: null,
+    pinRequired: false,
+    lastError: null,
+  },
+  renderOutputs: {
+    slides: { bg: 'opaque', chromaColor: '#00b140', claimedOutput: null },
+    l3: { bg: 'transparent', chromaColor: '#00b140', claimedOutput: null },
+    stills: { bg: 'transparent', chromaColor: '#00b140', claimedOutput: null },
+    url: { bg: 'opaque', chromaColor: '#00b140', claimedOutput: null },
+  },
+  stageTimer: {
+    overlayEnabled: false,
+    overlayPosition: 'bottom-left',
+    overlaySize: 10,
+    roomId: null,
+    configured: false,
+  },
+  teleprompter: makeTeleprompterState(),
   graphics: {
     scoreboard: null,
   },

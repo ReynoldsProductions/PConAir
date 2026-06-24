@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>FFG — Head-to-Head</title>
+  <meta name="viewport" content="width=1920, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/packages/ffg/assets/cardboard.css" />
+  <style>
+    .h2h-top {
+      position: absolute; top: 28px; left: 56px; right: 56px;
+      height: 110px;
+      display: flex; align-items: center;
+      padding: 0 28px; gap: 20px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    }
+    .h2h-top .ttl {
+      font-family: var(--serif); font-size: 38px; line-height: 1;
+      color: var(--ink); font-weight: 500;
+    }
+    .h2h-top .sub {
+      margin-top: 6px;
+      font-size: 12px; font-weight: 600; letter-spacing: 0.36em;
+      color: var(--red);
+    }
+    .h2h-top .f-mark { width: 70px; height: 70px; font-size: 40px; }
+
+    .h2h-top .score-pair {
+      display: flex; align-items: stretch; gap: 10px;
+    }
+    .h2h-top .score-pill {
+      background: var(--ink); color: var(--cream);
+      border: 1px solid var(--kraft-light);
+      border-radius: 3px;
+      padding: 8px 16px;
+      font-family: var(--mono);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      display: flex; flex-direction: column;
+      min-width: 132px;
+    }
+    .h2h-top .score-pill .who {
+      font-size: 10px; letter-spacing: 0.28em;
+      opacity: 0.65; font-weight: 700;
+    }
+    .h2h-top .score-pill .num {
+      display: flex; align-items: baseline; gap: 6px; margin-top: 2px;
+    }
+    .h2h-top .score-pill .num b {
+      font-size: 44px; font-weight: 700;
+      color: var(--kraft-light); line-height: 0.95;
+    }
+    .h2h-top .score-pill .num .max {
+      font-size: 16px; opacity: 0.5;
+    }
+    .h2h-top .score-pill.right .who,
+    .h2h-top .score-pill.right .num { align-self: flex-end; }
+
+    .h2h-cell {
+      position: absolute;
+      width: 819px; height: 760px;
+      top: 184px;
+    }
+    .h2h-cell.left  { left: 56px; }
+    .h2h-cell.right { right: 56px; }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage" data-screen-label="Head-to-Head"></div>
+
+  <script src="/packages/ffg/assets/state.js"></script>
+  <script src="/packages/ffg/assets/overlay-kit.js"></script>
+  <script src="/packages/ffg/assets/ffg-common.js"></script>
+  <script>
+    (function () {
+      const { el, makeFrame, makeStamp, makeTimerChip } = window.OverlayKit;
+      const stage = document.getElementById('stage');
+
+      let leftIdx = 0, rightIdx = 1;
+
+      function build(s) {
+        const TEAMS = s.teams;
+        const pair = FFG.resolveH2H(s);
+        leftIdx = pair.left;
+        rightIdx = pair.right;
+        const left  = TEAMS[leftIdx];
+        const right = TEAMS[rightIdx];
+
+        // ── Top banner ──────────────────────────────────────────────────
+        const top = el('div', { cls: 'h2h-top paper' });
+        top.appendChild(el('div', { cls: 'f-mark', text: 'F' }));
+        const t = el('div', { style: { flex: '1' } });
+        t.appendChild(el('div', { cls: 'ttl', text: 'Head-to-Head' }));
+        t.appendChild(el('div', { cls: 'sub', text: '' }));
+        top.appendChild(t);
+
+        const chip = makeTimerChip('SHIP-BY');
+        top.appendChild(chip);
+        FFG.bindTimer(chip);
+
+        const leftPill = el('div', { cls: 'score-pill left' });
+        leftPill.appendChild(el('div', { cls: 'who', text: left.code + ' · ' + left.presenter }));
+        const leftNum = el('div', { cls: 'num' });
+        leftNum.appendChild(el('b', { attrs: { 'data-h2h-score-l': '' }, text: '0' }));
+        leftNum.appendChild(el('span', { cls: 'max', attrs: { 'data-h2h-max-l': '' } }));
+        leftPill.appendChild(leftNum);
+
+        const rightPill = el('div', { cls: 'score-pill right' });
+        rightPill.appendChild(el('div', { cls: 'who', text: right.code + ' · ' + right.presenter }));
+        const rightNum = el('div', { cls: 'num' });
+        rightNum.appendChild(el('b', { attrs: { 'data-h2h-score-r': '' }, text: '0' }));
+        rightNum.appendChild(el('span', { cls: 'max', attrs: { 'data-h2h-max-r': '' } }));
+        rightPill.appendChild(rightNum);
+
+        const pairEl = el('div', { cls: 'score-pair' });
+        pairEl.appendChild(leftPill);
+        pairEl.appendChild(rightPill);
+        top.appendChild(pairEl);
+
+        top.appendChild(makeStamp('rush', -4, 'sm'));
+        stage.appendChild(top);
+
+        // ── Two cam cells ───────────────────────────────────────────────
+        const cellW = 819, cellH = 760;
+        const camW = cellW - 28 * 2;  // 763
+        const camH = cellH - 56 - 100; // 604
+
+        function buildCell(side, team) {
+          const cell = el('div', { cls: 'h2h-cell ' + side });
+          cell.appendChild(makeFrame({
+            width: cellW, height: cellH,
+            top: 56, side: 28, bottom: 100,
+            title: team.name.toUpperCase(),
+            sub: `${team.city} · ${team.presenter}`,
+            tape: side === 'left' ? 'tr' : 'bl',
+            corner: team.code,
+            resW: camW, resH: camH,
+            resLabel: 'HEAD-TO-HEAD',
+            placeholderLabel: `CAM · ${team.name.toUpperCase()}`,
+            hideMiniStamp: true,
+            titleSize: 28,
+          }));
+          return cell;
+        }
+
+        stage.appendChild(buildCell('left',  left));
+        stage.appendChild(buildCell('right', right));
+      }
+
+      FFG.start(build, (s) => JSON.stringify([s.teams, FFG.resolveH2H(s)]));
+
+      FFG.onUpdate((s) => {
+        const max = +s.maxScore || 10;
+        [['l', leftIdx], ['r', rightIdx]].forEach(([side, idx]) => {
+          const v = Math.max(0, Math.min(max, +s.scores[idx] || 0));
+          const scoreEl = stage.querySelector('[data-h2h-score-' + side + ']');
+          const maxEl   = stage.querySelector('[data-h2h-max-' + side + ']');
+          if (scoreEl) scoreEl.textContent = v;
+          if (maxEl)   maxEl.textContent   = '/ ' + max;
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

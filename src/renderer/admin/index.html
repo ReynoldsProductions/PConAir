@@ -368,11 +368,17 @@
       <div class="nav-item" data-section="l3cues">L3 Cues</div>
       <div class="nav-item" data-section="profiles">Profiles</div>
 
+      <div class="sidebar-label">Content</div>
+      <div class="nav-item" data-section="packages">Packages</div>
+      <div class="nav-item" data-section="slides">Slides / Cache</div>
+
       <div class="sidebar-label">Show Control</div>
       <div class="nav-item" data-section="showlock">Show Lock</div>
 
       <div class="sidebar-label">System</div>
-      <div class="nav-item" data-section="advanced">Advanced</div>
+      <div class="nav-item" data-section="monitors">Monitors</div>
+      <div class="nav-item" data-section="branding">Branding</div>
+      <div class="nav-item" data-section="teleprompter">Teleprompter</div>
       <div class="nav-item" data-section="logs">Logs</div>
       <div class="nav-item" data-section="system">System</div>
 
@@ -453,8 +459,10 @@ function showSuccess(msg) {
 }
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
-function connectWS() {
-  const ws = new WebSocket('ws://' + location.host + '/ws');
+function connectWS(delay) {
+  delay = delay || 1000;
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(protocol + '//' + location.host + '/ws');
 
   ws.onopen = () => {
     document.getElementById('ws-dot').classList.add('connected');
@@ -464,14 +472,18 @@ function connectWS() {
   ws.onclose = () => {
     document.getElementById('ws-dot').classList.remove('connected');
     document.getElementById('ws-label').textContent = 'Disconnected';
-    setTimeout(connectWS, 2000);
+    setTimeout(() => connectWS(Math.min(delay * 2, 30000)), delay);
   };
 
   ws.onmessage = (ev) => {
     try {
       const msg = JSON.parse(ev.data);
-      if (msg.type === 'state' || msg.type === 'stateUpdate') {
-        state = msg.payload || msg.state || msg;
+      if (msg.type === 'state') {
+        state = msg.payload || {};
+        updateTopBar();
+        if (section === 'status') renderStatus();
+      } else if (msg.type === 'state_patch' && msg.payload) {
+        Object.assign(state, msg.payload);
         updateTopBar();
         if (section === 'dashboard') renderDashboard();
       }
@@ -510,9 +522,13 @@ function renderSection() {
     case 'l3themes':   renderL3Themes(); break;
     case 'l3cues':     renderL3Cues(); break;
     case 'profiles':   renderProfiles(); break;
+    case 'packages':   renderPackages(); break;
+    case 'slides':     renderSlides(); break;
     case 'showlock':   renderShowLock(); break;
-    case 'advanced':   renderAdvanced(); break;
-    case 'logs':       renderLogs(); break;
+    case 'monitors':   renderMonitors(); break;
+    case 'branding':      renderBranding(); break;
+    case 'teleprompter':  renderTeleprompter(); break;
+    case 'logs':          renderLogs(); break;
     case 'system':     renderSystem(); break;
   }
 }
@@ -1059,6 +1075,88 @@ async function renderProfiles() {
   });
 }
 
+// ── Section: Slides / Offline Cache ──────────────────────────────────────────
+async function renderSlides() {
+  content().innerHTML = `<div class="section-title">Slides / Cache</div><div class="card"><div class="card-title">Loading…</div></div>`;
+  let slidesStatus;
+  try { slidesStatus = await api('GET', '/api/slides/status'); } catch { return; }
+
+  const deckLoaded    = !!(slidesStatus && slidesStatus.deckLoaded);
+  const deckTitle     = (slidesStatus && slidesStatus.deckTitle) || null;
+  const slide         = (slidesStatus && slidesStatus.slide) || 0;
+  const total         = (slidesStatus && slidesStatus.total) || 0;
+  const backupLoaded  = !!(slidesStatus && slidesStatus.backupLoaded);
+  const offlineMode   = !!(slidesStatus && slidesStatus.offlineMode);
+  const cacheWarmed   = !!(slidesStatus && slidesStatus.cacheWarmed);
+  const contentKind   = (slidesStatus && slidesStatus.contentKind) || 'none';
+
+  // Also pull deck URL from WebSocket state if available
+  const deckUrl       = (state.slides && state.slides.deckUrl) || null;
+  const backupDeckId  = (state.slides && state.slides.backupDeckId) || null;
+
+  const offlineDotColor = offlineMode ? 'var(--orange)' : 'var(--green)';
+  const offlineModeLabel = offlineMode ? 'Offline' : 'Live';
+  const cacheColor = cacheWarmed ? 'var(--green)' : 'var(--text-dim)';
+  const cacheLabel = cacheWarmed ? 'Warmed' : 'Not warmed';
+
+  content().innerHTML = `
+    <div class="section-title">Slides / Cache</div>
+
+    <div class="card">
+      <div class="card-title">Presentation Info</div>
+      ${!deckLoaded ? `<div class="empty-state">No presentation loaded.</div>` : `
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        ${deckTitle ? `<tr><td style="padding:4px 8px;color:var(--text-dim);width:140px;">Title</td><td><strong>${escHtml(deckTitle)}</strong></td></tr>` : ''}
+        ${deckUrl   ? `<tr><td style="padding:4px 8px;color:var(--text-dim);">Deck URL</td><td style="word-break:break-all;font-size:11px;color:var(--text-dim);">${escHtml(deckUrl)}</td></tr>` : ''}
+        <tr><td style="padding:4px 8px;color:var(--text-dim);">Slide</td><td>${slide} / ${total}</td></tr>
+        <tr><td style="padding:4px 8px;color:var(--text-dim);">Content Kind</td><td>${escHtml(contentKind)}</td></tr>
+        <tr><td style="padding:4px 8px;color:var(--text-dim);">Backup loaded</td><td>${backupLoaded ? '<span style="color:var(--green);">Yes</span>' : 'No'}</td></tr>
+        ${backupDeckId ? `<tr><td style="padding:4px 8px;color:var(--text-dim);">Backup ID</td><td style="font-size:11px;color:var(--text-dim);">${escHtml(backupDeckId)}</td></tr>` : ''}
+      </table>`}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Offline Mode</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
+        <tr>
+          <td style="padding:4px 8px;color:var(--text-dim);width:140px;">Mode</td>
+          <td>
+            <span style="display:inline-flex;align-items:center;gap:6px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:${offlineDotColor};display:inline-block;"></span>
+              <strong>${offlineModeLabel}</strong>
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:4px 8px;color:var(--text-dim);">Cache</td>
+          <td><span style="color:${cacheColor};">${cacheLabel}</span></td>
+        </tr>
+      </table>
+      <div class="btn-row" style="margin-bottom:12px;">
+        <button class="btn ${offlineMode ? 'btn-danger' : 'btn-primary'}" id="toggle-offline-btn">
+          ${offlineMode ? 'Disable Offline Mode' : 'Enable Offline Mode'}
+        </button>
+        <button class="btn btn-sm" id="slides-refresh-btn">↺ Refresh</button>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);line-height:1.6;">
+        Offline mode serves slides from a local cache instead of fetching from Google.
+        Enable after loading a presentation — the cache warms automatically in the background.
+        ${offlineMode && !cacheWarmed ? '<br><span style="color:var(--orange);">Cache is still warming. Wait a moment before presenting.</span>' : ''}
+      </p>
+    </div>
+  `;
+
+  document.getElementById('toggle-offline-btn').addEventListener('click', async () => {
+    try {
+      await api('POST', '/api/slides/offline-mode', { enabled: !offlineMode });
+      showSuccess(offlineMode ? 'Offline mode disabled' : 'Offline mode enabled');
+      renderSlides();
+    } catch { /* showError handled in api() */ }
+  });
+
+  document.getElementById('slides-refresh-btn').addEventListener('click', () => renderSlides());
+}
+
 // ── Section: Show Lock ────────────────────────────────────────────────────────
 function renderShowLock() {
   const serverLocked = !!(state.connectionStatus && state.connectionStatus.adminShowLocked);
@@ -1134,7 +1232,7 @@ function renderShowLock() {
 async function renderSystem() {
   content().innerHTML = `<div class="section-title">System</div><div class="card"><div class="card-title">Loading…</div></div>`;
 
-  let statusData, displaysData, activeProfileData, fullProfileData;
+  let statusData, displaysData, activeProfileData, fullProfileData, appSettingsData;
   try {
     [statusData, displaysData, activeProfileData] = await Promise.all([
       api('GET', '/api/status'),
@@ -1147,12 +1245,19 @@ async function renderSystem() {
     fullProfileData = await api('GET', `/api/profiles/${activeProfileData.id}`);
   } catch { fullProfileData = null; }
 
+  try {
+    appSettingsData = await api('GET', '/api/app-settings');
+  } catch { appSettingsData = null; }
+
   const displays = (displaysData && displaysData.displays) || [];
   const instA = (statusData && statusData.abState && statusData.abState.instanceA) || {};
   const instB = (statusData && statusData.abState && statusData.abState.instanceB) || {};
   const prefs = (fullProfileData && fullProfileData.appPreferences) || {};
   const allowlistEnabled = !!prefs.ipAllowlistEnabled;
   const allowlist = Array.isArray(prefs.ipAllowlist) ? prefs.ipAllowlist : [];
+
+  const operationMode = (appSettingsData && appSettingsData.operationMode) || 'standalone';
+  const backupIps = Array.isArray(appSettingsData && appSettingsData.backupIps) ? appSettingsData.backupIps : [];
 
   const displayOptions = [
     '<option value="">— None —</option>',
@@ -1204,6 +1309,34 @@ async function renderSystem() {
     </div>
 
     <div class="card">
+      <div class="card-title">Multi-machine</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+        Enable primary mode to fan slide commands to backup machines in real time.
+      </p>
+      <div class="field" style="margin-bottom:10px;">
+        <div class="field-label">Operation mode</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+            <input type="radio" name="op-mode" value="standalone" ${operationMode === 'standalone' ? 'checked' : ''} style="accent-color:var(--accent);"> Standalone
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+            <input type="radio" name="op-mode" value="primary" ${operationMode === 'primary' ? 'checked' : ''}  style="accent-color:var(--accent);"> Primary
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+            <input type="radio" name="op-mode" value="backup" ${operationMode === 'backup' ? 'checked' : ''}   style="accent-color:var(--accent);"> Backup
+          </label>
+        </div>
+      </div>
+      <div id="backup-ips-field" style="display:${operationMode === 'primary' ? 'block' : 'none'};">
+        <div class="field">
+          <div class="field-label">Backup machine IPs (one per line; port defaults to ${escHtml(port)})</div>
+          <textarea id="backup-ips-textarea" rows="4" placeholder="192.168.1.101&#10;192.168.1.102:8080">${escHtml(backupIps.join('\n'))}</textarea>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="save-multimachine-btn" style="margin-top:8px;">Save Multi-machine</button>
+    </div>
+
+    <div class="card">
       <div class="card-title">Server Port</div>
       <p style="font-size:13px;color:var(--text-dim);line-height:1.5;">
         Current port: <strong style="color:var(--text);font-size:16px;">${escHtml(port)}</strong>
@@ -1247,132 +1380,144 @@ async function renderSystem() {
       showSuccess('Allowlist saved — restart the app to apply');
     } catch { /* showError handled in api() */ }
   });
+
+  // Show/hide backup IPs textarea based on mode selection
+  document.querySelectorAll('input[name="op-mode"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const mode = document.querySelector('input[name="op-mode"]:checked').value;
+      document.getElementById('backup-ips-field').style.display = mode === 'primary' ? 'block' : 'none';
+    });
+  });
+
+  // Save multi-machine settings
+  document.getElementById('save-multimachine-btn').addEventListener('click', async () => {
+    const mode = document.querySelector('input[name="op-mode"]:checked').value;
+    const raw = (document.getElementById('backup-ips-textarea') || { value: '' }).value;
+    const ips = raw.split('\n').map(s => s.trim()).filter(Boolean);
+    try {
+      await api('PATCH', '/api/app-settings', {
+        operationMode: mode,
+        backupIps: mode === 'primary' ? ips : [],
+      });
+      showSuccess('Multi-machine settings saved');
+    } catch { /* showError handled in api() */ }
+  });
 }
 
-// ── Network ──────────────────────────────────────────────────────────────────
-async function renderNetwork() {
-  content().innerHTML = '<div class="section-title">Network</div><div class="card"><div class="card-title">Loading…</div></div>';
-  let info, profile;
-  try {
-    const [infoR, profileR] = await Promise.all([
-      fetch('/api/server-info', { credentials: 'include' }),
-      fetch('/api/profiles/active', { credentials: 'include' }),
-    ]);
-    info = await infoR.json();
-    profile = await profileR.json();
-  } catch (e) { showError(e.message); return; }
-
-  const allowlist = (profile.appPreferences?.ipAllowlist ?? []).slice();
-  const allowlistEnabled = profile.appPreferences?.ipAllowlistEnabled ?? false;
-
-  function renderAllowlistItems() {
-    return allowlist.length
-      ? allowlist.map((ip, i) => `
-          <div class="item-row" data-idx="${i}">
-            <span class="item-name">${escHtml(ip)}</span>
-            <button class="btn btn-sm btn-danger allowlist-del-btn" data-idx="${i}">Remove</button>
-          </div>`).join('')
-      : '<p style="color:var(--text-dim);font-size:12px;">No entries — all IPs allowed.</p>';
-  }
+// ── Section: Packages ─────────────────────────────────────────────────────────
+async function renderPackages() {
+  content().innerHTML = `<div class="section-title">Packages</div><div class="card"><div class="card-title">Loading…</div></div>`;
+  let data;
+  try { data = await api('GET', '/api/packages'); } catch { return; }
+  const packages = (data && data.packages) || [];
+  const errors = (data && data.errors) || [];
 
   content().innerHTML = `
-    <div class="section-title">Network</div>
-
-    <div class="card">
-      <div class="card-title">Share URLs — Operator (port ${info.port})</div>
-      ${info.operatorUrls.map(u => `<div style="font-family:monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;margin-bottom:4px;word-break:break-all;user-select:all;">${escHtml(u)}</div>`).join('')}
-    </div>
-
-    <div class="card">
-      <div class="card-title">Share URLs — Companion API (port ${info.port})</div>
-      ${info.companionUrls.map(u => `<div style="font-family:monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;margin-bottom:4px;word-break:break-all;user-select:all;">${escHtml(u)}</div>`).join('')}
-    </div>
-
-    <div class="card">
-      <div class="card-title">Ports</div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;">
-        <tr><td style="padding:4px 8px;color:var(--text-dim);width:180px;">Web UI / API Port</td><td>${info.port}</td></tr>
-      </table>
-      <p style="color:var(--text-dim);font-size:12px;margin-top:8px;">To change the port, restart the app with the <code>--port</code> flag.</p>
-    </div>
-
-    <div class="card">
-      <div class="card-title">IP Allowlist</div>
-      <label style="display:flex;gap:8px;align-items:center;margin-bottom:12px;cursor:pointer;">
-        <input type="checkbox" id="allowlist-enabled-cb" ${allowlistEnabled ? 'checked' : ''} />
-        <span>Enable IP allowlist (block all other IPs)</span>
-      </label>
-      <div id="allowlist-items">${renderAllowlistItems()}</div>
-      <div style="display:flex;gap:8px;margin-top:12px;">
-        <input type="text" id="new-allowlist-ip" placeholder="192.168.1.0/24 or hostname" style="flex:1;" />
-        <button class="btn btn-sm btn-primary" id="add-allowlist-btn">Add</button>
+    <div class="section-title">Packages</div>
+    ${errors.length ? `
+    <div class="card" style="border-color:var(--red);">
+      <div class="card-title" style="color:var(--red);">Load Errors (${errors.length})</div>
+      <div class="item-list">
+        ${errors.map(e => `<div class="item-row"><div class="item-name" style="color:var(--red);">${escHtml(e.dir)}</div><div class="item-meta">${escHtml(e.error)}</div></div>`).join('')}
       </div>
-      <div class="btn-row" style="margin-top:10px;">
-        <button class="btn btn-sm btn-primary" id="save-allowlist-btn">Save Allowlist</button>
+    </div>` : ''}
+    ${packages.length === 0 ? `
+    <div class="card"><div class="empty-state">No packages loaded. Place package folders in the packages directory.</div></div>
+    ` : packages.map(pkg => `
+    <div class="card" id="pkg-card-${escHtml(pkg.id)}">
+      <div class="card-title">
+        ${escHtml(pkg.name)}
+        <span class="badge ${pkg.live ? 'badge-active' : ''}" style="margin-left:8px;">${pkg.live ? 'LIVE' : 'idle'}</span>
+        <span style="font-size:11px;color:var(--text-dim);margin-left:8px;">v${escHtml(pkg.version)}</span>
       </div>
+      ${pkg.description ? `<p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">${escHtml(pkg.description)}</p>` : ''}
+      <div class="btn-row" style="margin-bottom:12px;">
+        ${pkg.renders.map(r => `<a href="/packages/${escHtml(pkg.id)}/render/${escHtml(r.id)}" target="_blank" class="btn btn-sm" style="text-decoration:none;">↗ ${escHtml(r.label)}</a>`).join('')}
+        ${pkg.hasControl ? `<a href="/packages/${escHtml(pkg.id)}/control" target="_blank" class="btn btn-sm btn-primary" style="text-decoration:none;">Open Control</a>` : ''}
+      </div>
+      <hr class="sep">
+      <div class="card-title" style="margin-top:8px;">Assets</div>
+      <div class="item-list" id="pkg-assets-${escHtml(pkg.id)}">
+        <div class="empty-state" style="font-size:11px;">Loading assets…</div>
+      </div>
+      <div class="btn-row" style="margin-top:8px;">
+        <input type="file" id="pkg-upload-file-${escHtml(pkg.id)}" accept="image/*" style="font-size:12px;flex:1;" />
+        <button class="btn btn-sm btn-primary pkg-upload-btn" data-pkg="${escHtml(pkg.id)}">Upload Image</button>
+      </div>
+    </div>`).join('')}
+    <div class="card">
+      <div class="card-title">Rescan</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">Reload all package manifests from disk without restarting.</p>
+      <button class="btn btn-primary" id="rescan-packages-btn">Rescan Packages</button>
     </div>
   `;
 
-  function bindDelButtons() {
-    document.querySelectorAll('.allowlist-del-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const idx = parseInt(btn.dataset.idx);
-        allowlist.splice(idx, 1);
-        document.getElementById('allowlist-items').innerHTML = renderAllowlistItems();
-        bindDelButtons();
-      });
-    });
+  for (const pkg of packages) {
+    loadPackageAssets(pkg.id);
   }
-  bindDelButtons();
 
-  document.getElementById('allowlist-enabled-cb').addEventListener('change', async (e) => {
-    const enabled = e.target.checked;
-    try {
-      const activeJ = await api('GET', '/api/profiles/active');
-      await api('PATCH', '/api/profiles/' + activeJ.id, { appPreferences: { ipAllowlistEnabled: enabled } });
-      showSuccess('Allowlist ' + (enabled ? 'enabled' : 'disabled'));
-    } catch { /* handled */ }
+  document.querySelectorAll('.pkg-upload-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const pkgId = btn.dataset.pkg;
+      const fileInput = document.getElementById(`pkg-upload-file-${pkgId}`);
+      if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        showError('Select an image file first'); return;
+      }
+      const fd = new FormData();
+      fd.append('file', fileInput.files[0]);
+      try {
+        const result = await api('POST', `/api/packages/${pkgId}/assets`, fd, true);
+        showSuccess(`Uploaded: ${result.filename}`);
+        loadPackageAssets(pkgId);
+        fileInput.value = '';
+      } catch { /* showError handled in api() */ }
+    });
   });
 
-  document.getElementById('add-allowlist-btn').addEventListener('click', () => {
-    const val = document.getElementById('new-allowlist-ip').value.trim();
-    if (!val) return;
-    allowlist.push(val);
-    document.getElementById('allowlist-items').innerHTML = renderAllowlistItems();
-    document.getElementById('new-allowlist-ip').value = '';
-    bindDelButtons();
+  document.getElementById('rescan-packages-btn')?.addEventListener('click', async () => {
+    const r = await api('POST', '/api/packages/rescan');
+    if (r) showSuccess(`Rescan complete — ${r.count} package(s) loaded`);
+    renderPackages();
   });
+}
 
-  document.getElementById('save-allowlist-btn').addEventListener('click', async () => {
-    try {
-      const activeJ = await api('GET', '/api/profiles/active');
-      await api('PATCH', '/api/profiles/' + activeJ.id, { appPreferences: { ipAllowlist: allowlist.slice() } });
-      showSuccess('Allowlist saved');
-    } catch { /* handled */ }
+async function loadPackageAssets(pkgId) {
+  const container = document.getElementById(`pkg-assets-${pkgId}`);
+  if (!container) return;
+  let data;
+  try { data = await api('GET', `/api/packages/${pkgId}/assets`); } catch { return; }
+  const assets = (data && data.assets) || [];
+  if (assets.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="font-size:11px;">No uploaded assets yet.</div>';
+    return;
+  }
+  container.innerHTML = assets.map(a => `
+    <div class="item-row">
+      <img src="${escHtml(a.path)}" style="width:32px;height:32px;object-fit:contain;border-radius:3px;background:#222;flex-shrink:0;" onerror="this.style.display='none'" />
+      <div class="item-name" style="font-size:12px;">${escHtml(a.filename)}</div>
+      <button class="btn btn-sm copy-asset-path-btn" data-path="${escHtml(a.path)}" title="Copy path">Copy URL</button>
+    </div>`).join('');
+
+  container.querySelectorAll('.copy-asset-path-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(btn.dataset.path).then(() => showSuccess('Path copied'));
+    });
   });
 }
 
 // ── Monitors ─────────────────────────────────────────────────────────────────
 async function renderMonitors() {
   content().innerHTML = '<div class="section-title">Monitors</div><div class="card"><div class="card-title">Loading…</div></div>';
-  let displays, profile;
+  let data;
   try {
-    const [dR, pR] = await Promise.all([
-      fetch('/api/displays', { credentials: 'include' }),
-      fetch('/api/profiles/active', { credentials: 'include' }),
-    ]);
-    displays = (await dR.json()).displays ?? [];
-    const activeProfile = await pR.json();
-    // /api/profiles/active only returns id/name/dates; fetch full profile for displayPreference
-    profile = await api('GET', '/api/profiles/' + activeProfile.id);
-    if (!profile) profile = activeProfile;
-  } catch (e) { showError(e.message); return; }
+    data = await api('GET', '/api/profiles/display-preference');
+  } catch { return; }
 
-  const currentPref = profile.displayPreference ?? '';
+  const displays = (data && data.displays) || [];
+  const currentPref = (data && data.displayPreference) ? String(data.displayPreference) : '';
 
   content().innerHTML = `
     <div class="section-title">Monitors</div>
-
     <div class="card">
       <div class="card-title">Connected Displays</div>
       ${displays.length === 0
@@ -1380,135 +1525,223 @@ async function renderMonitors() {
         : displays.map(d => `
           <div class="item-row">
             <span class="item-name">${escHtml(d.name || ('Display ' + d.id))}</span>
-            <span class="item-meta">${d.bounds ? (d.bounds.width + '×' + d.bounds.height) : ''} ${d.isPrimary ? '(primary)' : ''}</span>
+            <span class="item-meta">${d.isPrimary ? '(primary)' : ''}</span>
           </div>`).join('')}
     </div>
 
     <div class="card">
-      <div class="card-title">Presentation Monitor</div>
-      <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">Select which display the program output window uses. Takes effect on next mode change or app restart.</p>
-      <select id="display-select" style="width:100%;margin-bottom:12px;">
-        <option value="">Auto (primary display)</option>
-        ${displays.map(d => `<option value="${escHtml(String(d.id))}" ${currentPref === String(d.id) ? 'selected' : ''}>${escHtml(d.name || ('Display ' + d.id))}</option>`).join('')}
-      </select>
-      <button class="btn btn-sm btn-primary" id="save-display-btn">Save</button>
+      <div class="card-title">Slides Presentation Monitor</div>
+      <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">
+        Select which connected display the Google Slides presentation window targets.
+        Changes take effect after reloading the current presentation.
+      </p>
+      <div class="field">
+        <div class="field-label">Target display</div>
+        <select id="display-select" style="width:100%;">
+          <option value="">None (use primary display)</option>
+          ${displays.map(d => `<option value="${escHtml(String(d.id))}" ${currentPref === String(d.id) ? 'selected' : ''}>${escHtml(d.name || ('Display ' + d.id))}${d.isPrimary ? ' (primary)' : ''}</option>`).join('')}
+        </select>
+      </div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn btn-primary" id="save-display-btn">Save</button>
+      </div>
     </div>
   `;
 
   document.getElementById('save-display-btn').addEventListener('click', async () => {
     const val = document.getElementById('display-select').value;
     try {
-      await api('PATCH', '/api/profiles/' + profile.id, { displayPreference: val || null });
-      showSuccess('Display preference saved. Restart or change mode to apply.');
+      await api('PATCH', '/api/profiles/display-preference', { displayPreference: val || null });
+      showSuccess('Monitor preference saved. Changes take effect after reloading the presentation.');
     } catch { /* handled */ }
   });
 }
 
-// ── Appearance ───────────────────────────────────────────────────────────────
-async function renderAppearance() {
-  content().innerHTML = '<div class="section-title">Appearance</div><div class="card"><div class="card-title">Loading…</div></div>';
-  let profile, profileFull;
-  try {
-    const activeR = await fetch('/api/profiles/active', { credentials: 'include' });
-    profile = await activeR.json();
-    const fullR = await fetch('/api/profiles/' + profile.id, { credentials: 'include' });
-    profileFull = await fullR.json();
-  } catch (e) { showError(e.message); return; }
+// ── Section: Branding ─────────────────────────────────────────────────────────
+async function renderBranding() {
+  content().innerHTML = `<div class="section-title">Branding</div><div class="card"><div class="card-title">Loading…</div></div>`;
+  let data;
+  try { data = await api('GET', '/branding/settings'); } catch { return; }
 
-  const theme = profileFull.appPreferences?.operatorTheme ?? 'light';
+  const logoPath   = (data && data.customLogoPath)  || '';
+  const cssPath    = (data && data.customCssPath)   || '';
 
   content().innerHTML = `
-    <div class="section-title">Appearance</div>
-
+    <div class="section-title">Branding</div>
     <div class="card">
-      <div class="card-title">Operator Web UI Theme</div>
-      <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">Changes how the operator web remote looks for anyone accessing it in a browser.</p>
-      <div style="display:flex;gap:16px;margin-bottom:16px;">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-          <input type="radio" name="op-theme" value="light" ${theme === 'light' ? 'checked' : ''} />
-          Light
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-          <input type="radio" name="op-theme" value="dark" ${theme === 'dark' ? 'checked' : ''} />
-          Dark
-        </label>
+      <div class="card-title">Custom Logo</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+        Replaces the default icon in the web remote header. PNG, JPG, SVG, or WebP.
+      </p>
+      <div class="field">
+        <div class="field-label">Current logo file</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="branding-logo-path" value="${escHtml(logoPath)}"
+            placeholder="No file selected" readonly
+            style="flex:1;min-width:180px;background:#0d0d0d;color:var(--text);border:1px solid var(--border);border-radius:5px;padding:8px 10px;font-size:13px;" />
+          <button class="btn" id="branding-logo-choose">Choose file…</button>
+          <button class="btn btn-danger" id="branding-logo-clear">Clear</button>
+        </div>
       </div>
-      <button class="btn btn-sm btn-primary" id="save-theme-btn">Save Theme</button>
+      ${logoPath ? `<div style="margin-top:8px;"><img src="/branding/logo?v=${Date.now()}" alt="Current logo" style="max-height:48px;max-width:200px;object-fit:contain;background:#222;border-radius:4px;padding:4px;" /></div>` : ''}
     </div>
+
+    <div class="card">
+      <div class="card-title">Custom CSS</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+        Select a CSS file to override styles in the web remote and operator UI (white-labelling).
+        Download the template below as a starting point.
+      </p>
+      <div class="field">
+        <div class="field-label">Current CSS file</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="branding-css-path" value="${escHtml(cssPath)}"
+            placeholder="No file selected" readonly
+            style="flex:1;min-width:180px;background:#0d0d0d;color:var(--text);border:1px solid var(--border);border-radius:5px;padding:8px 10px;font-size:13px;" />
+          <button class="btn" id="branding-css-choose">Choose file…</button>
+          <button class="btn btn-danger" id="branding-css-clear">Clear</button>
+        </div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn" id="branding-download-template">Download CSS template…</button>
+        <a href="/branding/template.css" class="btn" style="text-decoration:none;" download="pconair-branding-template.css">Download (browser)</a>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="branding-save">Save Branding</button>
   `;
 
-  document.getElementById('save-theme-btn').addEventListener('click', async () => {
-    const selected = document.querySelector('input[name="op-theme"]:checked')?.value ?? 'light';
+  const logoInput  = document.getElementById('branding-logo-path');
+  const cssInput   = document.getElementById('branding-css-path');
+
+  // Choose logo
+  document.getElementById('branding-logo-choose').addEventListener('click', async () => {
+    if (window.electronAPI && window.electronAPI.brandingChooseLogo) {
+      const result = await window.electronAPI.brandingChooseLogo();
+      if (!result.canceled && result.filePath) logoInput.value = result.filePath;
+    } else {
+      showError('File picker only available in the desktop app.');
+    }
+  });
+
+  // Clear logo
+  document.getElementById('branding-logo-clear').addEventListener('click', () => {
+    logoInput.value = '';
+  });
+
+  // Choose CSS
+  document.getElementById('branding-css-choose').addEventListener('click', async () => {
+    if (window.electronAPI && window.electronAPI.brandingChooseCss) {
+      const result = await window.electronAPI.brandingChooseCss();
+      if (!result.canceled && result.filePath) cssInput.value = result.filePath;
+    } else {
+      showError('File picker only available in the desktop app.');
+    }
+  });
+
+  // Clear CSS
+  document.getElementById('branding-css-clear').addEventListener('click', () => {
+    cssInput.value = '';
+  });
+
+  // Download CSS template via IPC (saves to Downloads folder via save dialog)
+  document.getElementById('branding-download-template').addEventListener('click', async () => {
+    if (window.electronAPI && window.electronAPI.brandingDownloadTemplate) {
+      const result = await window.electronAPI.brandingDownloadTemplate();
+      if (!result.canceled) {
+        showSuccess(result.error ? `Error: ${result.error}` : `Template saved to ${result.filePath}`);
+      }
+    } else {
+      showError('Use the "Download (browser)" link instead when running outside the app.');
+    }
+  });
+
+  // Save
+  document.getElementById('branding-save').addEventListener('click', async () => {
+    const body = {
+      customLogoPath: logoInput.value.trim() || null,
+      customCssPath:  cssInput.value.trim()  || null,
+    };
     try {
-      await api('PATCH', '/api/profiles/' + profileFull.id, { appPreferences: { operatorTheme: selected } });
-      showSuccess('Theme saved. Operator web UI will use the new theme on next load.');
-    } catch { /* handled */ }
+      await api('POST', '/branding/settings', body);
+      showSuccess('Branding saved — reload the remote to apply');
+      renderBranding();
+    } catch { /* showError handled in api() */ }
   });
 }
 
-// ── Advanced ─────────────────────────────────────────────────────────────────
-async function renderAdvanced() {
-  content().innerHTML = '<div class="section-title">Advanced</div><div class="card"><div class="card-title">Loading…</div></div>';
-  let profileFull;
+// ── Teleprompter ─────────────────────────────────────────────────────────────
+async function renderTeleprompter() {
+  const c = content();
+  c.innerHTML = '<div class="section-title">Teleprompter</div><div class="card"><div class="card-title">Loading…</div></div>';
+  let cfg, status;
   try {
-    const activeR = await fetch('/api/profiles/active', { credentials: 'include' });
-    const profile = await activeR.json();
-    const fullR = await fetch('/api/profiles/' + profile.id, { credentials: 'include' });
-    profileFull = await fullR.json();
-  } catch (e) { showError(e.message); return; }
-
-  const gpuMode = profileFull.appPreferences?.gpuMode ?? 'default';
-  const verboseLogging = profileFull.appPreferences?.verboseLogging ?? false;
-
-  content().innerHTML = `
-    <div class="section-title">Advanced</div>
-
+    [cfg, status] = await Promise.all([
+      api('GET', '/api/status').then(s => ({ host: s.teleprompter?.host ?? '', enabled: s.teleprompter?.enabled ?? false })),
+      api('GET', '/api/teleprompter/status').catch(() => ({ connected: false })),
+    ]);
+  } catch (e) {
+    c.innerHTML = '<div class="section-title">Teleprompter</div><div class="card"><p class="field-label">Failed to load.</p></div>';
+    return;
+  }
+  const connLabel = status.connected ? `<span style="color:#22c55e">● Connected</span> — scrolling: ${status.scrolling ? 'yes' : 'no'}, speed: ${status.speed}, font: ${status.fontSize}px` : '<span style="color:#ef4444">● Not connected</span>';
+  c.innerHTML = `
+    <div class="section-title">Teleprompter</div>
     <div class="card">
-      <div class="card-title">Logging</div>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px;">
-        <input type="checkbox" id="verbose-log-cb" ${verboseLogging ? 'checked' : ''} />
-        <span>Enable verbose logging (console.log captured to Logs tab)</span>
+      <div class="card-title">Connection</div>
+      <p style="margin-bottom:12px">${connLabel}</p>
+      <div class="field">
+        <div class="field-label">Service URL</div>
+        <input id="tp-host" type="text" class="input" value="${cfg.host}" placeholder="http://192.168.1.245:8082" style="width:100%;max-width:360px" />
+      </div>
+      <label class="field" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input id="tp-enabled" type="checkbox" ${cfg.enabled ? 'checked' : ''} />
+        <span class="field-label" style="margin:0">Enable teleprompter proxy</span>
       </label>
-      <button class="btn btn-sm btn-primary" id="save-verbose-btn">Save</button>
+      <button id="tp-save-cfg" class="btn btn-primary" style="margin-top:12px">Save</button>
     </div>
-
     <div class="card">
-      <div class="card-title">Presentation Rendering</div>
-      <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">GPU mode for rendering Google Slides. Change if slide images show transparency or rendering glitches. <strong>Restart required.</strong></p>
-      <select id="gpu-mode-select" style="width:100%;margin-bottom:12px;">
-        <option value="default" ${gpuMode === 'default' ? 'selected' : ''}>Default (Chromium decides)</option>
-        <option value="angle" ${gpuMode === 'angle' ? 'selected' : ''}>ANGLE Metal (macOS)</option>
-        <option value="disabled" ${gpuMode === 'disabled' ? 'selected' : ''}>Disable GPU</option>
-      </select>
-      <button class="btn btn-sm btn-primary" id="save-gpu-btn">Save (restart required)</button>
+      <div class="card-title">Transport</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="tp-start" class="btn btn-primary">▶ Start</button>
+        <button id="tp-stop" class="btn">■ Stop</button>
+      </div>
     </div>
-
     <div class="card">
-      <div class="card-title">Primary / Backup Mode</div>
-      <p style="color:var(--text-dim);font-size:12px;">Multi-machine failover is planned for v1.5 and is not yet available.</p>
-      <p style="color:var(--accent);font-size:12px;margin-top:4px;">Coming in v1.5</p>
+      <div class="card-title">Speed</div>
+      <div style="display:flex;gap:8px">
+        <button id="tp-faster" class="btn">Faster +10</button>
+        <button id="tp-slower" class="btn">Slower −10</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Font Size</div>
+      <div style="display:flex;gap:8px">
+        <button id="tp-font-in" class="btn">A+ (larger)</button>
+        <button id="tp-font-out" class="btn">A− (smaller)</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Script</div>
+      <textarea id="tp-script" class="input" rows="8" style="width:100%;resize:vertical;font-family:monospace;font-size:13px" placeholder="Paste script here…"></textarea>
+      <button id="tp-set-script" class="btn btn-primary" style="margin-top:8px">Set Script</button>
     </div>
   `;
-
-  document.getElementById('save-verbose-btn').addEventListener('click', async () => {
-    const enabled = document.getElementById('verbose-log-cb').checked;
-    try {
-      await api('POST', '/api/logs/verbose', { enabled });
-      const activeR = await fetch('/api/profiles/active', { credentials: 'include' });
-      const activeJ = await activeR.json();
-      await api('PATCH', '/api/profiles/' + activeJ.id, { appPreferences: { verboseLogging: enabled } });
-      showSuccess('Logging setting saved');
-    } catch { /* handled */ }
+  document.getElementById('tp-save-cfg').addEventListener('click', async () => {
+    await api('POST', '/api/teleprompter/config', { host: document.getElementById('tp-host').value.trim(), enabled: document.getElementById('tp-enabled').checked });
+    showSuccess('Teleprompter settings saved');
+    renderTeleprompter();
   });
-
-  document.getElementById('save-gpu-btn').addEventListener('click', async () => {
-    const mode = document.getElementById('gpu-mode-select').value;
-    try {
-      const activeR = await fetch('/api/profiles/active', { credentials: 'include' });
-      const activeJ = await activeR.json();
-      await api('PATCH', '/api/profiles/' + activeJ.id, { appPreferences: { gpuMode: mode } });
-      showSuccess('GPU mode saved. Restart the app to apply.');
-    } catch { /* handled */ }
+  document.getElementById('tp-start').addEventListener('click', async () => { await api('POST', '/api/teleprompter/start'); renderTeleprompter(); });
+  document.getElementById('tp-stop').addEventListener('click', async () => { await api('POST', '/api/teleprompter/stop'); renderTeleprompter(); });
+  document.getElementById('tp-faster').addEventListener('click', () => api('POST', '/api/teleprompter/scroll', { direction: 'faster' }));
+  document.getElementById('tp-slower').addEventListener('click', () => api('POST', '/api/teleprompter/scroll', { direction: 'slower' }));
+  document.getElementById('tp-font-in').addEventListener('click', () => api('POST', '/api/teleprompter/font-size', { direction: 'in' }));
+  document.getElementById('tp-font-out').addEventListener('click', () => api('POST', '/api/teleprompter/font-size', { direction: 'out' }));
+  document.getElementById('tp-set-script').addEventListener('click', async () => {
+    const text = document.getElementById('tp-script').value;
+    await api('POST', '/api/teleprompter/script', { text });
+    showSuccess('Script updated');
   });
 }
 
@@ -1516,57 +1749,100 @@ async function renderAdvanced() {
 async function renderLogs() {
   content().innerHTML = '<div class="section-title">Logs</div><div class="card"><div class="card-title">Loading…</div></div>';
   let logsData;
-  try {
-    const r = await fetch('/api/logs', { credentials: 'include' });
-    logsData = await r.json();
-  } catch (e) { showError(e.message); return; }
+  try { logsData = await api('GET', '/api/debug/logs'); } catch { return; }
 
-  const entries = logsData.entries ?? [];
-
-  function formatEntries(list) {
-    if (!list.length) return '<em style="color:var(--text-dim)">No log entries yet.</em>';
+  function formatLogEntries(list, emptyMsg) {
+    if (!list || !list.length) return `<div class="empty-state">${emptyMsg}</div>`;
     return list.map(e => {
-      const color = e.level === 'error' ? '#ff6b6b' : e.level === 'warn' ? '#ffd93d' : 'var(--text-dim)';
-      return `<div style="color:${color};font-size:11px;line-height:1.5;word-break:break-all;">[${escHtml(e.ts.slice(11,19))}] ${escHtml(e.level.toUpperCase())} ${escHtml(e.message)}</div>`;
+      const ts = new Date(e.timestamp).toLocaleString();
+      return `<div style="font-family:monospace;font-size:12px;line-height:1.6;border-bottom:1px solid var(--border);padding:4px 0;word-break:break-all;">
+        <span style="color:var(--text-dim);">${escHtml(ts)}</span>
+        <span style="margin:0 6px;font-weight:600;">[${escHtml(e.type)}]</span>
+        <span>${escHtml(e.description)}</span>
+      </div>`;
     }).join('');
   }
+
+  function buildLogsText(data) {
+    const lines = [];
+    lines.push('=== PConAir Debug Logs ===');
+    lines.push(`Generated: ${new Date().toISOString()}`);
+    lines.push(`Node.js: ${data.nodeVersion}`);
+    lines.push(`Process uptime: ${Math.round((data.processUptimeMs || 0) / 1000)}s`);
+    lines.push('');
+    lines.push('--- ERRORS ---');
+    (data.errors || []).forEach(e => lines.push(`[${e.timestamp}] [${e.type}] ${e.description}`));
+    if (!data.errors || !data.errors.length) lines.push('(none)');
+    lines.push('');
+    lines.push('--- WARNINGS ---');
+    (data.warnings || []).forEach(e => lines.push(`[${e.timestamp}] [${e.type}] ${e.description}`));
+    if (!data.warnings || !data.warnings.length) lines.push('(none)');
+    return lines.join('\n');
+  }
+
+  const uptimeSec = Math.round((logsData.processUptimeMs || 0) / 1000);
+  const uptimeStr = uptimeSec >= 3600
+    ? `${Math.floor(uptimeSec / 3600)}h ${Math.floor((uptimeSec % 3600) / 60)}m ${uptimeSec % 60}s`
+    : uptimeSec >= 60
+      ? `${Math.floor(uptimeSec / 60)}m ${uptimeSec % 60}s`
+      : `${uptimeSec}s`;
 
   content().innerHTML = `
     <div class="section-title">Logs</div>
 
     <div class="card">
-      <div class="card-title">Debug Console</div>
-      <div class="btn-row" style="margin-bottom:10px;">
-        <button class="btn btn-sm" id="logs-refresh-btn">↺ Refresh</button>
-        <button class="btn btn-sm btn-danger" id="logs-clear-btn">Clear</button>
-        <button class="btn btn-sm" id="logs-save-btn">Save as file</button>
+      <div class="card-title">Process Info</div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap;">
+        <div>
+          <div class="field-label">Node.js Version</div>
+          <div style="font-family:monospace;font-size:13px;color:var(--text);">${escHtml(logsData.nodeVersion || '—')}</div>
+        </div>
+        <div>
+          <div class="field-label">Process Uptime</div>
+          <div style="font-family:monospace;font-size:13px;color:var(--text);">${escHtml(uptimeStr)}</div>
+        </div>
       </div>
-      <div id="log-output" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:12px;max-height:400px;overflow-y:auto;font-family:monospace;">
-        ${formatEntries(entries)}
+    </div>
+
+    <div class="card" id="logs-errors-card">
+      <div class="card-title" style="color:var(--red);">Errors (${(logsData.errors || []).length})</div>
+      <div id="logs-errors-list">
+        ${formatLogEntries(logsData.errors, 'No errors')}
       </div>
+    </div>
+
+    <div class="card" id="logs-warnings-card">
+      <div class="card-title" style="color:var(--orange);">Warnings (${(logsData.warnings || []).length})</div>
+      <div id="logs-warnings-list">
+        ${formatLogEntries(logsData.warnings, 'No warnings')}
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:8px;">
+      <button class="btn btn-sm" id="logs-refresh-btn">Refresh</button>
+      <button class="btn btn-sm" id="logs-download-btn">Download logs</button>
     </div>
   `;
 
   document.getElementById('logs-refresh-btn').addEventListener('click', async () => {
-    const r = await fetch('/api/logs', { credentials: 'include' });
-    const j = await r.json();
-    document.getElementById('log-output').innerHTML = formatEntries(j.entries ?? []);
+    let fresh;
+    try { fresh = await api('GET', '/api/debug/logs'); } catch { return; }
+    document.getElementById('logs-errors-list').innerHTML = formatLogEntries(fresh.errors, 'No errors');
+    document.getElementById('logs-warnings-list').innerHTML = formatLogEntries(fresh.warnings, 'No warnings');
+    document.querySelector('#logs-errors-card .card-title').innerHTML = `Errors (${(fresh.errors || []).length})`;
+    document.querySelector('#logs-warnings-card .card-title').innerHTML = `Warnings (${(fresh.warnings || []).length})`;
+    showSuccess('Logs refreshed');
   });
 
-  document.getElementById('logs-clear-btn').addEventListener('click', async () => {
-    await api('POST', '/api/logs/clear');
-    document.getElementById('log-output').innerHTML = formatEntries([]);
-  });
-
-  document.getElementById('logs-save-btn').addEventListener('click', async () => {
-    const r = await fetch('/api/logs', { credentials: 'include' });
-    const j = await r.json();
-    const text = (j.entries ?? []).map(e => `[${e.ts}] ${e.level.toUpperCase()} ${e.message}`).join('\n');
+  document.getElementById('logs-download-btn').addEventListener('click', async () => {
+    let fresh;
+    try { fresh = await api('GET', '/api/debug/logs'); } catch { return; }
+    const text = buildLogsText(fresh);
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'pconair-log-' + new Date().toISOString().slice(0,19).replace(/:/g,'-') + '.txt';
+    a.download = 'pconair-logs.txt';
     a.click();
     URL.revokeObjectURL(url);
   });

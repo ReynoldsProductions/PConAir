@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>COURTVISION — control</title>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&family=Saira:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0c0f14; --bg2:#141a22; --panel:#1b232e; --ink:#eef3f7; --sub:#90a0b2;
+    --line:rgba(255,255,255,.10); --amber:#ffb515; --red:#ff2e3e;
+    --cond:'Saira Condensed',sans-serif; --sans:'Saira',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);min-height:100dvh;
+    padding:16px;display:flex;flex-direction:column;gap:14px;max-width:760px;margin:0 auto;
+    -webkit-font-smoothing:antialiased;}
+  h1{font-family:var(--cond);font-weight:800;font-size:24px;letter-spacing:.04em;color:var(--amber);}
+  .header{display:flex;align-items:center;justify-content:space-between;}
+  .pill{font-size:10px;font-weight:700;letter-spacing:.12em;padding:4px 10px;border-radius:20px;}
+  .pill.live{background:#10301a;color:#5fd47f;}
+  .pill.offline{background:#3a1418;color:#e07f88;}
+  .section{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:14px;
+    display:flex;flex-direction:column;gap:10px;}
+  .section .lbl{font-size:10px;font-weight:700;letter-spacing:.22em;color:var(--sub);text-transform:uppercase;}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  button{border:none;border-radius:8px;cursor:pointer;font-family:var(--cond);font-weight:700;
+    font-size:16px;letter-spacing:.06em;color:var(--ink);background:var(--panel);
+    padding:12px 16px;touch-action:manipulation;}
+  button:active{opacity:.7;}
+  button.amber{background:var(--amber);color:#15130a;}
+  button.red{background:var(--red);color:#fff;}
+  button.green{background:#1d7a3d;color:#fff;}
+  button.toggled{outline:2px solid var(--amber);}
+  input,select{background:var(--bg);border:1px solid var(--line);border-radius:6px;color:var(--ink);
+    font-family:var(--sans);font-size:15px;padding:10px;min-width:0;}
+  input:focus,select:focus{outline:none;border-color:var(--amber);}
+  .teams{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .team-box{background:var(--panel);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;}
+  .team-box .score{font-family:var(--cond);font-weight:800;font-size:54px;line-height:1;text-align:center;
+    font-variant-numeric:tabular-nums;}
+  .team-box .bumps{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+  .team-box .bumps button{padding:12px 0;font-size:18px;}
+  .team-box input{width:100%;text-transform:uppercase;font-family:var(--cond);font-size:18px;letter-spacing:.06em;}
+  .clockrow{display:flex;align-items:center;gap:10px;}
+  .clockrow .display{font-family:var(--cond);font-weight:800;font-size:40px;min-width:120px;
+    font-variant-numeric:tabular-nums;text-align:center;}
+  .clockrow input{width:90px;text-align:center;font-family:var(--cond);font-size:20px;}
+  .qtr-btns{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;flex:1;}
+  .small{font-size:12px;color:var(--sub);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .pc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .pc-grid input{width:100%;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>COURTVISION CONTROL</h1>
+  <div class="pill offline" id="pill">CONNECTING…</div>
+</div>
+
+<div class="section">
+  <div class="lbl">Score</div>
+  <div class="teams">
+    <div class="team-box">
+      <input id="teamA" maxlength="4" placeholder="HOME">
+      <div class="score" id="dScoreA">0</div>
+      <div class="bumps">
+        <button data-bump="A:-1">−1</button>
+        <button class="amber" data-bump="A:1">+1</button>
+        <button class="amber" data-bump="A:2">+2</button>
+        <button class="amber" data-bump="A:3">+3</button>
+      </div>
+      <div class="row">
+        <button data-act="possA" id="bPossA" style="flex:1">POSSESSION</button>
+        <button data-act="bonusA" id="bBonusA" style="flex:1">BONUS</button>
+      </div>
+      <div class="row">
+        <span class="small">Timeouts</span>
+        <button data-act="toA:-1">−</button>
+        <span class="small" id="dToA" style="min-width:2ch;text-align:center;font-size:18px;color:var(--ink)">5</span>
+        <button data-act="toA:1">+</button>
+      </div>
+    </div>
+    <div class="team-box">
+      <input id="teamB" maxlength="4" placeholder="AWAY">
+      <div class="score" id="dScoreB">0</div>
+      <div class="bumps">
+        <button data-bump="B:-1">−1</button>
+        <button class="amber" data-bump="B:1">+1</button>
+        <button class="amber" data-bump="B:2">+2</button>
+        <button class="amber" data-bump="B:3">+3</button>
+      </div>
+      <div class="row">
+        <button data-act="possB" id="bPossB" style="flex:1">POSSESSION</button>
+        <button data-act="bonusB" id="bBonusB" style="flex:1">BONUS</button>
+      </div>
+      <div class="row">
+        <span class="small">Timeouts</span>
+        <button data-act="toB:-1">−</button>
+        <span class="small" id="dToB" style="min-width:2ch;text-align:center;font-size:18px;color:var(--ink)">4</span>
+        <button data-act="toB:1">+</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lbl">Game clock</div>
+  <div class="clockrow">
+    <div class="display" id="dClock">12:00</div>
+    <button class="green" data-act="clockStart" id="bClockStart">START</button>
+    <button class="red" data-act="clockStop">STOP</button>
+    <input id="clockSet" placeholder="12:00">
+    <button data-act="clockSet">SET</button>
+  </div>
+  <div class="lbl">Shot clock</div>
+  <div class="clockrow">
+    <div class="display" id="dShot">24</div>
+    <button class="green" data-act="shotStart" id="bShotStart">START</button>
+    <button class="red" data-act="shotStop">STOP</button>
+    <button class="amber" data-act="shotReset:24">24</button>
+    <button class="amber" data-act="shotReset:14">14</button>
+  </div>
+  <div class="lbl">Quarter</div>
+  <div class="row">
+    <div class="qtr-btns" id="qtrBtns">
+      <button data-qtr="1">Q1</button><button data-qtr="2">Q2</button><button data-qtr="3">Q3</button><button data-qtr="4">Q4</button><button data-qtr="5">OT</button>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lbl">Player card</div>
+  <div class="pc-grid">
+    <input id="pcName" placeholder="Name (J. TATUM)">
+    <input id="pcNumber" placeholder="Number (0)">
+    <input id="pcInfo" placeholder="Info (BOSTON · SF)">
+    <input id="pcFg" placeholder="FG (11-19)">
+    <input id="pcPts" type="number" placeholder="PTS">
+    <input id="pcReb" type="number" placeholder="REB">
+    <input id="pcAst" type="number" placeholder="AST">
+  </div>
+  <div class="row">
+    <button class="amber" data-act="pcShow" style="flex:1">SHOW CARD</button>
+    <button class="red" data-act="pcHide" style="flex:1">HIDE CARD</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lbl">Bug &amp; ticker</div>
+  <div class="grid2">
+    <div class="row">
+      <button data-act="netbug" id="bNetbug" style="flex:1">NETWORK BUG</button>
+      <button data-act="ticker" id="bTicker" style="flex:1">TICKER</button>
+    </div>
+    <input id="venue" placeholder="Venue (TD Garden)">
+  </div>
+</div>
+
+<script src="/packages/hoops/assets/state.js"></script>
+<script>
+  const g = (id) => document.getElementById(id);
+  let state = null;
+
+  const client = PConAirPackage.connect('hoops', (s) => {
+    state = s;
+    g('pill').className = 'pill live';
+    g('pill').textContent = 'LIVE';
+    render();
+  });
+
+  function patch(p) { client.patch(p); }
+
+  function fmtClock(ms) {
+    const s = ms / 1000;
+    if (s < 60) return s.toFixed(1);
+    return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+  }
+  function parseClock(str) {
+    const p = String(str || '0:00').split(':');
+    return p.length === 2 ? ((+p[0] || 0) * 60 + (+p[1] || 0)) * 1000 : (+p[0] || 0) * 1000;
+  }
+  function gameRemainingMs() {
+    if (!state) return 0;
+    return state.clockEndsAt > 0 ? Math.max(0, state.clockEndsAt - Date.now()) : parseClock(state.clock);
+  }
+  function shotRemainingS() {
+    if (!state) return 0;
+    return state.shotEndsAt > 0 ? Math.max(0, (state.shotEndsAt - Date.now()) / 1000) : +state.shotClock || 0;
+  }
+
+  // Text inputs only sync from server state when not focused, so typing isn't clobbered.
+  function syncInput(id, value) {
+    const el = g(id);
+    if (document.activeElement !== el) el.value = value ?? '';
+  }
+
+  function render() {
+    if (!state) return;
+    g('dScoreA').textContent = state.scoreA;
+    g('dScoreB').textContent = state.scoreB;
+    g('dToA').textContent = state.timeoutsA;
+    g('dToB').textContent = state.timeoutsB;
+    syncInput('teamA', state.teamA);
+    syncInput('teamB', state.teamB);
+    syncInput('venue', state.venue);
+    g('bPossA').classList.toggle('toggled', state.possession === 'a');
+    g('bPossB').classList.toggle('toggled', state.possession === 'b');
+    g('bBonusA').classList.toggle('toggled', !!state.bonusA);
+    g('bBonusB').classList.toggle('toggled', !!state.bonusB);
+    g('bNetbug').classList.toggle('toggled', !!state.netBugVisible);
+    g('bTicker').classList.toggle('toggled', !!state.tickerVisible);
+    g('bClockStart').classList.toggle('toggled', state.clockEndsAt > 0);
+    g('bShotStart').classList.toggle('toggled', state.shotEndsAt > 0);
+    document.querySelectorAll('[data-qtr]').forEach((b) => {
+      b.classList.toggle('toggled', +b.dataset.qtr === +state.quarter);
+    });
+    const pc = state.playerCard || {};
+    syncInput('pcName', pc.name); syncInput('pcNumber', pc.number);
+    syncInput('pcInfo', pc.info); syncInput('pcFg', pc.fg);
+    syncInput('pcPts', pc.pts); syncInput('pcReb', pc.reb); syncInput('pcAst', pc.ast);
+  }
+
+  setInterval(() => {
+    if (!state) return;
+    g('dClock').textContent = fmtClock(gameRemainingMs());
+    const ss = shotRemainingS();
+    g('dShot').textContent = ss <= 5 ? ss.toFixed(1) : Math.ceil(ss);
+  }, 200);
+
+  document.body.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn || !state) return;
+
+    if (btn.dataset.bump) {
+      const [team, d] = btn.dataset.bump.split(':');
+      const key = 'score' + team;
+      patch({ [key]: Math.max(0, (+state[key] || 0) + +d) });
+      return;
+    }
+    if (btn.dataset.qtr) { patch({ quarter: +btn.dataset.qtr }); return; }
+
+    const [act, arg] = (btn.dataset.act || '').split(':');
+    switch (act) {
+      case 'possA': patch({ possession: state.possession === 'a' ? '' : 'a' }); break;
+      case 'possB': patch({ possession: state.possession === 'b' ? '' : 'b' }); break;
+      case 'bonusA': patch({ bonusA: !state.bonusA }); break;
+      case 'bonusB': patch({ bonusB: !state.bonusB }); break;
+      case 'toA': patch({ timeoutsA: Math.max(0, Math.min(7, (+state.timeoutsA || 0) + +arg)) }); break;
+      case 'toB': patch({ timeoutsB: Math.max(0, Math.min(7, (+state.timeoutsB || 0) + +arg)) }); break;
+      case 'clockStart': patch({ clockEndsAt: Date.now() + gameRemainingMs() }); break;
+      case 'clockStop': patch({ clock: fmtClock(gameRemainingMs()), clockEndsAt: 0 }); break;
+      case 'clockSet': patch({ clock: g('clockSet').value || '12:00', clockEndsAt: 0 }); break;
+      case 'shotStart': patch({ shotEndsAt: Date.now() + shotRemainingS() * 1000 }); break;
+      case 'shotStop': patch({ shotClock: shotRemainingS(), shotEndsAt: 0 }); break;
+      case 'shotReset':
+        // Keeps the running/stopped state, like a real shot clock reset.
+        if (state.shotEndsAt > 0) patch({ shotEndsAt: Date.now() + +arg * 1000, shotClock: +arg });
+        else patch({ shotClock: +arg });
+        break;
+      case 'netbug': patch({ netBugVisible: !state.netBugVisible }); break;
+      case 'ticker': patch({ tickerVisible: !state.tickerVisible }); break;
+      case 'pcShow':
+      case 'pcHide':
+        patch({
+          playerCard: {
+            visible: act === 'pcShow',
+            name: g('pcName').value, number: g('pcNumber').value,
+            info: g('pcInfo').value, fg: g('pcFg').value,
+            pts: +g('pcPts').value || 0, reb: +g('pcReb').value || 0, ast: +g('pcAst').value || 0,
+          },
+        });
+        break;
+    }
+  });
+
+  ['teamA', 'teamB'].forEach((id) => {
+    g(id).addEventListener('change', () => patch({ [id]: g(id).value.toUpperCase() }));
+  });
+  g('venue').addEventListener('change', () => patch({ venue: g('venue').value }));
+</script>
+</body>
+</html>

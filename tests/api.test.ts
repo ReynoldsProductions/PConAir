@@ -73,7 +73,8 @@ describe('Auth routes', () => {
       .send({ role: 'operator' });
     expect(out.status).toBe(200);
     expect(out.body.message).toMatch(/logged out/i);
-    const after = await request(app).get('/api/status').set('Cookie', cookie);
+    // /api/status is unauthenticated (v2); use a guarded endpoint to prove the session died.
+    const after = await request(app).get('/api/instance-status').set('Cookie', cookie);
     expect(after.status).toBe(401);
   });
 });
@@ -107,9 +108,12 @@ describe('API routes', () => {
     expect(res.body.reliability.panicActive).toBe(false);
   });
 
-  it('GET /api/status returns 401 without auth', async () => {
+  it('GET /api/status works without auth and includes GSC-compat fields', async () => {
     const res = await request(app).get('/api/status');
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
+    expect(res.body.presentationOpen).toBe(false);
+    expect(res.body.contentKind).toBe('slides');
+    expect(res.body.currentSlide).toBeNull();
   });
 
   it('POST /api/mode switches mode', async () => {

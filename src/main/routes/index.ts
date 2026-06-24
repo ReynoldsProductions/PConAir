@@ -2,9 +2,16 @@ import express, { Express } from 'express';
 import cookieParser from 'cookie-parser';
 import { createAuthRouter } from './auth';
 import { createApiRouter } from './api';
-import { createSlidesRouter } from './slides';
+import { createSlidesRouter, type SlidesRouterDeps } from './slides';
 import { createUrlRouter } from './url';
 import { createOperatorRouter } from './operator';
+import { createRemoteRouter } from './remote';
+import { createGscCompatRouter } from './gsc-compat';
+import { createTunnelRouter } from './tunnel';
+import { createStageTimerRouter, type StageTimerRouterDeps } from './stagetimer';
+import { createRenderRouter } from './render';
+import { createPackagesRouter } from './packages';
+import type { PackageHub } from '../packages/state-hub';
 import { createAdminRouter } from './admin';
 import { createPresetsRouter } from './presets';
 import { createL3Router } from './l3';
@@ -12,6 +19,8 @@ import { createActionRouter } from './action';
 import { createBackgroundRouter } from './background';
 import { createMediaLibraryRouter } from './media-library';
 import { createProfilesRouter } from './profiles';
+import { createBrandingRouter } from './branding';
+import { createTeleprompterRouter } from './teleprompter';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { PresetsStore } from '../presets';
@@ -19,10 +28,12 @@ import type { L3CueStore } from '../l3/cue-store';
 import type { L3PlaylistStore } from '../l3/playlist-store';
 import type { L3ThemeStore } from '../l3/theme-store';
 import type { MediaLibraryStore } from '../media-library/item-store';
+import type { SlideshowEngine } from '../media-library/slideshow';
 import type { ActionDispatcher } from '../action-dispatch';
 import type { ProfilePaths } from '../profiles/paths';
 import type { ReliabilityStore } from '../reliability-store';
 import type { L3Cue } from '../l3/cue-store';
+import type { SlidesWindowManager } from '../slides/window-manager';
 
 export interface RouteServices {
   store: StateStore;
@@ -34,6 +45,8 @@ export interface RouteServices {
   l3FilesRoot: string;
   graphicsRoot?: string;
   mediaLibrary: MediaLibraryStore;
+  /** Shared slideshow engine (same instance the action dispatcher uses). */
+  slideshow?: SlideshowEngine;
   dispatchAction: ActionDispatcher;
   profilePaths: ProfilePaths;
   getActiveProfileId: () => string;
@@ -45,11 +58,50 @@ export interface RouteServices {
   reliability: ReliabilityStore;
   serverStartedAt: number;
   buildDateIso: string;
+  /** Server port — used for LAN URLs in QR codes. */
   port: number;
   crashDumpsPath: string;
   getSlidesNotes: () => Promise<string | null>;
   getProfileName: () => string;
   renderManualCue?: (cue: L3Cue) => Promise<Buffer>;
+  /** Tunnel control hooks (Electron main); absent in tests. */
+  startTunnel?: () => void;
+  stopTunnel?: () => void;
+  saveTunnelSettings?: (patch: {
+    tunnelEnabled?: boolean;
+    tunnelDomain?: string | null;
+    tunnelToken?: string | null;
+    tunnelPinHash?: string | null;
+  }) => void;
+  showQrOverlay?: (url: string, durationMs: number) => Promise<void>;
+  hideQrOverlay?: () => void;
+  /** Stagetimer overlay hooks (Electron main); absent in tests. */
+  stageTimer?: Omit<StageTimerRouterDeps, 'store' | 'auth'>;
+  /** Graphics packages hub; null when the packages system is disabled. */
+  packageHub: PackageHub | null;
+  /** Google Slides auth hooks (Electron main only). */
+  openGoogleAuthWindow?: SlidesRouterDeps['openGoogleAuthWindow'];
+  getGoogleAuthState?: SlidesRouterDeps['getGoogleAuthState'];
+  /** Returns the current custom logo path from app settings (live, not cached). */
+  getCustomLogoPath: () => string | null;
+  /** Returns the current custom CSS path from app settings (live, not cached). */
+  getCustomCssPath: () => string | null;
+  /** Persists a branding settings patch to app-settings.json. */
+  saveBrandingSettings: (patch: { customLogoPath?: string | null; customCssPath?: string | null }) => void;
+  /** Slides window manager — enables notes scroll/zoom HTTP endpoints. */
+  slidesWindowManager?: SlidesWindowManager;
+  /** Returns the active teleprompter base URL (empty string when not configured). */
+  getTeleprompterHost: () => string;
+  /** Returns whether teleprompter proxy is enabled. */
+  isTeleprompterEnabled: () => boolean;
+  /** Persists teleprompter config to app-settings.json. */
+  saveTeleprompterSettings: (patch: { host?: string; enabled?: boolean }) => void;
+  /** Returns all app settings for GET /api/app-settings. */
+  getAppSettings?: () => import('../app-settings').AppSettings;
+  /** Persists a patch to app settings for PATCH /api/app-settings. */
+  saveAppSettingsPatch?: (patch: Partial<Omit<import('../app-settings').AppSettings, 'schemaVersion'>>) => import('../app-settings').AppSettings;
+  /** Returns backup settings for fan-out and GSC status. */
+  getBackupSettings?: () => { operationMode: import('../app-settings').AppSettings['operationMode']; backupIps: string[]; port: number };
 }
 
 export function mountRoutes(app: Express, s: RouteServices): void {
@@ -68,6 +120,16 @@ export function mountRoutes(app: Express, s: RouteServices): void {
     })
   );
   app.use('/operator', createOperatorRouter(s.auth));
+  app.use('/remote', createRemoteRouter(s.auth));
+  app.use(
+    '/branding',
+    createBrandingRouter({
+      auth: s.auth,
+      getCustomLogoPath: s.getCustomLogoPath,
+      getCustomCssPath: s.getCustomCssPath,
+      saveBrandingSettings: s.saveBrandingSettings,
+    })
+  );
   app.use(
     '/admin',
     createAdminRouter({
@@ -75,11 +137,42 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       getAdminShowLocked: s.getAdminShowLocked,
     })
   );
-  app.use('/api/slides', createSlidesRouter(s.store, s.auth));
+  app.use('/api/teleprompter', createTeleprompterRouter({
+    store: s.store,
+    auth: s.auth,
+    getTeleprompterHost: s.getTeleprompterHost,
+    isTeleprompterEnabled: s.isTeleprompterEnabled,
+    saveTeleprompterSettings: s.saveTeleprompterSettings,
+  }));
+  app.use('/api/slides', createSlidesRouter(s.store, s.auth, {
+    openGoogleAuthWindow: s.openGoogleAuthWindow,
+    getGoogleAuthState: s.getGoogleAuthState,
+    windowManager: s.slidesWindowManager,
+    getBackupSettings: s.getBackupSettings,
+  }));
+  // GSC Companion module compat — cookie-less, IP-allowlist-gated (see gsc-compat.ts)
+  app.use('/api', createGscCompatRouter(s.store));
+  app.use(createRenderRouter(s.store, s.auth));
+  if (s.packageHub) {
+    app.use(createPackagesRouter(s.packageHub));
+  }
+  app.use(
+    createTunnelRouter({
+      store: s.store,
+      auth: s.auth,
+      port: s.port,
+      startTunnel: s.startTunnel,
+      stopTunnel: s.stopTunnel,
+      saveTunnelSettings: s.saveTunnelSettings,
+      showQrOverlay: s.showQrOverlay,
+      hideQrOverlay: s.hideQrOverlay,
+    })
+  );
+  app.use(createStageTimerRouter({ store: s.store, auth: s.auth, getBackupSettings: s.getBackupSettings, ...s.stageTimer }));
   app.use('/api/url', createUrlRouter(s.store, s.auth));
   app.use('/api/presets', createPresetsRouter(s.store, s.auth, s.presets));
   app.use('/api/l3', createL3Router(s.store, s.auth, s.l3Cues, s.l3Playlists, s.l3ThemeStore, s.l3FilesRoot, s.renderManualCue));
-  app.use('/api/media-library', createMediaLibraryRouter(s.store, s.auth, s.mediaLibrary));
+  app.use('/api/media-library', createMediaLibraryRouter(s.store, s.auth, s.mediaLibrary, s.slideshow));
   app.use('/api/background', createBackgroundRouter({
     store: s.store,
     auth: s.auth,
@@ -97,6 +190,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       l3Cues: s.l3Cues,
       l3Playlists: s.l3Playlists,
       mediaLibrary: s.mediaLibrary,
+      store: s.store,
       onProfileActivate: s.onProfileActivate,
     })
   );
@@ -112,10 +206,9 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       setAdminShowLocked: s.setAdminShowLocked,
       syncAdminShowLockedToStore: s.syncAdminShowLockedToStore,
       getActiveProfileId: s.getActiveProfileId,
-      port: s.port,
-      crashDumpsPath: s.crashDumpsPath,
-      getSlidesNotes: s.getSlidesNotes,
-      getProfileName: s.getProfileName,
+      getBackupSettings: s.getBackupSettings,
+      getAppSettings: s.getAppSettings,
+      saveAppSettingsPatch: s.saveAppSettingsPatch,
     })
   );
 }

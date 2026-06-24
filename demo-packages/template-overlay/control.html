@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Overlay Template Control</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="/packages/template-overlay/assets/style.css" />
+<style>
+  .toggle-row { display:flex; gap:10px; flex-wrap:wrap; }
+  textarea { resize:vertical; min-height:90px; }
+  .l3-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+</style>
+</head>
+<body>
+<div class="header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+  <div>
+    <h1>Overlay Template</h1>
+    <span class="status-pill offline" id="status-pill">CONNECTING…</span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Bug &amp; Live</div>
+  <div class="toggle-row">
+    <button id="btn-bug-toggle">Toggle Logo Bug</button>
+    <button id="btn-live-show" class="btn-success">LIVE ON</button>
+    <button id="btn-live-hide" class="btn-danger">LIVE OFF</button>
+    <button id="btn-theme">Toggle Dark Theme</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Lower Third</div>
+  <div class="l3-grid">
+    <div>
+      <label>Name</label>
+      <input type="text" id="l3-name" placeholder="Jane Smith" />
+    </div>
+    <div>
+      <label>Title</label>
+      <input type="text" id="l3-title" placeholder="Chief Executive Officer" />
+    </div>
+  </div>
+  <div class="row">
+    <button class="btn-primary" id="btn-l3-take">TAKE</button>
+    <button class="btn-danger"  id="btn-l3-clear">CLEAR</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Ticker</div>
+  <div>
+    <label>Messages (one per line — use "Lead:: rest" for bold lead text)</label>
+    <textarea id="ticker-messages"></textarea>
+  </div>
+  <div>
+    <label>Ticker label</label>
+    <input type="text" id="ticker-label" />
+  </div>
+  <div class="row">
+    <button class="btn-success" id="btn-ticker-show">SHOW</button>
+    <button class="btn-danger"  id="btn-ticker-hide">HIDE</button>
+    <button class="btn-primary" id="btn-ticker-save">SAVE &amp; SHOW</button>
+  </div>
+</div>
+
+<script src="/packages/template-overlay/assets/state.js"></script>
+<script>
+  const g = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  let state = null;
+
+  const client = PConAirPackage.connect('template-overlay', s => {
+    state = s;
+    g('status-pill').className = 'status-pill live';
+    g('status-pill').textContent = 'LIVE';
+    render();
+  });
+
+  function patch(p) { client.patch(p); }
+
+  function render() {
+    if (!state) return;
+    const l3 = state.l3 || {};
+    if (document.activeElement !== g('l3-name'))  g('l3-name').value  = l3.name  || '';
+    if (document.activeElement !== g('l3-title')) g('l3-title').value = l3.title || '';
+    const t = state.ticker || {};
+    if (document.activeElement !== g('ticker-messages')) g('ticker-messages').value = (t.messages || []).join('\n');
+    if (document.activeElement !== g('ticker-label'))    g('ticker-label').value    = t.label || '';
+  }
+
+  // Bug & live
+  g('btn-bug-toggle').addEventListener('click', () => patch({ bugVisible: !(state && state.bugVisible) }));
+  g('btn-live-show').addEventListener('click',  () => patch({ liveVisible: true }));
+  g('btn-live-hide').addEventListener('click',  () => patch({ liveVisible: false }));
+  g('btn-theme').addEventListener('click',      () => patch({ theme: (state && state.theme) === 'dark' ? 'light' : 'dark' }));
+
+  // Lower third
+  g('btn-l3-take').addEventListener('click', () => {
+    const base = (state && state.l3) || {};
+    patch({ l3: { ...base, name: g('l3-name').value.trim() || base.name, title: g('l3-title').value.trim() || base.title, visible: true } });
+  });
+  g('btn-l3-clear').addEventListener('click', () => {
+    const base = (state && state.l3) || {};
+    patch({ l3: { ...base, visible: false } });
+  });
+
+  // Ticker
+  g('btn-ticker-show').addEventListener('click', () => {
+    const base = (state && state.ticker) || {};
+    patch({ ticker: { ...base, visible: true } });
+  });
+  g('btn-ticker-hide').addEventListener('click', () => {
+    const base = (state && state.ticker) || {};
+    patch({ ticker: { ...base, visible: false } });
+  });
+  g('btn-ticker-save').addEventListener('click', () => {
+    const messages = g('ticker-messages').value.split('\n').map(s => s.trim()).filter(Boolean);
+    const label = g('ticker-label').value.trim();
+    const base = (state && state.ticker) || {};
+    patch({ ticker: { ...base, messages, label: label || base.label || 'ON AIR', visible: true } });
+  });
+</script>
+</body>
+</html>

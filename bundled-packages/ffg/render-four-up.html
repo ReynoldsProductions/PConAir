@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>FFG — Four-Up Live Grid</title>
+  <meta name="viewport" content="width=1920, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/packages/ffg/assets/cardboard.css" />
+  <style>
+    .ffg-top {
+      position: absolute; top: 16px; left: 24px; right: 24px;
+      height: 86px;
+      display: flex; align-items: center;
+      padding: 0 28px; gap: 20px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    }
+    .ffg-top .ttl {
+      font-family: var(--serif); font-size: 36px; line-height: 1;
+      color: var(--ink); font-weight: 500;
+    }
+    .ffg-top .sub {
+      margin-top: 4px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.32em;
+      color: var(--ink); opacity: 0.55;
+    }
+    .grid {
+      position: absolute;
+      top: 124px; left: 36px; right: 36px; bottom: 70px;
+      display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 24px;
+    }
+    .grid .cell { position: relative; }
+    .order-chip {
+      position: absolute; top: 16px; right: 32px; z-index: 5;
+      background: var(--ink); color: var(--cream);
+      font-family: var(--mono);
+      padding: 12px 22px 14px; border-radius: 4px;
+      border: 1px solid var(--kraft-light);
+      display: flex; flex-direction: column; align-items: flex-start;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    }
+    .order-chip .lbl { font-size: 11px; letter-spacing: 0.3em; opacity: 0.6; margin-bottom: 4px; font-weight: 500; }
+    .order-chip .score { font-size: 64px; font-weight: 700; color: var(--cream); letter-spacing: 0.02em; line-height: 1; display: flex; align-items: baseline; }
+    .order-chip .score b { color: var(--kraft-light); font-weight: 700; }
+    .order-chip .score .max { font-size: 26px; opacity: 0.5; margin-left: 6px; font-weight: 500; }
+    .footer {
+      position: absolute; bottom: 16px; left: 36px; right: 36px;
+      height: 42px;
+      background: var(--ink); color: var(--cream);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 18px; border-radius: 3px;
+      font-size: 13px; letter-spacing: 0.25em; font-weight: 500;
+    }
+    .footer .right { display: flex; gap: 18px; align-items: center; }
+    .footer .url { color: var(--kraft-light); font-family: var(--serif); font-size: 16px; font-style: italic; letter-spacing: 0; }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage" data-screen-label="Four-Up Live"></div>
+
+  <script src="/packages/ffg/assets/state.js"></script>
+  <script src="/packages/ffg/assets/overlay-kit.js"></script>
+  <script src="/packages/ffg/assets/ffg-common.js"></script>
+  <script>
+    (function () {
+      const { el, makeFrame, makeStamp, makeTimerChip } = window.OverlayKit;
+      const stage = document.getElementById('stage');
+
+      const chips = [];
+
+      function build(s) {
+        const TEAMS = s.teams;
+
+        // Top header bar
+        const top = el('div', { cls: 'ffg-top paper' });
+        top.appendChild(el('div', { cls: 'f-mark', text: 'F' }));
+        const t = el('div', { style: { flex: '1' } });
+        t.appendChild(el('div', { cls: 'ttl', text: 'Faire Fulfillment Games' }));
+        t.appendChild(el('div', { cls: 'sub', text: 'PICK · PACK · LABEL · SHIP — RACING NOW' }));
+        top.appendChild(t);
+
+        // Live timer chip
+        const chip = makeTimerChip('SHIP-BY');
+        top.appendChild(chip);
+        FFG.bindTimer(chip);
+
+        // Stamp
+        top.appendChild(makeStamp('ground', 4, 'sm'));
+        stage.appendChild(top);
+
+        // 2x2 grid
+        const cellW = 912, cellH = 431;
+        const camW = cellW - 20 * 2;     // 872
+        const camH = cellH - 32 - 86;    // 313
+        const grid = el('div', { cls: 'grid' });
+
+        TEAMS.forEach((tm, i) => {
+          const cell = el('div', { cls: 'cell' });
+          cell.appendChild(makeFrame({
+            width: '100%', height: '100%',
+            clipW: cellW, clipH: cellH,
+            top: 32, side: 20, bottom: 86,
+            title: tm.name.toUpperCase(),
+            sub: `${tm.city} · ${tm.presenter}`,
+            tape: (i === 1 || i === 2) ? 'tr' : null,
+            corner: tm.code,
+            resW: camW, resH: camH,
+            resLabel: 'WIDE',
+            placeholderLabel: `CAM ${i + 1} · ${tm.name.toUpperCase()}`,
+          }));
+          const oc = el('div', { cls: 'order-chip', attrs: { 'data-team': String(i) } });
+          cell.appendChild(oc);
+          chips.push(oc);
+          grid.appendChild(cell);
+        });
+        stage.appendChild(grid);
+
+        // Footer
+        const footer = el('div', { cls: 'footer' });
+        footer.appendChild(el('span', { style: { opacity: '0.6' }, text: '#FAIREFULFILLMENTGAMES' }));
+        stage.appendChild(footer);
+      }
+
+      FFG.start(build, (s) => JSON.stringify(s.teams));
+
+      FFG.onUpdate((s) => {
+        const max = +s.maxScore || 10;
+        chips.forEach((c, i) => {
+          const v = Math.max(0, Math.min(max, +s.scores[i] || 0));
+          c.innerHTML = `<span class="lbl">ORDERS</span><span class="score"><b>${v}</b><span class="max">/ ${max}</span></span>`;
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -9,13 +9,17 @@ import type { L3CueStore } from './l3/cue-store';
 import type { L3PlaylistStore } from './l3/playlist-store';
 import type { L3ThemeStore } from './l3/theme-store';
 import type { MediaLibraryStore } from './media-library/item-store';
+import type { SlideshowEngine } from './media-library/slideshow';
 import type { ActionDispatcher } from './action-dispatch';
+import type { SlidesWindowManager } from './slides/window-manager';
 import type { WsServerMessage } from '../shared/types';
 
 import type { ProfilePaths } from './profiles/paths';
 import { loadProfile } from './profiles/bootstrap';
 import { parseCookieHeader } from './cookie-parse';
 import { isClientIpAllowlisted } from './security/ip-allowlist';
+import { createTunnelPinGate } from './security/tunnel-pin';
+import { createPackageHub, type PackageHub } from './packages/state-hub';
 import { createReliabilityStore } from './reliability-store';
 
 export interface ServerDeps {
@@ -26,9 +30,9 @@ export interface ServerDeps {
   l3Playlists: L3PlaylistStore;
   l3ThemeStore: L3ThemeStore;
   l3FilesRoot: string;
-  /** Absolute path to the built-in graphics templates dir; when set, served at /graphics. */
-  graphicsRoot?: string;
   mediaLibrary: MediaLibraryStore;
+  /** Shared slideshow engine (same instance the action dispatcher uses). */
+  slideshow?: SlideshowEngine;
   dispatchAction: ActionDispatcher;
   port?: number;
   crashDumpsPath?: string;
@@ -40,6 +44,46 @@ export interface ServerDeps {
   trustForwardedFor?: boolean;
   /** When omitted, manual-cue export returns 501 (e.g. in tests without Electron). */
   renderManualCue?: (cue: import('./l3/cue-store').L3Cue) => Promise<Buffer>;
+  /** Tunnel PIN gate: bcrypt hash getter; null/omitted = tunnel access not PIN-gated. */
+  getTunnelPinHash?: () => string | null;
+  /** Tunnel/QR control hooks (Electron main); absent in tests. */
+  startTunnel?: () => void;
+  stopTunnel?: () => void;
+  saveTunnelSettings?: (patch: {
+    tunnelEnabled?: boolean;
+    tunnelDomain?: string | null;
+    tunnelToken?: string | null;
+    tunnelPinHash?: string | null;
+  }) => void;
+  showQrOverlay?: (url: string, durationMs: number) => Promise<void>;
+  hideQrOverlay?: () => void;
+  /** Stagetimer overlay hooks + settings persistence (Electron main); absent in tests. */
+  stageTimer?: RouteServices['stageTimer'];
+  /** Directory (or ordered list: bundled first, then user) scanned for graphics packages; omit to disable the packages system. */
+  packagesRoot?: string | string[];
+  /** Serves static graphics templates at /graphics; omit to disable. */
+  graphicsRoot?: string;
+  /** Google Slides auth hooks (Electron main only). */
+  openGoogleAuthWindow?: () => void;
+  getGoogleAuthState?: () => Promise<{ loggedIn: boolean; email: string | null }>;
+  /** Returns the current custom logo path from app settings. */
+  getCustomLogoPath?: () => string | null;
+  /** Returns the current custom CSS path from app settings. */
+  getCustomCssPath?: () => string | null;
+  /** Persists branding settings to app-settings.json. */
+  saveBrandingSettings?: (patch: { customLogoPath?: string | null; customCssPath?: string | null }) => void;
+  /** Slides window manager — enables notes scroll/zoom HTTP endpoints; absent in tests. */
+  slidesWindowManager?: SlidesWindowManager;
+  /** Teleprompter proxy hooks; absent in tests (no-ops applied). */
+  getTeleprompterHost?: () => string;
+  isTeleprompterEnabled?: () => boolean;
+  saveTeleprompterSettings?: (patch: { host?: string; enabled?: boolean }) => void;
+  /** Returns backup settings for fan-out and GSC status. */
+  getBackupSettings?: RouteServices['getBackupSettings'];
+  /** Returns all app settings (GET /api/app-settings). */
+  getAppSettings?: RouteServices['getAppSettings'];
+  /** Persists an app settings patch (PATCH /api/app-settings). */
+  saveAppSettingsPatch?: RouteServices['saveAppSettingsPatch'];
 }
 
 function getRequestClientIp(req: express.Request, trustForwardedFor: boolean): string {
@@ -99,14 +143,15 @@ export function createServer(deps: ServerDeps) {
     mediaLibrary,
     dispatchAction,
     port = 8080,
+    crashDumpsPath = '',
+    getSlidesNotes: getSlidesNotesDep,
+    getProfileName: getProfileNameDep,
     profilePaths,
     getActiveProfileId,
     onProfileActivate,
     trustForwardedFor = false,
     renderManualCue: renderManualCueDep,
-    crashDumpsPath = '',
-    getSlidesNotes = async (): Promise<string | null> => null,
-    getProfileName = () => 'PC On Air',
+    slidesWindowManager,
   } = deps;
 
   let adminShowLocked = false;
@@ -151,6 +196,8 @@ export function createServer(deps: ServerDeps) {
     wsRegistry.closeFor(sessionId);
   }
 
+  const packageHub: PackageHub | null = deps.packagesRoot ? createPackageHub(deps.packagesRoot) : null;
+
   const routeServices: RouteServices = {
     store,
     auth,
@@ -161,6 +208,7 @@ export function createServer(deps: ServerDeps) {
     l3FilesRoot,
     graphicsRoot,
     mediaLibrary,
+    slideshow: deps.slideshow,
     dispatchAction,
     profilePaths,
     getActiveProfileId,
@@ -174,9 +222,28 @@ export function createServer(deps: ServerDeps) {
     buildDateIso,
     port,
     crashDumpsPath,
-    getSlidesNotes,
-    getProfileName,
+    getSlidesNotes: getSlidesNotesDep ?? (async () => null),
+    getProfileName: getProfileNameDep ?? (() => ''),
     renderManualCue: renderManualCueDep,
+    startTunnel: deps.startTunnel,
+    stopTunnel: deps.stopTunnel,
+    saveTunnelSettings: deps.saveTunnelSettings,
+    showQrOverlay: deps.showQrOverlay,
+    hideQrOverlay: deps.hideQrOverlay,
+    stageTimer: deps.stageTimer,
+    packageHub,
+    openGoogleAuthWindow: deps.openGoogleAuthWindow,
+    getGoogleAuthState: deps.getGoogleAuthState,
+    getCustomLogoPath: deps.getCustomLogoPath ?? (() => null),
+    getCustomCssPath: deps.getCustomCssPath ?? (() => null),
+    saveBrandingSettings: deps.saveBrandingSettings ?? (() => { /* no-op in tests */ }),
+    slidesWindowManager,
+    getTeleprompterHost: deps.getTeleprompterHost ?? (() => ''),
+    isTeleprompterEnabled: deps.isTeleprompterEnabled ?? (() => false),
+    saveTeleprompterSettings: deps.saveTeleprompterSettings ?? (() => { /* no-op in tests */ }),
+    getBackupSettings: deps.getBackupSettings,
+    getAppSettings: deps.getAppSettings,
+    saveAppSettingsPatch: deps.saveAppSettingsPatch,
   };
 
   const app = express();
@@ -207,21 +274,49 @@ export function createServer(deps: ServerDeps) {
     next();
   });
 
+  // Tunnel access always requires the PIN when one is configured (v2 plan §Connections).
+  const tunnelGate = createTunnelPinGate({
+    getTunnelPinHash: deps.getTunnelPinHash ?? (() => null),
+  });
+  app.use(tunnelGate.middleware);
+
   mountRoutes(app, routeServices);
+
+  if (deps.graphicsRoot) {
+    app.use('/graphics', express.static(deps.graphicsRoot, { index: false, fallthrough: false }));
+  }
 
   const httpServer = http.createServer(app);
   const wss = new WebSocketServer({
     server: httpServer,
     path: '/ws',
     verifyClient: (info, cb) => {
+      // Render pages (OBS browser sources, ?render=1) and Companion (?companion=1)
+      // connect cookie-less — LAN-only via the IP allowlist, same model as the
+      // GSC-compat and packages HTTP surfaces. Connections arriving through the
+      // Cloudflare tunnel (cf-* headers) never get the cookie-less path: the
+      // tunnel PIN gate is HTTP middleware and can't protect WS upgrades.
       try {
-        const u = new URL(info.req.url ?? '/', 'http://localhost');
+        const u = new URL(info.req.url || '/', 'http://localhost');
         if (u.searchParams.get('graphics') === '1') {
           cb(true); // read-only viewer — no auth required
           return;
         }
+        const cookieLess = u.searchParams.get('render') === '1' || u.searchParams.get('companion') === '1';
+        const viaTunnel = Boolean(
+          info.req.headers['cf-connecting-ip'] ?? info.req.headers['cf-ray'] ?? info.req.headers['cf-visitor']
+        );
+        if (cookieLess && !viaTunnel) {
+          const ip = info.req.socket.remoteAddress ?? '0.0.0.0';
+          cb(isClientIpAllowlisted(ip, getSecurityNetworkPrefs()));
+          return;
+        }
+        if (cookieLess && viaTunnel) {
+          cb(false);
+          return;
+        }
       } catch {
-        /* malformed URL — fall through to cookie auth */
+        /* fall through to cookie auth */
       }
       const cookies = parseCookieHeader(info.req.headers.cookie);
       const op = cookies.pconair_operator_session;
@@ -276,24 +371,70 @@ export function createServer(deps: ServerDeps) {
       /* malformed URL — fall through to standard handler */
     }
 
+    let isCompanion = false;
+    let isRender = false;
+    try {
+      const u = new URL(req.url || '/', 'http://localhost');
+      isCompanion = u.searchParams.get('companion') === '1';
+      isRender = u.searchParams.get('render') === '1';
+    } catch {
+      /* ignore */
+    }
+
+    // Package namespace pub/sub ({type:'subscribe', namespace:'package:<id>'}) —
+    // available to render pages and authenticated clients alike.
+    const namespaceUnsubs: Array<() => void> = [];
+    ws.on('close', () => {
+      for (const u of namespaceUnsubs) u();
+    });
+    ws.on('message', (raw) => {
+      if (!packageHub) return;
+      try {
+        const msg = JSON.parse(String(raw)) as { type?: string; namespace?: string };
+        if (msg.type !== 'subscribe' || typeof msg.namespace !== 'string') return;
+        const m = /^package:(.+)$/.exec(msg.namespace);
+        if (!m) return;
+        const state = packageHub.getState(m[1]);
+        if (state === null) {
+          ws.send(JSON.stringify({ type: 'error', payload: { code: 'ITEM_NOT_FOUND', message: `Unknown package '${m[1]}'` } }));
+          return;
+        }
+        const namespace = msg.namespace;
+        ws.send(JSON.stringify({ type: 'state', namespace, state }));
+        namespaceUnsubs.push(
+          packageHub.subscribe(namespace, (s) => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'state', namespace, state: s }));
+            }
+          })
+        );
+      } catch {
+        /* ignore malformed frames */
+      }
+    });
+
+    if (isRender) {
+      // Read-only AppState push for render pages: send snapshot; package
+      // subscriptions above are the only messages honored.
+      ws.send(JSON.stringify({ type: 'state', payload: store.getState() } satisfies WsServerMessage));
+      return;
+    }
+
     const cookies = parseCookieHeader(req.headers.cookie);
     const opId = cookies.pconair_operator_session;
     const adId = cookies.pconair_admin_session;
     const opSessionId = opId && auth.getSession(opId) ? opId : undefined;
     const adSessionId = adId && auth.getSession(adId) ? adId : undefined;
     const sessionIds = [opSessionId, adSessionId].filter(Boolean) as string[];
-    if (sessionIds.length === 0) {
+    // Companion connects cookie-less on LAN (IP-allowlist-gated at upgrade,
+    // same trust model as the GSC-compat HTTP action endpoints).
+    const cookieLessCompanion = isCompanion && sessionIds.length === 0;
+    if (sessionIds.length === 0 && !cookieLessCompanion) {
       ws.close(4001, 'Authentication required');
       return;
     }
-    wsRegistry.register(ws, sessionIds);
-
-    let isCompanion = false;
-    try {
-      const u = new URL(req.url || '/', 'http://localhost');
-      isCompanion = u.searchParams.get('companion') === '1';
-    } catch {
-      /* ignore */
+    if (sessionIds.length > 0) {
+      wsRegistry.register(ws, sessionIds);
     }
     if (isCompanion) {
       companionClients.add(ws);
@@ -319,6 +460,17 @@ export function createServer(deps: ServerDeps) {
           pin?: string;
         };
         if (msg.type !== 'action' || !msg.action_id) return;
+
+        if (cookieLessCompanion) {
+          reliability.touchCompanionHeartbeat();
+          const r = await dispatchAction(msg.action_id, msg.params ?? {});
+          if (!r.ok) {
+            ws.send(JSON.stringify({ type: 'error', payload: r.error }));
+            return;
+          }
+          ws.send(JSON.stringify({ type: 'action_result', payload: r.body }));
+          return;
+        }
 
         const hasOperator = Boolean(opSessionId && auth.getSession(opSessionId));
         const hasAdmin = Boolean(adSessionId && auth.getSession(adSessionId));
@@ -388,8 +540,12 @@ export function createServer(deps: ServerDeps) {
   });
 
   function listen(): Promise<void> {
-    return new Promise((resolve) => {
-      httpServer.listen(port, resolve);
+    return new Promise((resolve, reject) => {
+      httpServer.once('error', reject);
+      httpServer.listen(port, () => {
+        httpServer.removeListener('error', reject);
+        resolve();
+      });
     });
   }
 

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Faire Nightly News — overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ── tokens: from Faire design language + FaireL3s style.json ── */
+  :root{
+    --ink:#333333; --sub:#757575; --cream:#fbf8f6; --tan:#b5a998;
+    --border:#dfe0e1; --live:#921100; --panel-dark:#333333; --border-dark:#585550;
+    --font-sans:'Inter',-apple-system,sans-serif; --font-serif:'Lora',Georgia,serif;
+    /* ticker geometry */
+    --ticker-h:96px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{width:1920px;height:1080px;overflow:hidden;background:transparent;
+    font-family:var(--font-sans);-webkit-font-smoothing:antialiased;}
+  #stage{position:absolute;inset:0;}
+
+  /* soft top scrim — keeps the cream logo bug + LIVE legible over bright backgrounds */
+  .scrim-top{position:absolute;top:0;left:0;right:0;height:220px;pointer-events:none;
+    background:linear-gradient(to bottom, rgba(26,24,22,.55) 0%, rgba(26,24,22,.18) 45%, rgba(26,24,22,0) 100%);}
+
+  /* SVG film grain overlay — adds perceived production value at near-zero cost */
+  .grain{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;opacity:.045;z-index:999;}
+
+  /* ── logo bug (top-left) ── */
+  .bug{position:absolute;top:54px;left:96px;display:flex;align-items:baseline;gap:14px;
+    text-shadow:0 2px 10px rgba(0,0,0,.55);}
+  .bug .b1{font-family:var(--font-serif);font-weight:500;font-size:44px;color:var(--cream);letter-spacing:.01em;}
+  .bug .b2{font-size:15px;font-weight:600;letter-spacing:.26em;text-transform:uppercase;color:var(--tan);}
+
+  /* ── live + clock (top-right) ── */
+  .tr{position:absolute;top:54px;right:96px;display:flex;align-items:center;gap:22px;}
+  .live{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:600;letter-spacing:.2em;
+    color:var(--cream);text-shadow:0 2px 10px rgba(0,0,0,.55);}
+  .live .dot{width:13px;height:13px;border-radius:50%;background:var(--live);
+    animation:pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.35;}}
+  .clock{font-variant-numeric:tabular-nums;font-size:24px;font-weight:500;color:var(--cream);
+    background:rgba(51,51,51,.82);padding:8px 16px;border-radius:4px;letter-spacing:.03em;}
+
+  /* ── lower third — FaireL3s style.json (default/light), lifted above ticker ── */
+  /* panel 861x169, accent 5x104 @x24, name 52 / title 32, left margin 96 */
+  .l3{position:absolute;left:96px;bottom:calc(var(--ticker-h) + 28px);
+    width:861px;height:169px;background:rgba(251,248,246,.94);
+    border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;
+    box-shadow:0 4px 24px rgba(0,0,0,.18);
+    transform:translateX(-960px);opacity:0;transition:transform .5s cubic-bezier(.2,.7,.2,1),opacity .4s;}
+  .l3.in{transform:none;opacity:1;}
+  .l3 .accent{width:5px;height:104px;background:var(--tan);margin:0 16px 0 24px;flex:none;}
+  .l3 .name{font-family:var(--font-sans);font-weight:600;font-size:52px;line-height:1;color:var(--ink);}
+  .l3 .title{font-size:32px;color:var(--sub);margin-top:14px;line-height:1;}
+  /* staggered entrance — name leads, title follows */
+  .l3 .name,.l3 .title{opacity:0;transition:opacity .32s ease;}
+  .l3.in .name{opacity:1;transition-delay:.18s;}
+  .l3.in .title{opacity:1;transition-delay:.33s;}
+  /* dark variant */
+  body.theme-dark .l3{background:rgba(51,51,51,.96);border-color:var(--border-dark);}
+  body.theme-dark .l3 .name{color:#fff;} body.theme-dark .l3 .title{color:#e0e0e0;}
+
+  /* ── ticker (bottom) ── */
+  .ticker{position:absolute;left:0;right:0;bottom:0;height:var(--ticker-h);display:flex;align-items:stretch;
+    background:rgba(51,51,51,.94);border-top:2px solid var(--tan);}
+  .ticker .label{display:flex;align-items:center;padding:0 28px;background:var(--tan);color:var(--ink);
+    font-size:20px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;flex:none;}
+  .ticker .mask{flex:1;overflow:hidden;position:relative;}
+  .ticker .track{position:absolute;top:0;left:0;height:100%;display:flex;align-items:center;
+    white-space:nowrap;will-change:transform;animation:crawl var(--crawl-dur,38s) linear infinite;}
+  .ticker .item{font-size:23px;color:var(--cream);padding:0 4px;letter-spacing:.01em;}
+  .ticker .item b{color:var(--tan);font-weight:600;}
+  .ticker .sep{color:#8a8378;padding:0 26px;font-size:18px;}
+  @keyframes crawl{from{transform:translateX(0);} to{transform:translateX(-50%);}}
+</style>
+</head>
+<body>
+<svg class="grain" aria-hidden="true"><filter id="g"><feTurbulence baseFrequency=".75" numOctaves="2" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(#g)"/></svg>
+<div id="stage">
+  <div class="scrim-top"></div>
+  <div class="bug" id="bug"><span class="b1">Faire</span><span class="b2">Nightly News</span></div>
+  <div class="tr">
+    <div class="live" id="live"><span class="dot"></span><span>LIVE</span></div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+  <div class="l3" id="l3">
+    <div class="accent"></div>
+    <div><div class="name" id="l3name"></div><div class="title" id="l3title"></div></div>
+  </div>
+  <div class="ticker" id="ticker">
+    <div class="label" id="tickerLabel">Faire Wire</div>
+    <div class="mask"><div class="track" id="track"></div></div>
+  </div>
+</div>
+
+<script src="/packages/news/assets/state.js"></script>
+<script>
+  const g = (id) => document.getElementById(id);
+
+  // ── live clock (local time — not part of package state) ──
+  function tick(){
+    const d = new Date();
+    let h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
+    const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+    const pad = n => String(n).padStart(2,'0');
+    g('clock').textContent = `${h}:${pad(m)}:${pad(s)} ${ap}`;
+  }
+  tick(); setInterval(tick, 1000);
+
+  // ── ticker (duplicated for seamless loop) ──
+  // Items may use "lead:: rest" — the lead before :: renders bold/tan.
+  let tickerKey = '';
+  function rebuildTicker(items) {
+    const track = g('track');
+    track.innerHTML = '';
+    const buildRun = () => {
+      const frag = document.createDocumentFragment();
+      (items || []).forEach((raw) => {
+        const sepIdx = String(raw).indexOf('::');
+        const lead = sepIdx >= 0 ? String(raw).slice(0, sepIdx) : '';
+        const rest = sepIdx >= 0 ? String(raw).slice(sepIdx + 2) : String(raw);
+        const item = document.createElement('span'); item.className = 'item';
+        if (lead) {
+          const strong = document.createElement('b'); strong.textContent = lead;
+          item.appendChild(strong);
+        }
+        item.appendChild(document.createTextNode(rest));
+        const sep = document.createElement('span'); sep.className = 'sep'; sep.textContent = '◆';
+        frag.appendChild(item); frag.appendChild(sep);
+      });
+      return frag;
+    };
+    track.appendChild(buildRun()); track.appendChild(buildRun()); // two runs → -50% loop
+  }
+
+  function applyState(s) {
+    document.body.classList.toggle('theme-dark', s.theme === 'dark');
+    g('bug').style.display = s.bugVisible ? '' : 'none';
+    g('live').style.display = s.liveVisible ? '' : 'none';
+
+    const l3 = s.l3 || {};
+    // Set text before animating in so the slide never shows stale copy.
+    if (l3.visible) {
+      g('l3name').textContent = l3.name || '';
+      g('l3title').textContent = l3.title || '';
+    }
+    g('l3').classList.toggle('in', !!l3.visible);
+
+    g('ticker').style.display = (s.ticker && s.ticker.visible) ? '' : 'none';
+    g('tickerLabel').textContent = (s.ticker && s.ticker.label) || '';
+    const speed = (s.ticker && +s.ticker.speed) || 80;
+    g('track').style.setProperty('--crawl-dur', (38 * 80 / speed).toFixed(1) + 's');
+    const key = JSON.stringify((s.ticker && s.ticker.messages) || []);
+    if (key !== tickerKey) {
+      tickerKey = key;
+      rebuildTicker(s.ticker && s.ticker.messages);
+    }
+  }
+
+  PConAirPackage.connect('news', applyState);
+</script>
+</body>
+</html>

@@ -11,12 +11,51 @@ export interface Preset {
   name: string;
 }
 
+export type SlidesContentKind = 'slides' | 'url' | 'none';
+
 export interface SlidesState {
   deckId: string;
   deckTitle: string;
   slideIndex: number; // 0-based
   slideCount: number;
   isLoading: boolean;
+  /** Original deck URL as loaded (for status display / reload). */
+  deckUrl: string | null;
+  /** A/B failover: backup deck loaded alongside the primary. */
+  backupDeckId: string | null;
+  backupDeckUrl: string | null;
+  backupLoaded: boolean;
+  /** Current slide's speaker notes (normalized; '' when none). */
+  notes: string;
+  /** Google's presenter-notes popup is open (capture source). */
+  notesOpen: boolean;
+  /** Current/next slide preview images as data URLs (null until captured). */
+  thumbnailCurrent: string | null;
+  thumbnailNext: string | null;
+  /** Offline mode toggle (cache-warm plumbing; Google blocks true offline presenting). */
+  offlineMode: boolean;
+  cacheWarmed: boolean;
+  contentKind: SlidesContentKind;
+}
+
+/** Build a full SlidesState from the core fields plus optional overrides. */
+export function makeSlidesState(
+  init: Pick<SlidesState, 'deckId' | 'deckTitle' | 'slideIndex' | 'slideCount' | 'isLoading'> & Partial<SlidesState>
+): SlidesState {
+  return {
+    deckUrl: null,
+    backupDeckId: null,
+    backupDeckUrl: null,
+    backupLoaded: false,
+    notes: '',
+    notesOpen: false,
+    thumbnailCurrent: null,
+    thumbnailNext: null,
+    offlineMode: false,
+    cacheWarmed: false,
+    contentKind: 'slides',
+    ...init,
+  };
 }
 
 export interface L3State {
@@ -24,13 +63,33 @@ export interface L3State {
   activeCueName: string | null;
   /** Secondary line (e.g. job title); mirrors cue.title or inline take. */
   activeTitle: string | null;
+  /** Theme name of the live cue — render pages fetch its CSS. */
+  activeTheme: string | null;
   isStacking: boolean;
   currentPlaylistId: string | null;
+  /** 1-based position of the active cue within the active playlist (null when none). */
+  playlistPosition: number | null;
+  /** Cue count of the active playlist (null when none). */
+  playlistLength: number | null;
+}
+
+export type SlideshowTransition = 'cut' | 'fade';
+
+/** Still-store slideshow runtime state (Companion-first: flat, named fields). */
+export interface SlideshowState {
+  running: boolean;
+  paused: boolean;
+  itemIds: string[];
+  /** 0-based index into itemIds. */
+  position: number;
+  intervalSec: number;
+  transition: SlideshowTransition;
 }
 
 export interface MediaLibraryState {
   activeItemId: string | null;
   activeItemName: string | null;
+  slideshow: SlideshowState | null;
 }
 
 export interface BackgroundState {
@@ -89,16 +148,73 @@ export interface WatchdogState {
   lastRendererCrashAt: string | null;
 }
 
+// ---- Software output path (render pages) ----
+
+export type RenderContentType = 'slides' | 'l3' | 'stills' | 'url';
+export type RenderBg = 'transparent' | 'black' | 'white' | 'chroma' | 'opaque';
+
+export interface RenderOutputState {
+  bg: RenderBg;
+  /** Used when bg === 'chroma'. */
+  chromaColor: string;
+  /** Output claimed for this content type: display id, 'obs', or null (unassigned). */
+  claimedOutput: string | null;
+}
+
+export type RenderOutputsState = Record<RenderContentType, RenderOutputState>;
+
+export type TunnelStatus = 'inactive' | 'starting' | 'active' | 'error';
+
+/** Cloudflare tunnel runtime state (Companion-first: all operator-relevant fields named). */
+export interface TunnelState {
+  enabled: boolean;
+  status: TunnelStatus;
+  /** Public URL — trycloudflare.com quick-tunnel URL or the configured custom domain. */
+  url: string | null;
+  /** A tunnel PIN is configured (tunnel clients must enter it). */
+  pinRequired: boolean;
+  /** Last error message when status === 'error'. */
+  lastError: string | null;
+}
+
+export type StageTimerOverlayPosition = 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right';
+
+/**
+ * Stagetimer.io overlay runtime state (Companion-first). The overlay window
+ * floats over the speaker-notes display; the stagetimer API key is config,
+ * never state — only whether one is set is exposed.
+ */
+export interface StageTimerState {
+  overlayEnabled: boolean;
+  overlayPosition: StageTimerOverlayPosition;
+  /** Overlay size as percent of the notes display (1–100). */
+  overlaySize: number;
+  /** Stagetimer.io room id; null when not configured. */
+  roomId: string | null;
+  /** Room id + API key are both set — the overlay can actually connect. */
+  configured: boolean;
+}
+
+export interface TeleprompterState {
+  enabled: boolean;
+  host: string;
+  scrolling: boolean;
+  speed: number;
+  fontSize: number;
+}
+
+export function makeTeleprompterState(): TeleprompterState {
+  return { enabled: false, host: '', scrolling: false, speed: 40, fontSize: 72 };
+}
+
 export interface ScoreboardState {
   teamA: string;
   teamB: string;
   scoreA: number;
   scoreB: number;
   quarter: string;
-  /** Display string: "7:42" (m:ss) or "14.5" (tenths under 60 s). */
   gameClock: string;
   gameClockRunning: boolean;
-  /** Shot clock in whole seconds. */
   shotClock: number;
   shotClockRunning: boolean;
   possession: 'a' | 'b' | null;
@@ -125,6 +241,10 @@ export interface AppState {
   connectionStatus: ConnectionStatus;
   reliability: ReliabilityRuntimeState;
   watchdog: WatchdogState;
+  tunnel: TunnelState;
+  renderOutputs: RenderOutputsState;
+  stageTimer: StageTimerState;
+  teleprompter: TeleprompterState;
   graphics: GraphicsState;
 }
 
