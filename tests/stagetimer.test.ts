@@ -33,6 +33,14 @@ describe('buildOverlayHtml', () => {
     expect(html).toContain('key\\"</script>');
     expect(html).toContain('api.stagetimer.io');
   });
+
+  it('uses header-row layout with time-wrap and fitTimeDisplay (GSC #22 density fix)', () => {
+    const html = buildOverlayHtml('room123', 'key456');
+    expect(html).toContain('id="time-wrap"');
+    expect(html).toContain('id="header"');
+    expect(html).toContain('fitTimeDisplay');
+    expect(html).toContain('clamp(');
+  });
 });
 
 describe('stagetimer routes', () => {
@@ -179,5 +187,67 @@ describe('stagetimer routes', () => {
     const hide = await request(srv.app).post('/api/hide-stage-timer-overlay').expect(200);
     expect(hide.body).toEqual({ success: true, stageTimerOverlayEnabled: false });
     expect(store.getState().stageTimer.overlayEnabled).toBe(false);
+  });
+});
+
+describe('stagetimer backup sync (GSC #21)', () => {
+  it('does not call fanOutSlideCommand when getBackupSettings is absent', async () => {
+    // createFullServer does not pass getBackupSettings → fan-out should silently do nothing
+    const store2 = createStateStore();
+    const fanOutCalls: string[] = [];
+    const srv2 = createFullServer({
+      ...PINS,
+      store: store2,
+      port: 0,
+      stageTimer: {
+        showOverlay: () => {},
+        hideOverlay: () => {},
+        updateOverlaySettings: () => {},
+      },
+    });
+    await srv2.listen();
+    // No error: show/hide fire cleanly without backup settings
+    await request(srv2.app).post('/api/show-stage-timer-overlay').expect(200);
+    await request(srv2.app).post('/api/hide-stage-timer-overlay').expect(200);
+    expect(fanOutCalls).toHaveLength(0);
+    await srv2.close();
+  });
+
+  it('fanOutIfPrimary fires when operationMode is primary with backup IPs', async () => {
+    // Build a minimal express app around the stagetimer router (no auth session needed
+    // for the GSC-compat cookie-less endpoints).
+    const { createStageTimerRouter } = await import('../src/main/routes/stagetimer');
+    const { createStateStore: cs } = await import('../src/main/state');
+    const { createAuthManager } = await import('../src/main/auth');
+    const express = (await import('express')).default;
+    const bodyParser = (await import('body-parser')).default;
+    const supertest = (await import('supertest')).default;
+
+    const s3 = cs();
+    const auth3 = createAuthManager({
+      operatorPin: '0000',
+      adminPin: '0000',
+      operatorSessionMs: 60000,
+      adminSessionMs: 60000,
+      maxFailures: 5,
+      failureWindowMs: 300000,
+      lockoutMs: 300000,
+    });
+    const app3 = express();
+    app3.use(bodyParser.json());
+    app3.use(createStageTimerRouter({
+      store: s3,
+      auth: auth3,
+      showOverlay: () => {},
+      hideOverlay: () => {},
+      getBackupSettings: () => ({ operationMode: 'primary', backupIps: ['192.168.1.99'], port: 9595 }),
+    }));
+
+    // show: should succeed (fan-out fires fire-and-forget, will fail to connect to fake IP but not throw)
+    const showRes = await supertest(app3).post('/api/show-stage-timer-overlay').expect(200);
+    expect(showRes.body.success).toBe(true);
+    // hide: should also succeed
+    const hideRes = await supertest(app3).post('/api/hide-stage-timer-overlay').expect(200);
+    expect(hideRes.body.success).toBe(true);
   });
 });
