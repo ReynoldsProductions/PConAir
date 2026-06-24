@@ -19,12 +19,10 @@
       "name": "string",
       "title": "string"
     },
-    "ticker": {
-      "visible": "boolean",
-      "messages": [],
-      "label": "string",
-      "speed": "number"
-    }
+    "tickerItems": "array",
+    "tickerVisible": "boolean",
+    "tickerLabel": "string",
+    "tickerSpeed": "number"
   },
   "initialState": {
     "bugVisible": true,
@@ -35,17 +33,15 @@
       "name": "Jane Smith",
       "title": "Chief Executive Officer"
     },
-    "ticker": {
-      "visible": true,
-      "messages": [
-        "Q2 wrap:: — fulfillment hit 99.1% on-time across all four hubs",
-        "Toronto:: clears a record 12,400-order day",
-        "New:: Insider perks go live next week",
-        "Brand spotlight:: — Maison Balzac joins Faire Direct"
-      ],
-      "label": "Faire Wire",
-      "speed": 80
-    }
+    "tickerItems": [
+      "Q2 wrap:: — fulfillment hit 99.1% on-time across all four hubs",
+      "Toronto:: clears a record 12,400-order day",
+      "New:: Insider perks go live next week",
+      "Brand spotlight:: — Maison Balzac joins Faire Direct"
+    ],
+    "tickerVisible": true,
+    "tickerLabel": "Faire Wire",
+    "tickerSpeed": 80
   },
   "companionActions": [
     {
@@ -120,7 +116,7 @@
       "ops": [
         {
           "op": "set",
-          "field": "ticker.messages",
+          "field": "tickerItems",
           "value": {
             "option": "items",
             "split": "|"
@@ -128,15 +124,15 @@
         },
         {
           "op": "set",
-          "field": "ticker.label",
+          "field": "tickerLabel",
           "value": {
             "option": "label",
-            "orState": "ticker.label"
+            "orState": "tickerLabel"
           }
         },
         {
           "op": "set",
-          "field": "ticker.visible",
+          "field": "tickerVisible",
           "value": true
         }
       ]
@@ -147,7 +143,7 @@
       "ops": [
         {
           "op": "set",
-          "field": "ticker.visible",
+          "field": "tickerVisible",
           "value": false
         }
       ]
@@ -204,7 +200,7 @@
     {
       "id": "ticker_visible",
       "label": "Ticker visible",
-      "field": "ticker.visible"
+      "field": "tickerVisible"
     }
   ],
   "companionVariables": [
@@ -221,7 +217,7 @@
     {
       "id": "ticker_label",
       "label": "Ticker label",
-      "field": "ticker.label"
+      "field": "tickerLabel"
     }
   ]
 }

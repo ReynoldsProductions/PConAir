@@ -35,12 +35,8 @@
       "ast": "number",
       "fg": "string"
     },
-    "clock": {
-      "deadline": "number",
-      "value": "string",
-      "running": "boolean",
-      "format": "string"
-    },
+    "clock": "string",
+    "clockEndsAt": "number",
     "ticker": {
       "visible": "boolean",
       "messages": [],
@@ -72,12 +68,8 @@
       "ast": 7,
       "fg": "11-19"
     },
-    "clock": {
-      "deadline": 0,
-      "value": "07:42",
-      "running": false,
-      "format": "mm:ss"
-    },
+    "clock": "07:42",
+    "clockEndsAt": 0,
     "ticker": {
       "visible": true,
       "messages": [
@@ -200,20 +192,15 @@
       "ops": [
         {
           "op": "set",
-          "field": "clock.value",
+          "field": "clock",
           "value": {
             "option": "clock"
           }
         },
         {
           "op": "set",
-          "field": "clock.deadline",
+          "field": "clockEndsAt",
           "value": 0
-        },
-        {
-          "op": "set",
-          "field": "clock.running",
-          "value": false
         }
       ]
     },
@@ -223,10 +210,9 @@
       "ops": [
         {
           "op": "countdown_start",
-          "deadlineField": "clock.deadline",
-          "valueField": "clock.value",
-          "format": "mm:ss",
-          "runningField": "clock.running"
+          "deadlineField": "clockEndsAt",
+          "valueField": "clock",
+          "format": "mm:ss"
         }
       ]
     },
@@ -236,10 +222,9 @@
       "ops": [
         {
           "op": "countdown_stop",
-          "deadlineField": "clock.deadline",
-          "valueField": "clock.value",
-          "format": "mm:ss",
-          "runningField": "clock.running"
+          "deadlineField": "clockEndsAt",
+          "valueField": "clock",
+          "format": "mm:ss"
         }
       ]
     },
@@ -673,7 +658,7 @@
     {
       "id": "clock_running",
       "label": "Game clock running",
-      "field": "clock.running"
+      "field": "clockEndsAt"
     },
     {
       "id": "shot_clock_running",
@@ -716,10 +701,9 @@
       "id": "clock",
       "label": "Game clock",
       "countdown": {
-        "deadlineField": "clock.deadline",
-        "valueField": "clock.value",
-        "format": "mm:ss",
-        "runningField": "clock.running"
+        "deadlineField": "clockEndsAt",
+        "valueField": "clock",
+        "format": "mm:ss"
       }
     },
     {

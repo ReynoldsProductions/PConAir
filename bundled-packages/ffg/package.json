@@ -5,7 +5,7 @@
   "description": "FFG broadcast package — cardboard/kraft overlays: single cam + PiP, four portrait, four-up grid, head-to-head, champion reveal",
   "renders": [
     {
-      "id": "wide-pip",
+      "id": "single-pip",
       "label": "Single Cam + PiP",
       "file": "render-single-pip.html"
     },
@@ -20,7 +20,7 @@
       "file": "render-four-up.html"
     },
     {
-      "id": "h2h",
+      "id": "head-to-head",
       "label": "Head-to-Head",
       "file": "render-head-to-head.html"
     },
@@ -36,7 +36,8 @@
     "h2h": "object",
     "winner": "number",
     "finalScore": "number",
-    "clock": "object"
+    "maxScore": "number",
+    "timer": "object"
   },
   "initialState": {
     "teams": [
@@ -67,24 +68,23 @@
     ],
     "scores": [0, 0, 0, 0],
     "h2h": {
-      "a": { "left": 0, "right": 1 },
-      "b": { "left": 2, "right": 3 }
+      "slotA": [0, 1],
+      "slotB": [2, 3]
     },
     "winner": null,
     "finalScore": null,
     "maxScore": 10,
     "activeTeam": 0,
     "h2hSlot": "a",
-    "clock": {
-      "deadline": 0,
-      "value": 900,
+    "timer": {
       "running": false,
-      "format": "mm:ss"
+      "remaining": null,
+      "endsAt": 0
     }
   },
   "companionActions": [
     {
-      "id": "score_add",
+      "id": "ffg_bump_score",
       "label": "Bump team score",
       "options": [
         {
@@ -100,7 +100,7 @@
           ]
         },
         {
-          "id": "value",
+          "id": "delta",
           "label": "Delta",
           "type": "number",
           "default": 1,
@@ -112,7 +112,7 @@
         {
           "op": "add",
           "field": "scores.{team}",
-          "value": { "option": "value" },
+          "value": { "option": "delta" },
           "min": 0
         }
       ]
@@ -193,30 +193,30 @@
       ]
     },
     {
-      "id": "h2h_set_slot",
+      "id": "ffg_set_matchup",
       "label": "Set H2H matchup",
       "options": [
         {
           "id": "slot",
           "label": "Slot",
           "type": "dropdown",
-          "default": "a",
+          "default": "A",
           "choices": [
-            { "id": "a", "label": "Slot A" },
-            { "id": "b", "label": "Slot B" }
+            { "id": "A", "label": "Slot A" },
+            { "id": "B", "label": "Slot B" }
           ]
         },
         {
-          "id": "left",
-          "label": "Left team index",
+          "id": "first",
+          "label": "First team index",
           "type": "number",
           "default": 0,
           "min": 0,
           "max": 3
         },
         {
-          "id": "right",
-          "label": "Right team index",
+          "id": "second",
+          "label": "Second team index",
           "type": "number",
           "default": 1,
           "min": 0,
@@ -226,18 +226,18 @@
       "ops": [
         {
           "op": "set",
-          "field": "h2h.{slot}.left",
-          "value": { "option": "left" }
+          "field": "h2h.slot{slot}.0",
+          "value": { "option": "first" }
         },
         {
           "op": "set",
-          "field": "h2h.{slot}.right",
-          "value": { "option": "right" }
+          "field": "h2h.slot{slot}.1",
+          "value": { "option": "second" }
         }
       ]
     },
     {
-      "id": "set_winner",
+      "id": "ffg_set_winner",
       "label": "Set champion",
       "options": [
         {
@@ -304,34 +304,34 @@
       ]
     },
     {
-      "id": "clock_start",
+      "id": "ffg_start_timer",
       "label": "Start ship-by timer",
       "ops": [
         {
           "op": "countdown_start",
-          "deadlineField": "clock.deadline",
-          "valueField": "clock.value",
-          "format": "mm:ss",
-          "runningField": "clock.running",
+          "deadlineField": "timer.endsAt",
+          "valueField": "timer.remaining",
+          "format": "seconds",
+          "runningField": "timer.running",
           "defaultValue": 900
         }
       ]
     },
     {
-      "id": "clock_stop",
+      "id": "ffg_stop_timer",
       "label": "Stop ship-by timer",
       "ops": [
         {
           "op": "countdown_stop",
-          "deadlineField": "clock.deadline",
-          "valueField": "clock.value",
-          "format": "mm:ss",
-          "runningField": "clock.running"
+          "deadlineField": "timer.endsAt",
+          "valueField": "timer.remaining",
+          "format": "seconds",
+          "runningField": "timer.running"
         }
       ]
     },
     {
-      "id": "clock_reset",
+      "id": "timer_reset",
       "label": "Reset ship-by timer",
       "options": [
         {
@@ -346,17 +346,17 @@
       "ops": [
         {
           "op": "set",
-          "field": "clock.running",
+          "field": "timer.running",
           "value": false
         },
         {
           "op": "set",
-          "field": "clock.deadline",
+          "field": "timer.endsAt",
           "value": 0
         },
         {
           "op": "set",
-          "field": "clock.value",
+          "field": "timer.remaining",
           "value": { "option": "seconds" }
         }
       ]
@@ -398,7 +398,7 @@
     {
       "id": "clock_running",
       "label": "Clock running",
-      "field": "clock.running"
+      "field": "timer.running"
     }
   ],
   "companionVariables": [
@@ -458,12 +458,12 @@
       "field": "maxScore"
     },
     {
-      "id": "clock",
+      "id": "timer",
       "label": "Ship-by timer",
       "countdown": {
-        "deadlineField": "clock.deadline",
-        "valueField": "clock.value",
-        "runningField": "clock.running",
+        "deadlineField": "timer.endsAt",
+        "valueField": "timer.remaining",
+        "runningField": "timer.running",
         "format": "mm:ss"
       }
     }
