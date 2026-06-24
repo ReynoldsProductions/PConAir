@@ -30,8 +30,6 @@ export interface ServerDeps {
   l3Playlists: L3PlaylistStore;
   l3ThemeStore: L3ThemeStore;
   l3FilesRoot: string;
-  /** Absolute path to the built-in graphics templates dir; when set, served at /graphics. */
-  graphicsRoot?: string;
   mediaLibrary: MediaLibraryStore;
   /** Shared slideshow engine (same instance the action dispatcher uses). */
   slideshow?: SlideshowEngine;
@@ -145,6 +143,9 @@ export function createServer(deps: ServerDeps) {
     mediaLibrary,
     dispatchAction,
     port = 8080,
+    crashDumpsPath = '',
+    getSlidesNotes: getSlidesNotesDep,
+    getProfileName: getProfileNameDep,
     profilePaths,
     getActiveProfileId,
     onProfileActivate,
@@ -221,10 +222,9 @@ export function createServer(deps: ServerDeps) {
     buildDateIso,
     port,
     crashDumpsPath,
-    getSlidesNotes,
-    getProfileName,
+    getSlidesNotes: getSlidesNotesDep ?? (async () => null),
+    getProfileName: getProfileNameDep ?? (() => ''),
     renderManualCue: renderManualCueDep,
-    port,
     startTunnel: deps.startTunnel,
     stopTunnel: deps.stopTunnel,
     saveTunnelSettings: deps.saveTunnelSettings,

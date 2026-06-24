@@ -190,7 +190,7 @@ export function createAdminRouter(d: AdminRouterDeps): Router {
         );
         return;
       }
-      if (opSession) {
+      if (adminSession) {
         res.status(403).json({
           error: { code: 'FORBIDDEN', message: 'Admin access required' },
         });

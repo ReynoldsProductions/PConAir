@@ -121,6 +121,8 @@
   async function panicAction(action = "toggle") {
     return apiPost("/api/panic", { action });
   }
+  var fetchSlidesNotes = () => apiGet("/api/slides/notes");
+  var fetchPresets = () => apiGet("/api/presets");
 
   // src/renderer/operator/index.ts
   var store = createClientStore();
@@ -156,6 +158,7 @@
     });
   }
   var l3StackingUiLock = false;
+  var notesPollingInterval = null;
   async function refreshMediaSelect() {
     const { items } = await mediaLibraryList();
     const sel = document.getElementById("ml-item-select");
@@ -212,9 +215,106 @@
       const p = await fetchActiveProfile();
       const el = document.getElementById("active-profile");
       if (el) el.textContent = `Profile: ${p.name}`;
+      const nameLabel = document.getElementById("machine-name-label");
+      if (nameLabel) nameLabel.textContent = p.name;
     } catch {
       const el = document.getElementById("active-profile");
       if (el) el.textContent = "";
+    }
+  }
+  function startNotesPolling() {
+    if (notesPollingInterval) return;
+    void pollNotes();
+    notesPollingInterval = setInterval(() => void pollNotes(), 2e3);
+  }
+  function stopNotesPolling() {
+    if (notesPollingInterval) {
+      clearInterval(notesPollingInterval);
+      notesPollingInterval = null;
+    }
+  }
+  async function pollNotes() {
+    const content = document.getElementById("notes-content");
+    const indicator = document.getElementById("notes-slide-indicator");
+    if (!content) return;
+    const state = store.getState();
+    if (state.currentMode !== "slides") {
+      content.textContent = "Notes are only available in Slides mode.";
+      if (indicator) indicator.textContent = "";
+      return;
+    }
+    try {
+      const data = await fetchSlidesNotes();
+      content.textContent = data.notes ?? "(no notes for this slide)";
+      if (indicator && data.slideIndex !== null) {
+        indicator.textContent = `Slide ${data.slideIndex + 1}`;
+      }
+    } catch {
+      content.textContent = "Could not load notes.";
+    }
+  }
+  async function refreshSlidePresets() {
+    const container = document.getElementById("slide-presets-list");
+    if (!container) return;
+    try {
+      const { presets } = await fetchPresets();
+      if (!presets.length) {
+        container.innerHTML = "<span>No presets saved. Add presets in Admin \u2192 URL Presets.</span>";
+        return;
+      }
+      container.innerHTML = "";
+      for (const p of presets) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn btn-secondary";
+        btn.style.width = "100%";
+        btn.style.marginBottom = "6px";
+        btn.style.justifyContent = "flex-start";
+        btn.textContent = p.name;
+        btn.title = p.url;
+        btn.addEventListener("click", async () => {
+          try {
+            await loadDeck(p.url);
+          } catch (e) {
+            showError(e.message);
+          }
+        });
+        container.appendChild(btn);
+      }
+    } catch {
+      container.innerHTML = "<span>Could not load presets.</span>";
+    }
+  }
+  async function refreshUrlPresets() {
+    const container = document.getElementById("url-presets-list");
+    if (!container) return;
+    try {
+      const { presets } = await fetchPresets();
+      if (!presets.length) {
+        container.innerHTML = "<span>No presets saved. Add them in Admin \u2192 URL Presets.</span>";
+        return;
+      }
+      container.innerHTML = "";
+      for (const p of presets) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn btn-secondary";
+        btn.style.width = "100%";
+        btn.style.marginBottom = "6px";
+        btn.style.justifyContent = "flex-start";
+        btn.textContent = p.name;
+        btn.title = p.url;
+        btn.addEventListener("click", async () => {
+          try {
+            await loadUrl(p.url);
+          } catch (e) {
+            showError(e.message);
+          }
+        });
+        container.appendChild(btn);
+      }
+    } catch {
+      container.innerHTML = "<span>Could not load presets.</span>";
     }
   }
   function connectWs(delay = 1e3) {
@@ -503,6 +603,11 @@
           const section = document.querySelector(`section[data-tab="${target}"]`);
           if (section) section.hidden = false;
         }
+        if (target === "notes") {
+          startNotesPolling();
+        } else {
+          stopNotesPolling();
+        }
       });
     });
   }
@@ -522,4 +627,30 @@
     });
   }, 6e4);
   connectWs();
+  function initSettingsTab() {
+    const current = document.documentElement.getAttribute("data-theme") ?? "light";
+    const radio = document.querySelector(`input[name="theme-radio"][value="${current}"]`);
+    if (radio) radio.checked = true;
+    document.querySelectorAll('input[name="theme-radio"]').forEach((r) => {
+      r.addEventListener("change", () => {
+        const theme = r.value;
+        document.documentElement.setAttribute("data-theme", theme);
+        localStorage.setItem("pconair-operator-theme", theme);
+      });
+    });
+  }
+  initSettingsTab();
+  var savedTheme = localStorage.getItem("pconair-operator-theme");
+  if (savedTheme === "light" || savedTheme === "dark") {
+    document.documentElement.setAttribute("data-theme", savedTheme);
+  }
+  void refreshSlidePresets().catch(() => {
+  });
+  void refreshUrlPresets().catch(() => {
+  });
+  void fetchActiveProfile().then((p) => {
+    const theme = p.appPreferences?.operatorTheme ?? "light";
+    document.documentElement.setAttribute("data-theme", theme);
+  }).catch(() => {
+  });
 })();

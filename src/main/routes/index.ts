@@ -58,13 +58,12 @@ export interface RouteServices {
   reliability: ReliabilityStore;
   serverStartedAt: number;
   buildDateIso: string;
+  /** Server port — used for LAN URLs in QR codes. */
   port: number;
   crashDumpsPath: string;
   getSlidesNotes: () => Promise<string | null>;
   getProfileName: () => string;
   renderManualCue?: (cue: L3Cue) => Promise<Buffer>;
-  /** Server port — used for LAN URLs in QR codes. */
-  port: number;
   /** Tunnel control hooks (Electron main); absent in tests. */
   startTunnel?: () => void;
   stopTunnel?: () => void;

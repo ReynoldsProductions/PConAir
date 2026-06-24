@@ -198,7 +198,6 @@ async function main() {
     l3Playlists,
     l3ThemeStore,
     l3FilesRoot,
-    graphicsRoot,
     mediaLibrary,
     slideshow,
     dispatchAction,
