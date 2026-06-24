@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Score Demo — Ticker</title>
+<style>
+  :root {
+    --gold: #f5c842;
+    --ink: #f0f0f2;
+    --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; -webkit-font-smoothing: antialiased; }
+  #stage { position: absolute; inset: 0; }
+
+  .ticker-wrap {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 72px;
+    display: flex; align-items: stretch;
+    background: rgba(12,12,16,.96); border-top: 2px solid var(--gold); overflow: hidden;
+  }
+  .tag {
+    flex: none; height: 100%; display: flex; align-items: center; padding: 0 22px;
+    background: var(--gold); color: #15130a;
+    font-family: var(--mono); font-weight: 800; letter-spacing: .12em; font-size: 18px; white-space: nowrap;
+  }
+  .mask { flex: 1; overflow: hidden; position: relative; height: 100%; }
+  .track { position: absolute; top: 0; height: 100%; display: flex; align-items: center; white-space: nowrap; }
+  /* pconair-kit injects .ticker-item and .ticker-sep styles via JS */
+  .ticker-item { font-family: var(--sans); font-size: 20px; color: var(--ink); padding: 0 40px; }
+  .ticker-item b { font-weight: 700; color: var(--gold); }
+  .ticker-sep { color: rgba(255,255,255,.3); font-size: 14px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="ticker-wrap" id="ticker-wrap">
+    <div class="tag" id="ticker-label">DEMO</div>
+    <div class="mask"><div class="track" id="track"></div></div>
+  </div>
+</div>
+
+<script src="/packages/demo-scores/assets/state.js"></script>
+<script src="/packages/demo-scores/assets/pconair-kit.js"></script>
+<script>
+  const kit = PConAirKit.init('demo-scores');
+
+  kit.show('#ticker-wrap', 'ticker.visible')
+     .text('#ticker-label', 'ticker.label')
+     .ticker({ messages: 'ticker.messages', speed: 'ticker.speed', track: '#track' });
+</script>
+</body>
+</html>

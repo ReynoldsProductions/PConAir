@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Score Demo — Scoreboard</title>
+<style>
+  /* ── CUSTOMIZE: change these tokens to restyle the whole overlay ── */
+  :root {
+    --bg: #1a1a1e;
+    --surface: #22222a;
+    --ink: #f0f0f2;
+    --sub: #888890;
+    --accent: #6c8fff;
+    --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 1920px; height: 1080px; overflow: hidden;
+    background: var(--bg); color: var(--ink);
+    font-family: var(--sans); -webkit-font-smoothing: antialiased;
+  }
+  /* Add ?obs to URL for transparent background in OBS */
+  body.obs { background: transparent; }
+  #stage { position: absolute; inset: 0; display: flex; flex-direction: column; }
+
+  /* Top bar */
+  .topbar {
+    height: 72px; background: rgba(22,22,28,.92);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    display: flex; align-items: center; justify-content: space-between; padding: 0 60px;
+  }
+  .pkg-name { font-family: var(--mono); font-size: 20px; font-weight: 700; letter-spacing: .18em; color: var(--accent); }
+  .clock-display { font-family: var(--mono); font-size: 28px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+
+  /* Team rows */
+  .teams { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 40px 80px; gap: 18px; }
+  .team-row {
+    display: flex; align-items: center;
+    background: rgba(22,22,28,.88); border: 1px solid rgba(255,255,255,.07);
+    border-radius: 14px; padding: 22px 32px; gap: 24px;
+  }
+  .rank { font-family: var(--mono); font-size: 28px; font-weight: 700; color: var(--sub); width: 48px; text-align: center; flex-shrink: 0; }
+  .rank.first { color: var(--accent); }
+  .team-info { flex: 1; min-width: 0; }
+  .team-city { font-size: 13px; letter-spacing: .2em; color: var(--sub); text-transform: uppercase; margin-bottom: 4px; }
+  .team-name { font-size: 48px; font-weight: 700; line-height: 1; color: var(--ink); }
+  .score { font-family: var(--mono); font-size: 88px; font-weight: 700; color: #fff; line-height: 1; font-variant-numeric: tabular-nums; min-width: 180px; text-align: right; flex-shrink: 0; }
+  .score.leader { color: var(--accent); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="topbar">
+    <div class="pkg-name">SCORE DEMO</div>
+    <div class="clock-display" id="clock-disp">--:--</div>
+  </div>
+  <div class="teams" id="teams"></div>
+</div>
+
+<script src="/packages/demo-scores/assets/state.js"></script>
+<script src="/packages/demo-scores/assets/pconair-kit.js"></script>
+<script>
+  // IMPORTANT: change 'demo-scores' to your package id when you copy this template
+  const kit = PConAirKit.init('demo-scores');
+  const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+  // Wire game clock — pconair-kit handles the deadline math automatically
+  kit.gameClock({ deadline: 'clock.deadline', value: 'clock.value', el: '#clock-disp' });
+
+  // Custom handler: sort teams by score and rebuild rows
+  kit.onState(s => {
+    const scores = s.scores || [0, 0, 0, 0];
+    const teams = s.teams || [];
+    const maxScore = Math.max(...scores, 1);
+    const ordered = scores.map((sc, i) => ({ sc, i })).sort((a, b) => b.sc - a.sc);
+
+    document.getElementById('teams').innerHTML = ordered.map(({ sc, i }, rank) => {
+      const t = teams[i] || {};
+      const isLeader = sc === maxScore && maxScore > 0;
+      return `<div class="team-row">
+        <div class="rank${rank === 0 ? ' first' : ''}">${rank + 1}</div>
+        <div class="team-info">
+          <div class="team-city">${esc(t.city)}</div>
+          <div class="team-name">${esc(t.name)}</div>
+        </div>
+        <div class="score${isLeader ? ' leader' : ''}">${sc}</div>
+      </div>`;
+    }).join('');
+  });
+
+  // OBS transparent background — add ?obs to browser source URL
+  if (new URLSearchParams(location.search).get('obs')) document.body.classList.add('obs');
+</script>
+</body>
+</html>

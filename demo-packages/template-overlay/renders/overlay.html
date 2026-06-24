@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Overlay Template</title>
+<style>
+  /* ── CUSTOMIZE: tweak these tokens to restyle everything ── */
+  :root {
+    --accent: #b5a998;        /* muted tan — change to your brand color */
+    --ink: #fbf8f6;           /* near-white text */
+    --sub: #c8bfb5;           /* secondary text */
+    --panel-bg: rgba(251,248,246,.94);  /* lower third background */
+    --panel-dark-bg: rgba(33,30,28,.96);
+    --ticker-h: 80px;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+    --font-serif: Georgia, 'Times New Roman', serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 1920px; height: 1080px; overflow: hidden;
+    background: transparent;  /* transparent so OBS composites over camera */
+    font-family: var(--font-sans); -webkit-font-smoothing: antialiased;
+  }
+  #stage { position: absolute; inset: 0; }
+
+  /* Top scrim — keeps the bug and LIVE legible over bright camera feeds */
+  .scrim-top {
+    position: absolute; top: 0; left: 0; right: 0; height: 180px; pointer-events: none;
+    background: linear-gradient(to bottom, rgba(20,18,16,.5) 0%, rgba(20,18,16,.15) 50%, transparent 100%);
+  }
+
+  /* ── Logo bug (top-left) — CHANGE THE TEXT IN THE HTML BELOW ── */
+  .bug {
+    position: absolute; top: 48px; left: 80px;
+    display: flex; align-items: baseline; gap: 12px;
+    text-shadow: 0 2px 10px rgba(0,0,0,.55);
+  }
+  .bug .b1 { font-family: var(--font-serif); font-weight: 700; font-size: 42px; color: var(--ink); }
+  .bug .b2 { font-size: 14px; font-weight: 600; letter-spacing: .26em; text-transform: uppercase; color: var(--accent); }
+
+  /* ── LIVE indicator (top-right) ── */
+  .live-wrap { position: absolute; top: 54px; right: 80px; display: flex; align-items: center; gap: 10px; }
+  .live-dot {
+    width: 12px; height: 12px; border-radius: 50%; background: #cc2200;
+    animation: live-pulse 1.6s ease-in-out infinite;
+  }
+  .live-text { font-size: 16px; font-weight: 700; letter-spacing: .22em; color: var(--ink); text-shadow: 0 2px 8px rgba(0,0,0,.55); }
+  @keyframes live-pulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+
+  /* ── Lower third (bottom-left, above ticker) ──
+     CSS transition drives the slide-in: add class .in → slides in, remove → slides out.
+     pconair-kit.cls('#l3', 'in', 'l3.visible') handles this automatically. */
+  .l3 {
+    position: absolute; left: 80px; bottom: calc(var(--ticker-h) + 24px);
+    width: 820px; min-height: 140px;
+    display: flex; align-items: center;
+    background: var(--panel-bg); border-radius: 4px;
+    border: 1px solid rgba(200,190,180,.3);
+    box-shadow: 0 4px 24px rgba(0,0,0,.2);
+    transform: translateX(-900px); opacity: 0;
+    transition: transform .5s cubic-bezier(.2,.7,.2,1), opacity .35s ease;
+  }
+  .l3.in { transform: none; opacity: 1; }
+  .l3 .accent { width: 5px; align-self: stretch; background: var(--accent); margin: 18px 0; border-radius: 2px; flex-shrink: 0; margin-left: 20px; }
+  .l3 .text { padding: 18px 20px; }
+  /* Staggered entrance: name leads, title follows */
+  .l3 .l3-name,
+  .l3 .l3-title { opacity: 0; transition: opacity .32s ease; }
+  .l3.in .l3-name  { opacity: 1; transition-delay: .18s; }
+  .l3.in .l3-title { opacity: 1; transition-delay: .33s; }
+  .l3-name  { font-weight: 600; font-size: 48px; line-height: 1; color: #333; }
+  .l3-title { font-size: 28px; color: #757575; margin-top: 10px; line-height: 1; }
+
+  /* Dark theme — toggle via ?theme=dark or state.theme */
+  body.theme-dark .l3              { background: var(--panel-dark-bg); border-color: rgba(255,255,255,.12); }
+  body.theme-dark .l3-name        { color: #fff; }
+  body.theme-dark .l3-title       { color: #bbb; }
+
+  /* ── Ticker (bottom) ── */
+  .ticker {
+    position: absolute; left: 0; right: 0; bottom: 0; height: var(--ticker-h);
+    display: flex; align-items: stretch;
+    background: rgba(22,20,18,.93); border-top: 2px solid var(--accent); overflow: hidden;
+  }
+  .ticker-tag {
+    flex: none; height: 100%; display: flex; align-items: center; padding: 0 24px;
+    background: var(--accent); color: #333;
+    font-size: 16px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .ticker-mask { flex: 1; overflow: hidden; position: relative; height: 100%; }
+  .track { position: absolute; top: 0; height: 100%; display: flex; align-items: center; white-space: nowrap; }
+  .ticker-item { font-size: 20px; color: var(--ink); padding: 0 36px; }
+  .ticker-item b { font-weight: 700; color: var(--accent); }
+  .ticker-sep { color: rgba(255,255,255,.3); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="scrim-top"></div>
+
+  <!-- Logo bug — EDIT THE TEXT DIRECTLY HERE, or make it state-driven with kit.text() -->
+  <div class="bug" id="bug">
+    <span class="b1">Brand</span>
+    <span class="b2">Channel Name</span>
+  </div>
+
+  <div class="live-wrap" id="live-wrap">
+    <div class="live-dot"></div>
+    <div class="live-text">LIVE</div>
+  </div>
+
+  <div class="l3" id="l3">
+    <div class="accent"></div>
+    <div class="text">
+      <div class="l3-name" id="l3-name"></div>
+      <div class="l3-title" id="l3-title"></div>
+    </div>
+  </div>
+
+  <div class="ticker" id="ticker">
+    <div class="ticker-tag" id="ticker-label">ON AIR</div>
+    <div class="ticker-mask"><div class="track" id="track"></div></div>
+  </div>
+</div>
+
+<script src="/packages/template-overlay/assets/state.js"></script>
+<script src="/packages/template-overlay/assets/pconair-kit.js"></script>
+<script>
+  // IMPORTANT: change 'template-overlay' to your package id when you copy this template
+  const kit = PConAirKit.init('template-overlay');
+
+  kit
+    .show('#bug', 'bugVisible')
+    .show('#live-wrap', 'liveVisible')
+    .cls('#l3', 'in', 'l3.visible')   // drives the slide-in CSS transition
+    .text('#l3-name', 'l3.name')
+    .text('#l3-title', 'l3.title')
+    .show('#ticker', 'ticker.visible')
+    .text('#ticker-label', 'ticker.label')
+    .ticker({ messages: 'ticker.messages', speed: 'ticker.speed', track: '#track' })
+    .onState(s => {
+      // Theme switch: dark/light
+      document.body.classList.toggle('theme-dark', s.theme === 'dark');
+    });
+
+  // OBS transparent background (default — this render is always transparent)
+  // Add ?bg=dark to URL for a dark opaque background (useful for previews)
+  if (new URLSearchParams(location.search).get('bg') === 'dark') {
+    document.body.style.background = '#111';
+  }
+</script>
+</body>
+</html>

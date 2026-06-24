@@ -1,0 +1,92 @@
+{
+  "id": "template-timer",
+  "name": "Countdown Timer Template",
+  "version": "1.0.0",
+  "description": "Standalone countdown timer — fullscreen or composited. Copy this folder and change the id to customize.",
+  "renders": [
+    { "id": "timer", "label": "Timer", "file": "renders/timer.html" }
+  ],
+  "stateSchema": {
+    "clock": {
+      "deadline": "number",
+      "value": "number",
+      "running": "boolean",
+      "format": "string"
+    },
+    "label": "string",
+    "visible": "boolean"
+  },
+  "initialState": {
+    "clock": {
+      "deadline": 0,
+      "value": 300,
+      "running": false,
+      "format": "mm:ss"
+    },
+    "label": "BREAK",
+    "visible": true
+  },
+  "companionActions": [
+    {
+      "id": "clock_start",
+      "label": "Start timer",
+      "ops": [
+        { "op": "countdown_start", "deadlineField": "clock.deadline", "valueField": "clock.value" },
+        { "op": "set", "field": "clock.running", "value": true }
+      ]
+    },
+    {
+      "id": "clock_stop",
+      "label": "Stop timer",
+      "ops": [
+        { "op": "countdown_stop", "deadlineField": "clock.deadline", "valueField": "clock.value" },
+        { "op": "set", "field": "clock.running", "value": false }
+      ]
+    },
+    {
+      "id": "clock_reset",
+      "label": "Reset timer",
+      "options": [
+        { "id": "seconds", "label": "Seconds", "type": "number", "default": 300 }
+      ],
+      "ops": [
+        { "op": "countdown_reset", "deadlineField": "clock.deadline", "valueField": "clock.value", "seconds": { "option": "seconds" } },
+        { "op": "set", "field": "clock.running", "value": false }
+      ]
+    },
+    {
+      "id": "set_label",
+      "label": "Set label",
+      "options": [
+        { "id": "label", "label": "Label text", "type": "textinput", "default": "" }
+      ],
+      "ops": [
+        { "op": "set", "field": "label", "value": { "option": "label" } }
+      ]
+    },
+    {
+      "id": "show",
+      "label": "Show timer",
+      "ops": [ { "op": "set", "field": "visible", "value": true } ]
+    },
+    {
+      "id": "hide",
+      "label": "Hide timer",
+      "ops": [ { "op": "set", "field": "visible", "value": false } ]
+    },
+    {
+      "id": "toggle",
+      "label": "Toggle timer visibility",
+      "ops": [ { "op": "toggle", "field": "visible" } ]
+    }
+  ],
+  "companionFeedbacks": [
+    { "id": "running",  "label": "Timer is running", "field": "clock.running" },
+    { "id": "visible",  "label": "Timer is visible", "field": "visible" }
+  ],
+  "companionVariables": [
+    { "id": "clock_display", "label": "Clock display", "type": "countdown",
+      "deadlineField": "clock.deadline", "valueField": "clock.value", "format": "mm:ss" },
+    { "id": "label", "label": "Timer label", "field": "label" }
+  ]
+}

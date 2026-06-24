@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Timer Template</title>
+<style>
+  /* ── CUSTOMIZE: tweak these tokens to restyle everything ── */
+  :root {
+    --bg: #111012;
+    --ink: #f2f0f0;
+    --sub: #888;
+    --accent: #b5a998;
+    --danger: #dd3322;
+    --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 1920px; height: 1080px; overflow: hidden;
+    background: var(--bg); color: var(--ink);
+    font-family: var(--sans); -webkit-font-smoothing: antialiased;
+  }
+  body.obs { background: transparent; }
+  #stage {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 32px;
+    transition: opacity .5s ease;
+  }
+  #stage.hidden { opacity: 0; pointer-events: none; }
+
+  .timer-label { font-size: 28px; font-weight: 600; letter-spacing: .26em; text-transform: uppercase; color: var(--sub); }
+
+  #clock-display {
+    font-family: var(--mono); font-size: 240px; font-weight: 700; line-height: 1;
+    font-variant-numeric: tabular-nums; color: #fff;
+    transition: color .3s ease;
+  }
+  #clock-display.danger { color: var(--danger); animation: pulse .8s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.5;} }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="timer-label" id="label">BREAK</div>
+  <div id="clock-display">05:00</div>
+</div>
+
+<script src="/packages/template-timer/assets/state.js"></script>
+<script src="/packages/template-timer/assets/pconair-kit.js"></script>
+<script>
+  // IMPORTANT: change 'template-timer' to your package id when you copy this template
+  const kit = PConAirKit.init('template-timer');
+
+  kit
+    .text('#label', 'label')
+    .gameClock({ deadline: 'clock.deadline', value: 'clock.value', el: '#clock-display', dangerAt: 30, dangerClass: 'danger' })
+    .onState(s => {
+      document.getElementById('stage').classList.toggle('hidden', !s.visible);
+    });
+
+  // OBS transparent background — add ?obs to browser source URL
+  if (new URLSearchParams(location.search).get('obs')) document.body.classList.add('obs');
+</script>
+</body>
+</html>

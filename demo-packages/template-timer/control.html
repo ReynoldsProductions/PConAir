@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Timer Template Control</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="/packages/template-timer/assets/style.css" />
+</head>
+<body>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+  <div>
+    <h1>Countdown Timer</h1>
+    <span class="status-pill offline" id="status-pill">CONNECTING…</span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Clock</div>
+  <div class="clock-row">
+    <div class="clock-display" id="clock-disp">--:--</div>
+    <input type="number" id="dur-min" value="5" min="0" max="999" style="width:56px;text-align:center;" />
+    <span style="font-size:20px;font-weight:700;">:</span>
+    <input type="number" id="dur-sec" value="00" min="0" max="59" style="width:56px;text-align:center;" />
+    <button class="btn-success" id="btn-start">▶ START</button>
+    <button class="btn-danger"  id="btn-stop">■ STOP</button>
+    <button id="btn-reset">↺ RESET</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Label</div>
+  <div class="row">
+    <input type="text" id="label-input" placeholder="BREAK" style="flex:1;" />
+    <button class="btn-primary" id="btn-set-label">SET</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Visibility</div>
+  <div class="row">
+    <button class="btn-success" id="btn-show">SHOW</button>
+    <button class="btn-danger"  id="btn-hide">HIDE</button>
+  </div>
+</div>
+
+<script src="/packages/template-timer/assets/state.js"></script>
+<script>
+  const g = id => document.getElementById(id);
+  let state = null;
+  let clockInterval = null;
+
+  const client = PConAirPackage.connect('template-timer', s => {
+    state = s;
+    g('status-pill').className = 'status-pill live';
+    g('status-pill').textContent = 'LIVE';
+    if (document.activeElement !== g('label-input')) g('label-input').value = s.label || '';
+  });
+
+  function patch(p) { client.patch(p); }
+
+  function fmtMMSS(s) {
+    if (isNaN(s) || s === null) return '--:--';
+    s = Math.max(0, s);
+    var m = Math.floor(s / 60);
+    var ss = Math.floor(s % 60);
+    return String(m).padStart(2,'0') + ':' + String(ss).padStart(2,'0');
+  }
+
+  setInterval(() => {
+    if (!state) return;
+    const c = state.clock || {};
+    const d = +c.deadline || 0;
+    const v = +c.value || 0;
+    const rem = d > 0 ? Math.max(0, (d - Date.now()) / 1000) : v;
+    g('clock-disp').textContent = fmtMMSS(rem);
+  }, 250);
+
+  function getDurationS() {
+    return (+g('dur-min').value || 0) * 60 + (+g('dur-sec').value || 0);
+  }
+
+  function remaining() {
+    if (!state) return 0;
+    const c = state.clock || {};
+    const d = +c.deadline || 0;
+    return d > 0 ? Math.max(0, (d - Date.now()) / 1000) : Math.max(0, +c.value || 0);
+  }
+
+  g('btn-start').addEventListener('click', () => {
+    const rem = remaining() || getDurationS();
+    const now = Date.now();
+    patch({ clock: { ...(state && state.clock || {}), deadline: now + rem * 1000, value: Math.ceil(rem), running: true } });
+  });
+  g('btn-stop').addEventListener('click', () => {
+    const rem = remaining();
+    patch({ clock: { ...(state && state.clock || {}), deadline: 0, value: Math.ceil(rem), running: false } });
+  });
+  g('btn-reset').addEventListener('click', () => {
+    const sec = getDurationS();
+    patch({ clock: { ...(state && state.clock || {}), deadline: 0, value: sec, running: false } });
+  });
+  g('btn-set-label').addEventListener('click', () => {
+    const label = g('label-input').value.trim();
+    if (label) patch({ label });
+  });
+  g('btn-show').addEventListener('click', () => patch({ visible: true }));
+  g('btn-hide').addEventListener('click', () => patch({ visible: false }));
+</script>
+</body>
+</html>
