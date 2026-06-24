@@ -3,6 +3,7 @@ import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { ReliabilityStore } from '../reliability-store';
 import type { AppState, Mode, ABInstance } from '../../shared/types';
+import type { AppSettings } from '../app-settings';
 import { requireOperator, requireAdmin } from './middleware';
 import { gscStatusFields } from '../services/gsc-status';
 
@@ -18,6 +19,12 @@ export interface CreateApiRouterDeps {
   setAdminShowLocked: (locked: boolean) => void;
   syncAdminShowLockedToStore: () => void;
   getActiveProfileId: () => string;
+  /** Returns current backup settings for GSC status field population. */
+  getBackupSettings?: () => Pick<AppSettings, 'operationMode' | 'backupIps'>;
+  /** Returns all app settings (for GET /api/app-settings). */
+  getAppSettings?: () => AppSettings;
+  /** Persists a patch to app settings (for PATCH /api/app-settings). */
+  saveAppSettingsPatch?: (patch: Partial<Omit<AppSettings, 'schemaVersion'>>) => AppSettings;
 }
 
 function instKey(instance: ABInstance): 'instanceA' | 'instanceB' {
@@ -35,6 +42,9 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
     setAdminShowLocked,
     syncAdminShowLockedToStore,
     getActiveProfileId,
+    getBackupSettings,
+    getAppSettings,
+    saveAppSettingsPatch,
   } = deps;
 
   const router = Router();
@@ -47,7 +57,7 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
   // GSC-compat flat fields are merged alongside the AppState fields.
   router.get('/status', (_req: Request, res: Response) => {
     const state = store.getState();
-    res.json({ ...state, ...gscStatusFields(state) });
+    res.json({ ...state, ...gscStatusFields(state, getBackupSettings?.()) });
   });
 
   router.get('/debug/logs', adminGuard, (_req: Request, res: Response) => {
@@ -314,6 +324,44 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
       abState: { ...state.abState, activeInstance: instance as 'A' | 'B' },
     });
     res.json({ abState: { activeInstance: instance as 'A' | 'B' } });
+  });
+
+  // App settings — read and patch (admin-level; these are machine-wide)
+  router.get('/app-settings', adminGuard, (_req: Request, res: Response) => {
+    if (!getAppSettings) {
+      res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'App settings not available in this environment' } });
+      return;
+    }
+    const s = getAppSettings();
+    // Never expose secrets over the wire
+    res.json({
+      operationMode: s.operationMode,
+      backupIps: s.backupIps,
+      port: s.port,
+      tunnelEnabled: s.tunnelEnabled,
+      tunnelDomain: s.tunnelDomain,
+      stageTimerOverlayPosition: s.stageTimerOverlayPosition,
+      stageTimerOverlaySize: s.stageTimerOverlaySize,
+      stageTimerOverlayEnabled: s.stageTimerOverlayEnabled,
+      teleprompterEnabled: s.teleprompterEnabled,
+      teleprompterHost: s.teleprompterHost,
+    });
+  });
+
+  router.patch('/app-settings', adminGuard, (req: Request, res: Response) => {
+    if (!saveAppSettingsPatch) {
+      res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'App settings not available in this environment' } });
+      return;
+    }
+    const body = req.body as Record<string, unknown>;
+    const patch: Partial<Omit<AppSettings, 'schemaVersion'>> = {};
+    if (body.operationMode !== undefined) patch.operationMode = body.operationMode as AppSettings['operationMode'];
+    if (body.backupIps !== undefined) patch.backupIps = body.backupIps as string[];
+    const next = saveAppSettingsPatch(patch);
+    res.json({
+      operationMode: next.operationMode,
+      backupIps: next.backupIps,
+    });
   });
 
   return router;

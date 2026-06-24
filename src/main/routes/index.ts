@@ -21,6 +21,7 @@ import { createBackgroundRouter } from './background';
 import { createMediaLibraryRouter } from './media-library';
 import { createProfilesRouter } from './profiles';
 import { createBrandingRouter } from './branding';
+import { createTeleprompterRouter } from './teleprompter';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { PresetsStore } from '../presets';
@@ -96,6 +97,18 @@ export interface RouteServices {
   closeKeyFillDisplays?: () => void;
   /** PerfectCue listener control hooks (Electron main); absent in tests. */
   perfectcue?: PerfectCueRouterDeps;
+  /** Returns the active teleprompter base URL (empty string when not configured). */
+  getTeleprompterHost: () => string;
+  /** Returns whether teleprompter proxy is enabled. */
+  isTeleprompterEnabled: () => boolean;
+  /** Persists teleprompter config to app-settings.json. */
+  saveTeleprompterSettings: (patch: { host?: string; enabled?: boolean }) => void;
+  /** Returns all app settings for GET /api/app-settings. */
+  getAppSettings?: () => import('../app-settings').AppSettings;
+  /** Persists a patch to app settings for PATCH /api/app-settings. */
+  saveAppSettingsPatch?: (patch: Partial<Omit<import('../app-settings').AppSettings, 'schemaVersion'>>) => import('../app-settings').AppSettings;
+  /** Returns backup settings for fan-out and GSC status. */
+  getBackupSettings?: () => { operationMode: import('../app-settings').AppSettings['operationMode']; backupIps: string[]; port: number };
 }
 
 export function mountRoutes(app: Express, s: RouteServices): void {
@@ -129,10 +142,18 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   if (s.perfectcue) {
     app.use('/perfectcue', createPerfectCueRouter({ auth: s.auth, ...s.perfectcue }));
   }
+  app.use('/api/teleprompter', createTeleprompterRouter({
+    store: s.store,
+    auth: s.auth,
+    getTeleprompterHost: s.getTeleprompterHost,
+    isTeleprompterEnabled: s.isTeleprompterEnabled,
+    saveTeleprompterSettings: s.saveTeleprompterSettings,
+  }));
   app.use('/api/slides', createSlidesRouter(s.store, s.auth, {
     openGoogleAuthWindow: s.openGoogleAuthWindow,
     getGoogleAuthState: s.getGoogleAuthState,
     windowManager: s.slidesWindowManager,
+    getBackupSettings: s.getBackupSettings,
   }));
   // GSC Companion module compat — cookie-less, IP-allowlist-gated (see gsc-compat.ts)
   app.use('/api', createGscCompatRouter(s.store, {
@@ -194,6 +215,9 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       setAdminShowLocked: s.setAdminShowLocked,
       syncAdminShowLockedToStore: s.syncAdminShowLockedToStore,
       getActiveProfileId: s.getActiveProfileId,
+      getBackupSettings: s.getBackupSettings,
+      getAppSettings: s.getAppSettings,
+      saveAppSettingsPatch: s.saveAppSettingsPatch,
     })
   );
 }

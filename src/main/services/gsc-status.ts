@@ -1,4 +1,5 @@
 import type { AppState } from '../../shared/types';
+import type { AppSettings } from '../app-settings';
 
 /**
  * Flat status fields matching Google Slides Controller's GET /api/status response.
@@ -36,7 +37,10 @@ export interface GscStatusFields {
   stageTimerOverlaySize: number;
 }
 
-export function gscStatusFields(state: AppState): GscStatusFields {
+export function gscStatusFields(
+  state: AppState,
+  settings?: Pick<AppSettings, 'operationMode' | 'backupIps'>,
+): GscStatusFields {
   const slides = state.slides;
   const open = slides !== null;
   const ready = open && !slides.isLoading;
@@ -62,7 +66,8 @@ export function gscStatusFields(state: AppState): GscStatusFields {
     notesDisplayId: null,
     loginState: false,
     loggedInUser: null,
-    backupControlsEnabled: false,
+    backupControlsEnabled:
+      settings?.operationMode === 'primary' && (settings?.backupIps.length ?? 0) > 0,
     notesZoomSteps: 0,
     notesZoomDefault: 0,
     notesLayout: 'hide',

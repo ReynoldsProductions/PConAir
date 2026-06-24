@@ -1,7 +1,9 @@
 import { Router, Request, Response } from 'express';
+import http from 'http';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { SlidesWindowManager } from '../slides/window-manager';
+import type { AppSettings } from '../app-settings';
 import { requireOperator, isValidUrl } from './middleware';
 import { slideLoadOp, slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideOfflineModeOp } from '../services/slide-ops';
 import { gscStatusFields } from '../services/gsc-status';
@@ -10,6 +12,24 @@ export interface SlidesRouterDeps {
   openGoogleAuthWindow?: () => void;
   getGoogleAuthState?: () => Promise<{ loggedIn: boolean; email: string | null }>;
   windowManager?: SlidesWindowManager;
+  /** Returns backup settings for the /backup-status pull endpoint. */
+  getBackupSettings?: () => { operationMode: AppSettings['operationMode']; backupIps: string[]; port: number };
+}
+
+/** HEAD or GET a single backup IP to check reachability. Returns true on a 2xx response. */
+function probeBackup(ip: string, port: number, timeoutMs = 2000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const req = http.request(
+      { hostname: ip, port, path: '/api/status', method: 'GET', timeout: timeoutMs },
+      (res) => {
+        res.resume(); // drain
+        resolve((res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 300);
+      },
+    );
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.on('error', () => resolve(false));
+    req.end();
+  });
 }
 
 export function createSlidesRouter(store: StateStore, auth: AuthManager, deps: SlidesRouterDeps = {}): Router {
@@ -155,6 +175,23 @@ export function createSlidesRouter(store: StateStore, auth: AuthManager, deps: S
       windowManager?.zoomOutNotes();
     }
     res.json({ ok: true });
+  });
+
+  // Pull-based backup status — fires one GET /api/status per backup IP on request.
+  router.get('/backup-status', opGuard, async (_req: Request, res: Response) => {
+    if (!deps.getBackupSettings) {
+      res.json({ backups: [] });
+      return;
+    }
+    const { backupIps, port } = deps.getBackupSettings();
+    const results = await Promise.all(
+      backupIps.map(async (ip) => {
+        const start = Date.now();
+        const reachable = await probeBackup(ip, port);
+        return { ip, port, reachable, lastCheckMs: Date.now() - start };
+      }),
+    );
+    res.json({ backups: results });
   });
 
   return router;

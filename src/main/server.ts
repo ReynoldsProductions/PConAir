@@ -80,6 +80,16 @@ export interface ServerDeps {
   closeKeyFillDisplays?: () => void;
   /** PerfectCue HTTP control hooks (Electron main only); absent in tests. */
   perfectcue?: PerfectCueRouterDeps;
+  /** Teleprompter proxy hooks; absent in tests (no-ops applied). */
+  getTeleprompterHost?: () => string;
+  isTeleprompterEnabled?: () => boolean;
+  saveTeleprompterSettings?: (patch: { host?: string; enabled?: boolean }) => void;
+  /** Returns backup settings for fan-out and GSC status. */
+  getBackupSettings?: RouteServices['getBackupSettings'];
+  /** Returns all app settings (GET /api/app-settings). */
+  getAppSettings?: RouteServices['getAppSettings'];
+  /** Persists an app settings patch (PATCH /api/app-settings). */
+  saveAppSettingsPatch?: RouteServices['saveAppSettingsPatch'];
 }
 
 function getRequestClientIp(req: express.Request, trustForwardedFor: boolean): string {
@@ -229,6 +239,12 @@ export function createServer(deps: ServerDeps) {
     openKeyFillDisplays: deps.openKeyFillDisplays,
     closeKeyFillDisplays: deps.closeKeyFillDisplays,
     perfectcue: deps.perfectcue,
+    getTeleprompterHost: deps.getTeleprompterHost ?? (() => ''),
+    isTeleprompterEnabled: deps.isTeleprompterEnabled ?? (() => false),
+    saveTeleprompterSettings: deps.saveTeleprompterSettings ?? (() => { /* no-op in tests */ }),
+    getBackupSettings: deps.getBackupSettings,
+    getAppSettings: deps.getAppSettings,
+    saveAppSettingsPatch: deps.saveAppSettingsPatch,
   };
 
   const app = express();
