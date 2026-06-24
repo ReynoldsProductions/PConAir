@@ -232,6 +232,9 @@ async function main() {
         : path.join(app.getAppPath(), 'bundled-packages');
       return [bundled, userPackages];
     })(),
+    graphicsRoot: app.isPackaged
+      ? path.join(process.resourcesPath, 'graphics')
+      : path.join(app.getAppPath(), 'graphics'),
     profilePaths: boot.paths,
     getActiveProfileId: () => getActiveMarker(boot.paths)?.id ?? boot.activeId,
     onProfileActivate: () => {

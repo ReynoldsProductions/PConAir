@@ -25,7 +25,29 @@
       memoryHeapUsedGb: 0,
       memoryHeapTotalGb: 0,
       lastRendererCrashAt: null
-    }
+    },
+    tunnel: {
+      enabled: false,
+      status: "inactive",
+      url: null,
+      pinRequired: false,
+      lastError: null
+    },
+    renderOutputs: {
+      slides: { bg: "opaque", chromaColor: "#00b140", claimedOutput: null },
+      l3: { bg: "transparent", chromaColor: "#00b140", claimedOutput: null },
+      stills: { bg: "transparent", chromaColor: "#00b140", claimedOutput: null },
+      url: { bg: "opaque", chromaColor: "#00b140", claimedOutput: null }
+    },
+    stageTimer: {
+      overlayEnabled: false,
+      overlayPosition: "bottom-left",
+      overlaySize: 10,
+      roomId: null,
+      configured: false
+    },
+    teleprompter: { enabled: false, host: "", scrolling: false, speed: 40, fontSize: 72 },
+    graphics: { scoreboard: null }
   };
   function createClientStore() {
     let state = structuredClone(DEFAULT_STATE);
@@ -76,6 +98,8 @@
     }
     return data;
   }
+  var getGoogleAuthState = () => apiGet("/api/slides/auth");
+  var openGoogleAuth = () => apiPost("/api/slides/auth/open");
   var loadDeck = (deckUrl) => apiPost("/api/slides/load", { deckUrl });
   var slideNext = () => apiPost("/api/slides/next");
   var slidePrev = () => apiPost("/api/slides/prev");
@@ -100,6 +124,37 @@
 
   // src/renderer/operator/index.ts
   var store = createClientStore();
+  var KBD_PRESETS = {
+    google: {
+      next: ["ArrowRight", " ", "PageDown"],
+      prev: ["ArrowLeft", "PageUp"]
+    },
+    powerpoint: {
+      next: ["ArrowRight", "Enter", "PageDown", "n", "N"],
+      prev: ["ArrowLeft", "Backspace", "PageUp", "p", "P"]
+    },
+    keynote: {
+      next: ["ArrowRight", " ", "Enter"],
+      prev: ["ArrowLeft", "Delete"]
+    }
+  };
+  var KBD_PRESET_KEY = "pconair-kbd-preset";
+  function getSavedPreset() {
+    const v = localStorage.getItem(KBD_PRESET_KEY);
+    if (v === "google" || v === "powerpoint" || v === "keynote") return v;
+    return "google";
+  }
+  var activeKbdPreset = getSavedPreset();
+  function setKbdPreset(preset) {
+    activeKbdPreset = preset;
+    localStorage.setItem(KBD_PRESET_KEY, preset);
+    renderKbdPresetButtons();
+  }
+  function renderKbdPresetButtons() {
+    document.querySelectorAll("[data-kbd-preset]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.kbdPreset === activeKbdPreset);
+    });
+  }
   var l3StackingUiLock = false;
   async function refreshMediaSelect() {
     const { items } = await mediaLibraryList();
@@ -134,6 +189,23 @@
       sel.appendChild(o);
     }
     if (prev && cues.some((x) => x.id === prev)) sel.value = prev;
+  }
+  async function refreshGoogleAuth() {
+    const statusEl = document.getElementById("google-auth-status");
+    const signinBtn = document.getElementById("google-signin-btn");
+    if (!statusEl) return;
+    try {
+      const auth = await getGoogleAuthState();
+      if (auth.loggedIn) {
+        statusEl.textContent = auth.email ? `Signed in as ${auth.email}` : "Signed in to Google \u2713";
+        if (signinBtn) signinBtn.textContent = "Sign in again";
+      } else {
+        statusEl.textContent = "Not signed in \u2014 private slides will not load";
+        if (signinBtn) signinBtn.textContent = "Sign in to Google";
+      }
+    } catch {
+      statusEl.textContent = "Could not check Google auth status";
+    }
   }
   async function refreshActiveProfile() {
     try {
@@ -285,6 +357,17 @@
         }
       });
     };
+    document.getElementById("google-signin-btn")?.addEventListener("click", async () => {
+      try {
+        await openGoogleAuth();
+      } catch (e) {
+        showError(e.message);
+      }
+    });
+    document.getElementById("google-auth-refresh-btn")?.addEventListener("click", () => {
+      void refreshGoogleAuth().catch(() => {
+      });
+    });
     on("load-btn", () => loadDeck(
       document.getElementById("deck-url-input").value.trim()
     ));
@@ -313,14 +396,16 @@
       }
     });
     on("l3-take-btn", async () => {
+      const autoOutSec = parseFloat(document.getElementById("l3-auto-out-input").value);
+      const autoOutMs = Number.isFinite(autoOutSec) && autoOutSec > 0 ? Math.round(autoOutSec * 1e3) : null;
       const sel = document.getElementById("l3-cue-select");
       if (sel.value) {
-        await l3Take({ cueId: sel.value });
+        await l3Take({ cueId: sel.value, autoOutMs: autoOutMs ?? void 0 });
         return;
       }
       const name = document.getElementById("l3-name-input").value.trim();
       const title = document.getElementById("l3-title-input").value.trim();
-      await l3Take({ name, title });
+      await l3Take({ name, title, autoOutMs: autoOutMs ?? void 0 });
     });
     on("l3-clear-btn", () => l3Clear());
     document.getElementById("ml-refresh-btn").addEventListener("click", async () => {
@@ -352,8 +437,25 @@
     });
     document.addEventListener("keydown", (e) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key !== "p" && e.key !== "P") return;
-      void panicAction("toggle").catch((err) => showError(err.message));
+      const preset = KBD_PRESETS[activeKbdPreset];
+      if (preset.next.includes(e.key)) {
+        if (e.key === " " || e.key === "Enter") e.preventDefault();
+        const btn = document.getElementById("next-btn");
+        if (btn && !btn.disabled) void slideNext().catch((err) => showError(err.message));
+      } else if (preset.prev.includes(e.key)) {
+        if (e.key === "Backspace") e.preventDefault();
+        const btn = document.getElementById("prev-btn");
+        if (btn && !btn.disabled) void slidePrev().catch((err) => showError(err.message));
+      } else if (e.key === "p" || e.key === "P") {
+        if (!preset.prev.includes(e.key)) {
+          void panicAction("toggle").catch((err) => showError(err.message));
+        }
+      }
+    });
+    document.querySelectorAll("[data-kbd-preset]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        setKbdPreset(btn.dataset.kbdPreset);
+      });
     });
     document.getElementById("l3-stacking-checkbox").addEventListener(
       "change",
@@ -406,11 +508,14 @@
   }
   store.subscribe(renderState);
   bindEvents();
+  renderKbdPresetButtons();
   void refreshL3CueSelect().catch(() => {
   });
   void refreshMediaSelect().catch(() => {
   });
   void refreshActiveProfile().catch(() => {
+  });
+  void refreshGoogleAuth().catch(() => {
   });
   setInterval(() => {
     void refreshActiveProfile().catch(() => {

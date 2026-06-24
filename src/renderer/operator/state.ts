@@ -47,6 +47,8 @@ const DEFAULT_STATE: AppState = {
     roomId: null,
     configured: false,
   },
+  teleprompter: { enabled: false, host: '', scrolling: false, speed: 40, fontSize: 72 },
+  graphics: { scoreboard: null },
 };
 
 export function createClientStore() {

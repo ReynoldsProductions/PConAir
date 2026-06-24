@@ -549,6 +549,38 @@ export function buildActions(deps: ActionDeps): Record<string, CompanionActionDe
       },
     },
 
+    // ════ Teleprompter ════
+    teleprompter_start: {
+      name: 'Teleprompter: Start Scrolling',
+      options: [],
+      callback: async () => { try { await dispatch('teleprompter_start', {}) } catch (err) { log('error', `teleprompter_start failed: ${(err as Error).message}`) } },
+    },
+    teleprompter_stop: {
+      name: 'Teleprompter: Stop Scrolling',
+      options: [],
+      callback: async () => { try { await dispatch('teleprompter_stop', {}) } catch (err) { log('error', `teleprompter_stop failed: ${(err as Error).message}`) } },
+    },
+    teleprompter_scroll_faster: {
+      name: 'Teleprompter: Scroll Faster',
+      options: [],
+      callback: async () => { try { await dispatch('teleprompter_scroll_faster', {}) } catch (err) { log('error', `teleprompter_scroll_faster failed: ${(err as Error).message}`) } },
+    },
+    teleprompter_scroll_slower: {
+      name: 'Teleprompter: Scroll Slower',
+      options: [],
+      callback: async () => { try { await dispatch('teleprompter_scroll_slower', {}) } catch (err) { log('error', `teleprompter_scroll_slower failed: ${(err as Error).message}`) } },
+    },
+    teleprompter_font_size_in: {
+      name: 'Teleprompter: Font Size +',
+      options: [],
+      callback: async () => { try { await dispatch('teleprompter_font_size_in', {}) } catch (err) { log('error', `teleprompter_font_size_in failed: ${(err as Error).message}`) } },
+    },
+    teleprompter_font_size_out: {
+      name: 'Teleprompter: Font Size −',
+      options: [],
+      callback: async () => { try { await dispatch('teleprompter_font_size_out', {}) } catch (err) { log('error', `teleprompter_font_size_out failed: ${(err as Error).message}`) } },
+    },
+
     // Kept for transcript/debug convenience: show current app mode in logs.
     log_status: {
       name: 'Log Current Status (debug)',

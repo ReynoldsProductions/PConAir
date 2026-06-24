@@ -6,7 +6,7 @@ import type { L3PlaylistStore } from './l3/playlist-store';
 import type { MediaLibraryStore } from './media-library/item-store';
 import type { SlideshowEngine } from './media-library/slideshow';
 import type { SlidesWindowManager } from './slides/window-manager';
-import type { Mode, SlideshowTransition } from '../shared/types';
+import type { Mode, SlideshowTransition, ScoreboardState } from '../shared/types';
 import { slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideLoadOp, slideOfflineModeOp } from './services/slide-ops';
 import { urlLoadOp, urlReloadOp, setDisplayTargetOp } from './services/url-ops';
 import { fanOutSlideCommand } from './services/backup-fanout';
@@ -365,6 +365,46 @@ export function createActionDispatcher(deps: {
           store.setState({ teleprompter: { ...tp, ...stateUpdate } });
         } catch { /* fire-and-forget from Companion; log nothing */ }
         return { ok: true, body: {} };
+      }
+      case 'graphics_scoreboard_set': {
+        const existing = store.getState().graphics?.scoreboard ?? { ...DEFAULT_SCOREBOARD };
+        const patch: Partial<ScoreboardState> = {};
+        if (typeof p.teamA === 'string') patch.teamA = p.teamA;
+        if (typeof p.teamB === 'string') patch.teamB = p.teamB;
+        if (typeof p.scoreA === 'number') patch.scoreA = p.scoreA;
+        if (typeof p.scoreB === 'number') patch.scoreB = p.scoreB;
+        if (typeof p.quarter === 'string') patch.quarter = p.quarter;
+        if (typeof p.gameClock === 'string') patch.gameClock = p.gameClock;
+        if (typeof p.gameClockRunning === 'boolean') patch.gameClockRunning = p.gameClockRunning;
+        if (typeof p.shotClock === 'number') patch.shotClock = p.shotClock;
+        if (typeof p.shotClockRunning === 'boolean') patch.shotClockRunning = p.shotClockRunning;
+        if (p.possession === 'a' || p.possession === 'b' || p.possession === null) patch.possession = p.possession;
+        if (typeof p.foulsA === 'number') patch.foulsA = p.foulsA;
+        if (typeof p.foulsB === 'number') patch.foulsB = p.foulsB;
+        if (typeof p.timeoutsA === 'number') patch.timeoutsA = p.timeoutsA;
+        if (typeof p.timeoutsB === 'number') patch.timeoutsB = p.timeoutsB;
+        const scoreboard: ScoreboardState = { ...existing, ...patch };
+        store.setState({ graphics: { ...store.getState().graphics, scoreboard } });
+        return { ok: true, body: { graphics: { scoreboard } } };
+      }
+      case 'graphics_score_bump': {
+        const team = p.team;
+        const delta = p.delta;
+        if (team !== 'a' && team !== 'b') {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'team must be "a" or "b"' } };
+        }
+        if (typeof delta !== 'number' || !Number.isInteger(delta)) {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'delta must be an integer' } };
+        }
+        const existing = store.getState().graphics?.scoreboard ?? { ...DEFAULT_SCOREBOARD };
+        const scoreboard: ScoreboardState = { ...existing };
+        if (team === 'a') {
+          scoreboard.scoreA = Math.max(0, existing.scoreA + delta);
+        } else {
+          scoreboard.scoreB = Math.max(0, existing.scoreB + delta);
+        }
+        store.setState({ graphics: { ...store.getState().graphics, scoreboard } });
+        return { ok: true, body: { graphics: { scoreboard } } };
       }
       default:
         return {

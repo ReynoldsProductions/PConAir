@@ -30,6 +30,7 @@ export interface FullServerTestOpts {
   stopTunnel?: () => void;
   saveTunnelSettings?: (patch: Record<string, unknown>) => void;
   packagesRoot?: string | string[];
+  graphicsRoot?: string;
   stageTimer?: import('../src/main/routes/index').RouteServices['stageTimer'];
 }
 
@@ -104,6 +105,7 @@ export function createFullServer(opts: FullServerTestOpts) {
     stopTunnel: opts.stopTunnel,
     saveTunnelSettings: opts.saveTunnelSettings,
     packagesRoot: opts.packagesRoot,
+    graphicsRoot: opts.graphicsRoot,
     stageTimer: opts.stageTimer,
   });
 

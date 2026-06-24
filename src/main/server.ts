@@ -63,6 +63,8 @@ export interface ServerDeps {
   stageTimer?: RouteServices['stageTimer'];
   /** Directory (or ordered list: bundled first, then user) scanned for graphics packages; omit to disable the packages system. */
   packagesRoot?: string | string[];
+  /** Serves static graphics templates at /graphics; omit to disable. */
+  graphicsRoot?: string;
   /** Google Slides auth hooks (Electron main only). */
   openGoogleAuthWindow?: () => void;
   getGoogleAuthState?: () => Promise<{ loggedIn: boolean; email: string | null }>;
@@ -280,6 +282,10 @@ export function createServer(deps: ServerDeps) {
 
   mountRoutes(app, routeServices);
 
+  if (deps.graphicsRoot) {
+    app.use('/graphics', express.static(deps.graphicsRoot, { index: false, fallthrough: false }));
+  }
+
   const httpServer = http.createServer(app);
   const wss = new WebSocketServer({
     server: httpServer,
@@ -292,6 +298,10 @@ export function createServer(deps: ServerDeps) {
       // tunnel PIN gate is HTTP middleware and can't protect WS upgrades.
       try {
         const u = new URL(info.req.url || '/', 'http://localhost');
+        if (u.searchParams.get('graphics') === '1') {
+          cb(true); // read-only viewer — no auth required
+          return;
+        }
         const cookieLess = u.searchParams.get('render') === '1' || u.searchParams.get('companion') === '1';
         const viaTunnel = Boolean(
           info.req.headers['cf-connecting-ip'] ?? info.req.headers['cf-ray'] ?? info.req.headers['cf-visitor']
@@ -342,6 +352,25 @@ export function createServer(deps: ServerDeps) {
   });
 
   wss.on('connection', (ws, req) => {
+    // Read-only graphics viewer — no auth, no actions, just state broadcast.
+    try {
+      const u = new URL(req.url ?? '/', 'http://localhost');
+      if (u.searchParams.get('graphics') === '1') {
+        ws.send(JSON.stringify({ type: 'state', payload: store.getState() } satisfies WsServerMessage));
+        ws.on('close', () => {
+          store.setState({
+            connectionStatus: {
+              ...store.getState().connectionStatus,
+              webSocketClients: wss.clients.size,
+            },
+          });
+        });
+        return;
+      }
+    } catch {
+      /* malformed URL — fall through to standard handler */
+    }
+
     let isCompanion = false;
     let isRender = false;
     try {

@@ -195,6 +195,39 @@ export interface StageTimerState {
   configured: boolean;
 }
 
+export interface TeleprompterState {
+  enabled: boolean;
+  host: string;
+  scrolling: boolean;
+  speed: number;
+  fontSize: number;
+}
+
+export function makeTeleprompterState(): TeleprompterState {
+  return { enabled: false, host: '', scrolling: false, speed: 40, fontSize: 72 };
+}
+
+export interface ScoreboardState {
+  teamA: string;
+  teamB: string;
+  scoreA: number;
+  scoreB: number;
+  quarter: string;
+  gameClock: string;
+  gameClockRunning: boolean;
+  shotClock: number;
+  shotClockRunning: boolean;
+  possession: 'a' | 'b' | null;
+  foulsA: number;
+  foulsB: number;
+  timeoutsA: number;
+  timeoutsB: number;
+}
+
+export interface GraphicsState {
+  scoreboard: ScoreboardState | null;
+}
+
 export interface AppState {
   currentMode: Mode;
   currentPreset: Preset | null;
@@ -211,6 +244,8 @@ export interface AppState {
   tunnel: TunnelState;
   renderOutputs: RenderOutputsState;
   stageTimer: StageTimerState;
+  teleprompter: TeleprompterState;
+  graphics: GraphicsState;
 }
 
 // ---- HTTP API types ----
