@@ -132,7 +132,7 @@
         const tx = el('div', { cls: 'text' });
         tx.appendChild(el('div', { cls: 'lead', text: '· FFG 2026 CHAMPION ·' }));
         tx.appendChild(el('div', { cls: 'name', text: winner.name }));
-        tx.appendChild(el('div', { cls: 'meta', text: `${winner.city} · ${winner.handle} · DELIVERED IN FULL` }));
+        tx.appendChild(el('div', { cls: 'meta', text: `${winner.city} · ${winner.presenter} · DELIVERED IN FULL` }));
         top.appendChild(tx);
 
         const fs = el('div', { cls: 'final' });
@@ -152,7 +152,7 @@
           width: 1760, height: 860,
           top: 48, side: 48, bottom: 140,
           title: winner.name.toUpperCase(),
-          sub: `${winner.code} · ${winner.handle} · CHAMPION`,
+          sub: `${winner.code} · ${winner.presenter} · CHAMPION`,
           tape: 'tr',
           corner: `${winner.code} · WINNER`,
           resW: 1664, resH: 672,

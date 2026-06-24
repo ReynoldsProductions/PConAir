@@ -2,10 +2,10 @@
   "id": "ffg",
   "name": "Faire Fulfillment Games",
   "version": "1.0.0",
-  "description": "FFG broadcast package \u2014 cardboard/kraft overlays: single cam + PiP, four portrait, four-up grid, head-to-head, champion reveal",
+  "description": "FFG broadcast package — cardboard/kraft overlays: single cam + PiP, four portrait, four-up grid, head-to-head, champion reveal",
   "renders": [
     {
-      "id": "single-pip",
+      "id": "wide-pip",
       "label": "Single Cam + PiP",
       "file": "render-single-pip.html"
     },
@@ -20,7 +20,7 @@
       "file": "render-four-up.html"
     },
     {
-      "id": "head-to-head",
+      "id": "h2h",
       "label": "Head-to-Head",
       "file": "render-head-to-head.html"
     },
@@ -31,9 +31,12 @@
     }
   ],
   "stateSchema": {
-    "maxScore": "number",
-    "activeTeam": "number",
-    "h2hSlot": "string"
+    "teams": "array",
+    "scores": "array",
+    "h2h": "object",
+    "winner": "number",
+    "finalScore": "number",
+    "clock": "object"
   },
   "initialState": {
     "teams": [
@@ -41,57 +44,47 @@
         "name": "Team 1",
         "city": "CITY 1",
         "code": "T1",
-        "handle": ""
+        "presenter": ""
       },
       {
         "name": "Team 2",
         "city": "CITY 2",
         "code": "T2",
-        "handle": ""
+        "presenter": ""
       },
       {
         "name": "Team 3",
         "city": "CITY 3",
         "code": "T3",
-        "handle": ""
+        "presenter": ""
       },
       {
         "name": "Team 4",
         "city": "CITY 4",
         "code": "T4",
-        "handle": ""
+        "presenter": ""
       }
     ],
-    "scores": [
-      0,
-      0,
-      0,
-      0
-    ],
+    "scores": [0, 0, 0, 0],
     "h2h": {
-      "slotA": [
-        0,
-        1
-      ],
-      "slotB": [
-        2,
-        3
-      ]
+      "a": { "left": 0, "right": 1 },
+      "b": { "left": 2, "right": 3 }
     },
     "winner": null,
     "finalScore": null,
     "maxScore": 10,
     "activeTeam": 0,
     "h2hSlot": "a",
-    "timer": {
+    "clock": {
+      "deadline": 0,
+      "value": 900,
       "running": false,
-      "remaining": null,
-      "endsAt": 0
+      "format": "mm:ss"
     }
   },
   "companionActions": [
     {
-      "id": "ffg_bump_score",
+      "id": "score_add",
       "label": "Bump team score",
       "options": [
         {
@@ -100,26 +93,14 @@
           "type": "dropdown",
           "default": 0,
           "choices": [
-            {
-              "id": 0,
-              "label": "Team 1"
-            },
-            {
-              "id": 1,
-              "label": "Team 2"
-            },
-            {
-              "id": 2,
-              "label": "Team 3"
-            },
-            {
-              "id": 3,
-              "label": "Team 4"
-            }
+            { "id": 0, "label": "Team 1" },
+            { "id": 1, "label": "Team 2" },
+            { "id": 2, "label": "Team 3" },
+            { "id": 3, "label": "Team 4" }
           ]
         },
         {
-          "id": "delta",
+          "id": "value",
           "label": "Delta",
           "type": "number",
           "default": 1,
@@ -131,15 +112,13 @@
         {
           "op": "add",
           "field": "scores.{team}",
-          "value": {
-            "option": "delta"
-          },
+          "value": { "option": "value" },
           "min": 0
         }
       ]
     },
     {
-      "id": "ffg_set_score",
+      "id": "score_set",
       "label": "Set team score",
       "options": [
         {
@@ -148,22 +127,10 @@
           "type": "dropdown",
           "default": 0,
           "choices": [
-            {
-              "id": 0,
-              "label": "Team 1"
-            },
-            {
-              "id": 1,
-              "label": "Team 2"
-            },
-            {
-              "id": 2,
-              "label": "Team 3"
-            },
-            {
-              "id": 3,
-              "label": "Team 4"
-            }
+            { "id": 0, "label": "Team 1" },
+            { "id": 1, "label": "Team 2" },
+            { "id": 2, "label": "Team 3" },
+            { "id": 3, "label": "Team 4" }
           ]
         },
         {
@@ -179,30 +146,23 @@
         {
           "op": "set",
           "field": "scores.{team}",
-          "value": {
-            "option": "value"
-          }
+          "value": { "option": "value" }
         }
       ]
     },
     {
-      "id": "ffg_reset_scores",
+      "id": "score_reset_all",
       "label": "Reset all scores",
       "ops": [
         {
           "op": "set",
           "field": "scores",
-          "value": [
-            0,
-            0,
-            0,
-            0
-          ]
+          "value": [0, 0, 0, 0]
         }
       ]
     },
     {
-      "id": "ffg_set_team_name",
+      "id": "team_set_name",
       "label": "Set team name",
       "options": [
         {
@@ -211,22 +171,10 @@
           "type": "dropdown",
           "default": 0,
           "choices": [
-            {
-              "id": 0,
-              "label": "Team 1"
-            },
-            {
-              "id": 1,
-              "label": "Team 2"
-            },
-            {
-              "id": 2,
-              "label": "Team 3"
-            },
-            {
-              "id": 3,
-              "label": "Team 4"
-            }
+            { "id": 0, "label": "Team 1" },
+            { "id": 1, "label": "Team 2" },
+            { "id": 2, "label": "Team 3" },
+            { "id": 3, "label": "Team 4" }
           ]
         },
         {
@@ -240,98 +188,56 @@
         {
           "op": "set",
           "field": "teams.{team}.name",
-          "value": {
-            "option": "name"
-          }
+          "value": { "option": "name" }
         }
       ]
     },
     {
-      "id": "ffg_set_matchup",
+      "id": "h2h_set_slot",
       "label": "Set H2H matchup",
       "options": [
         {
           "id": "slot",
           "label": "Slot",
           "type": "dropdown",
-          "default": "A",
+          "default": "a",
           "choices": [
-            {
-              "id": "A",
-              "label": "Slot A"
-            },
-            {
-              "id": "B",
-              "label": "Slot B"
-            }
+            { "id": "a", "label": "Slot A" },
+            { "id": "b", "label": "Slot B" }
           ]
         },
         {
-          "id": "first",
-          "label": "First team",
-          "type": "dropdown",
+          "id": "left",
+          "label": "Left team index",
+          "type": "number",
           "default": 0,
-          "choices": [
-            {
-              "id": 0,
-              "label": "Team 1"
-            },
-            {
-              "id": 1,
-              "label": "Team 2"
-            },
-            {
-              "id": 2,
-              "label": "Team 3"
-            },
-            {
-              "id": 3,
-              "label": "Team 4"
-            }
-          ]
+          "min": 0,
+          "max": 3
         },
         {
-          "id": "second",
-          "label": "Second team",
-          "type": "dropdown",
+          "id": "right",
+          "label": "Right team index",
+          "type": "number",
           "default": 1,
-          "choices": [
-            {
-              "id": 0,
-              "label": "Team 1"
-            },
-            {
-              "id": 1,
-              "label": "Team 2"
-            },
-            {
-              "id": 2,
-              "label": "Team 3"
-            },
-            {
-              "id": 3,
-              "label": "Team 4"
-            }
-          ]
+          "min": 0,
+          "max": 3
         }
       ],
       "ops": [
         {
           "op": "set",
-          "field": "h2h.slot{slot}",
-          "value": [
-            {
-              "option": "first"
-            },
-            {
-              "option": "second"
-            }
-          ]
+          "field": "h2h.{slot}.left",
+          "value": { "option": "left" }
+        },
+        {
+          "op": "set",
+          "field": "h2h.{slot}.right",
+          "value": { "option": "right" }
         }
       ]
     },
     {
-      "id": "ffg_set_winner",
+      "id": "set_winner",
       "label": "Set champion",
       "options": [
         {
@@ -340,22 +246,10 @@
           "type": "dropdown",
           "default": 0,
           "choices": [
-            {
-              "id": 0,
-              "label": "Team 1"
-            },
-            {
-              "id": 1,
-              "label": "Team 2"
-            },
-            {
-              "id": 2,
-              "label": "Team 3"
-            },
-            {
-              "id": 3,
-              "label": "Team 4"
-            }
+            { "id": 0, "label": "Team 1" },
+            { "id": 1, "label": "Team 2" },
+            { "id": 2, "label": "Team 3" },
+            { "id": 3, "label": "Team 4" }
           ]
         }
       ],
@@ -363,21 +257,17 @@
         {
           "op": "set",
           "field": "winner",
-          "value": {
-            "option": "team"
-          }
+          "value": { "option": "team" }
         },
         {
           "op": "set",
           "field": "finalScore",
-          "value": {
-            "state": "scores.{team}"
-          }
+          "value": { "state": "scores.{team}" }
         }
       ]
     },
     {
-      "id": "ffg_clear_winner",
+      "id": "clear_winner",
       "label": "Clear champion",
       "ops": [
         {
@@ -393,7 +283,7 @@
       ]
     },
     {
-      "id": "ffg_set_max_score",
+      "id": "set_max_score",
       "label": "Set max score (goal)",
       "options": [
         {
@@ -409,41 +299,39 @@
         {
           "op": "set",
           "field": "maxScore",
-          "value": {
-            "option": "value"
-          }
+          "value": { "option": "value" }
         }
       ]
     },
     {
-      "id": "ffg_start_timer",
+      "id": "clock_start",
       "label": "Start ship-by timer",
       "ops": [
         {
           "op": "countdown_start",
-          "deadlineField": "timer.endsAt",
-          "valueField": "timer.remaining",
-          "format": "seconds",
-          "runningField": "timer.running",
+          "deadlineField": "clock.deadline",
+          "valueField": "clock.value",
+          "format": "mm:ss",
+          "runningField": "clock.running",
           "defaultValue": 900
         }
       ]
     },
     {
-      "id": "ffg_stop_timer",
+      "id": "clock_stop",
       "label": "Stop ship-by timer",
       "ops": [
         {
           "op": "countdown_stop",
-          "deadlineField": "timer.endsAt",
-          "valueField": "timer.remaining",
-          "format": "seconds",
-          "runningField": "timer.running"
+          "deadlineField": "clock.deadline",
+          "valueField": "clock.value",
+          "format": "mm:ss",
+          "runningField": "clock.running"
         }
       ]
     },
     {
-      "id": "ffg_reset_timer",
+      "id": "clock_reset",
       "label": "Reset ship-by timer",
       "options": [
         {
@@ -458,20 +346,18 @@
       "ops": [
         {
           "op": "set",
-          "field": "timer.running",
+          "field": "clock.running",
           "value": false
         },
         {
           "op": "set",
-          "field": "timer.endsAt",
+          "field": "clock.deadline",
           "value": 0
         },
         {
           "op": "set",
-          "field": "timer.remaining",
-          "value": {
-            "option": "seconds"
-          }
+          "field": "clock.value",
+          "value": { "option": "seconds" }
         }
       ]
     }
@@ -481,9 +367,7 @@
       "id": "is_leader",
       "label": "Team is current leader",
       "field": "_leader",
-      "equals": {
-        "option": "team"
-      },
+      "equals": { "option": "team" },
       "options": [
         {
           "id": "team",
@@ -491,22 +375,10 @@
           "type": "dropdown",
           "default": 0,
           "choices": [
-            {
-              "id": 0,
-              "label": "Team 1"
-            },
-            {
-              "id": 1,
-              "label": "Team 2"
-            },
-            {
-              "id": 2,
-              "label": "Team 3"
-            },
-            {
-              "id": 3,
-              "label": "Team 4"
-            }
+            { "id": 0, "label": "Team 1" },
+            { "id": 1, "label": "Team 2" },
+            { "id": 2, "label": "Team 3" },
+            { "id": 3, "label": "Team 4" }
           ]
         }
       ]
@@ -524,9 +396,9 @@
       "notEquals": null
     },
     {
-      "id": "timer_running",
-      "label": "Timer running",
-      "field": "timer.running"
+      "id": "clock_running",
+      "label": "Clock running",
+      "field": "clock.running"
     }
   ],
   "companionVariables": [
@@ -586,12 +458,12 @@
       "field": "maxScore"
     },
     {
-      "id": "timer",
+      "id": "clock",
       "label": "Ship-by timer",
       "countdown": {
-        "deadlineField": "timer.endsAt",
-        "valueField": "timer.remaining",
-        "runningField": "timer.running",
+        "deadlineField": "clock.deadline",
+        "valueField": "clock.value",
+        "runningField": "clock.running",
         "format": "mm:ss"
       }
     }

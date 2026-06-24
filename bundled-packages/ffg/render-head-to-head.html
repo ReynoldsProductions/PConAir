@@ -100,14 +100,14 @@
         FFG.bindTimer(chip);
 
         const leftPill = el('div', { cls: 'score-pill left' });
-        leftPill.appendChild(el('div', { cls: 'who', text: left.code + ' · ' + left.handle }));
+        leftPill.appendChild(el('div', { cls: 'who', text: left.code + ' · ' + left.presenter }));
         const leftNum = el('div', { cls: 'num' });
         leftNum.appendChild(el('b', { attrs: { 'data-h2h-score-l': '' }, text: '0' }));
         leftNum.appendChild(el('span', { cls: 'max', attrs: { 'data-h2h-max-l': '' } }));
         leftPill.appendChild(leftNum);
 
         const rightPill = el('div', { cls: 'score-pill right' });
-        rightPill.appendChild(el('div', { cls: 'who', text: right.code + ' · ' + right.handle }));
+        rightPill.appendChild(el('div', { cls: 'who', text: right.code + ' · ' + right.presenter }));
         const rightNum = el('div', { cls: 'num' });
         rightNum.appendChild(el('b', { attrs: { 'data-h2h-score-r': '' }, text: '0' }));
         rightNum.appendChild(el('span', { cls: 'max', attrs: { 'data-h2h-max-r': '' } }));
@@ -132,7 +132,7 @@
             width: cellW, height: cellH,
             top: 56, side: 28, bottom: 100,
             title: team.name.toUpperCase(),
-            sub: `${team.city} · ${team.handle}`,
+            sub: `${team.city} · ${team.presenter}`,
             tape: side === 'left' ? 'tr' : 'bl',
             corner: team.code,
             resW: camW, resH: camH,

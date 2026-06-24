@@ -66,10 +66,10 @@
     box-shadow:0 8px 22px rgba(0,0,0,.6),0 0 18px rgba(255,181,21,.35);}
   .shot .v{font-weight:800;font-size:40px;line-height:.9;color:var(--amber);font-variant-numeric:tabular-nums;text-shadow:0 0 12px rgba(255,181,21,.6);}
   .shot .l{font-family:var(--sans);font-weight:700;font-size:9px;letter-spacing:.18em;color:#caa24a;margin-top:1px;}
-  .shot.danger{border-color:var(--red);box-shadow:0 8px 22px rgba(0,0,0,.6),0 0 22px rgba(255,46,62,.6);animation:shotpulse .5s steps(2) infinite;}
+  .shot.danger{border-color:var(--red);box-shadow:0 8px 22px rgba(0,0,0,.6),0 0 22px rgba(255,46,62,.6);animation:shotpulse .7s ease-in-out infinite;}
   .shot.danger .v{color:var(--red);text-shadow:0 0 14px rgba(255,46,62,.8);}
   .shot.danger .l{color:#e0808a;}
-  @keyframes shotpulse{50%{opacity:.55;}}
+  @keyframes shotpulse{0%,100%{opacity:1;} 50%{opacity:.45;}}
 
   /* timeouts row under teams */
   .tos{position:absolute;bottom:-22px;display:flex;gap:5px;}
@@ -99,7 +99,7 @@
   .ticker .tag{flex:none;height:100%;display:flex;align-items:center;padding:0 18px;background:var(--amber);color:#15130a;
     font-family:var(--cond);font-weight:800;letter-spacing:.12em;font-size:16px;}
   .ticker .mask{flex:1;overflow:hidden;position:relative;height:100%;}
-  .ticker .track{position:absolute;top:0;height:100%;display:flex;align-items:center;white-space:nowrap;animation:crawl 30s linear infinite;}
+  .ticker .track{position:absolute;top:0;height:100%;display:flex;align-items:center;white-space:nowrap;animation:crawl var(--crawl-dur,30s) linear infinite;}
   .ticker .g{display:inline-flex;align-items:center;gap:10px;padding:0 26px;font-family:var(--sans);font-size:16px;color:#e7eef5;}
   .ticker .g b{font-family:var(--cond);font-weight:700;letter-spacing:.04em;}
   .ticker .g .sc{color:var(--amber);font-family:var(--cond);font-weight:700;font-variant-numeric:tabular-nums;}
@@ -220,11 +220,13 @@
     g('past').textContent = pc.ast ?? 0;
     g('pfg').textContent = pc.fg || '';
 
-    g('ticker').style.display = s.tickerVisible ? '' : 'none';
-    const key = JSON.stringify([s.tickerItems, s.tickerTag]);
+    g('ticker').style.display = (s.ticker && s.ticker.visible) ? '' : 'none';
+    const tSpeed = (s.ticker && +s.ticker.speed) || 80;
+    g('track').style.setProperty('--crawl-dur', (30 * 80 / tSpeed).toFixed(1) + 's');
+    const key = JSON.stringify([s.ticker && s.ticker.messages, s.ticker && s.ticker.label]);
     if (key !== tickerKey) {
       tickerKey = key;
-      rebuildTicker(s.tickerItems, s.tickerTag);
+      rebuildTicker(s.ticker && s.ticker.messages, s.ticker && s.ticker.label);
     }
     tickClocks();
   }
@@ -248,7 +250,7 @@
   function tickClocks() {
     if (!state) return;
     const now = Date.now();
-    const gameMs = state.clockEndsAt > 0 ? Math.max(0, state.clockEndsAt - now) : parseClock(state.clock);
+    const gameMs = (state.clock && state.clock.deadline > 0) ? Math.max(0, state.clock.deadline - now) : parseClock(state.clock && state.clock.value);
     g('clock').textContent = fmtGame(gameMs);
     const shotS = state.shotEndsAt > 0 ? Math.max(0, (state.shotEndsAt - now) / 1000) : +state.shotClock || 0;
     g('shotv').textContent = shotS <= 5 ? shotS.toFixed(1) : Math.ceil(shotS);

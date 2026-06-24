@@ -1,5 +1,5 @@
 /* FFG package state bootstrap. Replaces the original localStorage + SSE relay:
-   all state (teams, h2h, scores, winner, maxScore, timer) lives in PConAir's
+   all state (teams, h2h, scores, winner, maxScore, clock) lives in PConAir's
    package state hub, and pages hydrate from it on every (re)connect.
 
    Usage in a render page:
@@ -7,7 +7,7 @@
    buildFn(state) runs once on first state to build the DOM (frames bake team
    names in, like the original overlays). Afterwards, if the parts selected by
    configKeyFn change, the page reloads — same behavior as the original
-   ffg.teams / ffg.h2h messages. Score/timer updates flow live via FFG.onUpdate. */
+   ffg.teams / ffg.h2h messages. Score/clock updates flow live via FFG.onUpdate. */
 
 window.FFG = (function () {
   'use strict';
@@ -60,10 +60,10 @@ window.FFG = (function () {
   function resolveH2H(s) {
     const params = new URLSearchParams(location.search);
     const slot = (params.get('slot') || s.h2hSlot || 'a').toLowerCase();
-    const pair = (s.h2h && (slot === 'b' ? s.h2h.slotB : s.h2h.slotA)) || [0, 1];
+    const slotCfg = (s.h2h && (slot === 'b' ? s.h2h.b : s.h2h.a)) || { left: 0, right: 1 };
     return {
-      left:  clampIdx(params.get('l') !== null ? params.get('l') : pair[0]),
-      right: clampIdx(params.get('r') !== null ? params.get('r') : pair[1]),
+      left:  clampIdx(params.get('l') !== null ? params.get('l') : slotCfg.left),
+      right: clampIdx(params.get('r') !== null ? params.get('r') : slotCfg.right),
     };
   }
 
@@ -78,13 +78,13 @@ window.FFG = (function () {
     return clampIdx(s.winner ?? 0);
   }
 
-  /* ── Ship-by timer ─────────────────────────────────────────────────
-     state.timer = { running, remaining (s, when paused), endsAt (epoch ms,
+  /* ── Ship-by clock ─────────────────────────────────────────────────
+     state.clock = { running, value (seconds, when paused), deadline (epoch ms,
      when running) } — a deadline, so reloads hydrate to the right time. */
   function timerRemainingS(s) {
-    const t = (s && s.timer) || {};
-    if (t.running && t.endsAt > 0) return Math.max(0, (t.endsAt - Date.now()) / 1000);
-    return typeof t.remaining === 'number' ? Math.max(0, t.remaining) : null;
+    const c = (s && s.clock) || {};
+    if (c.running && c.deadline > 0) return Math.max(0, (c.deadline - Date.now()) / 1000);
+    return typeof c.value === 'number' ? Math.max(0, c.value) : null;
   }
 
   function fmtTimer(sec) {
@@ -94,13 +94,13 @@ window.FFG = (function () {
     return String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
   }
 
-  /* Bind a makeTimerChip() element to the package timer state. */
+  /* Bind a makeTimerChip() element to the package clock state. */
   function bindTimer(chip) {
     const timeEl = chip.querySelector('[data-st-time]');
     setInterval(() => {
       const sec = timerRemainingS(state);
       timeEl.textContent = fmtTimer(sec);
-      if (state && state.timer && state.timer.running) chip.removeAttribute('data-st-status');
+      if (state && state.clock && state.clock.running) chip.removeAttribute('data-st-status');
       else chip.setAttribute('data-st-status', 'local');
     }, 250);
   }

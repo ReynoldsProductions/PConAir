@@ -316,32 +316,32 @@
       : 'No winner set — champion page falls back to its ?winner URL param.';
   }
 
-  // Live timer display
+  // Live clock display
   setInterval(() => {
     if (!state) return;
-    const t = state.timer || {};
+    const c = state.clock || {};
     let sec = null;
-    if (t.running && t.endsAt > 0) sec = Math.max(0, (t.endsAt - Date.now()) / 1000);
-    else if (typeof t.remaining === 'number') sec = Math.max(0, t.remaining);
+    if (c.running && c.deadline > 0) sec = Math.max(0, (c.deadline - Date.now()) / 1000);
+    else if (typeof c.value === 'number') sec = Math.max(0, c.value);
     g('timer-display').textContent = sec === null
       ? '--:--'
       : String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(Math.floor(sec % 60)).padStart(2, '0');
   }, 250);
 
   function timerRemainingS() {
-    const t = (state && state.timer) || {};
-    if (t.running && t.endsAt > 0) return Math.max(0, (t.endsAt - Date.now()) / 1000);
-    return typeof t.remaining === 'number' ? t.remaining : +g('timer-min').value * 60 || 900;
+    const c = (state && state.clock) || {};
+    if (c.running && c.deadline > 0) return Math.max(0, (c.deadline - Date.now()) / 1000);
+    return typeof c.value === 'number' ? c.value : +g('timer-min').value * 60 || 900;
   }
 
   g('btn-tstart').addEventListener('click', () => {
-    patch({ timer: { running: true, remaining: null, endsAt: Date.now() + timerRemainingS() * 1000 } });
+    patch({ clock: { running: true, value: null, deadline: Date.now() + timerRemainingS() * 1000 } });
   });
   g('btn-tstop').addEventListener('click', () => {
-    patch({ timer: { running: false, remaining: timerRemainingS(), endsAt: 0 } });
+    patch({ clock: { running: false, value: timerRemainingS(), deadline: 0 } });
   });
   g('btn-treset').addEventListener('click', () => {
-    patch({ timer: { running: false, remaining: (+g('timer-min').value || 15) * 60, endsAt: 0 } });
+    patch({ clock: { running: false, value: (+g('timer-min').value || 15) * 60, deadline: 0 } });
   });
 
   // Score bumps (read-modify-write on the shared array)
@@ -384,7 +384,7 @@
         <input type="text" id="t${i}-name" value="${esc(t.name)}" placeholder="Team ${i + 1}" maxlength="64" />
         <input type="text" id="t${i}-city" value="${esc(t.city)}" placeholder="CITY" maxlength="64" />
         <input type="text" id="t${i}-code" value="${esc(t.code)}" placeholder="T${i + 1}" maxlength="8" />
-        <input type="text" id="t${i}-handle" value="${esc(t.handle)}" placeholder="presenter" maxlength="64" />`;
+        <input type="text" id="t${i}-presenter" value="${esc(t.presenter)}" placeholder="presenter" maxlength="64" />`;
       wrap.appendChild(row);
     });
   }
@@ -398,15 +398,15 @@
   function buildH2HRows() {
     const wrap = g('h2h-rows');
     wrap.innerHTML = '';
-    const h2h = state.h2h || { slotA: [0, 1], slotB: [2, 3] };
-    [['a', h2h.slotA], ['b', h2h.slotB]].forEach(([slot, pair]) => {
+    const h2h = state.h2h || { a: { left: 0, right: 1 }, b: { left: 2, right: 3 } };
+    [['a', h2h.a || { left:0, right:1 }], ['b', h2h.b || { left:2, right:3 }]].forEach(([slot, slotCfg]) => {
       const row = document.createElement('div');
       row.className = 'h2h-row';
       row.innerHTML = `
         <div class="slot-lbl">SLOT ${slot.toUpperCase()}</div>
-        <select id="h2h-${slot}-left">${teamOptions(pair[0])}</select>
+        <select id="h2h-${slot}-left">${teamOptions(slotCfg.left)}</select>
         <div class="vs">VS</div>
-        <select id="h2h-${slot}-right">${teamOptions(pair[1])}</select>`;
+        <select id="h2h-${slot}-right">${teamOptions(slotCfg.right)}</select>`;
       wrap.appendChild(row);
     });
   }
@@ -416,7 +416,7 @@
       name: g(`t${i}-name`).value.trim() || `Team ${i + 1}`,
       city: g(`t${i}-city`).value.trim(),
       code: g(`t${i}-code`).value.trim() || `T${i + 1}`,
-      handle: g(`t${i}-handle`).value.trim(),
+      presenter: g(`t${i}-presenter`).value.trim(),
     }));
     patch({ teams });
     flash('teams-msg');
@@ -425,8 +425,8 @@
   g('btn-save-h2h').addEventListener('click', () => {
     patch({
       h2h: {
-        slotA: [+g('h2h-a-left').value, +g('h2h-a-right').value],
-        slotB: [+g('h2h-b-left').value, +g('h2h-b-right').value],
+        a: { left: +g('h2h-a-left').value, right: +g('h2h-a-right').value },
+        b: { left: +g('h2h-b-left').value, right: +g('h2h-b-right').value },
       },
     });
     flash('h2h-msg');
@@ -439,14 +439,16 @@
 
   function buildUrlTable() {
     const base = location.origin + '/packages/ffg/render';
-    const h2h = state.h2h || { slotA: [0, 1], slotB: [2, 3] };
+    const h2h = state.h2h || { a: { left: 0, right: 1 }, b: { left: 2, right: 3 } };
+    const slotA = h2h.a || { left: 0, right: 1 };
+    const slotB = h2h.b || { left: 2, right: 3 };
     const name = (i) => state.teams[i].name;
     const rows = [
       { label: 'Four-Up Grid', url: `${base}/four-up?obs=1` },
       { label: 'Four Portrait (intro)', url: `${base}/four-portrait?obs=1` },
-      { label: `H2H — Slot A (${name(h2h.slotA[0])} vs ${name(h2h.slotA[1])})`, url: `${base}/head-to-head?slot=a&obs=1` },
-      { label: `H2H — Slot B (${name(h2h.slotB[0])} vs ${name(h2h.slotB[1])})`, url: `${base}/head-to-head?slot=b&obs=1` },
-      ...state.teams.map((t, i) => ({ label: `Wide + PiP — ${t.name}`, url: `${base}/single-pip?team=${i}&obs=1` })),
+      { label: `H2H — Slot A (${name(slotA.left)} vs ${name(slotA.right)})`, url: `${base}/h2h?slot=a&obs=1` },
+      { label: `H2H — Slot B (${name(slotB.left)} vs ${name(slotB.right)})`, url: `${base}/h2h?slot=b&obs=1` },
+      ...state.teams.map((t, i) => ({ label: `Wide + PiP — ${t.name}`, url: `${base}/wide-pip?team=${i}&obs=1` })),
       ...state.teams.map((t, i) => ({ label: `Champion — ${t.name}`, url: `${base}/champion?winner=${i}` })),
       { label: 'Champion — follows SET WINNER', url: `${base}/champion` },
     ];

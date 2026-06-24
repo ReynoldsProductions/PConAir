@@ -15,8 +15,6 @@
     "teamB": "string",
     "scoreA": "number",
     "scoreB": "number",
-    "clock": "string",
-    "clockEndsAt": "number",
     "shotClock": "number",
     "shotEndsAt": "number",
     "quarter": "number",
@@ -37,16 +35,23 @@
       "ast": "number",
       "fg": "string"
     },
-    "tickerVisible": "boolean",
-    "tickerTag": "string"
+    "clock": {
+      "deadline": "number",
+      "value": "string",
+      "running": "boolean",
+      "format": "string"
+    },
+    "ticker": {
+      "visible": "boolean",
+      "messages": [],
+      "label": "string"
+    }
   },
   "initialState": {
     "teamA": "BOS",
     "teamB": "LAL",
     "scoreA": 88,
     "scoreB": 84,
-    "clock": "07:42",
-    "clockEndsAt": 0,
     "shotClock": 14,
     "shotEndsAt": 0,
     "quarter": 3,
@@ -61,21 +66,30 @@
       "visible": false,
       "name": "J. TATUM",
       "number": "0",
-      "info": "BOSTON \u00b7 SF",
+      "info": "BOSTON · SF",
       "pts": 31,
       "reb": 9,
       "ast": 7,
       "fg": "11-19"
     },
-    "tickerVisible": true,
-    "tickerTag": "AROUND THE LEAGUE",
-    "tickerItems": [
-      "GSW 112 \u00b7 DEN 108 \u00b7 FINAL",
-      "MIA 89 \u00b7 NYK 91 \u00b7 3Q 2:14",
-      "DAL 77 \u00b7 PHX 74 \u00b7 HALF",
-      "MIL 103 \u00b7 PHI 99 \u00b7 4Q 5:30",
-      "OKC 120 \u00b7 SAC 118 \u00b7 FINAL/OT"
-    ]
+    "clock": {
+      "deadline": 0,
+      "value": "07:42",
+      "running": false,
+      "format": "mm:ss"
+    },
+    "ticker": {
+      "visible": true,
+      "messages": [
+        "GSW 112 · DEN 108 · FINAL",
+        "MIA 89 · NYK 91 · 3Q 2:14",
+        "DAL 77 · PHX 74 · HALF",
+        "MIL 103 · PHI 99 · 4Q 5:30",
+        "OKC 120 · SAC 118 · FINAL/OT"
+      ],
+      "label": "AROUND THE LEAGUE",
+      "speed": 80
+    }
   },
   "companionActions": [
     {
@@ -186,15 +200,20 @@
       "ops": [
         {
           "op": "set",
-          "field": "clock",
+          "field": "clock.value",
           "value": {
             "option": "clock"
           }
         },
         {
           "op": "set",
-          "field": "clockEndsAt",
+          "field": "clock.deadline",
           "value": 0
+        },
+        {
+          "op": "set",
+          "field": "clock.running",
+          "value": false
         }
       ]
     },
@@ -204,9 +223,10 @@
       "ops": [
         {
           "op": "countdown_start",
-          "deadlineField": "clockEndsAt",
-          "valueField": "clock",
-          "format": "mm:ss"
+          "deadlineField": "clock.deadline",
+          "valueField": "clock.value",
+          "format": "mm:ss",
+          "runningField": "clock.running"
         }
       ]
     },
@@ -216,9 +236,10 @@
       "ops": [
         {
           "op": "countdown_stop",
-          "deadlineField": "clockEndsAt",
-          "valueField": "clock",
-          "format": "mm:ss"
+          "deadlineField": "clock.deadline",
+          "valueField": "clock.value",
+          "format": "mm:ss",
+          "runningField": "clock.running"
         }
       ]
     },
@@ -584,7 +605,7 @@
       "ops": [
         {
           "op": "toggle",
-          "field": "tickerVisible"
+          "field": "ticker.visible"
         }
       ]
     }
@@ -652,7 +673,7 @@
     {
       "id": "clock_running",
       "label": "Game clock running",
-      "field": "clockEndsAt"
+      "field": "clock.running"
     },
     {
       "id": "shot_clock_running",
@@ -667,7 +688,7 @@
     {
       "id": "ticker_visible",
       "label": "Ticker visible",
-      "field": "tickerVisible"
+      "field": "ticker.visible"
     }
   ],
   "companionVariables": [
@@ -695,9 +716,10 @@
       "id": "clock",
       "label": "Game clock",
       "countdown": {
-        "deadlineField": "clockEndsAt",
-        "valueField": "clock",
-        "format": "mm:ss"
+        "deadlineField": "clock.deadline",
+        "valueField": "clock.value",
+        "format": "mm:ss",
+        "runningField": "clock.running"
       }
     },
     {
