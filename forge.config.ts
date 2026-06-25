@@ -13,7 +13,7 @@ const config: ForgeConfig = {
       mainConfig: {
         entry: './src/main/index.ts',
         module: {
-          rules: [{ test: /\.tsx?$/, use: 'ts-loader', exclude: /node_modules/ }],
+          rules: [{ test: /\.tsx?$/, use: 'ts-loader', exclude: [/node_modules/, /tests/] }],
         },
         resolve: { extensions: ['.ts', '.js'] },
         output: { filename: 'index.js' },
