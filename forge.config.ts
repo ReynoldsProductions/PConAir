@@ -17,6 +17,7 @@ const config: ForgeConfig = {
         },
         resolve: { extensions: ['.ts', '.js'] },
         output: { filename: 'index.js' },
+        externals: { bufferutil: 'commonjs bufferutil', 'utf-8-validate': 'commonjs utf-8-validate' },
       },
       renderer: {
         // Without ts-loader, webpack parses .ts as plain JS and fails on `import type`, etc.
