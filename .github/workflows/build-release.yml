@@ -1,0 +1,38 @@
+name: Build macOS DMG
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build DMG
+        run: npx electron-forge make --platform darwin --arch arm64
+        env:
+          PCONAIR_BUILD_DATE: ${{ github.ref_name }}
+
+      - name: Upload DMG to release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          files: out/make/**/*.dmg
+          body: |
+            ## PConAir ${{ github.ref_name }}
+
+            Unsigned build for internal testing.
+
+            **macOS:** Open the DMG, drag PConAir to Applications.
+            First launch: right-click → Open to bypass Gatekeeper.
