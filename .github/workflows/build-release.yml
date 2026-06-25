@@ -19,6 +19,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Download cloudflared binary
+        run: |
+          mkdir -p cloudflared
+          curl -L "https://github.com/cloudflare/cloudflared/releases/download/2026.6.0/cloudflared-darwin-arm64" -o cloudflared/cloudflared-darwin-arm64
+          chmod +x cloudflared/cloudflared-darwin-arm64
+
       - name: Build DMG
         run: npx electron-forge make --platform darwin --arch arm64
         env:
