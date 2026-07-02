@@ -5,7 +5,7 @@ const config: ForgeConfig = {
   packagerConfig: { name: 'PConAir', asar: true, extraResource: ['./bundled-packages', './cloudflared'] },
   rebuildConfig: {},
   makers: [
-    { name: '@electron-forge/maker-zip', platforms: ['darwin', 'linux'] },
+    { name: '@electron-forge/maker-zip', platforms: ['darwin', 'linux', 'win32'] },
     { name: '@electron-forge/maker-dmg', config: {}, platforms: ['darwin'] },
   ],
   plugins: [
