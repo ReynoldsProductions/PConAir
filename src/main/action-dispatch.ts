@@ -6,7 +6,7 @@ import type { L3PlaylistStore } from './l3/playlist-store';
 import type { MediaLibraryStore } from './media-library/item-store';
 import type { SlideshowEngine } from './media-library/slideshow';
 import type { SlidesWindowManager } from './slides/window-manager';
-import type { Mode, SlideshowTransition, ScoreboardState } from '../shared/types';
+import type { Mode, SlideshowTransition, ScoreboardState, LowerThirdState, LowerThirdTheme } from '../shared/types';
 import { slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideLoadOp, slideOfflineModeOp } from './services/slide-ops';
 import { urlLoadOp, urlReloadOp, setDisplayTargetOp } from './services/url-ops';
 import { fanOutSlideCommand } from './services/backup-fanout';
@@ -14,6 +14,13 @@ import type { AppSettings } from './app-settings';
 import { l3ClearOp, l3StackingOp, l3TakeOp } from './l3/take-ops';
 import { playlistActivateOp, playlistStepOp } from './l3/playlist-ops';
 import { stillsTakeOp, stillsClearOp } from './media-library/stills-ops';
+
+const LOWER_THIRD_THEMES: LowerThirdTheme[] = [
+  'default', 'dark', 'dark_alt',
+  'bright', 'bright_insider', 'bright_warm', 'bright_info',
+  'palette_olive', 'palette_teal', 'palette_terracotta',
+  'palette_plum', 'palette_copper', 'palette_sage',
+];
 
 const DEFAULT_SCOREBOARD: ScoreboardState = {
   teamA: 'HME',
@@ -405,6 +412,58 @@ export function createActionDispatcher(deps: {
         }
         store.setState({ graphics: { ...store.getState().graphics, scoreboard } });
         return { ok: true, body: { graphics: { scoreboard } } };
+      }
+      case 'lower_third_apply': {
+        const existing = store.getState().graphics?.lowerThird ?? null;
+        const cueId = str(p.cue_id) ?? str(p.cueId);
+        let name = str(p.name);
+        let title = str(p.title);
+        let subtitle = str(p.subtitle);
+
+        if (cueId) {
+          const cue = cues.findById(cueId); // read-only — never writes back to the cue store, state.l3, or currentMode
+          if (!cue) {
+            return { ok: false, status: 404, error: { code: 'CUE_NOT_FOUND', message: `Cue '${cueId}' not found` } };
+          }
+          name = name ?? cue.name;
+          title = title ?? cue.title;
+          // Only prefill from the cue when the caller omitted subtitle entirely
+          // (e.g. a bare {cueId} call) — an explicit '' means "no subtitle" and
+          // must not be overridden, otherwise it can never be cleared.
+          if (subtitle === undefined) subtitle = cue.subtitle ?? undefined;
+        }
+
+        if (!name || !name.trim()) {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'name is required' } };
+        }
+
+        const themeRaw = str(p.theme);
+        const theme: LowerThirdTheme = (themeRaw && (LOWER_THIRD_THEMES as string[]).includes(themeRaw))
+          ? (themeRaw as LowerThirdTheme)
+          : (existing?.theme ?? 'default');
+
+        const lowerThird: LowerThirdState = {
+          visible: true,
+          name: name.trim(),
+          title: (title ?? existing?.title ?? '').trim(),
+          // subtitle !== undefined means the caller explicitly specified it (even
+          // as '' to clear it) — that's authoritative. Only truly omitting the
+          // field falls back to whatever was already applied.
+          subtitle: subtitle !== undefined ? (subtitle.trim() || null) : (existing?.subtitle ?? null),
+          theme,
+          sourceCueId: cueId ?? null,
+        };
+        store.setState({ graphics: { ...store.getState().graphics, lowerThird } });
+        return { ok: true, body: { graphics: { lowerThird } } };
+      }
+      case 'lower_third_hide': {
+        const existing = store.getState().graphics?.lowerThird ?? null;
+        if (!existing) {
+          return { ok: true, body: { graphics: { lowerThird: null } } };
+        }
+        const lowerThird: LowerThirdState = { ...existing, visible: false };
+        store.setState({ graphics: { ...store.getState().graphics, lowerThird } });
+        return { ok: true, body: { graphics: { lowerThird } } };
       }
       default:
         return {

@@ -30,6 +30,7 @@ export interface L3CueListItem {
   id: string;
   name: string;
   title: string;
+  subtitle: string | null;
 }
 
 export const getGoogleAuthState = () =>
@@ -60,6 +61,17 @@ export const l3Clear = () => apiPost<unknown>('/api/l3/clear');
 
 export const l3Stacking = (enabled: boolean) =>
   apiPost<unknown>('/api/l3/stacking', { enabled });
+
+export const lowerThirdApply = (body: {
+  cueId?: string;
+  name?: string;
+  title?: string;
+  subtitle?: string;
+  theme?: string;
+}) => apiPost<unknown>('/api/action', { action_id: 'lower_third_apply', params: body });
+
+export const lowerThirdHide = () =>
+  apiPost<unknown>('/api/action', { action_id: 'lower_third_hide', params: {} });
 
 export interface MediaLibraryListItem {
   id: string;

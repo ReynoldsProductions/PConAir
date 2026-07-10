@@ -32,6 +32,14 @@
       "mode": "url",
       "path": "scoreboard-basketball/index.html",
       "params": { "a": "BOS", "b": "LAL", "sa": "88", "sb": "84", "q": "Q3", "clock": "7:42", "shot": "24", "poss": "a", "fA": "4", "fB": "5", "toA": "5", "toB": "4", "card": "1" }
+    },
+    {
+      "id": "lower-third-live",
+      "title": "Lower Third — Live",
+      "description": "Live, WebSocket-driven Faire-style lower third for external keying (solid black background).",
+      "mode": "url",
+      "path": "lower-third-live/index.html",
+      "params": { "theme": "default" }
     }
   ]
 }

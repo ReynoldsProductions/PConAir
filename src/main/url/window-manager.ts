@@ -1,6 +1,7 @@
 import { BrowserWindow, screen, session } from 'electron';
 import type { StateStore } from '../state';
 import type { ABInstance } from '../../shared/types';
+import { scheduleFullscreenChrome } from '../fullscreen-chrome';
 
 interface UrlWindowConfig {
   store: StateStore;
@@ -21,6 +22,7 @@ function applyDisplayTarget(win: BrowserWindow | null, displayId: string | null)
     width: target.bounds.width,
     height: target.bounds.height,
   });
+  scheduleFullscreenChrome(win);
 }
 
 export function createUrlWindowManager(config: UrlWindowConfig) {
@@ -76,7 +78,10 @@ export function createUrlWindowManager(config: UrlWindowConfig) {
     const toShow = instance === 'A' ? windowA : windowB;
     const toHide = instance === 'A' ? windowB : windowA;
     if (toHide && !toHide.isDestroyed()) toHide.hide();
-    if (toShow && !toShow.isDestroyed()) toShow.show();
+    if (toShow && !toShow.isDestroyed()) {
+      toShow.show();
+      scheduleFullscreenChrome(toShow);
+    }
   }
 
   function initialize(): void {

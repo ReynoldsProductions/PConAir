@@ -1,6 +1,7 @@
 import { app, BrowserWindow, screen, session } from 'electron';
 import type { StateStore } from '../state';
 import type { ABInstance } from '../../shared/types';
+import { scheduleFullscreenChrome } from '../fullscreen-chrome';
 
 interface SlidesWindowConfig {
   store: StateStore;
@@ -262,7 +263,7 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
     if (toHide && !toHide.isDestroyed()) toHide.hide();
     if (toShow && !toShow.isDestroyed()) {
       toShow.show();
-      if (process.platform === 'darwin') toShow.setSimpleFullScreen(true);
+      scheduleFullscreenChrome(toShow);
     }
   }
 

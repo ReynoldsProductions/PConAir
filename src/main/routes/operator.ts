@@ -1,8 +1,18 @@
 import { Router, Request, Response } from 'express';
+import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import type { AuthManager } from '../auth';
 import { requireOperator } from './middleware';
+
+// webpack-dev-server's HMR client (bundled into index.js in dev builds only) uses
+// eval() internally, which a strict `script-src 'self'` CSP blocks — that throws
+// before the rest of the bundle (including all nav/button wiring) ever runs.
+// Packaged builds never include the HMR client, so this only loosens dev CSP.
+// `electron`'s `app` resolves to a plain string (not an object) when this module
+// is loaded outside a running Electron process (e.g. under vitest), so guard with
+// optional chaining rather than assuming `app` is always the real Electron API.
+const OPERATOR_SCRIPT_SRC = app?.isPackaged ? "script-src 'self'" : "script-src 'self' 'unsafe-eval'";
 
 function operatorSessionOk(req: Request, auth: AuthManager): boolean {
   const sessionId =
@@ -130,7 +140,7 @@ export function createOperatorRouter(auth: AuthManager): Router {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' https:; font-src 'self'"
+      `default-src 'self'; style-src 'self' 'unsafe-inline'; ${OPERATOR_SCRIPT_SRC}; img-src 'self' https:; font-src 'self'`
     );
     res.send(OPERATOR_HTML_CONTENT);
   });
