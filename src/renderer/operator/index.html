@@ -902,7 +902,8 @@ input[type="radio"] {
         <div class="nav-group">
           <div class="nav-group-label">Show Control</div>
           <a href="#" class="nav-item" data-target="url">URL Mode</a>
-          <a href="#" class="nav-item" data-target="l3">Lower Thirds</a>
+          <a href="#" class="nav-item" data-target="l3">Lower Thirds (ATEM Export)</a>
+          <a href="#" class="nav-item" data-target="lower-third-live">Lower Third — Live (use this)</a>
           <a href="#" class="nav-item" data-target="media">Media Library</a>
         </div>
         <div class="nav-group">
@@ -1030,6 +1031,7 @@ input[type="radio"] {
 
         <section data-tab="l3" hidden>
           <h1 class="page-title">Lower Thirds</h1>
+          <p class="field-hint" style="margin-top:-16px;margin-bottom:16px;">Exports PNGs to the ATEM media pool via Companion — separate from the Lower Third — Live tab.</p>
           <div class="panel">
             <div id="l3-active-line" class="field-hint" style="margin-bottom:12px;">Active: —</div>
             <div class="form-group">
@@ -1060,6 +1062,67 @@ input[type="radio"] {
             <div class="btn-row" style="margin-top:16px;">
               <button type="button" class="btn btn-primary" id="l3-take-btn">Take</button>
               <button type="button" class="btn btn-secondary" id="l3-clear-btn">Clear</button>
+            </div>
+          </div>
+        </section>
+
+        <section data-tab="lower-third-live" hidden>
+          <h1 class="page-title">Lower Third — Live Graphic</h1>
+          <div class="panel">
+            <div class="panel-title">Step 1 — Open the output display</div>
+            <p class="field-hint" style="margin-bottom:16px;">Apply/Hide below only update the live graphic's data — they don't by themselves show anything. Click this once per show (or after switching modes/displays) to point a URL-mode output window at the live graphic. Solid black background, safe to key over.</p>
+            <div class="form-group">
+              <label for="lt-output-display-input">Display target (optional)</label>
+              <input type="text" id="lt-output-display-input" class="input-field" placeholder="Match a display from status" autocomplete="off" />
+            </div>
+            <button type="button" class="btn btn-primary" id="lt-open-output-btn">Open Output Display</button>
+            <p id="lt-output-status" class="url-status-line field-hint" style="margin-top:8px;"></p>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Step 2 — Apply / Hide</div>
+            <div id="lt-active-line" class="field-hint" style="margin-bottom:12px;">Active: —</div>
+            <div class="form-group">
+              <label for="lt-cue-select">Prefill from cue (optional)</label>
+              <div class="ml-l3-select-wrap">
+                <select id="lt-cue-select" class="select-input">
+                  <option value="">— Manual entry below —</option>
+                </select>
+                <button type="button" class="btn btn-secondary" id="lt-cues-refresh-btn" title="Reload cue list">Refresh</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="lt-name-input">Name</label>
+              <input type="text" id="lt-name-input" class="input-field" placeholder="Speaker name" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label for="lt-title-input">Title</label>
+              <input type="text" id="lt-title-input" class="input-field" placeholder="Role or second line" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label for="lt-subtitle-input">Subtitle (optional, small third line)</label>
+              <input type="text" id="lt-subtitle-input" class="input-field" placeholder="Leave blank for none" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label for="lt-theme-select">Theme</label>
+              <select id="lt-theme-select" class="select-input">
+                <option value="default">Default</option>
+                <option value="dark">Dark</option>
+                <option value="dark_alt">Dark Alt</option>
+                <option value="bright">Bright</option>
+                <option value="bright_insider">Bright — Insider</option>
+                <option value="bright_warm">Bright — Warm</option>
+                <option value="bright_info">Bright — Info</option>
+                <option value="palette_olive">Palette — Olive</option>
+                <option value="palette_teal">Palette — Teal</option>
+                <option value="palette_terracotta">Palette — Terracotta</option>
+                <option value="palette_plum">Palette — Plum</option>
+                <option value="palette_copper">Palette — Copper</option>
+                <option value="palette_sage">Palette — Sage</option>
+              </select>
+            </div>
+            <div class="btn-row" style="margin-top:16px;">
+              <button type="button" class="btn btn-primary" id="lt-apply-btn">Apply</button>
+              <button type="button" class="btn btn-secondary" id="lt-hide-btn">Hide</button>
             </div>
           </div>
         </section>

@@ -2,6 +2,7 @@ import { BrowserWindow, screen } from 'electron';
 import type { StateStore } from '../state';
 import type { L3CueStore } from './cue-store';
 import type { L3ThemeStore } from './theme-store';
+import { scheduleFullscreenChrome } from '../fullscreen-chrome';
 
 interface L3StackEntry {
   cueId: string;
@@ -126,12 +127,22 @@ export function createL3WindowManager(config: L3WindowConfig) {
     const url = buildDataUrl(entries, themeCss);
     const window = ensureWindow();
     void window.loadURL(url).then(() => {
-      if (!window.isDestroyed()) window.show();
+      if (!window.isDestroyed()) {
+        window.show();
+        scheduleFullscreenChrome(window);
+      }
     });
   }
 
   function initialize(): void {
     unsubscribe = store.subscribe((patch) => {
+      // Only react when this manager's own slice of state actually changed —
+      // otherwise every unrelated state tick elsewhere in the app (WS client
+      // count, watchdog pings, other modes' actions) re-runs paint()'s
+      // loadURL() on the live-preview window, aborting the previous in-flight
+      // load each time (ERR_ABORTED) and hammering the renderer.
+      if (patch.currentMode === undefined && patch.l3 === undefined) return;
+
       const state = store.getState();
 
       if (state.currentMode !== 'l3') {

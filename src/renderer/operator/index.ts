@@ -53,6 +53,8 @@ function renderKbdPresetButtons(): void {
 /** Ignore checkbox `change` while syncing from server state. */
 let l3StackingUiLock = false;
 let notesPollingInterval: ReturnType<typeof setInterval> | null = null;
+/** Cached cue list for the Lower Third — Live prefill select (name/title lookup only). */
+let ltCuesCache: api.L3CueListItem[] = [];
 
 async function refreshMediaSelect(): Promise<void> {
   const { items } = await api.mediaLibraryList();
@@ -106,6 +108,25 @@ async function refreshGoogleAuth(): Promise<void> {
   } catch {
     statusEl.textContent = 'Could not check Google auth status';
   }
+}
+
+async function refreshLowerThirdCueSelect(): Promise<void> {
+  const { cues } = await api.l3ListCues();
+  ltCuesCache = cues;
+  const sel = document.getElementById('lt-cue-select') as HTMLSelectElement;
+  const prev = sel.value;
+  sel.replaceChildren();
+  const opt0 = document.createElement('option');
+  opt0.value = '';
+  opt0.textContent = '— Manual entry below —';
+  sel.appendChild(opt0);
+  for (const c of cues) {
+    const o = document.createElement('option');
+    o.value = c.id;
+    o.textContent = `${c.name} — ${c.title}`;
+    sel.appendChild(o);
+  }
+  if (prev && cues.some((x) => x.id === prev)) sel.value = prev;
 }
 
 async function refreshActiveProfile(): Promise<void> {
@@ -320,6 +341,17 @@ function renderState(state: AppState): void {
     l3Line.textContent = 'Active: —';
   }
 
+  const ltLine = document.getElementById('lt-active-line');
+  const lowerThird = state.graphics?.lowerThird;
+  if (ltLine) {
+    if (lowerThird?.visible) {
+      const parts = [lowerThird.name, lowerThird.title].filter((x) => Boolean(x));
+      ltLine.textContent = parts.length ? `Active: ${parts.join(' — ')}` : 'Active: —';
+    } else {
+      ltLine.textContent = 'Active: —';
+    }
+  }
+
   const stackCb = document.getElementById('l3-stacking-checkbox') as HTMLInputElement;
   l3StackingUiLock = true;
   stackCb.checked = Boolean(l3s?.isStacking);
@@ -340,11 +372,22 @@ function renderState(state: AppState): void {
   // ── Watchdog banners (spec 09 §6.2, §6.3, §6.5) ─────────────────
   const wd = state.watchdog;
 
+  // §6.2/§6.3 are suppressed in this UI: none of the program-output windows
+  // (slides/url/l3/media-library) have a preload script wired up to answer the
+  // watchdog's ping, so `programUnresponsive` is a guaranteed false positive
+  // the moment any content mode is active — not a real signal. Memory pressure
+  // is also too noisy right after boot (tiny main-process heap) to show live
+  // during a show. Showing either to an operator mid-broadcast does more harm
+  // than good. Leave the underlying state/computation intact (still visible in
+  // the Status tab's state dump) for debugging; just don't surface it as an
+  // alarming banner until the ping/pong plumbing is actually implemented.
+  const SUPPRESS_UNRELIABLE_WATCHDOG_BANNERS = true;
+
   // §6.2 Unresponsive banner
   const unrespBanner = document.getElementById('wd-unresponsive-banner');
   const unrespText = document.getElementById('wd-unresponsive-text');
   if (unrespBanner && unrespText) {
-    const show = wd?.programUnresponsive ?? false;
+    const show = !SUPPRESS_UNRELIABLE_WATCHDOG_BANNERS && (wd?.programUnresponsive ?? false);
     unrespBanner.classList.toggle('visible', show);
     if (show) {
       const secs = wd?.programUnresponsiveSecs ?? 0;
@@ -360,7 +403,7 @@ function renderState(state: AppState): void {
   const memBanner = document.getElementById('wd-memory-banner');
   const memText = document.getElementById('wd-memory-text');
   if (memBanner && memText) {
-    const show = wd?.memoryPressure ?? false;
+    const show = !SUPPRESS_UNRELIABLE_WATCHDOG_BANNERS && (wd?.memoryPressure ?? false);
     memBanner.classList.toggle('visible', show);
     if (show) {
       memText.textContent =
@@ -456,6 +499,55 @@ function bindEvents(): void {
     await api.l3Take({ name, title, autoOutMs: autoOutMs ?? undefined });
   });
   on('l3-clear-btn', () => api.l3Clear());
+
+  on('lt-open-output-btn', async () => {
+    const displayRaw = (document.getElementById('lt-output-display-input') as HTMLInputElement).value.trim();
+    const url = `${location.origin}/graphics/lower-third-live/index.html`;
+    const statusEl = document.getElementById('lt-output-status');
+    await api.loadUrl(url, displayRaw || undefined);
+    if (statusEl) statusEl.textContent = `Output opened: ${url}${displayRaw ? ` → ${displayRaw}` : ''}`;
+  });
+
+  document.getElementById('lt-cues-refresh-btn')!.addEventListener('click', async () => {
+    try {
+      await refreshLowerThirdCueSelect();
+    } catch (e) {
+      showError((e as Error).message);
+    }
+  });
+
+  document.getElementById('lt-cue-select')!.addEventListener('change', () => {
+    const sel = document.getElementById('lt-cue-select') as HTMLSelectElement;
+    if (!sel.value) return;
+    const cue = ltCuesCache.find((c) => c.id === sel.value);
+    if (!cue) return;
+    (document.getElementById('lt-name-input') as HTMLInputElement).value = cue.name;
+    (document.getElementById('lt-title-input') as HTMLInputElement).value = cue.title;
+    (document.getElementById('lt-subtitle-input') as HTMLInputElement).value = cue.subtitle ?? '';
+  });
+
+  on('lt-apply-btn', async () => {
+    const cueId = (document.getElementById('lt-cue-select') as HTMLSelectElement).value;
+    const name = (document.getElementById('lt-name-input') as HTMLInputElement).value.trim();
+    const title = (document.getElementById('lt-title-input') as HTMLInputElement).value.trim();
+    const subtitle = (document.getElementById('lt-subtitle-input') as HTMLInputElement).value.trim();
+    const theme = (document.getElementById('lt-theme-select') as HTMLSelectElement).value;
+    if (!name) {
+      showError('Enter a name');
+      return;
+    }
+    await api.lowerThirdApply({
+      ...(cueId ? { cueId } : {}),
+      name,
+      title,
+      // Always send subtitle explicitly (even '') so the server can tell
+      // "leave blank on purpose" apart from "field wasn't included at all" —
+      // otherwise clearing this input would never actually clear the output.
+      subtitle,
+      theme,
+    });
+  });
+  on('lt-hide-btn', () => api.lowerThirdHide());
 
   document.getElementById('ml-refresh-btn')!.addEventListener('click', async () => {
     try {
@@ -575,6 +667,7 @@ store.subscribe(renderState);
 bindEvents();
 renderKbdPresetButtons();
 void refreshL3CueSelect().catch(() => { /* no session yet */ });
+void refreshLowerThirdCueSelect().catch(() => { /* no session yet */ });
 void refreshMediaSelect().catch(() => { /* no session yet */ });
 void refreshActiveProfile().catch(() => { /* public endpoint */ });
 void refreshGoogleAuth().catch(() => { /* non-critical */ });

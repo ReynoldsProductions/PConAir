@@ -3,6 +3,7 @@ import { pathToFileURL } from 'url';
 import path from 'path';
 import type { StateStore } from '../state';
 import type { MediaLibraryStore } from './item-store';
+import { scheduleFullscreenChrome } from '../fullscreen-chrome';
 
 export function createMediaLibraryWindowManager(config: { store: StateStore; media: MediaLibraryStore; getDisplayPreference?: () => string | null }) {
   const { store, media, getDisplayPreference } = config;
@@ -45,7 +46,13 @@ export function createMediaLibraryWindowManager(config: { store: StateStore; med
   }
 
   function initialize(): void {
-    unsubscribe = store.subscribe(() => {
+    unsubscribe = store.subscribe((patch) => {
+      // Unlike this callback's original form, only react when something this
+      // manager actually cares about changed — otherwise every unrelated state
+      // tick (WS client count, watchdog pings, other modes' actions) re-runs
+      // loadURL()+show()+scheduleFullscreenChrome() for no reason, same pattern
+      // already used correctly by url/slides/l3 window-managers.
+      if (patch.currentMode === undefined && patch.mediaLibrary === undefined) return;
       const state = store.getState();
       if (state.currentMode !== 'media-library') {
         hideWindow();
@@ -65,7 +72,10 @@ export function createMediaLibraryWindowManager(config: { store: StateStore; med
       const fileUrl = pathToFileURL(abs).href;
       const window = ensureWindow();
       void window.loadURL(fileUrl).then(() => {
-        if (!window.isDestroyed()) window.show();
+        if (!window.isDestroyed()) {
+          window.show();
+          scheduleFullscreenChrome(window);
+        }
       });
     });
   }

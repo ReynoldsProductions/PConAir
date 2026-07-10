@@ -224,8 +224,25 @@ export interface ScoreboardState {
   timeoutsB: number;
 }
 
+export type LowerThirdTheme =
+  | 'default' | 'dark' | 'dark_alt'
+  | 'bright' | 'bright_insider' | 'bright_warm' | 'bright_info'
+  | 'palette_olive' | 'palette_teal' | 'palette_terracotta'
+  | 'palette_plum' | 'palette_copper' | 'palette_sage';
+
+export interface LowerThirdState {
+  visible: boolean;
+  name: string;
+  title: string;
+  subtitle: string | null;
+  theme: LowerThirdTheme;
+  /** Traceability only — which L3 cue (if any) this was prefilled from. Never used to mutate the cue store or L3State. */
+  sourceCueId: string | null;
+}
+
 export interface GraphicsState {
   scoreboard: ScoreboardState | null;
+  lowerThird: LowerThirdState | null;
 }
 
 export interface AppState {

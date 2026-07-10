@@ -10,6 +10,12 @@ const config: ForgeConfig = {
   ],
   plugins: [
     new WebpackPlugin({
+      // Renderer dev server defaults to port 3000 (electron-forge's WebpackPlugin
+      // default). TODO: make this a user-selectable setting (e.g. env var or a
+      // preferences field) — port 3000 collides with other local dev services
+      // (e.g. FaireFulfillmentGames' obs/server.js) often enough that a hardcoded
+      // default isn't great long-term. Override via a top-level `port:` key here
+      // if you need to change it locally in the meantime.
       mainConfig: {
         entry: './src/main/index.ts',
         module: {

@@ -61,6 +61,7 @@ const INITIAL_STATE: AppState = {
   teleprompter: makeTeleprompterState(),
   graphics: {
     scoreboard: null,
+    lowerThird: null,
   },
 };
 

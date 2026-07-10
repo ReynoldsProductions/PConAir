@@ -333,11 +333,59 @@ describe('Graphics viewer WebSocket (?graphics=1)', () => {
     });
 
     // mutate state — should broadcast to all clients including graphics viewer
-    store.setState({ graphics: { scoreboard: { teamA: 'BOS', teamB: 'LAL', scoreA: 10, scoreB: 8, quarter: 'Q2', gameClock: '5:00', gameClockRunning: true, shotClock: 24, shotClockRunning: true, possession: 'a', foulsA: 2, foulsB: 3, timeoutsA: 5, timeoutsB: 6 } } });
+    store.setState({ graphics: { scoreboard: { teamA: 'BOS', teamB: 'LAL', scoreA: 10, scoreB: 8, quarter: 'Q2', gameClock: '5:00', gameClockRunning: true, shotClock: 24, shotClockRunning: true, possession: 'a', foulsA: 2, foulsB: 3, timeoutsA: 5, timeoutsB: 6 }, lowerThird: null } });
 
     const patch = await patchPromise;
     expect(patch.type).toBe('state_patch');
     expect((patch as { type: 'state_patch'; payload: { graphics?: unknown } }).payload.graphics).toBeTruthy();
+
+    ws.close();
+    await new Promise<void>((resolve) => srv.httpServer.close(() => resolve()));
+  });
+
+  it('receives state_patch with graphics.lowerThird when lower_third_apply is dispatched', async () => {
+    const store = createStateStore();
+    const srv = createFullServer({
+      store,
+      operatorPin: 'test1234',
+      adminPin: 'adminpass8',
+      operatorSessionMs: 60000,
+      adminSessionMs: 60000,
+      port: 0,
+    });
+    await new Promise<void>((resolve) => srv.httpServer.listen(0, resolve));
+    const port = (srv.httpServer.address() as { port: number }).port;
+
+    const login = await request(srv.app).post('/auth/operator').send({ pin: 'test1234' });
+    const opCookie = ((login.headers['set-cookie'] as unknown) as string[])[0];
+
+    const ws = new WebSocket(`ws://localhost:${port}/ws?graphics=1`);
+    // skip initial 'state' message
+    await new Promise<void>((resolve, reject) => {
+      ws.once('message', () => resolve());
+      ws.on('error', reject);
+    });
+
+    const patchPromise = new Promise<WsServerMessage>((resolve, reject) => {
+      ws.once('message', (data) => resolve(JSON.parse(data.toString()) as WsServerMessage));
+      ws.on('error', reject);
+    });
+
+    // dispatch via the real action endpoint on an authenticated second connection
+    await request(srv.app)
+      .post('/api/action')
+      .set('Cookie', opCookie)
+      .send({ action_id: 'lower_third_apply', params: { name: 'Jane Smith', title: 'CEO', theme: 'dark' } });
+
+    const patch = await patchPromise;
+    expect(patch.type).toBe('state_patch');
+    const payload = (patch as { type: 'state_patch'; payload: { graphics?: { lowerThird?: Record<string, unknown> } } }).payload;
+    expect(payload.graphics?.lowerThird).toMatchObject({
+      visible: true,
+      name: 'Jane Smith',
+      title: 'CEO',
+      theme: 'dark',
+    });
 
     ws.close();
     await new Promise<void>((resolve) => srv.httpServer.close(() => resolve()));

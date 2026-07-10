@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lower Third — Live</title>
+<!--
+  Live, WebSocket-driven lower third for external hardware/software keying.
+
+  - State comes exclusively from the `?graphics=1` WS channel (see the script
+    at the bottom): it reads `msg.payload.graphics.lowerThird`, which is the
+    `LowerThirdState` shape produced by the `lower_third_apply` /
+    `lower_third_hide` actions in src/main/action-dispatch.ts.
+  - This is a NEW, separate system from the legacy `l3`-tab / cue-store /
+    PNG-export lower-third pipeline elsewhere in this codebase. The cue store
+    is only ever read here (via lower_third_apply's optional cueId prefill on
+    the server side) — this page itself never touches cues, state.l3, or the
+    PNG-export path. Do not confuse the two "lower third" systems.
+  - Unlike graphics/news/index.html and graphics/scoreboard-basketball, this
+    template renders on a fully opaque solid black background: it is meant
+    for external keyers (not in-browser camera compositing), so it must never
+    be transparent.
+-->
+<style>
+  @font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:block;src:url('../_fonts/inter-latin-400.woff2') format('woff2');}
+  @font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:block;src:url('../_fonts/inter-latin-600.woff2') format('woff2');}
+</style>
+<style>
+  :root{
+    --font-sans:'Inter',-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{width:1920px;height:1080px;overflow:hidden;background:#000;
+    font-family:var(--font-sans);-webkit-font-smoothing:antialiased;}
+  #stage{position:absolute;inset:0;background:#000;}
+
+  /* ── lower third — geometry lifted from graphics/news/index.html's .l3 rules, ──
+     ── generalized to read colors from per-theme CSS custom properties ── */
+  /* panel 861x169, accent 5x104 @x24, name 52 / title 32, left margin 96 */
+  .l3{position:absolute;left:96px;bottom:96px;
+    width:861px;min-height:169px;background:var(--panel-fill);
+    border:1px solid var(--panel-border);border-radius:4px;display:flex;align-items:center;
+    box-shadow:0 4px 24px rgba(0,0,0,.4);
+    transform:translateX(-960px);opacity:0;
+    transition:transform .55s cubic-bezier(.2,.7,.2,1),opacity .5s ease-out;}
+  .l3.in{transform:none;opacity:1;}
+  /* exit: shorter, ease-in reverse of the enter transition */
+  .l3.out{transition:transform .2s cubic-bezier(.4,0,1,1),opacity .18s ease-in;
+    transform:translateX(-960px);opacity:0;}
+  .l3 .accent{width:5px;height:104px;background:var(--accent);margin:0 16px 0 24px;flex:none;}
+  .l3 .text{padding:16px 0;}
+  .l3 .name{font-family:var(--font-sans);font-weight:600;font-size:52px;line-height:1;color:var(--name-color);}
+  .l3 .title{font-size:32px;color:var(--title-color);margin-top:14px;line-height:1;}
+  .l3 .subtitle{font-size:23px;font-weight:400;color:var(--title-color);opacity:.72;
+    margin-top:10px;line-height:1;}
+  .l3 .subtitle:empty{display:none;margin:0;}
+
+  /* ── per-theme color tokens, transcribed verbatim from FaireL3s style*.json ── */
+  /* (graphics/lower-third-live/_theme-colors.css.snippet) */
+  body[data-theme="default"]{
+    --panel-fill: rgba(251,248,246,0.92);
+    --panel-border: rgb(223,224,225);
+    --accent: rgb(181,169,152);
+    --name-color: rgb(51,51,51);
+    --title-color: rgb(117,117,117);
+  }
+
+  body[data-theme="dark"]{
+    --panel-fill: rgba(51,51,51,1.0);
+    --panel-border: rgb(88,85,80);
+    --accent: rgb(181,169,152);
+    --name-color: rgb(255,255,255);
+    --title-color: rgb(224,224,224);
+  }
+
+  body[data-theme="dark_alt"]{
+    --panel-fill: rgba(0,0,0,1.0);
+    --panel-border: rgb(51,51,51);
+    --accent: rgb(181,169,152);
+    --name-color: rgb(255,255,255);
+    --title-color: rgb(200,200,200);
+  }
+
+  body[data-theme="bright"]{
+    --panel-fill: rgba(221,227,208,1.0);
+    --panel-border: rgb(145,167,147);
+    --accent: rgb(73,105,76);
+    --name-color: rgb(62,64,35);
+    --title-color: rgb(62,64,35);
+  }
+
+  body[data-theme="bright_info"]{
+    --panel-fill: rgba(226,231,240,1.0);
+    --panel-border: rgb(122,120,133);
+    --accent: rgb(27,40,52);
+    --name-color: rgb(27,40,52);
+    --title-color: rgb(122,120,133);
+  }
+
+  body[data-theme="bright_insider"]{
+    --panel-fill: rgba(242,245,245,1.0);
+    --panel-border: rgb(54,103,106);
+    --accent: rgb(21,69,72);
+    --name-color: rgb(21,69,72);
+    --title-color: rgb(54,103,106);
+  }
+
+  body[data-theme="bright_warm"]{
+    --panel-fill: rgba(246,239,219,1.0);
+    --panel-border: rgb(209,185,133);
+    --accent: rgb(144,124,58);
+    --name-color: rgb(144,124,58);
+    --title-color: rgb(144,124,58);
+  }
+
+  body[data-theme="palette_copper"]{
+    --panel-fill: rgba(250,242,232,1.0);
+    --panel-border: rgb(200,170,145);
+    --accent: rgb(175,105,65);
+    --name-color: rgb(75,50,38);
+    --title-color: rgb(140,95,65);
+  }
+
+  body[data-theme="palette_olive"]{
+    --panel-fill: rgba(235,225,195,1.0);
+    --panel-border: rgb(160,155,125);
+    --accent: rgb(118,115,70);
+    --name-color: rgb(62,60,40);
+    --title-color: rgb(118,115,70);
+  }
+
+  body[data-theme="palette_plum"]{
+    --panel-fill: rgba(242,238,248,1.0);
+    --panel-border: rgb(175,165,195);
+    --accent: rgb(95,80,130);
+    --name-color: rgb(55,48,72);
+    --title-color: rgb(115,100,140);
+  }
+
+  body[data-theme="palette_sage"]{
+    --panel-fill: rgba(232,238,232,1.0);
+    --panel-border: rgb(140,165,150);
+    --accent: rgb(75,100,88);
+    --name-color: rgb(45,58,50);
+    --title-color: rgb(85,110,95);
+  }
+
+  body[data-theme="palette_teal"]{
+    --panel-fill: rgba(228,238,238,1.0);
+    --panel-border: rgb(100,155,160);
+    --accent: rgb(35,95,105);
+    --name-color: rgb(25,70,75);
+    --title-color: rgb(55,115,120);
+  }
+
+  body[data-theme="palette_terracotta"]{
+    --panel-fill: rgba(248,238,232,1.0);
+    --panel-border: rgb(195,165,155);
+    --accent: rgb(165,95,85);
+    --name-color: rgb(85,55,52);
+    --title-color: rgb(130,85,80);
+  }
+</style>
+</head>
+<body id="stage-body" data-theme="default">
+<div id="stage">
+  <div class="l3" id="l3">
+    <div class="accent"></div>
+    <div class="text">
+      <div class="name" id="lt-name"></div>
+      <div class="title" id="lt-title"></div>
+      <div class="subtitle" id="lt-subtitle" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── WebSocket live state — driven by lower_third_apply/lower_third_hide ──
+  // Structurally modeled on graphics/scoreboard-basketball/index.html's WS
+  // handling (same reconnect-with-2s-backoff, same state/state_patch shapes),
+  // but reads msg.payload.graphics.lowerThird instead of .scoreboard.
+  (function(){
+    var wsUrl = 'ws://' + location.hostname + ':' + (location.port || '8080') + '/ws?graphics=1';
+
+    function setTxt(id, text) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = text || '';
+    }
+
+    function triggerEnter(el) {
+      // Force a reflow so re-adding "in" after "out" reliably re-triggers the
+      // CSS transition even if the browser would otherwise coalesce the two
+      // class mutations into a single style recalculation.
+      el.classList.remove('out');
+      el.classList.remove('in');
+      void el.offsetWidth; // reflow
+      el.classList.add('in');
+    }
+
+    function triggerExit(el) {
+      el.classList.remove('in');
+      void el.offsetWidth; // reflow
+      el.classList.add('out');
+    }
+
+    function apply(lt) {
+      var el = document.getElementById('l3');
+      if (!lt || !lt.visible) {
+        if (el) triggerExit(el);
+        return;
+      }
+
+      document.body.dataset.theme = lt.theme || 'default';
+      setTxt('lt-name', lt.name);
+      setTxt('lt-title', lt.title);
+
+      var subEl = document.getElementById('lt-subtitle');
+      if (subEl) {
+        subEl.textContent = lt.subtitle || '';
+        subEl.style.display = lt.subtitle ? '' : 'none';
+      }
+
+      if (el) triggerEnter(el);
+    }
+
+    function connect() {
+      var ws = new WebSocket(wsUrl);
+      ws.onmessage = function(e) {
+        try {
+          var msg = JSON.parse(e.data);
+          if (msg.type === 'state' && msg.payload) {
+            apply(msg.payload.graphics && msg.payload.graphics.lowerThird);
+          } else if (msg.type === 'state_patch' && msg.payload && msg.payload.graphics) {
+            apply(msg.payload.graphics.lowerThird);
+          }
+        } catch (err) {}
+      };
+      ws.onclose = function() { setTimeout(connect, 2000); };
+      ws.onerror = function() { try { ws.close(); } catch (e) {} };
+    }
+    connect();
+  })();
+</script>
+</body>
+</html>
