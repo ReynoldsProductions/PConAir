@@ -234,6 +234,12 @@ async function main() {
     graphicsRoot: app.isPackaged
       ? path.join(process.resourcesPath, 'graphics')
       : path.join(app.getAppPath(), 'graphics'),
+    // Packaged builds ship the raw `src/` tree nowhere — the vendored
+    // React/Slate bundle must be copied in as its own extraResource (see
+    // forge.config.ts) and located via resourcesPath, same as graphicsRoot.
+    vendorRoot: app.isPackaged
+      ? path.join(process.resourcesPath, 'vendor')
+      : path.join(app.getAppPath(), 'src/renderer/vendor'),
     profilePaths: boot.paths,
     getActiveProfileId: () => getActiveMarker(boot.paths)?.id ?? boot.activeId,
     onProfileActivate: () => {
