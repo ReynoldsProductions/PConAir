@@ -33,12 +33,13 @@ const config: ForgeConfig = {
           },
           resolve: { extensions: ['.ts', '.js', '.tsx', '.jsx'] },
           watchOptions: { ignored: /node_modules/ },
+          externals: { react: 'React', 'react-dom': 'ReactDOM' },
         },
         entryPoints: [
           {
             name: 'operator',
             html: './src/renderer/operator/index.html',
-            js: './src/renderer/operator/index.ts',
+            js: './src/renderer/operator/index.tsx',
             preload: { js: './src/renderer/preload.ts' },
           },
           {

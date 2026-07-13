@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PC On Air — Operator</title>
+  <!-- React (vendored local UMD build — see src/renderer/vendor/react/) -->
+  <script src="../vendor/react/react.development.js"></script>
+  <script src="../vendor/react/react-dom.development.js"></script>
+  <!-- Slate design system (vendored bundle — see src/renderer/vendor/slate/) -->
+  <link rel="stylesheet" href="../vendor/slate/styles.css" />
+  <script src="../vendor/slate/_ds_bundle.js"></script>
   <style>
 /* ============================================================
    Google Slides Controller — Desktop UI Redesign
@@ -918,45 +924,14 @@ input[type="radio"] {
     </aside>
 
     <div class="main">
-      <header class="status-bar">
-        <span class="status-bar-machine" id="machine-name-label">PC On Air</span>
-        <div class="status-bar-indicators">
-          <div class="status-indicator">
-            <span class="led" id="ws-dot"></span>
-            <span id="ws-label">Disconnected</span>
-          </div>
-          <div class="status-indicator">
-            <span class="led" id="companion-dot"></span>
-            <span>Companion</span>
-          </div>
-          <span id="mode-badge" class="mode-badge">IDLE</span>
-          <span id="show-lock-badge">SHOW LOCKED</span>
-          <button type="button" id="panic-btn" class="btn btn-primary">PANIC</button>
-        </div>
-      </header>
+      <div id="status-header-root"></div>
 
       <div id="panic-banner">PANIC — OUTPUT HIDDEN · Click UN-PANIC or press P</div>
 
       <div class="content">
         <section data-tab="dashboard">
           <h1 class="page-title">Live Control</h1>
-          <div class="panel">
-            <div class="panel-title">A/B Instance</div>
-            <div class="ab-row">
-              <button type="button" class="ab-btn" id="ab-a-btn" data-instance="A">A</button>
-              <button type="button" class="ab-btn" id="ab-b-btn" data-instance="B">B</button>
-            </div>
-          </div>
-          <div class="panel">
-            <div class="panel-title">Mode</div>
-            <div class="mode-btn-grid">
-              <button type="button" class="btn btn-secondary" data-mode="idle">Idle</button>
-              <button type="button" class="btn btn-secondary" data-mode="slides">Slides</button>
-              <button type="button" class="btn btn-secondary" data-mode="url">URL</button>
-              <button type="button" class="btn btn-secondary" data-mode="l3">Lower Thirds</button>
-              <button type="button" class="btn btn-secondary" data-mode="media-library">Media Library</button>
-            </div>
-          </div>
+          <div id="live-control-panels-root"></div>
         </section>
 
         <section data-tab="slides" hidden>
