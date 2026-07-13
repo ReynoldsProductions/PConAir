@@ -46,6 +46,15 @@ export interface RouteServices {
   l3ThemeStore: L3ThemeStore;
   l3FilesRoot: string;
   graphicsRoot?: string;
+  /**
+   * Serves the vendored React + Slate design-system bundle at /vendor.
+   * Omit to fall back to `VENDOR_ROOT_CANDIDATES`' self-resolving guess (works
+   * for `electron-forge start` and vitest, but NOT for a packaged app — the
+   * raw `src/` tree isn't shipped inside `app.asar`). Electron main passes
+   * this explicitly, computed via `app.isPackaged`/`resourcesPath`, exactly
+   * like `graphicsRoot` above.
+   */
+  vendorRoot?: string;
   mediaLibrary: MediaLibraryStore;
   /** Shared slideshow engine (same instance the action dispatcher uses). */
   slideshow?: SlideshowEngine;
@@ -126,7 +135,8 @@ const VENDOR_ROOT_CANDIDATES = [
   path.resolve(__dirname, '../../../src/renderer/vendor'), // src/main/routes (vitest) -> <repo root>/src/renderer/vendor
 ];
 
-function resolveVendorRoot(): string {
+function resolveVendorRoot(override?: string): string {
+  if (override) return override;
   for (const p of VENDOR_ROOT_CANDIDATES) {
     if (fs.existsSync(p)) return p;
   }
@@ -140,7 +150,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   // trust level as the graphics templates below; it's just static library
   // code referenced from operator/admin/remote HTML via relative <script>/
   // <link> tags).
-  app.use('/vendor', express.static(resolveVendorRoot()));
+  app.use('/vendor', express.static(resolveVendorRoot(s.vendorRoot)));
 
   // Built-in graphics templates — served statically (public, no auth). See specs/13.
   if (s.graphicsRoot) {
