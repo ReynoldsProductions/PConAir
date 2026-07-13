@@ -401,6 +401,18 @@ breakdown or model assignments.
 (Appended to as tasks complete — see `.superpowers/sdd/progress.md` for the live version during
 execution.)
 
-- Task 1: in progress — branch renamed, `npm install` for React/Slate devDeps done directly by
-  the controller in the worktree (after a false-start in the main repo checkout, reverted). UMD +
-  DS bundle vendoring still pending.
+- Task 1: complete (commits 57ba1f6, 7bd86c9). Branch renamed, React/Slate vendored, typecheck +
+  378 tests clean.
+- Task 2: complete (commits ce84403, 2a0ff11, 2dbd798, review clean after two rounds). React/Slate
+  bootstrap on Operator Live Control — status header + A/B panel + Mode grid ported to
+  `Slate.Tag`/`Slate.Button`; `.tsx` rename, webpack externals, esbuild alias shims, new `/vendor`
+  static route (with regression tests) and a DOM-boot smoke test all in place. 385/385 tests
+  passing. **⏸️ Stopped at the human checkpoint — next task (Task 3) must not start until a human
+  has visually confirmed the Operator window in Electron.** Two things flagged for that human
+  look, beyond ordinary visual QA:
+  1. The vendored React **development** build logs a "Download the React DevTools" message to
+     the console on every boot (plan-mandated for now — production build is a later, separate
+     "ship it" decision, not a defect).
+  2. The mode→`Slate.Tag`-variant color mapping (idle→neutral, slides→info, url→success,
+     l3→warning, media-library→strong) has no spec-given answer and was a best-fit implementer
+     judgment call — worth a designer/human glance.
