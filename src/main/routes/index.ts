@@ -1,5 +1,7 @@
 import express, { Express } from 'express';
 import cookieParser from 'cookie-parser';
+import path from 'path';
+import fs from 'fs';
 import { createAuthRouter } from './auth';
 import { createApiRouter } from './api';
 import { createSlidesRouter, type SlidesRouterDeps } from './slides';
@@ -104,8 +106,41 @@ export interface RouteServices {
   getBackupSettings?: () => { operationMode: import('../app-settings').AppSettings['operationMode']; backupIps: string[]; port: number };
 }
 
+// Renderer windows (operator, admin, remote) are loaded through this app's
+// own Express server (see e.g. `src/main/window.ts`'s
+// `loadURL('http://localhost:.../operator/')`), not directly from webpack's
+// dev server — so a page's relative asset URLs (e.g. `../vendor/...` in
+// `operator/index.html`) must resolve to a route on THIS server, regardless
+// of whether webpack's asset pipeline also copies the vendored files into
+// `.webpack/renderer/vendor/` (it currently does not — see task 2 report).
+// Same style of candidate-path resolution as `OPERATOR_HTML_CANDIDATES` in
+// `./operator.ts`, extended with one more entry since __dirname takes on
+// three different shapes here depending on how this module is loaded:
+//   - `.webpack/main`     (`electron-forge start` and packaged builds — main
+//                          process bundled to a single directory)
+//   - `src/main/routes`   (vitest, which type-checks/runs this file in place
+//                          without webpack bundling)
+const VENDOR_ROOT_CANDIDATES = [
+  path.resolve(__dirname, '../renderer/vendor'), // .webpack/main -> .webpack/renderer/vendor (if webpack ever copies vendor/ there)
+  path.resolve(__dirname, '../../src/renderer/vendor'), // .webpack/main -> <repo root>/src/renderer/vendor
+  path.resolve(__dirname, '../../../src/renderer/vendor'), // src/main/routes (vitest) -> <repo root>/src/renderer/vendor
+];
+
+function resolveVendorRoot(): string {
+  for (const p of VENDOR_ROOT_CANDIDATES) {
+    if (fs.existsSync(p)) return p;
+  }
+  return VENDOR_ROOT_CANDIDATES[VENDOR_ROOT_CANDIDATES.length - 1];
+}
+
 export function mountRoutes(app: Express, s: RouteServices): void {
   app.use(cookieParser());
+
+  // Vendored React + Slate design-system bundle — public, no auth (same
+  // trust level as the graphics templates below; it's just static library
+  // code referenced from operator/admin/remote HTML via relative <script>/
+  // <link> tags).
+  app.use('/vendor', express.static(resolveVendorRoot()));
 
   // Built-in graphics templates — served statically (public, no auth). See specs/13.
   if (s.graphicsRoot) {

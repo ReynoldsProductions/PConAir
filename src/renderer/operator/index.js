@@ -1,5 +1,51 @@
 "use strict";
 (() => {
+  var __create = Object.create;
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __getProtoOf = Object.getPrototypeOf;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __commonJS = (cb, mod) => function __require() {
+    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+    // If the importer is in node compatibility mode or this is not an ESM
+    // file that has been converted to a CommonJS file using a Babel-
+    // compatible transform (i.e. "__esModule" has not been set), then set
+    // "default" to the CommonJS "module.exports" for node compatibility.
+    isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+    mod
+  ));
+
+  // src/renderer/vendor/react-global-shim.js
+  var require_react_global_shim = __commonJS({
+    "src/renderer/vendor/react-global-shim.js"(exports, module) {
+      "use strict";
+      module.exports = window.React;
+    }
+  });
+
+  // src/renderer/vendor/react-dom-global-shim.js
+  var require_react_dom_global_shim = __commonJS({
+    "src/renderer/vendor/react-dom-global-shim.js"(exports, module) {
+      "use strict";
+      module.exports = window.ReactDOM;
+    }
+  });
+
+  // src/renderer/operator/index.tsx
+  var React2 = __toESM(require_react_global_shim());
+  var ReactDOMBase = __toESM(require_react_dom_global_shim());
+
   // src/renderer/operator/state.ts
   var DEFAULT_STATE = {
     currentMode: "idle",
@@ -124,8 +170,119 @@
   var fetchSlidesNotes = () => apiGet("/api/slides/notes");
   var fetchPresets = () => apiGet("/api/presets");
 
-  // src/renderer/operator/index.ts
+  // src/renderer/operator/components/LiveControl.tsx
+  var React = __toESM(require_react_global_shim());
+  var { SlateDSProvider, Tag, Button } = window.Slate;
+  var MODE_TAG_VARIANT = {
+    idle: "neutral",
+    slides: "info",
+    url: "success",
+    l3: "warning",
+    "media-library": "strong"
+  };
+  var MODE_BUTTONS = [
+    { mode: "idle", label: "Idle" },
+    { mode: "slides", label: "Slides" },
+    { mode: "url", label: "URL" },
+    { mode: "l3", label: "Lower Thirds" },
+    { mode: "media-library", label: "Media Library" }
+  ];
+  function StatusHeader({ state, wsConnected: wsConnected2, onPanic }) {
+    const panicActive = state.reliability.panicActive;
+    const companionConnected = state.connectionStatus.companionConnected;
+    return /* @__PURE__ */ React.createElement(SlateDSProvider, null, /* @__PURE__ */ React.createElement("header", { className: "status-bar" }, /* @__PURE__ */ React.createElement("span", { className: "status-bar-machine", id: "machine-name-label" }, "PC On Air"), /* @__PURE__ */ React.createElement("div", { className: "status-bar-indicators" }, /* @__PURE__ */ React.createElement("div", { className: "status-indicator" }, /* @__PURE__ */ React.createElement("span", { className: wsConnected2 ? "led connected" : "led", id: "ws-dot" }), /* @__PURE__ */ React.createElement("span", { id: "ws-label" }, wsConnected2 ? "Connected" : "Disconnected")), /* @__PURE__ */ React.createElement("div", { className: "status-indicator" }, /* @__PURE__ */ React.createElement("span", { className: companionConnected ? "led connected" : "led", id: "companion-dot" }), /* @__PURE__ */ React.createElement("span", null, "Companion")), /* @__PURE__ */ React.createElement(
+      Tag,
+      {
+        id: "mode-badge",
+        label: state.currentMode.toUpperCase(),
+        variant: MODE_TAG_VARIANT[state.currentMode]
+      }
+    ), /* @__PURE__ */ React.createElement("span", { id: "show-lock-badge", className: state.connectionStatus.adminShowLocked ? "visible" : void 0 }, "SHOW LOCKED"), /* @__PURE__ */ React.createElement(
+      Button,
+      {
+        id: "panic-btn",
+        type: "button",
+        variant: "primary",
+        destructive: true,
+        size: "small",
+        onClick: onPanic
+      },
+      panicActive ? "UN-PANIC" : "PANIC"
+    ))));
+  }
+  function LiveControlPanels({ state, onSwitchAB, onSetMode }) {
+    const activeInstance = state.abState.activeInstance;
+    return /* @__PURE__ */ React.createElement(SlateDSProvider, null, /* @__PURE__ */ React.createElement("div", { className: "panel" }, /* @__PURE__ */ React.createElement("div", { className: "panel-title" }, "A/B Instance"), /* @__PURE__ */ React.createElement("div", { className: "ab-row" }, /* @__PURE__ */ React.createElement(
+      Button,
+      {
+        id: "ab-a-btn",
+        type: "button",
+        "data-instance": "A",
+        variant: activeInstance === "A" ? "primary" : "secondary",
+        fullWidth: true,
+        onClick: () => onSwitchAB("A")
+      },
+      "A"
+    ), /* @__PURE__ */ React.createElement(
+      Button,
+      {
+        id: "ab-b-btn",
+        type: "button",
+        "data-instance": "B",
+        variant: activeInstance === "B" ? "primary" : "secondary",
+        fullWidth: true,
+        onClick: () => onSwitchAB("B")
+      },
+      "B"
+    ))), /* @__PURE__ */ React.createElement("div", { className: "panel" }, /* @__PURE__ */ React.createElement("div", { className: "panel-title" }, "Mode"), /* @__PURE__ */ React.createElement("div", { className: "mode-btn-grid" }, MODE_BUTTONS.map(({ mode, label }) => /* @__PURE__ */ React.createElement(
+      Button,
+      {
+        key: mode,
+        type: "button",
+        "data-mode": mode,
+        variant: "secondary",
+        fullWidth: true,
+        onClick: () => onSetMode(mode)
+      },
+      label
+    )))));
+  }
+
+  // src/renderer/operator/index.tsx
   var store = createClientStore();
+  var ReactDOM = ReactDOMBase;
+  var statusHeaderRoot = ReactDOM.createRoot(document.getElementById("status-header-root"));
+  var liveControlPanelsRoot = ReactDOM.createRoot(document.getElementById("live-control-panels-root"));
+  var wsConnected = false;
+  async function handlePanicClick() {
+    try {
+      await panicAction("toggle");
+    } catch (e) {
+      showError(e.message);
+    }
+  }
+  async function handleSwitchAB(instance) {
+    try {
+      await switchAB(instance);
+    } catch (e) {
+      showError(e.message);
+    }
+  }
+  async function handleSetMode(mode) {
+    try {
+      await setMode(mode);
+    } catch (e) {
+      showError(e.message);
+    }
+  }
+  function renderReactRoots(state) {
+    statusHeaderRoot.render(
+      /* @__PURE__ */ React2.createElement(StatusHeader, { state, wsConnected, onPanic: handlePanicClick })
+    );
+    liveControlPanelsRoot.render(
+      /* @__PURE__ */ React2.createElement(LiveControlPanels, { state, onSwitchAB: handleSwitchAB, onSetMode: handleSetMode })
+    );
+  }
   var KBD_PRESETS = {
     google: {
       next: ["ArrowRight", " ", "PageDown"],
@@ -332,27 +489,15 @@
     });
   }
   function setWsStatus(connected) {
-    document.getElementById("ws-dot").classList.toggle("connected", connected);
-    document.getElementById("ws-label").textContent = connected ? "Connected" : "Disconnected";
+    wsConnected = connected;
+    renderReactRoots(store.getState());
   }
   function renderState(state) {
-    const badge = document.getElementById("mode-badge");
-    badge.textContent = state.currentMode.toUpperCase();
-    badge.className = `mode-badge ${state.currentMode}`;
-    const lockBadge = document.getElementById("show-lock-badge");
-    if (lockBadge) {
-      lockBadge.classList.toggle("visible", state.connectionStatus.adminShowLocked);
-    }
+    renderReactRoots(state);
     const panicBanner = document.getElementById("panic-banner");
-    const panicBtn = document.getElementById("panic-btn");
-    if (panicBanner && panicBtn) {
+    if (panicBanner) {
       panicBanner.classList.toggle("visible", state.reliability.panicActive);
-      panicBtn.textContent = state.reliability.panicActive ? "UN-PANIC" : "PANIC";
     }
-    document.getElementById("companion-dot").classList.toggle(
-      "connected",
-      state.connectionStatus.companionConnected
-    );
     const slides = state.slides;
     const hasSlides = state.currentMode === "slides" && slides !== null;
     const navEnabled = hasSlides && slides !== null && !slides.isLoading;
@@ -376,9 +521,6 @@
     } else {
       urlStatusEl.textContent = "";
     }
-    const active = state.abState.activeInstance;
-    document.getElementById("ab-a-btn").classList.toggle("active", active === "A");
-    document.getElementById("ab-b-btn").classList.toggle("active", active === "B");
     const l3Line = document.getElementById("l3-active-line");
     const l3s = state.l3;
     if (l3s?.activeCueName != null || l3s?.activeTitle != null) {
@@ -524,7 +666,6 @@
       await mediaLibraryTake(sel.value);
     });
     on("ml-clear-btn", () => mediaLibraryClear());
-    on("panic-btn", () => panicAction("toggle"));
     document.getElementById("wd-force-reload-btn")?.addEventListener("click", async () => {
       try {
         const state = store.getState();
@@ -572,24 +713,6 @@
         }
       }
     );
-    document.querySelectorAll(".ab-btn").forEach(
-      (btn) => btn.addEventListener("click", async () => {
-        try {
-          await switchAB(btn.dataset.instance);
-        } catch (e) {
-          showError(e.message);
-        }
-      })
-    );
-    document.querySelectorAll("[data-mode]").forEach(
-      (btn) => btn.addEventListener("click", async () => {
-        try {
-          await setMode(btn.dataset.mode);
-        } catch (e) {
-          showError(e.message);
-        }
-      })
-    );
     document.querySelectorAll(".nav-item").forEach((item) => {
       item.addEventListener("click", (ev) => {
         ev.preventDefault();
@@ -611,6 +734,7 @@
       });
     });
   }
+  renderReactRoots(store.getState());
   store.subscribe(renderState);
   bindEvents();
   renderKbdPresetButtons();

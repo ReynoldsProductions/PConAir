@@ -1,8 +1,72 @@
+import * as React from 'react';
+import * as ReactDOMBase from 'react-dom';
 import { createClientStore } from './state';
-import type { AppState, WsServerMessage } from '../../shared/types';
+import type { AppState, WsServerMessage, Mode, ABInstance } from '../../shared/types';
 import * as api from './api';
+import { StatusHeader, LiveControlPanels } from './components/LiveControl';
 
 const store = createClientStore();
+
+// ── React roots (Slate-based status header + Live Control panels) ─
+//
+// `@types/react-dom`'s `createRoot` only exists on the `react-dom/client`
+// subpath's types, but importing that subpath would make webpack resolve
+// and bundle the real npm `react-dom` package for it, while our bare
+// `import * as ReactDOMBase from 'react-dom'` above is externalized to the
+// vendored UMD global (see forge.config.ts `externals`) — two different
+// React-DOM instances in one page. So this stays a single import of bare
+// 'react-dom' with a local type widening for `createRoot`, which IS present
+// on the vendored UMD global at runtime (verified: `exports.createRoot =
+// createRoot$1;` in react-dom.development.js) — see task report for the
+// createRoot-vs-render investigation.
+const ReactDOM = ReactDOMBase as typeof ReactDOMBase & {
+  createRoot: (container: Element) => { render: (el: React.ReactElement) => void };
+};
+
+// Two independent roots, not one root + a Portal: the status header and the
+// dashboard-tab panels live in non-adjacent parts of the static shell DOM
+// (header vs. `.content`), and keeping them as two small, directly-mounted
+// trees is more obvious to a reader unfamiliar with this codebase's React
+// usage than reaching for `createPortal`. Both are re-rendered together by
+// `renderReactRoots()` below, called from the store subscription and from
+// `setWsStatus()` (WS connection status isn't part of `AppState`).
+const statusHeaderRoot = ReactDOM.createRoot(document.getElementById('status-header-root')!);
+const liveControlPanelsRoot = ReactDOM.createRoot(document.getElementById('live-control-panels-root')!);
+
+let wsConnected = false;
+
+async function handlePanicClick(): Promise<void> {
+  try {
+    await api.panicAction('toggle');
+  } catch (e) {
+    showError((e as Error).message);
+  }
+}
+
+async function handleSwitchAB(instance: ABInstance): Promise<void> {
+  try {
+    await api.switchAB(instance);
+  } catch (e) {
+    showError((e as Error).message);
+  }
+}
+
+async function handleSetMode(mode: Mode): Promise<void> {
+  try {
+    await api.setMode(mode);
+  } catch (e) {
+    showError((e as Error).message);
+  }
+}
+
+function renderReactRoots(state: AppState): void {
+  statusHeaderRoot.render(
+    <StatusHeader state={state} wsConnected={wsConnected} onPanic={handlePanicClick} />
+  );
+  liveControlPanelsRoot.render(
+    <LiveControlPanels state={state} onSwitchAB={handleSwitchAB} onSetMode={handleSetMode} />
+  );
+}
 
 // ── Keyboard shortcut presets ─────────────────────────────────────
 
@@ -267,30 +331,21 @@ function connectWs(delay = 1000): void {
 // ── UI updates ────────────────────────────────────────────────────
 
 function setWsStatus(connected: boolean): void {
-  document.getElementById('ws-dot')!.classList.toggle('connected', connected);
-  document.getElementById('ws-label')!.textContent = connected ? 'Connected' : 'Disconnected';
+  wsConnected = connected;
+  renderReactRoots(store.getState());
 }
 
 function renderState(state: AppState): void {
-  const badge = document.getElementById('mode-badge')!;
-  badge.textContent = state.currentMode.toUpperCase();
-  badge.className = `mode-badge ${state.currentMode}`;
-
-  const lockBadge = document.getElementById('show-lock-badge');
-  if (lockBadge) {
-    lockBadge.classList.toggle('visible', state.connectionStatus.adminShowLocked);
-  }
+  // Status header (mode Tag, show-lock badge, companion dot, PANIC button
+  // text) + Live Control tab panels (A/B active state) are now rendered by
+  // React — see renderReactRoots(). The panic banner overlay itself
+  // (#panic-banner) stays vanilla-DOM; it's out of this task's scope.
+  renderReactRoots(state);
 
   const panicBanner = document.getElementById('panic-banner');
-  const panicBtn = document.getElementById('panic-btn');
-  if (panicBanner && panicBtn) {
+  if (panicBanner) {
     panicBanner.classList.toggle('visible', state.reliability.panicActive);
-    panicBtn.textContent = state.reliability.panicActive ? 'UN-PANIC' : 'PANIC';
   }
-
-  document.getElementById('companion-dot')!.classList.toggle(
-    'connected', state.connectionStatus.companionConnected
-  );
 
   const slides = state.slides;
   const hasSlides = state.currentMode === 'slides' && slides !== null;
@@ -325,10 +380,6 @@ function renderState(state: AppState): void {
   } else {
     urlStatusEl.textContent = '';
   }
-
-  const active = state.abState.activeInstance;
-  document.getElementById('ab-a-btn')!.classList.toggle('active', active === 'A');
-  document.getElementById('ab-b-btn')!.classList.toggle('active', active === 'B');
 
   const l3Line = document.getElementById('l3-active-line')!;
   const l3s = state.l3;
@@ -567,8 +618,6 @@ function bindEvents(): void {
   });
   on('ml-clear-btn', () => api.mediaLibraryClear());
 
-  on('panic-btn', () => api.panicAction('toggle'));
-
   // §6.2 Force-reload the on-air program output window
   document.getElementById('wd-force-reload-btn')?.addEventListener('click', async () => {
     try {
@@ -624,19 +673,9 @@ function bindEvents(): void {
     }
   );
 
-  document.querySelectorAll<HTMLButtonElement>('.ab-btn').forEach((btn) =>
-    btn.addEventListener('click', async () => {
-      try { await api.switchAB(btn.dataset.instance as 'A' | 'B'); }
-      catch (e) { showError((e as Error).message); }
-    })
-  );
-
-  document.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((btn) =>
-    btn.addEventListener('click', async () => {
-      try { await api.setMode(btn.dataset.mode!); }
-      catch (e) { showError((e as Error).message); }
-    })
-  );
+  // A/B instance buttons and [data-mode] buttons are now Slate `Button`s in
+  // the Live Control React tree (see handleSwitchAB/handleSetMode above) —
+  // no vanilla click listeners needed for them here.
 
   // Tab switching — same pattern as GSC renderer.js
   document.querySelectorAll<HTMLElement>('.nav-item').forEach((item) => {
@@ -663,6 +702,12 @@ function bindEvents(): void {
 
 // ── Boot ──────────────────────────────────────────────────────────
 
+// `store.subscribe` only fires on future updates (see state.ts) — do one
+// synchronous initial render so the status header / Live Control panels
+// aren't blank before the first WS message arrives, mirroring how the old
+// static HTML had default content ("IDLE", hidden show-lock badge, etc.)
+// visible immediately on load.
+renderReactRoots(store.getState());
 store.subscribe(renderState);
 bindEvents();
 renderKbdPresetButtons();
