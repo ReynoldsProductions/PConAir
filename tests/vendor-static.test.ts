@@ -54,24 +54,31 @@ describe('GET /vendor (vendored React + Slate bundle)', () => {
     expect(res.text.length).toBeGreaterThan(0);
   });
 
+  // `supertest`/`superagent` normalize a literal `../` (and a fully-encoded
+  // `%2e%2e%2f`) client-side before the request ever reaches Express, so a
+  // naive traversal payload never actually exercises `express.static`'s
+  // traversal guard — it just 404s because no route matches the normalized
+  // path. Encoding only the `/` separator (not the dots) survives client-side
+  // normalization and reaches the server as a literal `..%2F`, which is the
+  // pattern already proven to work in tests/packages.test.ts:216. The vendor
+  // root is `<repo root>/src/renderer/vendor`, so three levels up reaches the
+  // repo root — request its package.json (a real file with known content) to
+  // prove escape is actually blocked, not just that some URL 404s.
   it('does not allow path traversal outside the vendor directory', async () => {
     const srv = makeServer();
     const res = await request(srv.app).get(
-      '/vendor/%2e%2e/%2e%2e/%2e%2e/%2e%2e/etc/passwd'
+      '/vendor/..%2F..%2F..%2Fpackage.json'
     );
-    // express.static rejects encoded traversal segments outright (403) or,
-    // failing that, must not resolve to anything outside the vendor root
-    // (404) — either way it must never leak host filesystem content.
-    expect([403, 404]).toContain(res.status);
-    expect(res.text).not.toContain('root:');
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.text).not.toContain('"name": "pc-on-air"');
   });
 
-  it('does not allow literal ../ path traversal outside the vendor directory', async () => {
+  it('does not allow a deeper traversal payload to escape the vendor directory', async () => {
     const srv = makeServer();
-    const res = await request(srv.app).get('/vendor/../../../../../etc/passwd');
-    // Most HTTP clients/servers normalize `..` in the URL path before this
-    // ever reaches Express, but assert the observable contract either way:
-    // no 200 with filesystem content leaking through this route.
-    expect(res.status).not.toBe(200);
+    const res = await request(srv.app).get(
+      '/vendor/react/..%2F..%2F..%2F..%2Fpackage.json'
+    );
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.text).not.toContain('"name": "pc-on-air"');
   });
 });
