@@ -3,7 +3,7 @@
   "name": "PC On Air",
   "shortname": "PC On Air",
   "description": "Control PConAir live event graphics and playout \u2014 slides, lower thirds, still store, packages",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "main": "dist/index.js",
   "runtime": "NodeJS",
   "manufacturer": "TomsFaire",

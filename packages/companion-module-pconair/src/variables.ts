@@ -102,6 +102,63 @@ export const VARIABLE_DEFINITIONS: CompanionVariableDefinition[] = [
   { variableId: 'render_bg_l3', name: 'L3 Render Background Mode' },
   { variableId: 'render_bg_stills', name: 'Stills Render Background Mode' },
   { variableId: 'render_bg_url', name: 'URL Render Background Mode' },
+
+  // ── teleprompter ──
+  { variableId: 'teleprompter_enabled', name: 'Teleprompter Enabled (Yes/No)' },
+  { variableId: 'teleprompter_scrolling', name: 'Teleprompter Scrolling (Yes/No)' },
+  { variableId: 'teleprompter_speed', name: 'Teleprompter Scroll Speed' },
+  { variableId: 'teleprompter_font_size', name: 'Teleprompter Font Size' },
+
+  // ── graphics: scoreboard ──
+  { variableId: 'score_team_a_name', name: 'Scoreboard Team A Name' },
+  { variableId: 'score_team_b_name', name: 'Scoreboard Team B Name' },
+  { variableId: 'score_a', name: 'Scoreboard Team A Score' },
+  { variableId: 'score_b', name: 'Scoreboard Team B Score' },
+  { variableId: 'score_quarter', name: 'Scoreboard Quarter/Period' },
+  { variableId: 'game_clock', name: 'Scoreboard Game Clock' },
+  { variableId: 'game_clock_running', name: 'Game Clock Running (Yes/No)' },
+  { variableId: 'shot_clock', name: 'Scoreboard Shot Clock' },
+  { variableId: 'shot_clock_running', name: 'Shot Clock Running (Yes/No)' },
+  { variableId: 'possession', name: 'Possession (a/b or blank)' },
+  { variableId: 'fouls_a', name: 'Scoreboard Team A Fouls' },
+  { variableId: 'fouls_b', name: 'Scoreboard Team B Fouls' },
+  { variableId: 'timeouts_a', name: 'Scoreboard Team A Timeouts' },
+  { variableId: 'timeouts_b', name: 'Scoreboard Team B Timeouts' },
+
+  // ── graphics: lower third overlay ──
+  { variableId: 'gfx_l3_visible', name: 'Graphics Lower Third Visible (Yes/No)' },
+  { variableId: 'gfx_l3_name', name: 'Graphics Lower Third Name Line' },
+  { variableId: 'gfx_l3_title', name: 'Graphics Lower Third Title Line' },
+  { variableId: 'gfx_l3_subtitle', name: 'Graphics Lower Third Subtitle Line' },
+  { variableId: 'gfx_l3_theme', name: 'Graphics Lower Third Theme' },
+  { variableId: 'gfx_l3_animation', name: 'Graphics Lower Third Animation Style' },
+
+  // ── watchdog / health ──
+  { variableId: 'watchdog_unresponsive', name: 'Program Unresponsive (Yes/No)' },
+  { variableId: 'watchdog_unresponsive_secs', name: 'Program Unresponsive Seconds' },
+  { variableId: 'memory_pressure', name: 'Memory Pressure (Yes/No)' },
+  { variableId: 'memory_pct', name: 'Memory Used (%)' },
+
+  // ── background ──
+  { variableId: 'background_type', name: 'Program Background Type' },
+  { variableId: 'background_value', name: 'Program Background Value' },
+  { variableId: 'background_preset_name', name: 'Program Background Preset Name' },
+
+  // ── displays ──
+  { variableId: 'display_count', name: 'Connected Display Count' },
+  { variableId: 'display_primary_name', name: 'Primary Display Name' },
+  { variableId: 'display_names', name: 'All Display Names (comma-separated)' },
+
+  // ── misc v2 ──
+  { variableId: 'current_preset_id', name: 'Current Preset ID' },
+  { variableId: 'tunnel_enabled', name: 'Tunnel Enabled (Yes/No)' },
+  { variableId: 'tunnel_last_error', name: 'Tunnel Last Error' },
+  { variableId: 'slides_loading', name: 'Slides Loading (Yes/No)' },
+  { variableId: 'content_kind_native', name: 'Slides Content Kind (slides/url/none)' },
+  { variableId: 'instance_a_url', name: 'Instance A URL' },
+  { variableId: 'instance_b_url', name: 'Instance B URL' },
+  { variableId: 'instance_a_ready', name: 'Instance A Ready (Yes/No)' },
+  { variableId: 'instance_b_ready', name: 'Instance B Ready (Yes/No)' },
 ]
 
 function yn(v: boolean | null | undefined): string {
@@ -119,6 +176,12 @@ export function stateToVariables(state: Partial<PcoState>, connected: boolean): 
   const show = ml?.slideshow ?? null
   const tunnel = state.tunnel ?? null
   const ro = state.renderOutputs ?? {}
+  const tp = state.teleprompter ?? null
+  const sb = state.graphics?.scoreboard ?? null
+  const gl3 = state.graphics?.lowerThird ?? null
+  const wd = state.watchdog ?? null
+  const bg = state.background ?? null
+  const displays = state.displays ?? null
 
   return {
     connected: connected ? '1' : '0',
@@ -207,5 +270,55 @@ export function stateToVariables(state: Partial<PcoState>, connected: boolean): 
     render_bg_l3: ro.l3?.bg ?? '',
     render_bg_stills: ro.stills?.bg ?? '',
     render_bg_url: ro.url?.bg ?? '',
+
+    teleprompter_enabled: yn(tp?.enabled),
+    teleprompter_scrolling: yn(tp?.scrolling),
+    teleprompter_speed: tp ? String(tp.speed) : '',
+    teleprompter_font_size: tp ? String(tp.fontSize) : '',
+
+    score_team_a_name: sb?.teamA ?? '',
+    score_team_b_name: sb?.teamB ?? '',
+    score_a: sb ? String(sb.scoreA) : '',
+    score_b: sb ? String(sb.scoreB) : '',
+    score_quarter: sb?.quarter ?? '',
+    game_clock: sb?.gameClock ?? '',
+    game_clock_running: yn(sb?.gameClockRunning),
+    shot_clock: sb ? String(sb.shotClock) : '',
+    shot_clock_running: yn(sb?.shotClockRunning),
+    possession: sb?.possession ?? '',
+    fouls_a: sb ? String(sb.foulsA) : '',
+    fouls_b: sb ? String(sb.foulsB) : '',
+    timeouts_a: sb ? String(sb.timeoutsA) : '',
+    timeouts_b: sb ? String(sb.timeoutsB) : '',
+
+    gfx_l3_visible: yn(gl3?.visible),
+    gfx_l3_name: gl3?.name ?? '',
+    gfx_l3_title: gl3?.title ?? '',
+    gfx_l3_subtitle: gl3?.subtitle ?? '',
+    gfx_l3_theme: gl3?.theme ?? '',
+    gfx_l3_animation: gl3?.animationStyle ?? '',
+
+    watchdog_unresponsive: yn(wd?.programUnresponsive),
+    watchdog_unresponsive_secs: wd ? String(wd.programUnresponsiveSecs) : '',
+    memory_pressure: yn(wd?.memoryPressure),
+    memory_pct: wd ? String(wd.memoryPressurePct) : '',
+
+    background_type: bg?.type ?? '',
+    background_value: bg?.value ?? '',
+    background_preset_name: bg?.presetName ?? '',
+
+    display_count: displays ? String(displays.length) : '',
+    display_primary_name: displays?.find((d) => d.isPrimary)?.name ?? '',
+    display_names: displays ? displays.map((d) => d.name).join(', ') : '',
+
+    current_preset_id: state.currentPreset?.id ?? '',
+    tunnel_enabled: yn(tunnel?.enabled),
+    tunnel_last_error: tunnel?.lastError ?? '',
+    slides_loading: yn(slides?.isLoading),
+    content_kind_native: slides?.contentKind ?? 'none',
+    instance_a_url: state.abState?.instanceA?.url ?? '',
+    instance_b_url: state.abState?.instanceB?.url ?? '',
+    instance_a_ready: yn(state.abState?.instanceA?.isReady),
+    instance_b_ready: yn(state.abState?.instanceB?.isReady),
   }
 }

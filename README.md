@@ -29,7 +29,7 @@ It is the successor to [Google Slides Controller](https://github.com/TomsFaire/g
 - Panic toggle — broadcast blank to all connected clients instantly
 - Rate limiting and session lockout to protect against brute-force attacks
 - WebSocket state sync — all connected clients (operator panels, Companion) stay in sync in real time
-- Bitfocus Companion integration — 19 actions, 11 variables, 6 feedbacks, 20 presets
+- Bitfocus Companion integration — 100 actions, 153 variables, 47 feedbacks, 55 presets
 - Multi-display routing — route URL instances to specific Electron displays via `set_display`
 - IP allowlist, security headers, health dashboard
 
@@ -96,7 +96,7 @@ The `specs/` directory contains the authoritative design documents — read thes
 | Background presets | Luma/solid presets stored on active profile |
 | Operator web UI | Slides, URL, L3, A/B controls; panic button; show-lock indicator |
 | Admin SPA | URL presets, background, L3 themes/cues, profiles, show lock |
-| Bitfocus Companion module | 19 actions, 11 variables, 6 feedbacks, 20 presets; WS + HTTP polling |
+| Bitfocus Companion module | 100 actions, 153 variables, 47 feedbacks, 55 presets; WS + HTTP polling |
 | PIN auth | Session cookies, rate limiting, lockout, unlock-admin |
 | Security hardening | IP allowlist, security headers, show-lock arm/take |
 | Reliability | Panic toggle, reload-instance, instance-status, health dashboard |
