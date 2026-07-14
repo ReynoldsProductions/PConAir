@@ -1038,6 +1038,30 @@ input[type="radio"] {
                 <option value="palette_sage">Palette — Sage</option>
               </select>
             </div>
+            <div class="form-group">
+              <label for="lt-fade-enabled-checkbox">
+                <input type="checkbox" id="lt-fade-enabled-checkbox" checked />
+                Fade in/out
+              </label>
+            </div>
+            <div class="form-group">
+              <label for="lt-fade-ms-slider">Fade duration (ms)</label>
+              <input type="range" id="lt-fade-ms-slider" min="0" max="5000" step="50" value="550" style="width:100%;margin-bottom:8px;" />
+              <input type="number" id="lt-fade-ms-input" class="input-field" min="0" step="50" value="550"
+                title="Slider tops out at 5000ms — type a larger value here for a longer custom fade" />
+            </div>
+            <div class="form-group">
+              <label for="lt-animation-style-select">Animation style</label>
+              <select id="lt-animation-style-select" class="select-input">
+                <option value="fade">Fade / Slide</option>
+                <option value="wipe">Wipe</option>
+                <option value="grow">Grow</option>
+                <option value="slide-up">Slide Up</option>
+                <option value="slide-down">Slide Down</option>
+                <option value="zoom">Zoom</option>
+                <option value="flip">Flip</option>
+              </select>
+            </div>
             <div class="btn-row" style="margin-top:16px;">
               <button type="button" class="btn btn-primary" id="lt-apply-btn">Apply</button>
               <button type="button" class="btn btn-secondary" id="lt-hide-btn">Hide</button>

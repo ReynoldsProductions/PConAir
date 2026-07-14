@@ -41,6 +41,21 @@ export interface AppSettings {
   operationMode: 'primary' | 'backup' | 'standalone';
   /** IPs of backup machines to receive fan-out commands when operationMode is 'primary'. */
   backupIps: string[];
+  /** Director: remote offices this instance can dispatch lower-thirds to. */
+  director: DirectorSettings;
+}
+
+export interface DirectorOffice {
+  id: string;
+  name: string;
+  /** e.g. https://nashville.pconair.internal:8080 or a trycloudflare/tunnel URL. */
+  baseUrl: string;
+  /** Plaintext, used to auto-login to that office's /auth/operator — same trust model as tunnelToken. */
+  operatorPin: string;
+}
+
+export interface DirectorSettings {
+  offices: DirectorOffice[];
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
@@ -61,6 +76,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
   teleprompterEnabled: false,
   operationMode: 'standalone',
   backupIps: [],
+  director: { offices: [] },
 });
 
 export function appSettingsPath(userDataDir: string): string {
@@ -84,6 +100,23 @@ function isValidOperationMode(v: unknown): v is AppSettings['operationMode'] {
 
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === 'string');
+}
+
+function isValidDirectorOffice(v: unknown): v is DirectorOffice {
+  if (typeof v !== 'object' || v === null) return false;
+  const o = v as Record<string, unknown>;
+  return (
+    typeof o.id === 'string' && o.id.length > 0 &&
+    typeof o.name === 'string' && o.name.length > 0 &&
+    typeof o.baseUrl === 'string' && o.baseUrl.length > 0 &&
+    typeof o.operatorPin === 'string'
+  );
+}
+
+function isValidDirectorSettings(v: unknown): v is DirectorSettings {
+  if (typeof v !== 'object' || v === null) return false;
+  const o = v as Record<string, unknown>;
+  return Array.isArray(o.offices) && o.offices.every(isValidDirectorOffice);
 }
 
 export function isValidOverlayPosition(v: unknown): v is AppSettings['stageTimerOverlayPosition'] {
@@ -130,6 +163,7 @@ export function loadAppSettings(filePath: string): AppSettings {
       ? obj.operationMode
       : DEFAULT_APP_SETTINGS.operationMode,
     backupIps: isStringArray(obj.backupIps) ? obj.backupIps : DEFAULT_APP_SETTINGS.backupIps,
+    director: isValidDirectorSettings(obj.director) ? obj.director : DEFAULT_APP_SETTINGS.director,
   };
 }
 
@@ -153,6 +187,7 @@ export function saveAppSettings(filePath: string, patch: AppSettingsPatch): AppS
       ? patch.operationMode
       : current.operationMode,
     backupIps: isStringArray(patch.backupIps) ? patch.backupIps : current.backupIps,
+    director: isValidDirectorSettings(patch.director) ? patch.director : current.director,
   };
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const tmp = `${filePath}.tmp`;

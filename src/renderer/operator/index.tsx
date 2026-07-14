@@ -559,6 +559,20 @@ function bindEvents(): void {
     if (statusEl) statusEl.textContent = `Output opened: ${url}${displayRaw ? ` → ${displayRaw}` : ''}`;
   });
 
+  document.getElementById('lt-fade-ms-slider')!.addEventListener('input', () => {
+    const slider = document.getElementById('lt-fade-ms-slider') as HTMLInputElement;
+    (document.getElementById('lt-fade-ms-input') as HTMLInputElement).value = slider.value;
+  });
+
+  document.getElementById('lt-fade-ms-input')!.addEventListener('input', () => {
+    const input = document.getElementById('lt-fade-ms-input') as HTMLInputElement;
+    const slider = document.getElementById('lt-fade-ms-slider') as HTMLInputElement;
+    const v = Number(input.value);
+    // Slider visually clamps to its own 0-5000 range; the number field is the
+    // source of truth and keeps whatever custom value the user typed.
+    if (Number.isFinite(v)) slider.value = String(Math.min(5000, Math.max(0, v)));
+  });
+
   document.getElementById('lt-cues-refresh-btn')!.addEventListener('click', async () => {
     try {
       await refreshLowerThirdCueSelect();
@@ -583,6 +597,9 @@ function bindEvents(): void {
     const title = (document.getElementById('lt-title-input') as HTMLInputElement).value.trim();
     const subtitle = (document.getElementById('lt-subtitle-input') as HTMLInputElement).value.trim();
     const theme = (document.getElementById('lt-theme-select') as HTMLSelectElement).value;
+    const fadeEnabled = (document.getElementById('lt-fade-enabled-checkbox') as HTMLInputElement).checked;
+    const fadeMs = Number((document.getElementById('lt-fade-ms-input') as HTMLInputElement).value);
+    const animationStyle = (document.getElementById('lt-animation-style-select') as HTMLSelectElement).value;
     if (!name) {
       showError('Enter a name');
       return;
@@ -596,6 +613,9 @@ function bindEvents(): void {
       // otherwise clearing this input would never actually clear the output.
       subtitle,
       theme,
+      fadeEnabled,
+      fadeMs: Number.isFinite(fadeMs) ? fadeMs : undefined,
+      animationStyle,
     });
   });
   on('lt-hide-btn', () => api.lowerThirdHide());

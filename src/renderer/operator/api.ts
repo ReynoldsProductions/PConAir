@@ -68,6 +68,9 @@ export const lowerThirdApply = (body: {
   title?: string;
   subtitle?: string;
   theme?: string;
+  fadeEnabled?: boolean;
+  fadeMs?: number;
+  animationStyle?: string;
 }) => apiPost<unknown>('/api/action', { action_id: 'lower_third_apply', params: body });
 
 export const lowerThirdHide = () =>

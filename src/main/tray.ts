@@ -13,6 +13,7 @@ export interface TrayDeps {
   adminPin: string;
   onOpenSettings: () => void;
   onOpenOperatorWindow: () => void;
+  onOpenDirectorWindow: () => void;
 }
 
 let tray: Tray | null = null;
@@ -52,6 +53,11 @@ export function updateTrayMenu(deps: TrayDeps): void {
       label: 'Open Admin Dashboard',
       enabled: !deps.serverError,
       click: () => shell.openExternal(`http://localhost:${deps.port}/admin`),
+    },
+    {
+      label: 'Open Director…',
+      enabled: !deps.serverError,
+      click: deps.onOpenDirectorWindow,
     },
     { type: 'separator' },
     { label: 'Settings…', click: deps.onOpenSettings },
