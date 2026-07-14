@@ -6,7 +6,7 @@ import type { L3PlaylistStore } from './l3/playlist-store';
 import type { MediaLibraryStore } from './media-library/item-store';
 import type { SlideshowEngine } from './media-library/slideshow';
 import type { SlidesWindowManager } from './slides/window-manager';
-import type { Mode, SlideshowTransition, ScoreboardState, LowerThirdState, LowerThirdTheme } from '../shared/types';
+import type { Mode, SlideshowTransition, ScoreboardState, LowerThirdState, LowerThirdTheme, LowerThirdAnimationStyle } from '../shared/types';
 import { slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideLoadOp, slideOfflineModeOp } from './services/slide-ops';
 import { urlLoadOp, urlReloadOp, setDisplayTargetOp } from './services/url-ops';
 import { fanOutSlideCommand } from './services/backup-fanout';
@@ -46,6 +46,19 @@ export type ActionResult =
 function str(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
 }
+
+function bool(v: unknown): boolean | undefined {
+  return typeof v === 'boolean' ? v : undefined;
+}
+
+function num(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+}
+
+const LOWER_THIRD_ANIMATION_STYLES: LowerThirdAnimationStyle[] = ['fade', 'wipe', 'grow'];
+const LOWER_THIRD_FADE_MS_MIN = 0;
+const LOWER_THIRD_FADE_MS_MAX = 5000;
+const LOWER_THIRD_DEFAULT_FADE_MS = 550;
 
 export function createActionDispatcher(deps: {
   store: StateStore;
@@ -442,6 +455,19 @@ export function createActionDispatcher(deps: {
           ? (themeRaw as LowerThirdTheme)
           : (existing?.theme ?? 'default');
 
+        const animationStyleRaw = str(p.animationStyle) ?? str(p.animation_style);
+        const animationStyle: LowerThirdAnimationStyle =
+          (animationStyleRaw && (LOWER_THIRD_ANIMATION_STYLES as string[]).includes(animationStyleRaw))
+            ? (animationStyleRaw as LowerThirdAnimationStyle)
+            : (existing?.animationStyle ?? 'fade');
+
+        const fadeEnabled = bool(p.fadeEnabled) ?? bool(p.fade_enabled) ?? existing?.fadeEnabled ?? true;
+
+        const fadeMsRaw = num(p.fadeMs) ?? num(p.fade_ms);
+        const fadeMs = fadeMsRaw !== undefined
+          ? Math.min(LOWER_THIRD_FADE_MS_MAX, Math.max(LOWER_THIRD_FADE_MS_MIN, Math.round(fadeMsRaw)))
+          : (existing?.fadeMs ?? LOWER_THIRD_DEFAULT_FADE_MS);
+
         const lowerThird: LowerThirdState = {
           visible: true,
           name: name.trim(),
@@ -452,6 +478,9 @@ export function createActionDispatcher(deps: {
           subtitle: subtitle !== undefined ? (subtitle.trim() || null) : (existing?.subtitle ?? null),
           theme,
           sourceCueId: cueId ?? null,
+          fadeEnabled,
+          fadeMs,
+          animationStyle,
         };
         store.setState({ graphics: { ...store.getState().graphics, lowerThird } });
         return { ok: true, body: { graphics: { lowerThird } } };

@@ -36,16 +36,41 @@
   /* ── lower third — geometry lifted from graphics/news/index.html's .l3 rules, ──
      ── generalized to read colors from per-theme CSS custom properties ── */
   /* panel 861x169, accent 5x104 @x24, name 52 / title 32, left margin 96 */
+  /* --l3-ms: entrance duration, set inline from LowerThirdState.fadeMs (exit runs at ~0.55x that). */
   .l3{position:absolute;left:96px;bottom:96px;
     width:861px;min-height:169px;background:var(--panel-fill);
     border:1px solid var(--panel-border);border-radius:4px;display:flex;align-items:center;
     box-shadow:0 4px 24px rgba(0,0,0,.4);
+    --l3-ms:550ms;
     transform:translateX(-960px);opacity:0;
-    transition:transform .55s cubic-bezier(.2,.7,.2,1),opacity .5s ease-out;}
+    transition:transform calc(var(--l3-ms) * 1ms) cubic-bezier(.2,.7,.2,1),
+               opacity calc(var(--l3-ms) * .91ms) ease-out;}
   .l3.in{transform:none;opacity:1;}
   /* exit: shorter, ease-in reverse of the enter transition */
-  .l3.out{transition:transform .2s cubic-bezier(.4,0,1,1),opacity .18s ease-in;
+  .l3.out{transition:transform calc(var(--l3-ms) * .36ms) cubic-bezier(.4,0,1,1),
+                     opacity calc(var(--l3-ms) * .33ms) ease-in;
     transform:translateX(-960px);opacity:0;}
+
+  /* style-wipe: clip-reveal from the left instead of sliding in */
+  .l3.style-wipe{transform:none;clip-path:inset(0 100% 0 0);
+    transition:clip-path calc(var(--l3-ms) * 1ms) cubic-bezier(.2,.7,.2,1),
+               opacity calc(var(--l3-ms) * .91ms) ease-out;}
+  .l3.style-wipe.in{clip-path:inset(0 0 0 0);opacity:1;}
+  .l3.style-wipe.out{transition:clip-path calc(var(--l3-ms) * .36ms) cubic-bezier(.4,0,1,1),
+                                opacity calc(var(--l3-ms) * .33ms) ease-in;
+    clip-path:inset(0 100% 0 0);opacity:0;}
+
+  /* style-grow: scale up from the accent edge instead of sliding in */
+  .l3.style-grow{transform:scaleX(.05);transform-origin:left center;opacity:0;
+    transition:transform calc(var(--l3-ms) * 1ms) cubic-bezier(.2,.7,.2,1),
+               opacity calc(var(--l3-ms) * .91ms) ease-out;}
+  .l3.style-grow.in{transform:scaleX(1);opacity:1;}
+  .l3.style-grow.out{transition:transform calc(var(--l3-ms) * .36ms) cubic-bezier(.4,0,1,1),
+                                opacity calc(var(--l3-ms) * .33ms) ease-in;
+    transform:scaleX(.05);opacity:0;}
+
+  /* fade disabled: no transition at all, in/out flip instantly */
+  .l3.no-fade{transition:none !important;}
   .l3 .accent{width:5px;height:104px;background:var(--accent);margin:0 16px 0 24px;flex:none;}
   .l3 .text{padding:16px 0;}
   .l3 .name{font-family:var(--font-sans);font-weight:600;font-size:52px;line-height:1;color:var(--name-color);}
@@ -186,7 +211,18 @@
       if (el) el.textContent = text || '';
     }
 
-    function triggerEnter(el) {
+    var STYLE_CLASSES = ['style-wipe', 'style-grow'];
+
+    function applyAnimationVars(el, lt) {
+      el.classList.toggle('no-fade', lt.fadeEnabled === false);
+      el.style.setProperty('--l3-ms', String(lt.fadeMs != null ? lt.fadeMs : 550));
+      STYLE_CLASSES.forEach(function (c) { el.classList.remove(c); });
+      if (lt.animationStyle === 'wipe') el.classList.add('style-wipe');
+      else if (lt.animationStyle === 'grow') el.classList.add('style-grow');
+    }
+
+    function triggerEnter(el, lt) {
+      applyAnimationVars(el, lt);
       // Force a reflow so re-adding "in" after "out" reliably re-triggers the
       // CSS transition even if the browser would otherwise coalesce the two
       // class mutations into a single style recalculation.
@@ -196,18 +232,23 @@
       el.classList.add('in');
     }
 
-    function triggerExit(el) {
+    function triggerExit(el, lt) {
+      if (lt) applyAnimationVars(el, lt);
       el.classList.remove('in');
       void el.offsetWidth; // reflow
       el.classList.add('out');
     }
 
+    var lastLt = null;
+
     function apply(lt) {
       var el = document.getElementById('l3');
       if (!lt || !lt.visible) {
-        if (el) triggerExit(el);
+        if (el) triggerExit(el, lt || lastLt);
+        lastLt = lt || lastLt;
         return;
       }
+      lastLt = lt;
 
       document.body.dataset.theme = lt.theme || 'default';
       setTxt('lt-name', lt.name);
@@ -219,7 +260,7 @@
         subEl.style.display = lt.subtitle ? '' : 'none';
       }
 
-      if (el) triggerEnter(el);
+      if (el) triggerEnter(el, lt);
     }
 
     function connect() {

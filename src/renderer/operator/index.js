@@ -93,7 +93,7 @@
       configured: false
     },
     teleprompter: { enabled: false, host: "", scrolling: false, speed: 40, fontSize: 72 },
-    graphics: { scoreboard: null }
+    graphics: { scoreboard: null, lowerThird: null }
   };
   function createClientStore() {
     let state = structuredClone(DEFAULT_STATE);
@@ -159,6 +159,8 @@
   var l3Take = (body) => apiPost("/api/l3/take", body);
   var l3Clear = () => apiPost("/api/l3/clear");
   var l3Stacking = (enabled) => apiPost("/api/l3/stacking", { enabled });
+  var lowerThirdApply = (body) => apiPost("/api/action", { action_id: "lower_third_apply", params: body });
+  var lowerThirdHide = () => apiPost("/api/action", { action_id: "lower_third_hide", params: {} });
   var mediaLibraryList = () => apiGet("/api/media-library");
   var mediaLibraryTake = (itemId) => apiPost("/api/media-library/take", { itemId });
   var mediaLibraryClear = () => apiPost("/api/media-library/clear");
@@ -316,6 +318,7 @@
   }
   var l3StackingUiLock = false;
   var notesPollingInterval = null;
+  var ltCuesCache = [];
   async function refreshMediaSelect() {
     const { items } = await mediaLibraryList();
     const sel = document.getElementById("ml-item-select");
@@ -366,6 +369,24 @@
     } catch {
       statusEl.textContent = "Could not check Google auth status";
     }
+  }
+  async function refreshLowerThirdCueSelect() {
+    const { cues } = await l3ListCues();
+    ltCuesCache = cues;
+    const sel = document.getElementById("lt-cue-select");
+    const prev = sel.value;
+    sel.replaceChildren();
+    const opt0 = document.createElement("option");
+    opt0.value = "";
+    opt0.textContent = "\u2014 Manual entry below \u2014";
+    sel.appendChild(opt0);
+    for (const c of cues) {
+      const o = document.createElement("option");
+      o.value = c.id;
+      o.textContent = `${c.name} \u2014 ${c.title}`;
+      sel.appendChild(o);
+    }
+    if (prev && cues.some((x) => x.id === prev)) sel.value = prev;
   }
   async function refreshActiveProfile() {
     try {
@@ -531,6 +552,16 @@
     } else {
       l3Line.textContent = "Active: \u2014";
     }
+    const ltLine = document.getElementById("lt-active-line");
+    const lowerThird = state.graphics?.lowerThird;
+    if (ltLine) {
+      if (lowerThird?.visible) {
+        const parts = [lowerThird.name, lowerThird.title].filter((x) => Boolean(x));
+        ltLine.textContent = parts.length ? `Active: ${parts.join(" \u2014 ")}` : "Active: \u2014";
+      } else {
+        ltLine.textContent = "Active: \u2014";
+      }
+    }
     const stackCb = document.getElementById("l3-stacking-checkbox");
     l3StackingUiLock = true;
     stackCb.checked = Boolean(l3s?.isStacking);
@@ -546,10 +577,11 @@
     }
     document.getElementById("state-dump").textContent = JSON.stringify(state, null, 2);
     const wd = state.watchdog;
+    const SUPPRESS_UNRELIABLE_WATCHDOG_BANNERS = true;
     const unrespBanner = document.getElementById("wd-unresponsive-banner");
     const unrespText = document.getElementById("wd-unresponsive-text");
     if (unrespBanner && unrespText) {
-      const show = wd?.programUnresponsive ?? false;
+      const show = !SUPPRESS_UNRELIABLE_WATCHDOG_BANNERS && (wd?.programUnresponsive ?? false);
       unrespBanner.classList.toggle("visible", show);
       if (show) {
         const secs = wd?.programUnresponsiveSecs ?? 0;
@@ -563,7 +595,7 @@
     const memBanner = document.getElementById("wd-memory-banner");
     const memText = document.getElementById("wd-memory-text");
     if (memBanner && memText) {
-      const show = wd?.memoryPressure ?? false;
+      const show = !SUPPRESS_UNRELIABLE_WATCHDOG_BANNERS && (wd?.memoryPressure ?? false);
       memBanner.classList.toggle("visible", show);
       if (show) {
         memText.textContent = `\u26A0 Memory Usage High \u2014 ${wd.memoryPressurePct}% (${wd.memoryHeapUsedGb} GB / ${wd.memoryHeapTotalGb} GB)`;
@@ -650,6 +682,57 @@
       await l3Take({ name, title, autoOutMs: autoOutMs ?? void 0 });
     });
     on("l3-clear-btn", () => l3Clear());
+    on("lt-open-output-btn", async () => {
+      const displayRaw = document.getElementById("lt-output-display-input").value.trim();
+      const url = `${location.origin}/graphics/lower-third-live/index.html`;
+      const statusEl = document.getElementById("lt-output-status");
+      await loadUrl(url, displayRaw || void 0);
+      if (statusEl) statusEl.textContent = `Output opened: ${url}${displayRaw ? ` \u2192 ${displayRaw}` : ""}`;
+    });
+    document.getElementById("lt-cues-refresh-btn").addEventListener("click", async () => {
+      try {
+        await refreshLowerThirdCueSelect();
+      } catch (e) {
+        showError(e.message);
+      }
+    });
+    document.getElementById("lt-cue-select").addEventListener("change", () => {
+      const sel = document.getElementById("lt-cue-select");
+      if (!sel.value) return;
+      const cue = ltCuesCache.find((c) => c.id === sel.value);
+      if (!cue) return;
+      document.getElementById("lt-name-input").value = cue.name;
+      document.getElementById("lt-title-input").value = cue.title;
+      document.getElementById("lt-subtitle-input").value = cue.subtitle ?? "";
+    });
+    on("lt-apply-btn", async () => {
+      const cueId = document.getElementById("lt-cue-select").value;
+      const name = document.getElementById("lt-name-input").value.trim();
+      const title = document.getElementById("lt-title-input").value.trim();
+      const subtitle = document.getElementById("lt-subtitle-input").value.trim();
+      const theme = document.getElementById("lt-theme-select").value;
+      const fadeEnabled = document.getElementById("lt-fade-enabled-checkbox").checked;
+      const fadeMs = Number(document.getElementById("lt-fade-ms-input").value);
+      const animationStyle = document.getElementById("lt-animation-style-select").value;
+      if (!name) {
+        showError("Enter a name");
+        return;
+      }
+      await lowerThirdApply({
+        ...cueId ? { cueId } : {},
+        name,
+        title,
+        // Always send subtitle explicitly (even '') so the server can tell
+        // "leave blank on purpose" apart from "field wasn't included at all" —
+        // otherwise clearing this input would never actually clear the output.
+        subtitle,
+        theme,
+        fadeEnabled,
+        fadeMs: Number.isFinite(fadeMs) ? fadeMs : void 0,
+        animationStyle
+      });
+    });
+    on("lt-hide-btn", () => lowerThirdHide());
     document.getElementById("ml-refresh-btn").addEventListener("click", async () => {
       try {
         await refreshMediaSelect();
@@ -739,6 +822,8 @@
   bindEvents();
   renderKbdPresetButtons();
   void refreshL3CueSelect().catch(() => {
+  });
+  void refreshLowerThirdCueSelect().catch(() => {
   });
   void refreshMediaSelect().catch(() => {
   });

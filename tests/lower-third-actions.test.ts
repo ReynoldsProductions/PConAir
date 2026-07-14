@@ -77,6 +77,83 @@ describe('lower_third_apply action', () => {
     expect(lt.title).toBe('');
     expect(lt.subtitle).toBeNull();
     expect(lt.theme).toBe('default');
+    expect(lt.fadeEnabled).toBe(true);
+    expect(lt.fadeMs).toBe(550);
+    expect(lt.animationStyle).toBe('fade');
+  });
+
+  it('applies explicit fadeEnabled/fadeMs/animationStyle', async () => {
+    const { server, store } = makeServer();
+    const cookie = await getOperatorCookie(server.app);
+
+    const res = await request(server.app)
+      .post('/api/action')
+      .set('Cookie', cookie)
+      .send({
+        action_id: 'lower_third_apply',
+        params: { name: 'Someone', fadeEnabled: false, fadeMs: 900, animationStyle: 'wipe' },
+      });
+
+    expect(res.status).toBe(200);
+    const lt = store.getState().graphics.lowerThird!;
+    expect(lt.fadeEnabled).toBe(false);
+    expect(lt.fadeMs).toBe(900);
+    expect(lt.animationStyle).toBe('wipe');
+    expect(res.body.graphics.lowerThird).toMatchObject({
+      fadeEnabled: false,
+      fadeMs: 900,
+      animationStyle: 'wipe',
+    });
+  });
+
+  it('clamps fadeMs to the 0-5000 range', async () => {
+    const { server, store } = makeServer();
+    const cookie = await getOperatorCookie(server.app);
+
+    const res = await request(server.app)
+      .post('/api/action')
+      .set('Cookie', cookie)
+      .send({ action_id: 'lower_third_apply', params: { name: 'Someone', fadeMs: 999999 } });
+
+    expect(res.status).toBe(200);
+    expect(store.getState().graphics.lowerThird!.fadeMs).toBe(5000);
+  });
+
+  it('falls back to default animationStyle for an invalid style string', async () => {
+    const { server, store } = makeServer();
+    const cookie = await getOperatorCookie(server.app);
+
+    const res = await request(server.app)
+      .post('/api/action')
+      .set('Cookie', cookie)
+      .send({ action_id: 'lower_third_apply', params: { name: 'Someone', animationStyle: 'not-a-style' } });
+
+    expect(res.status).toBe(200);
+    expect(store.getState().graphics.lowerThird!.animationStyle).toBe('fade');
+  });
+
+  it('preserves fade settings from a previous apply when a later call omits them', async () => {
+    const { server, store } = makeServer();
+    const cookie = await getOperatorCookie(server.app);
+
+    await request(server.app)
+      .post('/api/action')
+      .set('Cookie', cookie)
+      .send({
+        action_id: 'lower_third_apply',
+        params: { name: 'Someone', fadeEnabled: false, fadeMs: 1200, animationStyle: 'grow' },
+      });
+
+    const res = await request(server.app)
+      .post('/api/action')
+      .set('Cookie', cookie)
+      .send({ action_id: 'lower_third_apply', params: { name: 'Someone Else' } });
+
+    expect(res.status).toBe(200);
+    const lt = store.getState().graphics.lowerThird!;
+    expect(lt.fadeEnabled).toBe(false);
+    expect(lt.fadeMs).toBe(1200);
+    expect(lt.animationStyle).toBe('grow');
   });
 
   it('prefills name/title/subtitle from a cueId without mutating state.l3 or currentMode', async () => {
