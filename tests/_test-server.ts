@@ -32,6 +32,8 @@ export interface FullServerTestOpts {
   packagesRoot?: string | string[];
   graphicsRoot?: string;
   stageTimer?: import('../src/main/routes/index').RouteServices['stageTimer'];
+  getTeleprompterHost?: () => string;
+  isTeleprompterEnabled?: () => boolean;
 }
 
 export function createFullServer(opts: FullServerTestOpts) {
@@ -83,6 +85,8 @@ export function createFullServer(opts: FullServerTestOpts) {
     playlists: l3Playlists,
     media: mediaLibrary,
     slideshow,
+    getTeleprompterHost: opts.getTeleprompterHost,
+    isTeleprompterEnabled: opts.isTeleprompterEnabled,
   });
 
   const server = createServer({
