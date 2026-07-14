@@ -106,7 +106,20 @@ describe('lower_third_apply action', () => {
     });
   });
 
-  it('clamps fadeMs to the 0-5000 range', async () => {
+  it('allows a custom fadeMs above the slider-suggested 5000ms', async () => {
+    const { server, store } = makeServer();
+    const cookie = await getOperatorCookie(server.app);
+
+    const res = await request(server.app)
+      .post('/api/action')
+      .set('Cookie', cookie)
+      .send({ action_id: 'lower_third_apply', params: { name: 'Someone', fadeMs: 12000 } });
+
+    expect(res.status).toBe(200);
+    expect(store.getState().graphics.lowerThird!.fadeMs).toBe(12000);
+  });
+
+  it('clamps fadeMs to the server-side 0-60000 ceiling', async () => {
     const { server, store } = makeServer();
     const cookie = await getOperatorCookie(server.app);
 
@@ -116,7 +129,7 @@ describe('lower_third_apply action', () => {
       .send({ action_id: 'lower_third_apply', params: { name: 'Someone', fadeMs: 999999 } });
 
     expect(res.status).toBe(200);
-    expect(store.getState().graphics.lowerThird!.fadeMs).toBe(5000);
+    expect(store.getState().graphics.lowerThird!.fadeMs).toBe(60000);
   });
 
   it('falls back to default animationStyle for an invalid style string', async () => {
@@ -130,6 +143,19 @@ describe('lower_third_apply action', () => {
 
     expect(res.status).toBe(200);
     expect(store.getState().graphics.lowerThird!.animationStyle).toBe('fade');
+  });
+
+  it.each(['slide-up', 'slide-down', 'zoom', 'flip'])('accepts the %s animation style', async (style) => {
+    const { server, store } = makeServer();
+    const cookie = await getOperatorCookie(server.app);
+
+    const res = await request(server.app)
+      .post('/api/action')
+      .set('Cookie', cookie)
+      .send({ action_id: 'lower_third_apply', params: { name: 'Someone', animationStyle: style } });
+
+    expect(res.status).toBe(200);
+    expect(store.getState().graphics.lowerThird!.animationStyle).toBe(style);
   });
 
   it('preserves fade settings from a previous apply when a later call omits them', async () => {

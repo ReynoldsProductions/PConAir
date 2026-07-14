@@ -689,6 +689,16 @@
       await loadUrl(url, displayRaw || void 0);
       if (statusEl) statusEl.textContent = `Output opened: ${url}${displayRaw ? ` \u2192 ${displayRaw}` : ""}`;
     });
+    document.getElementById("lt-fade-ms-slider").addEventListener("input", () => {
+      const slider = document.getElementById("lt-fade-ms-slider");
+      document.getElementById("lt-fade-ms-input").value = slider.value;
+    });
+    document.getElementById("lt-fade-ms-input").addEventListener("input", () => {
+      const input = document.getElementById("lt-fade-ms-input");
+      const slider = document.getElementById("lt-fade-ms-slider");
+      const v = Number(input.value);
+      if (Number.isFinite(v)) slider.value = String(Math.min(5e3, Math.max(0, v)));
+    });
     document.getElementById("lt-cues-refresh-btn").addEventListener("click", async () => {
       try {
         await refreshLowerThirdCueSelect();

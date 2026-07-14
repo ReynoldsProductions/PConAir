@@ -230,7 +230,8 @@ export type LowerThirdTheme =
   | 'palette_olive' | 'palette_teal' | 'palette_terracotta'
   | 'palette_plum' | 'palette_copper' | 'palette_sage';
 
-export type LowerThirdAnimationStyle = 'fade' | 'wipe' | 'grow';
+export type LowerThirdAnimationStyle =
+  | 'fade' | 'wipe' | 'grow' | 'slide-up' | 'slide-down' | 'zoom' | 'flip';
 
 export interface LowerThirdState {
   visible: boolean;

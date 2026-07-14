@@ -55,9 +55,14 @@ function num(v: unknown): number | undefined {
   return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 }
 
-const LOWER_THIRD_ANIMATION_STYLES: LowerThirdAnimationStyle[] = ['fade', 'wipe', 'grow'];
+const LOWER_THIRD_ANIMATION_STYLES: LowerThirdAnimationStyle[] = [
+  'fade', 'wipe', 'grow', 'slide-up', 'slide-down', 'zoom', 'flip',
+];
 const LOWER_THIRD_FADE_MS_MIN = 0;
-const LOWER_THIRD_FADE_MS_MAX = 5000;
+// The operator UI's slider tops out at 5000ms, but the paired number input
+// allows typing a larger custom value — this is the server-side ceiling for
+// that, not the slider's suggested range.
+const LOWER_THIRD_FADE_MS_MAX = 60000;
 const LOWER_THIRD_DEFAULT_FADE_MS = 550;
 
 export function createActionDispatcher(deps: {

@@ -559,6 +559,20 @@ function bindEvents(): void {
     if (statusEl) statusEl.textContent = `Output opened: ${url}${displayRaw ? ` → ${displayRaw}` : ''}`;
   });
 
+  document.getElementById('lt-fade-ms-slider')!.addEventListener('input', () => {
+    const slider = document.getElementById('lt-fade-ms-slider') as HTMLInputElement;
+    (document.getElementById('lt-fade-ms-input') as HTMLInputElement).value = slider.value;
+  });
+
+  document.getElementById('lt-fade-ms-input')!.addEventListener('input', () => {
+    const input = document.getElementById('lt-fade-ms-input') as HTMLInputElement;
+    const slider = document.getElementById('lt-fade-ms-slider') as HTMLInputElement;
+    const v = Number(input.value);
+    // Slider visually clamps to its own 0-5000 range; the number field is the
+    // source of truth and keeps whatever custom value the user typed.
+    if (Number.isFinite(v)) slider.value = String(Math.min(5000, Math.max(0, v)));
+  });
+
   document.getElementById('lt-cues-refresh-btn')!.addEventListener('click', async () => {
     try {
       await refreshLowerThirdCueSelect();

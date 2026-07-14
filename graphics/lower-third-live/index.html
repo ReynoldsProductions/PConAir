@@ -69,6 +69,43 @@
                                 opacity calc(var(--l3-ms) * .33ms) ease-in;
     transform:scaleX(.05);opacity:0;}
 
+  /* style-slide-up: rises in from below instead of sliding from the left */
+  .l3.style-slide-up{transform:translateY(220px);opacity:0;
+    transition:transform calc(var(--l3-ms) * 1ms) cubic-bezier(.2,.7,.2,1),
+               opacity calc(var(--l3-ms) * .91ms) ease-out;}
+  .l3.style-slide-up.in{transform:translateY(0);opacity:1;}
+  .l3.style-slide-up.out{transition:transform calc(var(--l3-ms) * .36ms) cubic-bezier(.4,0,1,1),
+                                    opacity calc(var(--l3-ms) * .33ms) ease-in;
+    transform:translateY(220px);opacity:0;}
+
+  /* style-slide-down: drops in from above */
+  .l3.style-slide-down{transform:translateY(-220px);opacity:0;
+    transition:transform calc(var(--l3-ms) * 1ms) cubic-bezier(.2,.7,.2,1),
+               opacity calc(var(--l3-ms) * .91ms) ease-out;}
+  .l3.style-slide-down.in{transform:translateY(0);opacity:1;}
+  .l3.style-slide-down.out{transition:transform calc(var(--l3-ms) * .36ms) cubic-bezier(.4,0,1,1),
+                                      opacity calc(var(--l3-ms) * .33ms) ease-in;
+    transform:translateY(-220px);opacity:0;}
+
+  /* style-zoom: uniform scale from center, unlike style-grow's left-edge scaleX */
+  .l3.style-zoom{transform:scale(.6);transform-origin:center center;opacity:0;
+    transition:transform calc(var(--l3-ms) * 1ms) cubic-bezier(.2,.7,.2,1),
+               opacity calc(var(--l3-ms) * .91ms) ease-out;}
+  .l3.style-zoom.in{transform:scale(1);opacity:1;}
+  .l3.style-zoom.out{transition:transform calc(var(--l3-ms) * .36ms) cubic-bezier(.4,0,1,1),
+                                opacity calc(var(--l3-ms) * .33ms) ease-in;
+    transform:scale(.6);opacity:0;}
+
+  /* style-flip: 3D rotation in from the left edge */
+  #stage{perspective:1200px;}
+  .l3.style-flip{transform:rotateY(-85deg);transform-origin:left center;opacity:0;
+    transition:transform calc(var(--l3-ms) * 1ms) cubic-bezier(.2,.7,.2,1),
+               opacity calc(var(--l3-ms) * .91ms) ease-out;}
+  .l3.style-flip.in{transform:rotateY(0deg);opacity:1;}
+  .l3.style-flip.out{transition:transform calc(var(--l3-ms) * .36ms) cubic-bezier(.4,0,1,1),
+                                opacity calc(var(--l3-ms) * .33ms) ease-in;
+    transform:rotateY(-85deg);opacity:0;}
+
   /* fade disabled: no transition at all, in/out flip instantly */
   .l3.no-fade{transition:none !important;}
   .l3 .accent{width:5px;height:104px;background:var(--accent);margin:0 16px 0 24px;flex:none;}
@@ -211,14 +248,22 @@
       if (el) el.textContent = text || '';
     }
 
-    var STYLE_CLASSES = ['style-wipe', 'style-grow'];
+    var STYLE_CLASS_BY_ANIMATION = {
+      wipe: 'style-wipe',
+      grow: 'style-grow',
+      'slide-up': 'style-slide-up',
+      'slide-down': 'style-slide-down',
+      zoom: 'style-zoom',
+      flip: 'style-flip',
+    };
+    var STYLE_CLASSES = Object.keys(STYLE_CLASS_BY_ANIMATION).map(function (k) { return STYLE_CLASS_BY_ANIMATION[k]; });
 
     function applyAnimationVars(el, lt) {
       el.classList.toggle('no-fade', lt.fadeEnabled === false);
       el.style.setProperty('--l3-ms', String(lt.fadeMs != null ? lt.fadeMs : 550));
       STYLE_CLASSES.forEach(function (c) { el.classList.remove(c); });
-      if (lt.animationStyle === 'wipe') el.classList.add('style-wipe');
-      else if (lt.animationStyle === 'grow') el.classList.add('style-grow');
+      var cls = STYLE_CLASS_BY_ANIMATION[lt.animationStyle];
+      if (cls) el.classList.add(cls);
     }
 
     function triggerEnter(el, lt) {
