@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'self'" />
+  <title>PConAir Director</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #111315; color: #e8eaec; margin: 0; padding: 16px; font-size: 13px; }
+    h1 { font-size: 16px; margin: 0 0 4px; }
+    p.sub { color: #9aa0a6; margin: 0 0 16px; font-size: 12px; }
+    #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+    .empty { color: #9aa0a6; padding: 24px; text-align: center; }
+    .panel { background: #1c1f22; border: 1px solid #33383d; border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .panel-header { display: flex; align-items: center; justify-content: space-between; }
+    .panel-name { font-weight: 600; font-size: 14px; }
+    .badge { font-size: 11px; padding: 3px 8px; border-radius: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .badge-online { background: #16351f; color: #4fd77a; }
+    .badge-connecting { background: #3a3312; color: #e5c23a; }
+    .badge-offline { background: #33383d; color: #9aa0a6; }
+    .badge-auth_error { background: #3a1715; color: #ff8b83; }
+    .active-lt { background: #111315; border: 1px solid #262b2f; border-radius: 6px; padding: 8px 10px; font-size: 12px; min-height: 34px; }
+    .active-lt .none { color: #6b7176; }
+    label { display: block; font-size: 11px; color: #9aa0a6; margin: 6px 0 3px; }
+    input[type="text"] { width: 100%; box-sizing: border-box; background: #111315; color: #e8eaec; border: 1px solid #33383d; border-radius: 6px; padding: 7px 9px; font-size: 13px; font-family: inherit; }
+    .btn-row { display: flex; gap: 8px; margin-top: 8px; }
+    button { background: #4da3ff; color: #08111c; border: none; border-radius: 6px; padding: 7px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    button.secondary { background: #25292d; color: #e8eaec; border: 1px solid #33383d; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .panel-error { color: #ff8b83; font-size: 11px; min-height: 14px; }
+  </style>
+</head>
+<body>
+  <h1>PConAir Director</h1>
+  <p class="sub">Fire lower-thirds into any configured office. Add offices in Admin → Offices.</p>
+  <div id="grid"></div>
+</body>
+</html>
