@@ -43,6 +43,8 @@ export interface AppSettings {
   backupIps: string[];
   /** Director: remote offices this instance can dispatch lower-thirds to. */
   director: DirectorSettings;
+  /** Start PConAir automatically at OS login/boot (via app.setLoginItemSettings). */
+  launchAtLogin: boolean;
 }
 
 export interface DirectorOffice {
@@ -77,6 +79,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
   operationMode: 'standalone',
   backupIps: [],
   director: { offices: [] },
+  launchAtLogin: false,
 });
 
 export function appSettingsPath(userDataDir: string): string {
@@ -164,6 +167,7 @@ export function loadAppSettings(filePath: string): AppSettings {
       : DEFAULT_APP_SETTINGS.operationMode,
     backupIps: isStringArray(obj.backupIps) ? obj.backupIps : DEFAULT_APP_SETTINGS.backupIps,
     director: isValidDirectorSettings(obj.director) ? obj.director : DEFAULT_APP_SETTINGS.director,
+    launchAtLogin: obj.launchAtLogin === true,
   };
 }
 

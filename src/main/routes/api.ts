@@ -359,6 +359,7 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
       stageTimerOverlayEnabled: s.stageTimerOverlayEnabled,
       teleprompterEnabled: s.teleprompterEnabled,
       teleprompterHost: s.teleprompterHost,
+      launchAtLogin: s.launchAtLogin,
       director: {
         offices: s.director.offices.map((o) => ({
           id: o.id,
@@ -379,6 +380,7 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
     const patch: Partial<Omit<AppSettings, 'schemaVersion'>> = {};
     if (body.operationMode !== undefined) patch.operationMode = body.operationMode as AppSettings['operationMode'];
     if (body.backupIps !== undefined) patch.backupIps = body.backupIps as string[];
+    if (typeof body.launchAtLogin === 'boolean') patch.launchAtLogin = body.launchAtLogin;
     if (body.director !== undefined) {
       const raw = body.director as { offices?: unknown };
       const incoming = Array.isArray(raw?.offices) ? (raw.offices as unknown[]) : [];
@@ -406,6 +408,7 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
     res.json({
       operationMode: next.operationMode,
       backupIps: next.backupIps,
+      launchAtLogin: next.launchAtLogin,
       director: {
         offices: next.director.offices.map((o) => ({
           id: o.id,

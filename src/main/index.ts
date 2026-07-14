@@ -57,6 +57,13 @@ function syncDisplaysToStore(): void {
   store.setState({ displays: snapshotDisplays() });
 }
 
+function applyLaunchAtLogin(enabled: boolean): void {
+  // No-op in dev (electron-forge start runs an unpacked binary that isn't a
+  // stable path to register as a login item) — only meaningful in a packaged build.
+  if (!app.isPackaged) return;
+  app.setLoginItemSettings({ openAtLogin: enabled, openAsHidden: false });
+}
+
 async function main() {
   validatePins(OPERATOR_PIN, ADMIN_PIN);
   const cliProfile = parseProfileCliArg(process.argv);
@@ -64,6 +71,7 @@ async function main() {
   const settingsFile = appSettingsPath(userData);
   const appSettings = loadAppSettings(settingsFile);
   const port = resolvePort(process.env.PCONAIR_PORT, appSettings);
+  applyLaunchAtLogin(appSettings.launchAtLogin);
   if (cli.clearAllowlist) {
     clearIpAllowlistForActiveProfile(userData);
     console.log('[security] IP allowlist cleared for active profile.');
@@ -283,6 +291,7 @@ async function main() {
     saveAppSettingsPatch: (patch: Partial<Omit<AppSettings, 'schemaVersion'>>) => {
       const next = saveAppSettings(settingsFile, patch);
       officeManager.sync(next.director.offices);
+      if (patch.launchAtLogin !== undefined) applyLaunchAtLogin(next.launchAtLogin);
       return next;
     },
     openDirectorWindow: () => openDirectorWindow(),

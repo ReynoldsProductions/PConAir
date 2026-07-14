@@ -1262,6 +1262,7 @@ async function renderSystem() {
 
   const operationMode = (appSettingsData && appSettingsData.operationMode) || 'standalone';
   const backupIps = Array.isArray(appSettingsData && appSettingsData.backupIps) ? appSettingsData.backupIps : [];
+  const launchAtLogin = !!(appSettingsData && appSettingsData.launchAtLogin);
 
   const displayOptions = [
     '<option value="">— None —</option>',
@@ -1272,6 +1273,19 @@ async function renderSystem() {
 
   content().innerHTML = `
     <div class="section-title">System</div>
+
+    <div class="card">
+      <div class="card-title">Startup</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+        For unattended rooms (e.g. a Mac mini running headless behind OBS/Zoom Rooms),
+        start PConAir automatically when the machine boots or a user logs in.
+      </p>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="launch-at-login-cb" ${launchAtLogin ? 'checked' : ''}
+          style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);" />
+        <label for="launch-at-login-cb" style="font-size:13px;cursor:pointer;">Launch PConAir at login</label>
+      </div>
+    </div>
 
     <div class="card">
       <div class="card-title">Display Assignment</div>
@@ -1348,6 +1362,16 @@ async function renderSystem() {
       </p>
     </div>
   `;
+
+  // Launch at login
+  document.getElementById('launch-at-login-cb').addEventListener('change', async (e) => {
+    try {
+      await api('PATCH', '/api/app-settings', { launchAtLogin: e.target.checked });
+      showSuccess(e.target.checked ? 'Launch at login enabled' : 'Launch at login disabled');
+    } catch {
+      e.target.checked = !e.target.checked; // revert on failure
+    }
+  });
 
   // Set current display selections
   const selA = document.getElementById('display-a-select');
