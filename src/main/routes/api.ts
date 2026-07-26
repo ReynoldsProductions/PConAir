@@ -1,10 +1,11 @@
 import { Router, Request, Response } from 'express';
+import { randomUUID } from 'crypto';
 import os from 'os';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { ReliabilityStore } from '../reliability-store';
 import type { AppState, Mode, ABInstance } from '../../shared/types';
-import type { AppSettings } from '../app-settings';
+import type { AppSettings, DirectorOffice } from '../app-settings';
 import { requireOperator, requireAdmin } from './middleware';
 import { gscStatusFields } from '../services/gsc-status';
 
@@ -26,6 +27,8 @@ export interface CreateApiRouterDeps {
   getAppSettings?: () => AppSettings;
   /** Persists a patch to app settings (for PATCH /api/app-settings). */
   saveAppSettingsPatch?: (patch: Partial<Omit<AppSettings, 'schemaVersion'>>) => AppSettings;
+  /** Opens the Director window (Electron main only); absent in tests. */
+  openDirectorWindow?: () => void;
 }
 
 function instKey(instance: ABInstance): 'instanceA' | 'instanceB' {
@@ -46,6 +49,7 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
     getBackupSettings,
     getAppSettings,
     saveAppSettingsPatch,
+    openDirectorWindow,
   } = deps;
 
   const router = Router();
@@ -343,7 +347,7 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
       return;
     }
     const s = getAppSettings();
-    // Never expose secrets over the wire
+    // Never expose secrets over the wire — operatorPin is masked (present/absent only).
     res.json({
       operationMode: s.operationMode,
       backupIps: s.backupIps,
@@ -355,6 +359,14 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
       stageTimerOverlayEnabled: s.stageTimerOverlayEnabled,
       teleprompterEnabled: s.teleprompterEnabled,
       teleprompterHost: s.teleprompterHost,
+      director: {
+        offices: s.director.offices.map((o) => ({
+          id: o.id,
+          name: o.name,
+          baseUrl: o.baseUrl,
+          hasOperatorPin: o.operatorPin.length > 0,
+        })),
+      },
     });
   });
 
@@ -367,11 +379,51 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
     const patch: Partial<Omit<AppSettings, 'schemaVersion'>> = {};
     if (body.operationMode !== undefined) patch.operationMode = body.operationMode as AppSettings['operationMode'];
     if (body.backupIps !== undefined) patch.backupIps = body.backupIps as string[];
+    if (body.director !== undefined) {
+      const raw = body.director as { offices?: unknown };
+      const incoming = Array.isArray(raw?.offices) ? (raw.offices as unknown[]) : [];
+      const current = getAppSettings ? getAppSettings().director.offices : [];
+      const offices: DirectorOffice[] = incoming.map((entry) => {
+        const o = (entry ?? {}) as Record<string, unknown>;
+        const id = typeof o.id === 'string' && o.id.length > 0 ? o.id : randomUUID();
+        const existing = current.find((c) => c.id === id);
+        // Blank PIN on an edit means "keep the existing one" — the GET
+        // endpoint never returns the real PIN, so the admin UI can't round-trip it.
+        const operatorPin =
+          typeof o.operatorPin === 'string' && o.operatorPin.length > 0
+            ? o.operatorPin
+            : existing?.operatorPin ?? '';
+        return {
+          id,
+          name: typeof o.name === 'string' ? o.name : '',
+          baseUrl: typeof o.baseUrl === 'string' ? o.baseUrl : '',
+          operatorPin,
+        };
+      });
+      patch.director = { offices };
+    }
     const next = saveAppSettingsPatch(patch);
     res.json({
       operationMode: next.operationMode,
       backupIps: next.backupIps,
+      director: {
+        offices: next.director.offices.map((o) => ({
+          id: o.id,
+          name: o.name,
+          baseUrl: o.baseUrl,
+          hasOperatorPin: o.operatorPin.length > 0,
+        })),
+      },
     });
+  });
+
+  router.post('/director/open-window', adminGuard, (_req: Request, res: Response) => {
+    if (!openDirectorWindow) {
+      res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'Director window not available in this environment' } });
+      return;
+    }
+    openDirectorWindow();
+    res.json({ opened: true });
   });
 
   return router;

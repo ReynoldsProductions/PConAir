@@ -381,6 +381,7 @@
       <div class="nav-item" data-section="monitors">Monitors</div>
       <div class="nav-item" data-section="branding">Branding</div>
       <div class="nav-item" data-section="teleprompter">Teleprompter</div>
+      <div class="nav-item" data-section="director">Director / Offices</div>
       <div class="nav-item" data-section="logs">Logs</div>
       <div class="nav-item" data-section="system">System</div>
 
@@ -530,6 +531,7 @@ function renderSection() {
     case 'monitors':   renderMonitors(); break;
     case 'branding':      renderBranding(); break;
     case 'teleprompter':  renderTeleprompter(); break;
+    case 'director':      renderDirector(); break;
     case 'logs':          renderLogs(); break;
     case 'system':     renderSystem(); break;
   }
@@ -1744,6 +1746,131 @@ async function renderTeleprompter() {
     const text = document.getElementById('tp-script').value;
     await api('POST', '/api/teleprompter/script', { text });
     showSuccess('Script updated');
+  });
+}
+
+// ── Section: Director / Offices ─────────────────────────────────────────────
+async function renderDirector() {
+  content().innerHTML = `<div class="section-title">Director / Offices</div><div class="card"><div class="card-title">Loading…</div></div>`;
+  let appSettingsData;
+  try { appSettingsData = await api('GET', '/api/app-settings'); } catch { return; }
+  const offices = (appSettingsData && appSettingsData.director && appSettingsData.director.offices) || [];
+
+  content().innerHTML = `
+    <div class="section-title">Director / Offices</div>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+      Configure remote PConAir instances (offices) that the Director window can dispatch lower-thirds to.
+      Each office needs a reachable base URL (VPN host or Cloudflare tunnel URL) and its operator PIN.
+    </p>
+    <div class="card">
+      <div class="card-title">Open Director</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">
+        Opens the multi-office control window on this machine.
+      </p>
+      <button class="btn btn-primary" id="open-director-btn">Open Director Window</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Offices (${offices.length})</div>
+      <div class="item-list" id="offices-list">
+        ${offices.length === 0 ? '<div class="empty-state">No offices configured yet.</div>' : offices.map(o => `
+          <div class="item-row" data-id="${escHtml(o.id)}">
+            <div class="item-name">${escHtml(o.name)}</div>
+            <div class="item-meta">${escHtml(o.baseUrl)} · PIN ${o.hasOperatorPin ? 'set' : '<span style="color:var(--red)">not set</span>'}</div>
+            <button class="btn btn-sm office-edit-btn" data-id="${escHtml(o.id)}">Edit</button>
+            <button class="btn btn-sm btn-danger office-del-btn" data-id="${escHtml(o.id)}">Delete</button>
+          </div>`).join('')}
+      </div>
+      <hr class="sep">
+      <div class="card-title" id="office-form-title">Add Office</div>
+      <input type="hidden" id="office-form-id" value="" />
+      <div class="form-grid-2">
+        <div class="field">
+          <div class="field-label">Name</div>
+          <input type="text" id="office-name-input" placeholder="Nashville" />
+        </div>
+        <div class="field">
+          <div class="field-label">Base URL</div>
+          <input type="text" id="office-baseurl-input" placeholder="https://nashville.pconair.internal:8080" />
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">Operator PIN <span id="office-pin-hint" style="color:var(--text-dim);font-weight:normal;"></span></div>
+        <input type="text" id="office-pin-input" placeholder="Operator PIN for this office" />
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="office-save-btn">Add Office</button>
+        <button class="btn" id="office-cancel-btn" style="display:none;">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('open-director-btn').addEventListener('click', async () => {
+    try {
+      await api('POST', '/api/director/open-window');
+      showSuccess('Director window opened');
+    } catch { /* showError handled in api() */ }
+  });
+
+  function resetOfficeForm() {
+    document.getElementById('office-form-id').value = '';
+    document.getElementById('office-name-input').value = '';
+    document.getElementById('office-baseurl-input').value = '';
+    document.getElementById('office-pin-input').value = '';
+    document.getElementById('office-pin-hint').textContent = '';
+    document.getElementById('office-form-title').textContent = 'Add Office';
+    document.getElementById('office-save-btn').textContent = 'Add Office';
+    document.getElementById('office-cancel-btn').style.display = 'none';
+  }
+
+  document.querySelectorAll('.office-edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const office = offices.find(o => o.id === btn.dataset.id);
+      if (!office) return;
+      document.getElementById('office-form-id').value = office.id;
+      document.getElementById('office-name-input').value = office.name;
+      document.getElementById('office-baseurl-input').value = office.baseUrl;
+      document.getElementById('office-pin-input').value = '';
+      document.getElementById('office-pin-hint').textContent = office.hasOperatorPin ? '(leave blank to keep the current PIN)' : '';
+      document.getElementById('office-form-title').textContent = `Edit ${office.name}`;
+      document.getElementById('office-save-btn').textContent = 'Save Office';
+      document.getElementById('office-cancel-btn').style.display = 'inline-block';
+      document.getElementById('office-form-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  });
+
+  document.querySelectorAll('.office-del-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Remove this office?')) return;
+      const next = offices.filter(o => o.id !== btn.dataset.id).map(o => ({ id: o.id, name: o.name, baseUrl: o.baseUrl, operatorPin: '' }));
+      try {
+        await api('PATCH', '/api/app-settings', { director: { offices: next } });
+        showSuccess('Office removed');
+        renderDirector();
+      } catch { /* showError handled in api() */ }
+    });
+  });
+
+  document.getElementById('office-cancel-btn').addEventListener('click', resetOfficeForm);
+
+  document.getElementById('office-save-btn').addEventListener('click', async () => {
+    const id = document.getElementById('office-form-id').value.trim();
+    const name = document.getElementById('office-name-input').value.trim();
+    const baseUrl = document.getElementById('office-baseurl-input').value.trim();
+    const operatorPin = document.getElementById('office-pin-input').value.trim();
+    if (!name || !baseUrl) { showError('Name and base URL are required'); return; }
+    if (!id && !operatorPin) { showError('Operator PIN is required for a new office'); return; }
+
+    // Full-replace patch (same style as backupIps) — untouched offices are
+    // re-sent with a blank PIN, which the server interprets as "keep existing".
+    const untouched = offices.filter(o => o.id !== id).map(o => ({ id: o.id, name: o.name, baseUrl: o.baseUrl, operatorPin: '' }));
+    const edited = { id: id || undefined, name, baseUrl, operatorPin };
+    const next = id ? [...untouched, edited] : [...untouched, edited];
+
+    try {
+      await api('PATCH', '/api/app-settings', { director: { offices: next } });
+      showSuccess(id ? 'Office updated' : 'Office added');
+      renderDirector();
+    } catch { /* showError handled in api() */ }
   });
 }
 

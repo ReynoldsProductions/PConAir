@@ -8,6 +8,8 @@ import { showQrOverlay, hideQrOverlay } from './tunnel/qr-overlay';
 import { createStageTimerOverlay } from './stagetimer/overlay';
 import { createAppTray } from './tray';
 import { registerSettingsIpc, openSettingsWindow } from './settings-window';
+import { registerDirectorIpc, openDirectorWindow, broadcastOfficeStatus, broadcastOfficeState } from './director-window';
+import { createOfficeManager } from './director/office-manager';
 import { createServer } from './server';
 import { getStore } from './state';
 import { createAuthManager } from './auth';
@@ -69,6 +71,17 @@ async function main() {
   const boot = bootstrapProfiles(userData, { operatorPin: OPERATOR_PIN, adminPin: ADMIN_PIN }, cliProfile);
 
   const store = getStore();
+
+  const officeManager = createOfficeManager({
+    onStatus: (officeId, status) => broadcastOfficeStatus(officeId, status),
+    onState: (officeId, state) => broadcastOfficeState(officeId, state),
+  });
+  officeManager.sync(appSettings.director.offices);
+  registerDirectorIpc({
+    officeManager,
+    getOffices: () => loadAppSettings(settingsFile).director.offices,
+  });
+  app.on('before-quit', () => officeManager.stopAll());
   const operatorSessionMs =
     cli.operatorSessionTimeoutSec != null
       ? cli.operatorSessionTimeoutSec * 1000
@@ -267,8 +280,12 @@ async function main() {
       return { operationMode: s.operationMode, backupIps: s.backupIps, port };
     },
     getAppSettings: () => loadAppSettings(settingsFile),
-    saveAppSettingsPatch: (patch: Partial<Omit<AppSettings, 'schemaVersion'>>) =>
-      saveAppSettings(settingsFile, patch),
+    saveAppSettingsPatch: (patch: Partial<Omit<AppSettings, 'schemaVersion'>>) => {
+      const next = saveAppSettings(settingsFile, patch);
+      officeManager.sync(next.director.offices);
+      return next;
+    },
+    openDirectorWindow: () => openDirectorWindow(),
   });
   let serverError: string | null = null;
   try {
@@ -390,6 +407,7 @@ async function main() {
     adminPin: ADMIN_PIN,
     onOpenSettings: () => openSettingsWindow(),
     onOpenOperatorWindow: () => createOperatorWindow(port),
+    onOpenDirectorWindow: () => openDirectorWindow(),
   });
 
   if (serverError) {

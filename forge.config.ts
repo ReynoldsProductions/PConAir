@@ -63,6 +63,15 @@ const config: ForgeConfig = {
             js: './src/renderer/settings/index.ts',
             preload: { js: './src/renderer/settings-preload.ts' },
           },
+          {
+            // Director window loads directly from the webpack entry (not HTTP), same
+            // as settings — it talks to remote offices over HTTP/WS from the main
+            // process, not to this instance's own Express server.
+            name: 'director',
+            html: './src/renderer/director/index.html',
+            js: './src/renderer/director/index.ts',
+            preload: { js: './src/renderer/director-preload.ts' },
+          },
         ],
       },
     }),

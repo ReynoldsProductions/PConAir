@@ -86,6 +86,8 @@ export interface ServerDeps {
   getAppSettings?: RouteServices['getAppSettings'];
   /** Persists an app settings patch (PATCH /api/app-settings). */
   saveAppSettingsPatch?: RouteServices['saveAppSettingsPatch'];
+  /** Opens the Director window (Electron main only); absent in tests. */
+  openDirectorWindow?: RouteServices['openDirectorWindow'];
 }
 
 function getRequestClientIp(req: express.Request, trustForwardedFor: boolean): string {
@@ -248,6 +250,7 @@ export function createServer(deps: ServerDeps) {
     getBackupSettings: deps.getBackupSettings,
     getAppSettings: deps.getAppSettings,
     saveAppSettingsPatch: deps.saveAppSettingsPatch,
+    openDirectorWindow: deps.openDirectorWindow,
   };
 
   const app = express();
