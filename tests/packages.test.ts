@@ -380,6 +380,47 @@ describe('package state persistence', () => {
     expect('tickerVisible' in s).toBe(false); // retired field does not linger
   });
 
+  it('rescan surfaces newly declared manifest fields without losing live state', () => {
+    const hub = freshHub();
+    hub.patchState('news', {
+      tickerItems: ['live copy'],
+      l3Left: { visible: true, name: 'On Air', title: 'Do not clear me' },
+    });
+
+    // author a new field and hit Rescan Packages
+    fs.rmSync(path.join(root, 'news'), { recursive: true, force: true });
+    writePkg(path.join(root, 'news'), {
+      stateSchema: {
+        tickerItems: 'array',
+        tickerVisible: 'boolean',
+        logoAsset: 'string',
+        l3Left: { visible: 'boolean', name: 'string', title: 'string' },
+      },
+      initialState: {
+        tickerItems: ['default headline'],
+        tickerVisible: true,
+        logoAsset: '',
+        l3Left: { visible: false, name: 'Jane Smith', title: 'CEO' },
+      },
+    });
+    hub.rescan();
+
+    const s = hub.getState('news')!;
+    expect('logoAsset' in s).toBe(true); // new field appears
+    expect(s.tickerItems).toEqual(['live copy']); // live copy untouched
+    // a rescan must not yank an on-air card off screen, unlike a restart
+    expect((s.l3Left as Record<string, unknown>).visible).toBe(true);
+    expect((s.l3Left as Record<string, unknown>).name).toBe('On Air');
+  });
+
+  it('pushes rescanned state to subscribers so open pages update', () => {
+    const hub = freshHub();
+    const seen: Array<Record<string, unknown>> = [];
+    hub.subscribe('package:news', (st) => seen.push(st));
+    hub.rescan();
+    expect(seen.length).toBeGreaterThan(0);
+  });
+
   it('boots from manifest defaults when the save file is corrupt', () => {
     fs.mkdirSync(path.dirname(persistPath), { recursive: true });
     fs.writeFileSync(persistPath, '{ not json at all');

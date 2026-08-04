@@ -114,24 +114,48 @@
     track.appendChild(buildRun(items)); // two runs → the -50% keyframe loops seamlessly
   }
 
-  // A logo set in the admin portal (Branding → custom logo) replaces the Faire
-  // wordmark. /branding/logo 404s when none is configured, which is the signal
-  // to keep the built-in mark — so this is probe-once, not a per-state fetch.
-  function loadBrandLogo() {
-    const img = new Image();
-    img.onload = function () {
-      const mark = document.querySelector('#bug .wordmark');
-      if (mark) mark.remove();
-      img.className = 'brandmark';
-      img.alt = '';
-      g('bug').appendChild(img);
+  // ── logo ─────────────────────────────────────────────────────────────────
+  // `logoAsset` names a file uploaded to this package's assets (admin → Packages
+  // → Upload Image); empty means the built-in Faire wordmark. Deliberately NOT
+  // the Branding custom-logo setting: that field takes a server filesystem path,
+  // which nobody can supply from a browser.
+  //
+  // The wordmark is hidden rather than removed, so switching back needs no
+  // re-injection, and it only hides once the upload has actually decoded — a
+  // missing or corrupt file falls back instead of leaving an empty chip.
+  let currentLogo = null;
+  function applyLogo(asset) {
+    const name = typeof asset === 'string' ? asset : '';
+    if (name === currentLogo) return;
+    currentLogo = name;
+
+    const bug = g('bug');
+    const wordmark = bug.querySelector('.wordmark');
+    const existing = bug.querySelector('.brandmark');
+    if (existing) existing.remove();
+
+    if (!name) {
+      if (wordmark) wordmark.style.display = '';
+      return;
+    }
+
+    const img = document.createElement('img');
+    img.className = 'brandmark';
+    img.alt = '';
+    img.onload = function () { if (wordmark) wordmark.style.display = 'none'; };
+    img.onerror = function () {
+      img.remove();
+      if (wordmark) wordmark.style.display = '';
+      currentLogo = null; // let a later state push retry
     };
-    img.src = '/branding/logo';
+    img.src = '/packages/news/assets/' + encodeURIComponent(name);
+    bug.appendChild(img);
   }
-  loadBrandLogo();
 
   function applyState(s) {
     const items = Array.isArray(s.tickerItems) ? s.tickerItems.filter(Boolean) : [];
+
+    applyLogo(s.logoAsset);
 
     const scale = Number(s.logoScale);
     document.documentElement.style.setProperty(

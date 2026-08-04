@@ -149,15 +149,19 @@
     </label>
   </div>
   <div class="row">
+    <label class="hint" style="flex:2">Logo image
+      <select id="logoAsset"></select>
+    </label>
     <label class="hint" style="flex:1">Logo size (%)
       <input id="logoScale" type="number" min="25" max="300" step="5">
     </label>
-    <div class="hint" style="flex:2">
-      A custom logo set in the admin portal (Branding) replaces the Faire wordmark.
-      Best results: transparent PNG or SVG, wider than tall, at least 120px tall so it
-      stays crisp. It is scaled to fit the bar automatically — no cropping — so very
-      tall or square art just reads narrow; use this % to tune it.
-    </div>
+  </div>
+  <div class="hint">
+    Upload logos in <b>admin → Packages → Faire Wire → Upload Image</b>, then pick one here
+    (the list refreshes when you open it). Best results: transparent PNG or SVG, wider than
+    tall, at least 120px tall. It is scaled to fit the bar with no cropping, so square-ish
+    art reads narrow — the bar is only 96px high, so a wide mark carries much better. Use
+    the % to tune without re-exporting.
   </div>
   <div class="hint">
     Two renders to add as sources — stack the lower thirds over the ticker:<br>
@@ -216,6 +220,7 @@
     if (document.activeElement !== g('theme')) g('theme').value = state.theme || 'default';
     if (document.activeElement !== g('logo')) g('logo').value = state.logo || 'tan';
     if (document.activeElement !== g('autoClear')) g('autoClear').checked = !!state.autoClear;
+    if (document.activeElement !== g('logoAsset')) g('logoAsset').value = state.logoAsset || '';
     syncInput('autoClearSeconds', state.autoClearSeconds);
     syncInput('logoScale', state.logoScale);
   }
@@ -258,6 +263,45 @@
       case 'tickerClear': patch({ tickerVisible: false }); break;
     }
   });
+
+  // Asset list comes from the package's own assets dir, so a file uploaded in the
+  // admin Packages page shows up here. Filtered to images: the dir also holds
+  // state.js and macOS Icon droppings.
+  const IMAGE_RE = /\.(png|jpe?g|svg|webp|gif|avif)$/i;
+  async function refreshLogoAssets() {
+    const sel = g('logoAsset');
+    let assets = [];
+    try {
+      const res = await fetch('/api/packages/news/assets');
+      const body = await res.json();
+      assets = (body.assets || []).filter((a) => IMAGE_RE.test(a.filename));
+    } catch (err) { /* offline — keep whatever is already listed */ }
+
+    const chosen = state ? (state.logoAsset || '') : '';
+    sel.textContent = '';
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = 'Faire wordmark (built-in)';
+    sel.appendChild(none);
+    for (const a of assets) {
+      const opt = document.createElement('option');
+      opt.value = a.filename;
+      opt.textContent = a.filename;
+      sel.appendChild(opt);
+    }
+    // a logo that was chosen and then deleted must stay visible as the selection,
+    // otherwise the picker would silently misreport what is on air
+    if (chosen && !assets.some((a) => a.filename === chosen)) {
+      const missing = document.createElement('option');
+      missing.value = chosen;
+      missing.textContent = chosen + ' (missing)';
+      sel.appendChild(missing);
+    }
+    sel.value = chosen;
+  }
+  refreshLogoAssets();
+  g('logoAsset').addEventListener('mousedown', refreshLogoAssets);
+  g('logoAsset').addEventListener('change', () => patch({ logoAsset: g('logoAsset').value }));
 
   g('theme').addEventListener('change', () => patch({ theme: g('theme').value }));
   g('logo').addEventListener('change', () => patch({ logo: g('logo').value }));

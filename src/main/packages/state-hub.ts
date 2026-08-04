@@ -129,18 +129,36 @@ export function createPackageHub(
       }
     }
     const saved = readPersisted();
+    const rescanned: string[] = [];
     for (const p of packages.values()) {
-      if (!states.has(p.manifest.id)) {
-        const base = {
-          ...defaultStateFromSchema(p.manifest.stateSchema),
-          ...(p.manifest.initialState ?? {}),
-        };
-        const restored = mergeSaved(base, saved[p.manifest.id]);
-        // fields the manifest marks transient always come back at their default
+      const id = p.manifest.id;
+      const base = {
+        ...defaultStateFromSchema(p.manifest.stateSchema),
+        ...(p.manifest.initialState ?? {}),
+      };
+      const firstLoad = !states.has(id);
+      // On a live rescan, re-merge the in-memory state against the (possibly
+      // edited) manifest so newly declared fields actually appear. Otherwise
+      // "reload manifests from disk without restarting" silently wouldn't, and
+      // authoring a new state field would still need a full restart.
+      const prior = firstLoad ? saved[id] : states.get(id);
+      const next = mergeSaved(base, prior);
+      if (firstLoad) {
+        // Transient fields reset only when coming back from disk. Doing it on a
+        // live rescan would yank an on-air lower third off the screen.
         for (const field of p.manifest.transientFields ?? []) {
-          resetPath(restored, base, field);
+          resetPath(next, base, field);
         }
-        states.set(p.manifest.id, restored);
+      }
+      states.set(id, next);
+      if (!firstLoad) rescanned.push(id);
+    }
+    // let open render/control pages pick up added fields without a reload
+    for (const id of rescanned) {
+      const subs = subscribers.get(`package:${id}`);
+      if (subs) {
+        const snapshot = states.get(id)!;
+        for (const fn of subs) fn(structuredClone(snapshot));
       }
     }
   }

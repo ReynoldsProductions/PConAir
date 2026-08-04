@@ -35,7 +35,8 @@
     "tickerSeconds": "number",
     "logoScale": "number",
     "autoClear": "boolean",
-    "autoClearSeconds": "number"
+    "autoClearSeconds": "number",
+    "logoAsset": "string"
   },
   "initialState": {
     "theme": "default",
@@ -83,7 +84,8 @@
     "tickerSeconds": 180,
     "logoScale": 100,
     "autoClear": false,
-    "autoClearSeconds": 8
+    "autoClearSeconds": 8,
+    "logoAsset": ""
   },
   "companionActions": [
     {
