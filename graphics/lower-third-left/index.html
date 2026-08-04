@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lower Third — Left</title>
+<!--
+  Left-hand lower third, its own scene so it can be stacked over the ticker
+  (graphics/news) and animated on/off independently. Pair it with
+  graphics/lower-third-right to title two speakers at once.
+
+  Transparent background — keyed over camera/program downstream. (This is NOT
+  graphics/lower-third-live, which is the opaque, WebSocket-driven card for
+  external hardware keyers; that one stays as it is.)
+
+  Style, timings and URL params: ../_shared/lower-third.css + lower-third.js
+-->
+<link rel="stylesheet" href="../_shared/lower-third.css">
+</head>
+<body data-side="left" data-theme="default">
+<div id="stage">
+  <div class="l3" id="l3">
+    <div class="accent"></div>
+    <div class="text">
+      <div class="name" id="l3name">Jane Smith</div>
+      <div class="title" id="l3title">Chief Executive Officer</div>
+      <div class="subtitle" id="l3subtitle" style="display:none"></div>
+    </div>
+  </div>
+</div>
+<script src="../_shared/lower-third.js"></script>
+</body>
+</html>

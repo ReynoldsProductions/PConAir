@@ -3,11 +3,11 @@
   "templates": [
     {
       "id": "news",
-      "title": "Faire Nightly News",
-      "description": "Lower-third + live clock + Faire Wire ticker.",
+      "title": "Faire Wire — Ticker",
+      "description": "Headline crawl with the Faire logo bug. Edit graphics/news/ticker.json to change the headlines.",
       "mode": "url",
       "path": "news/index.html",
-      "params": { "name": "Jane Smith", "title": "Chief Executive Officer", "theme": "light", "label": "Faire Wire" }
+      "params": {}
     },
     {
       "id": "quarterly",
@@ -32,6 +32,22 @@
       "mode": "url",
       "path": "scoreboard-basketball/index.html",
       "params": { "a": "BOS", "b": "LAL", "sa": "88", "sb": "84", "q": "Q3", "clock": "7:42", "shot": "24", "poss": "a", "fA": "4", "fB": "5", "toA": "5", "toB": "4", "card": "1" }
+    },
+    {
+      "id": "lower-third-left",
+      "title": "Lower Third — Left",
+      "description": "Transparent left-hand name card; animates on, holds, animates off. Stack over the ticker.",
+      "mode": "url",
+      "path": "lower-third-left/index.html",
+      "params": { "name": "Jane Smith", "title": "Chief Executive Officer", "theme": "default", "delay": "0.4", "in": "0.55", "hold": "6", "out": "0.4" }
+    },
+    {
+      "id": "lower-third-right",
+      "title": "Lower Third — Right",
+      "description": "Transparent right-hand name card, mirrored. Pair with Lower Third — Left to title two speakers.",
+      "mode": "url",
+      "path": "lower-third-right/index.html",
+      "params": { "name": "Alex Chen", "title": "Head of Supply", "theme": "default", "delay": "0.4", "in": "0.55", "hold": "6", "out": "0.4" }
     },
     {
       "id": "lower-third-live",

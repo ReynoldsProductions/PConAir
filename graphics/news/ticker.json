@@ -1,0 +1,31 @@
+{
+  "_comment": "Edit `items` to change the ticker crawl, then reload the graphic. Wrap a lead-in phrase in **double asterisks** to render it in the tan accent colour. `speed` is the seconds it takes one full run of headlines to cross the screen — larger = slower, and it must grow as you add items (roughly 7s per headline reads comfortably). A `?ticker=` / `?speed=` URL param overrides whatever is in here.",
+  "speed": 180,
+  "items": [
+    "**KW:** Tens of engineers displaced after flooding in KW, prompting AI-powered mop project for Hack Week",
+    "**NYC:** 12th floor declared official icebox, 10th floor still sweating it out",
+    "**SF:** Wagon Rock frontman steps down, Faire COO Jeff Kolovson considers auditioning",
+    "**KW:** Ghost of iPad Jim spotted haunting the new espresso machine",
+    "**SF:** Bevi machine out of CO2 for the third time, employees consider rationing bubbles",
+    "**NYC:** Employee asks \"is there like, a vote?\" on the AC, no referendum scheduled",
+    "**KW:** Local hero returns MacBook after two years and 59 stickers, KW office mourns",
+    "Shadow Top 8 caucus keeps biweekly slot with Max, insiders confirm",
+    "**KW:** Evil parking man strikes again, ghost of iPad Jim spotted in his driver's seat",
+    "**TOR:** Dark blue phone found on 2nd floor, finder invokes 'finders keepers' in thread",
+    "**KW:** Capybara plush sells out in four minutes flat, Sculptor neighbourhood in mourning",
+    "**SF:** Nespresso jams again, SF third floor declares state of emergency",
+    "Meeting cap quietly raised from 9 to 15, math abandoned",
+    "**NYC:** Workplace ops caught between hot meeting rooms and cold open floor, diplomacy fails",
+    "**KW:** Ghost of iPad Jim blamed for grounds left in espresso machine, again",
+    "**SF:** Volunteer sign-up sheet turns cutthroat, Faire Summer Give Back \"not a competition\" officially a competition",
+    "**TOR:** BEEP shuttle capped at 10 passengers, waitlist treated like Studio 54 guest list",
+    "Top 8 hopefuls brace for reshuffle, sources say \"they'll change\" again",
+    "**LON:** Sources: espresso machine \"having a moment,\" employees strongly request an upgrade",
+    "**NYC:** Max's Corner sells $34 umbrellas mid-downpour, capitalism wins",
+    "**KW:** Hot water tank floods office, HR clarifies this is not a metaphor",
+    "**SF:** Wagon Rock camp denies Kolovson audition rumors, sources call \"no comment\" a maybe",
+    "**TOR:** Office library honor system holds strong, one overdue biography under internal investigation",
+    "Planning feedback survey sent again, response rate holds steady at zero",
+    "**LON:** Football sweepstake crowns office champion, Golden Boot goes uncontested"
+  ]
+}
