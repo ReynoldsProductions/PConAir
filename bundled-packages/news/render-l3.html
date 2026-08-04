@@ -51,8 +51,15 @@
   .l3 .text{padding:16px 0;min-width:0;}
   /* the name never wraps: it shrinks toward 34px to fit, and ellipsis catches
      anything still too long at that floor */
+  /* `overflow:hidden` is what makes the ellipsis work, and it clips at the
+     PADDING box — but line-height:1 gives a 1em box to hold Inter's 1.21em of
+     ink, so the box alone cuts descenders (3.3px off a "y" at 52px) and accented
+     caps. The padding grows the clip box; the matching negative margins take it
+     back out of the flow, so the 169px panel geometry is untouched. In em, so
+     the headroom survives the auto-shrink toward 34px. */
   .l3 .name{font-weight:600;font-size:52px;line-height:1;color:var(--name-color);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    padding:.18em 0 .12em;margin:-.18em 0 -.12em;}
   .l3 .title{font-size:32px;color:var(--title-color);margin-top:14px;line-height:1.15;}
   .l3 .subtitle{font-size:23px;font-weight:400;color:var(--title-color);opacity:.72;
     margin-top:10px;line-height:1.15;}
