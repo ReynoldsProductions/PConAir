@@ -1,21 +1,27 @@
 /*
-  Shared lower-third behaviour for the side-specific L3 scenes
-  (graphics/lower-third-left, graphics/lower-third-right).
+  Shared lower-third behaviour for the L3 scenes:
+    graphics/lower-third-left/   one left card
+    graphics/lower-third-right/  one right card
+    graphics/lower-third-duo/    both, in a single page/output
 
-  Each scene's index.html sets body[data-side] and then loads this file, which
-  reads URL params, fills the card, and runs the animation timeline:
+  Every `.l3` element on the page becomes a self-animating card, running:
 
       delay ──▶ animate in ──▶ hold ──▶ animate out
 
-  The card is non-persistent by design: it plays itself once on load, so the
-  scene can be brought up over a recorded spot and will clear itself. Set
-  `hold=inf` to make it stay up until hidden manually.
+  Cards are non-persistent by design: they play once on load, so a scene can be
+  brought up over a recorded spot and will clear itself. Use `hold=inf` to pin.
 
-  URL params
-  ----------
-    name      headline text (falls back to the placeholder in the markup)
+  Param names come from each card's `data-params` attribute, which is the suffix
+  appended to every field: the duo page uses `L` and `R` (so `nameL`, `titleR`,
+  `holdL`, …) while the single-card pages leave it empty (`name`, `title`, …).
+  Any suffixed timing falls back to the unsuffixed one, so `?hold=8` sets both
+  cards and `?delayR=1.5` staggers just the right-hand one.
+
+  URL params (add the card's suffix on the duo page)
+  -------------------------------------------------
+    name      headline text
     title     second line
-    subtitle  optional third line — omitted when empty
+    subtitle  third line
     theme     default | dark | dark_alt | bright | bright_info | bright_insider |
               bright_warm | palette_copper | palette_olive | palette_plum |
               palette_sage | palette_teal | palette_terracotta
@@ -24,28 +30,47 @@
     hold      time fully on screen             (default 6)
               use `inf` / `hold` / a negative number to stay up indefinitely
     out       animate-out duration             (default 0.4)
-    w         panel width in px                (default 780)
+    w         panel max width in px            (default 780)
     bottom    distance from frame bottom in px (default 124 — clears the ticker)
 
   Durations are in SECONDS by default; suffix with `ms` for milliseconds
   (`in=550ms` === `in=0.55`).
 
-  Manual control, for previewing or for driving from a parent page:
-    window.l3.play()   replay from the top (also bound to the R key)
-    window.l3.hide()   animate out now      (also bound to the H key)
-    window.l3.set({name, title, subtitle, theme})
+  Passing a param EMPTY clears that line and collapses it — `?title=` removes the
+  second row entirely (CSS `:empty` handles the layout). Omitting the param
+  instead leaves whatever placeholder is in the markup. That distinction is why
+  this reads params with `has()` rather than `||`.
+
+  A duo card with no name, title or subtitle param at all is hidden outright, so
+  the duo page also works for titling a single speaker.
+
+  Manual control, for previewing or driving from a parent page:
+    window.l3.play()   replay every card (also bound to the R key)
+    window.l3.hide()   animate every card out (also bound to H)
+    window.l3.cards    per-card controllers: [{el, side, play, hide, set}, …]
+    window.l3.left / window.l3.right   the matching controller, when present
 */
 (function () {
   var q = new URLSearchParams(location.search);
-  var body = document.body;
-  var card = document.getElementById('l3');
-
   var DEFAULTS = { delay: 0.4, in: 0.55, hold: 6, out: 0.4 };
+  var NAME_MIN = 34;
+
+  // present-but-empty is meaningful (it clears the line); absent is not
+  function raw(key, suffix) {
+    var k = key + (suffix || '');
+    return q.has(k) ? q.get(k) : undefined;
+  }
+
+  // timings and geometry fall back from `holdR` to `hold`
+  function shared(key, suffix) {
+    var v = raw(key, suffix);
+    return v === undefined && suffix ? raw(key, '') : v;
+  }
 
   // "1.5" / "1.5s" → 1500 ; "550ms" → 550 ; "inf" / negative → Infinity
-  function ms(raw, fallback) {
-    if (raw == null || raw === '') return fallback * 1000;
-    var s = String(raw).trim().toLowerCase();
+  function ms(value, fallback) {
+    if (value === undefined || value === '') return fallback * 1000;
+    var s = String(value).trim().toLowerCase();
     if (s === 'inf' || s === 'infinite' || s === 'forever' || s === 'hold') return Infinity;
     var m = /^(-?\d*\.?\d+)(ms|s)?$/.exec(s);
     if (!m) return fallback * 1000;
@@ -55,121 +80,141 @@
     return m[2] === 'ms' ? n : n * 1000;
   }
 
-  function px(raw, prop) {
-    var n = parseFloat(raw);
-    if (isFinite(n)) document.documentElement.style.setProperty(prop, n + 'px');
-  }
+  function setupCard(el) {
+    var suffix = el.dataset.params || '';
 
-  function setText(id, value) {
-    var el = document.getElementById(id);
-    if (!el || value == null) return;
-    el.textContent = value;
-  }
+    // ── geometry + timing, written as custom properties on the card itself so
+    //    the two duo cards can differ ──
+    var wRaw = parseFloat(shared('w', suffix));
+    if (isFinite(wRaw)) el.style.setProperty('--panel-w', wRaw + 'px');
+    var bRaw = parseFloat(shared('bottom', suffix));
+    if (isFinite(bRaw)) el.style.setProperty('--panel-bottom', bRaw + 'px');
 
-  // ── static setup: geometry + timings as CSS custom properties ──
-  var timing = {
-    delay: ms(q.get('delay'), DEFAULTS.delay),
-    in: ms(q.get('in'), DEFAULTS.in),
-    hold: ms(q.get('hold'), DEFAULTS.hold),
-    out: ms(q.get('out'), DEFAULTS.out),
-  };
-  // an infinite enter/exit duration is meaningless — fall back rather than freeze
-  if (!isFinite(timing.in)) timing.in = DEFAULTS.in * 1000;
-  if (!isFinite(timing.out)) timing.out = DEFAULTS.out * 1000;
-  if (!isFinite(timing.delay)) timing.delay = DEFAULTS.delay * 1000;
+    var timing = {
+      delay: ms(shared('delay', suffix), DEFAULTS.delay),
+      in: ms(shared('in', suffix), DEFAULTS.in),
+      hold: ms(shared('hold', suffix), DEFAULTS.hold),
+      out: ms(shared('out', suffix), DEFAULTS.out),
+    };
+    // an infinite enter/exit/delay is meaningless — fall back rather than freeze
+    if (!isFinite(timing.in)) timing.in = DEFAULTS.in * 1000;
+    if (!isFinite(timing.out)) timing.out = DEFAULTS.out * 1000;
+    if (!isFinite(timing.delay)) timing.delay = DEFAULTS.delay * 1000;
+    el.style.setProperty('--in-dur', timing.in + 'ms');
+    el.style.setProperty('--out-dur', timing.out + 'ms');
 
-  document.documentElement.style.setProperty('--in-dur', timing.in + 'ms');
-  document.documentElement.style.setProperty('--out-dur', timing.out + 'ms');
-  px(q.get('w'), '--panel-w');
-  px(q.get('bottom'), '--panel-bottom');
+    var nameEl = el.querySelector('.name');
+    var titleEl = el.querySelector('.title');
+    var subEl = el.querySelector('.subtitle');
 
-  // The name is nowrap, so a long one would otherwise run past the panel edge
-  // once the panel has grown to its max width. Step the size down until it fits
-  // (or bottoms out, where CSS text-overflow takes over).
-  var NAME_MIN = 34;
-  function fitName() {
-    var el = document.getElementById('l3name');
-    if (!el) return;
-    el.style.fontSize = '';
-    for (var i = 0; i < 3; i++) {
-      var avail = el.clientWidth;
-      if (!avail || el.scrollWidth <= avail + 1) return;
-      var size = parseFloat(getComputedStyle(el).fontSize) * (avail / el.scrollWidth);
-      size = Math.max(NAME_MIN, Math.floor(size));
-      el.style.fontSize = size + 'px';
-      if (size === NAME_MIN) return;
+    // The name is nowrap, so a long one would otherwise run past the panel edge
+    // once the panel has grown to its max width. Step it down until it fits (or
+    // bottoms out, where CSS text-overflow takes over).
+    function fitName() {
+      if (!nameEl) return;
+      nameEl.style.fontSize = '';
+      for (var i = 0; i < 3; i++) {
+        var avail = nameEl.clientWidth;
+        if (!avail || nameEl.scrollWidth <= avail + 1) return;
+        var size = parseFloat(getComputedStyle(nameEl).fontSize) * (avail / nameEl.scrollWidth);
+        size = Math.max(NAME_MIN, Math.floor(size));
+        nameEl.style.fontSize = size + 'px';
+        if (size === NAME_MIN) return;
+      }
     }
-  }
 
-  function set(fields) {
-    if (!fields) return;
-    if (fields.theme) body.dataset.theme = fields.theme;
-    setText('l3name', fields.name);
-    setText('l3title', fields.title);
-    var sub = document.getElementById('l3subtitle');
-    if (sub && 'subtitle' in fields) {
-      sub.textContent = fields.subtitle || '';
-      sub.style.display = fields.subtitle ? '' : 'none';
+    function set(fields) {
+      if (!fields) return;
+      if (fields.theme) el.dataset.theme = fields.theme;
+      if (nameEl && fields.name !== undefined) nameEl.textContent = fields.name;
+      if (titleEl && fields.title !== undefined) titleEl.textContent = fields.title;
+      if (subEl && fields.subtitle !== undefined) subEl.textContent = fields.subtitle;
+      fitName();
     }
-    fitName();
+
+    var fromUrl = {
+      theme: shared('theme', suffix) || undefined,
+      name: raw('name', suffix),
+      title: raw('title', suffix),
+      subtitle: raw('subtitle', suffix),
+    };
+    // On the duo page a card nobody addressed is dropped entirely, so the same
+    // page can title one speaker or two.
+    var addressed = fromUrl.name !== undefined || fromUrl.title !== undefined ||
+                    fromUrl.subtitle !== undefined;
+    if (suffix && !addressed) {
+      el.classList.add('off');
+      return null;
+    }
+    set(fromUrl);
+
+    var timers = [];
+    function clearTimers() {
+      timers.forEach(clearTimeout);
+      timers = [];
+    }
+    function after(delay, fn) {
+      if (!isFinite(delay)) return;
+      timers.push(setTimeout(fn, delay));
+    }
+
+    function enter() {
+      // force a reflow so re-adding "in" after "out" reliably re-triggers the
+      // transition instead of being coalesced into one style recalculation
+      el.classList.remove('out');
+      el.classList.remove('in');
+      void el.offsetWidth;
+      el.classList.add('in');
+    }
+    function exit() {
+      el.classList.remove('in');
+      void el.offsetWidth;
+      el.classList.add('out');
+    }
+
+    function play() {
+      clearTimers();
+      after(timing.delay, function () {
+        enter();
+        // hold starts once the card has finished sliding on
+        after(timing.in + timing.hold, exit);
+      });
+    }
+    function hide() {
+      clearTimers();
+      exit();
+    }
+
+    return {
+      el: el, side: el.dataset.side || null,
+      play: play, hide: hide, set: set, fitName: fitName,
+    };
   }
 
-  set({
-    theme: q.get('theme') || undefined,
-    name: q.get('name') || undefined,
-    title: q.get('title') || undefined,
-    subtitle: q.get('subtitle') || '',
+  var cards = [];
+  Array.prototype.forEach.call(document.querySelectorAll('.l3'), function (el) {
+    var c = setupCard(el);
+    if (c) cards.push(c);
+  });
+
+  function each(method) {
+    return function () { cards.forEach(function (c) { c[method](); }); };
+  }
+
+  window.l3 = { cards: cards, play: each('play'), hide: each('hide') };
+  cards.forEach(function (c) {
+    if (c.side) window.l3[c.side] = c;
   });
 
   // web-font metrics differ from the fallback — re-measure once they settle
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitName);
-
-  // ── timeline ──
-  var timers = [];
-  function clearTimers() {
-    timers.forEach(clearTimeout);
-    timers = [];
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { cards.forEach(function (c) { c.fitName(); }); });
   }
-  function after(delay, fn) {
-    if (!isFinite(delay)) return;
-    timers.push(setTimeout(fn, delay));
-  }
-
-  function enter() {
-    // force a reflow so re-adding "in" after "out" reliably re-triggers the
-    // transition instead of being coalesced into one style recalculation
-    card.classList.remove('out');
-    card.classList.remove('in');
-    void card.offsetWidth;
-    card.classList.add('in');
-  }
-
-  function exit() {
-    card.classList.remove('in');
-    void card.offsetWidth;
-    card.classList.add('out');
-  }
-
-  function play() {
-    clearTimers();
-    after(timing.delay, function () {
-      enter();
-      // hold starts once the card has finished sliding on
-      after(timing.in + timing.hold, exit);
-    });
-  }
-
-  function hide() {
-    clearTimers();
-    exit();
-  }
-
-  window.l3 = { play: play, hide: hide, set: set };
 
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'r' || e.key === 'R') play();
-    if (e.key === 'h' || e.key === 'H') hide();
+    if (e.key === 'r' || e.key === 'R') window.l3.play();
+    if (e.key === 'h' || e.key === 'H') window.l3.hide();
   });
 
-  play();
+  window.l3.play();
 })();

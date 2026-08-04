@@ -50,6 +50,14 @@
       "params": { "name": "Alex Chen", "title": "Head of Supply", "theme": "default", "delay": "0.4", "in": "0.55", "hold": "6", "out": "0.4" }
     },
     {
+      "id": "lower-third-duo",
+      "title": "Lower Third — Duo",
+      "description": "Both name cards in one output, for titling two speakers at once. Params take an L/R suffix.",
+      "mode": "url",
+      "path": "lower-third-duo/index.html",
+      "params": { "nameL": "Jane Smith", "titleL": "Chief Executive Officer", "nameR": "Alex Chen", "titleR": "Head of Supply", "theme": "default", "hold": "6", "delayR": "1.6" }
+    },
+    {
       "id": "lower-third-live",
       "title": "Lower Third — Live",
       "description": "Live, WebSocket-driven Faire-style lower third for external keying (solid black background).",

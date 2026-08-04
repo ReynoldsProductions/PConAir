@@ -72,7 +72,7 @@ describe('bootstrapGraphicsPresets', () => {
 
   it('uses the real graphics manifest without error', () => {
     bootstrapGraphicsPresets(8080, REAL_GRAPHICS_ROOT, presets);
-    expect(presets.list().length).toBeGreaterThanOrEqual(7);
+    expect(presets.list().length).toBeGreaterThanOrEqual(8);
     const names = presets.list().map((p) => p.name);
     expect(names).toContain('COURTVISION — Basketball Scorebug');
     expect(names).toContain('Faire Wire — Ticker');
@@ -80,6 +80,7 @@ describe('bootstrapGraphicsPresets', () => {
     // the two stackable side cards ship as separate scenes
     expect(names).toContain('Lower Third — Left');
     expect(names).toContain('Lower Third — Right');
+    expect(names).toContain('Lower Third — Duo');
   });
 
   it('builds URLs with correct port', () => {

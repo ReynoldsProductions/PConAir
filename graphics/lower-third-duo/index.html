@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lower Third — Duo</title>
+<!--
+  Both lower thirds in ONE page, for titling two speakers at once out of a single
+  output. Use this when your playout gives you one URL per display (PC On Air URL
+  mode); use the separate lower-third-left / lower-third-right scenes only when
+  you can layer two independent sources downstream.
+
+  Params are the single-card ones with an L or R suffix — nameL, titleR, holdL …
+  Unsuffixed timings apply to both, so ?hold=8 pins both cards and ?delayR=1.6
+  brings the right-hand card on after the left. A card with no name/title/subtitle
+  param at all is hidden, so this page also handles a single speaker.
+
+  Example:
+    ?nameL=Jane+Smith&titleL=Chief+Executive+Officer
+    &nameR=Alex+Chen&titleR=Head+of+Supply&delayR=1.6
+
+  Transparent background — keyed over camera/program downstream.
+  Style, timings and full param list: ../_shared/lower-third.css + lower-third.js
+  Pass a param empty (?titleL=) to drop that line entirely.
+-->
+<link rel="stylesheet" href="../_shared/lower-third.css">
+</head>
+<body data-theme="default">
+<div id="stage">
+  <div class="l3" data-side="left" data-params="L">
+    <div class="accent"></div>
+    <div class="text">
+      <div class="name"></div>
+      <div class="title"></div>
+      <div class="subtitle"></div>
+    </div>
+  </div>
+  <div class="l3" data-side="right" data-params="R">
+    <div class="accent"></div>
+    <div class="text">
+      <div class="name"></div>
+      <div class="title"></div>
+      <div class="subtitle"></div>
+    </div>
+  </div>
+</div>
+<script src="../_shared/lower-third.js"></script>
+</body>
+</html>

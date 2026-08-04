@@ -29,6 +29,7 @@ describe('GET /graphics (built-in templates)', () => {
     expect(ids).toContain('lower-third-live');
     expect(ids).toContain('lower-third-left');
     expect(ids).toContain('lower-third-right');
+    expect(ids).toContain('lower-third-duo');
   });
 
   it('serves the ticker headline file the news template reads', async () => {
@@ -39,17 +40,50 @@ describe('GET /graphics (built-in templates)', () => {
     expect(res.body.items.length).toBeGreaterThan(0);
   });
 
-  it.each(['lower-third-left', 'lower-third-right'])(
-    'serves the %s template index.html',
-    async (dir) => {
-      const srv = makeServer(true);
-      const res = await request(srv.app).get(`/graphics/${dir}/index.html`);
-      expect(res.status).toBe(200);
-      expect(res.text).toContain(`data-side="${dir === 'lower-third-left' ? 'left' : 'right'}"`);
-      expect(res.text).toContain('../_shared/lower-third.css');
-      expect(res.text).toContain('../_shared/lower-third.js');
-    },
-  );
+  it.each([
+    ['lower-third-left', ['left']],
+    ['lower-third-right', ['right']],
+    ['lower-third-duo', ['left', 'right']],
+  ] as const)('serves the %s template index.html', async (dir, sides) => {
+    const srv = makeServer(true);
+    const res = await request(srv.app).get(`/graphics/${dir}/index.html`);
+    expect(res.status).toBe(200);
+    // data-side must sit on the .l3 card, not body — that is what lets the duo
+    // page hold a left and a right card in one document
+    for (const side of sides) {
+      expect(res.text).toContain(`data-side="${side}"`);
+    }
+    expect(res.text).not.toContain('<body data-side');
+    expect(res.text).toContain('../_shared/lower-third.css');
+    expect(res.text).toContain('../_shared/lower-third.js');
+  });
+
+  it('gives the duo cards L/R param suffixes so each is addressable', async () => {
+    const srv = makeServer(true);
+    const res = await request(srv.app).get('/graphics/lower-third-duo/index.html');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('data-params="L"');
+    expect(res.text).toContain('data-params="R"');
+  });
+
+  it('collapses empty text rows rather than leaving a gap', async () => {
+    const srv = makeServer(true);
+    const res = await request(srv.app).get('/graphics/_shared/lower-third.css');
+    expect(res.status).toBe(200);
+    // `?title=` must remove the row; see the :empty rule
+    expect(res.text).toContain('.l3 .title:empty');
+    expect(res.text).toContain('.l3 .subtitle:empty');
+  });
+
+  it('reads params with has() so an empty value clears instead of falling back', async () => {
+    const srv = makeServer(true);
+    const res = await request(srv.app).get('/graphics/_shared/lower-third.js');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('q.has(');
+    // the old `q.get(x) || undefined` form silently restored the markup
+    // placeholder when a param was present but empty
+    expect(res.text).not.toMatch(/q\.get\('(name|title|subtitle)'\)\s*\|\|/);
+  });
 
   // the L3 pages are thin shells — an unserved _shared/ would render nothing at all
   it.each(['lower-third.css', 'lower-third.js'])('serves _shared/%s', async (file) => {
