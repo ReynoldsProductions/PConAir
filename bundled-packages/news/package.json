@@ -32,7 +32,10 @@
     },
     "tickerItems": "array",
     "tickerVisible": "boolean",
-    "tickerSeconds": "number"
+    "tickerSeconds": "number",
+    "logoScale": "number",
+    "autoClear": "boolean",
+    "autoClearSeconds": "number"
   },
   "initialState": {
     "theme": "default",
@@ -77,83 +80,255 @@
       "LON:: Football sweepstake crowns office champion, Golden Boot goes uncontested"
     ],
     "tickerVisible": true,
-    "tickerSeconds": 180
+    "tickerSeconds": 180,
+    "logoScale": 100,
+    "autoClear": false,
+    "autoClearSeconds": 8
   },
   "companionActions": [
     {
       "id": "news_l3_left_take",
       "label": "Take lower third — LEFT",
       "options": [
-        { "id": "name", "label": "Name", "type": "textinput", "default": "" },
-        { "id": "title", "label": "Title", "type": "textinput", "default": "" },
-        { "id": "subtitle", "label": "Subtitle", "type": "textinput", "default": "" }
+        {
+          "id": "name",
+          "label": "Name",
+          "type": "textinput",
+          "default": ""
+        },
+        {
+          "id": "title",
+          "label": "Title",
+          "type": "textinput",
+          "default": ""
+        },
+        {
+          "id": "subtitle",
+          "label": "Subtitle",
+          "type": "textinput",
+          "default": ""
+        }
       ],
       "ops": [
-        { "op": "set", "field": "l3Left.name", "value": { "option": "name", "orState": "l3Left.name" } },
-        { "op": "set", "field": "l3Left.title", "value": { "option": "title", "orState": "l3Left.title" } },
-        { "op": "set", "field": "l3Left.subtitle", "value": { "option": "subtitle", "orState": "l3Left.subtitle" } },
-        { "op": "set", "field": "l3Left.visible", "value": true }
+        {
+          "op": "set",
+          "field": "l3Left.name",
+          "value": {
+            "option": "name",
+            "orState": "l3Left.name"
+          }
+        },
+        {
+          "op": "set",
+          "field": "l3Left.title",
+          "value": {
+            "option": "title",
+            "orState": "l3Left.title"
+          }
+        },
+        {
+          "op": "set",
+          "field": "l3Left.subtitle",
+          "value": {
+            "option": "subtitle",
+            "orState": "l3Left.subtitle"
+          }
+        },
+        {
+          "op": "set",
+          "field": "l3Left.visible",
+          "value": true
+        }
       ]
     },
     {
       "id": "news_l3_left_clear",
       "label": "Clear lower third — LEFT",
-      "ops": [{ "op": "set", "field": "l3Left.visible", "value": false }]
+      "ops": [
+        {
+          "op": "set",
+          "field": "l3Left.visible",
+          "value": false
+        }
+      ]
     },
     {
       "id": "news_l3_right_take",
       "label": "Take lower third — RIGHT",
       "options": [
-        { "id": "name", "label": "Name", "type": "textinput", "default": "" },
-        { "id": "title", "label": "Title", "type": "textinput", "default": "" },
-        { "id": "subtitle", "label": "Subtitle", "type": "textinput", "default": "" }
+        {
+          "id": "name",
+          "label": "Name",
+          "type": "textinput",
+          "default": ""
+        },
+        {
+          "id": "title",
+          "label": "Title",
+          "type": "textinput",
+          "default": ""
+        },
+        {
+          "id": "subtitle",
+          "label": "Subtitle",
+          "type": "textinput",
+          "default": ""
+        }
       ],
       "ops": [
-        { "op": "set", "field": "l3Right.name", "value": { "option": "name", "orState": "l3Right.name" } },
-        { "op": "set", "field": "l3Right.title", "value": { "option": "title", "orState": "l3Right.title" } },
-        { "op": "set", "field": "l3Right.subtitle", "value": { "option": "subtitle", "orState": "l3Right.subtitle" } },
-        { "op": "set", "field": "l3Right.visible", "value": true }
+        {
+          "op": "set",
+          "field": "l3Right.name",
+          "value": {
+            "option": "name",
+            "orState": "l3Right.name"
+          }
+        },
+        {
+          "op": "set",
+          "field": "l3Right.title",
+          "value": {
+            "option": "title",
+            "orState": "l3Right.title"
+          }
+        },
+        {
+          "op": "set",
+          "field": "l3Right.subtitle",
+          "value": {
+            "option": "subtitle",
+            "orState": "l3Right.subtitle"
+          }
+        },
+        {
+          "op": "set",
+          "field": "l3Right.visible",
+          "value": true
+        }
       ]
     },
     {
       "id": "news_l3_right_clear",
       "label": "Clear lower third — RIGHT",
-      "ops": [{ "op": "set", "field": "l3Right.visible", "value": false }]
+      "ops": [
+        {
+          "op": "set",
+          "field": "l3Right.visible",
+          "value": false
+        }
+      ]
     },
     {
       "id": "news_l3_clear_both",
       "label": "Clear both lower thirds",
       "ops": [
-        { "op": "set", "field": "l3Left.visible", "value": false },
-        { "op": "set", "field": "l3Right.visible", "value": false }
+        {
+          "op": "set",
+          "field": "l3Left.visible",
+          "value": false
+        },
+        {
+          "op": "set",
+          "field": "l3Right.visible",
+          "value": false
+        }
       ]
     },
     {
       "id": "news_set_ticker",
       "label": "Set ticker items",
       "options": [
-        { "id": "items", "label": "Items (separate with |, use lead:: rest to accent the lead-in)", "type": "textinput", "default": "" }
+        {
+          "id": "items",
+          "label": "Items (separate with |, use lead:: rest to accent the lead-in)",
+          "type": "textinput",
+          "default": ""
+        }
       ],
       "ops": [
-        { "op": "set", "field": "tickerItems", "value": { "option": "items", "split": "|" } },
-        { "op": "set", "field": "tickerVisible", "value": true }
+        {
+          "op": "set",
+          "field": "tickerItems",
+          "value": {
+            "option": "items",
+            "split": "|"
+          }
+        },
+        {
+          "op": "set",
+          "field": "tickerVisible",
+          "value": true
+        }
       ]
     },
     {
       "id": "news_clear_ticker",
       "label": "Clear ticker",
-      "ops": [{ "op": "set", "field": "tickerVisible", "value": false }]
+      "ops": [
+        {
+          "op": "set",
+          "field": "tickerVisible",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "news_toggle_autoclear",
+      "label": "Toggle lower-third auto-clear",
+      "ops": [
+        {
+          "op": "toggle",
+          "field": "autoClear"
+        }
+      ]
     }
   ],
   "companionFeedbacks": [
-    { "id": "l3_left_visible", "label": "Lower third LEFT on air", "field": "l3Left.visible" },
-    { "id": "l3_right_visible", "label": "Lower third RIGHT on air", "field": "l3Right.visible" },
-    { "id": "ticker_visible", "label": "Ticker visible", "field": "tickerVisible" }
+    {
+      "id": "l3_left_visible",
+      "label": "Lower third LEFT on air",
+      "field": "l3Left.visible"
+    },
+    {
+      "id": "l3_right_visible",
+      "label": "Lower third RIGHT on air",
+      "field": "l3Right.visible"
+    },
+    {
+      "id": "ticker_visible",
+      "label": "Ticker visible",
+      "field": "tickerVisible"
+    },
+    {
+      "id": "autoclear_on",
+      "label": "Auto-clear enabled",
+      "field": "autoClear"
+    }
   ],
   "companionVariables": [
-    { "id": "l3_left_name", "label": "Lower third LEFT name", "field": "l3Left.name" },
-    { "id": "l3_left_title", "label": "Lower third LEFT title", "field": "l3Left.title" },
-    { "id": "l3_right_name", "label": "Lower third RIGHT name", "field": "l3Right.name" },
-    { "id": "l3_right_title", "label": "Lower third RIGHT title", "field": "l3Right.title" }
+    {
+      "id": "l3_left_name",
+      "label": "Lower third LEFT name",
+      "field": "l3Left.name"
+    },
+    {
+      "id": "l3_left_title",
+      "label": "Lower third LEFT title",
+      "field": "l3Left.title"
+    },
+    {
+      "id": "l3_right_name",
+      "label": "Lower third RIGHT name",
+      "field": "l3Right.name"
+    },
+    {
+      "id": "l3_right_title",
+      "label": "Lower third RIGHT title",
+      "field": "l3Right.title"
+    }
+  ],
+  "transientFields": [
+    "l3Left.visible",
+    "l3Right.visible"
   ]
 }

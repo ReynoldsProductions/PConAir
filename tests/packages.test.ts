@@ -275,3 +275,126 @@ describe('packages HTTP + WS', () => {
     expect(list.body.packages.map((p: { id: string }) => p.id).sort()).toEqual(['hoops', 'news']);
   });
 });
+
+describe('package state persistence', () => {
+  let root: string;
+  let persistPath: string;
+
+  function writePkg(dir: string, extra: Record<string, unknown> = {}): void {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, 'package.json'),
+      JSON.stringify({
+        id: 'news',
+        name: 'News',
+        version: '1.0.0',
+        renders: [{ id: 'main', label: 'Main', file: 'render.html' }],
+        stateSchema: {
+          tickerItems: 'array',
+          tickerVisible: 'boolean',
+          l3Left: { visible: 'boolean', name: 'string', title: 'string' },
+        },
+        initialState: {
+          tickerItems: ['default headline'],
+          tickerVisible: true,
+          l3Left: { visible: false, name: 'Jane Smith', title: 'CEO' },
+        },
+        transientFields: ['l3Left.visible'],
+        ...extra,
+      })
+    );
+    fs.writeFileSync(path.join(dir, 'render.html'), '<html></html>');
+  }
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'pkg-persist-'));
+    persistPath = path.join(root, 'state', 'package-state.json');
+    writePkg(path.join(root, 'news'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  function freshHub() {
+    const hub = createPackageHub(path.join(root), { persistPath });
+    hub.rescan();
+    return hub;
+  }
+
+  it('restores operator-entered copy across a restart', () => {
+    const first = freshHub();
+    first.patchState('news', {
+      tickerItems: ['KW:: hot water tank floods office'],
+      l3Left: { visible: true, name: 'Tom Reynolds', title: 'Head of AV' },
+    });
+    first.flushState();
+
+    // a crash and relaunch: brand new hub, same file on disk
+    const second = freshHub();
+    const s = second.getState('news')!;
+    expect(s.tickerItems).toEqual(['KW:: hot water tank floods office']);
+    expect((s.l3Left as Record<string, unknown>).name).toBe('Tom Reynolds');
+    expect((s.l3Left as Record<string, unknown>).title).toBe('Head of AV');
+  });
+
+  it('does not bring a lower third back on air after a restart', () => {
+    const first = freshHub();
+    first.patchState('news', { l3Left: { visible: true, name: 'Tom Reynolds', title: 'Head of AV' } });
+    first.flushState();
+
+    const s = freshHub().getState('news')!;
+    // transientFields resets the on-air flag; the copy behind it survives
+    expect((s.l3Left as Record<string, unknown>).visible).toBe(false);
+    expect((s.l3Left as Record<string, unknown>).name).toBe('Tom Reynolds');
+  });
+
+  it('keeps package state in memory when no persistPath is given', () => {
+    const hub = createPackageHub(root);
+    hub.rescan();
+    hub.patchState('news', { tickerItems: ['gone on restart'] });
+    hub.flushState();
+    expect(fs.existsSync(persistPath)).toBe(false);
+
+    const second = createPackageHub(root);
+    second.rescan();
+    expect(second.getState('news')!.tickerItems).toEqual(['default headline']);
+  });
+
+  it('picks up newly declared manifest fields and drops removed ones', () => {
+    const first = freshHub();
+    first.patchState('news', { tickerItems: ['kept'] });
+    first.flushState();
+
+    // the package ships a new field and retires tickerVisible
+    fs.rmSync(path.join(root, 'news'), { recursive: true, force: true });
+    writePkg(path.join(root, 'news'), {
+      stateSchema: { tickerItems: 'array', tickerSeconds: 'number' },
+      initialState: { tickerItems: ['default headline'], tickerSeconds: 180 },
+      transientFields: [],
+    });
+
+    const s = freshHub().getState('news')!;
+    expect(s.tickerItems).toEqual(['kept']); // saved value still wins
+    expect(s.tickerSeconds).toBe(180); // new field defaults in
+    expect('tickerVisible' in s).toBe(false); // retired field does not linger
+  });
+
+  it('boots from manifest defaults when the save file is corrupt', () => {
+    fs.mkdirSync(path.dirname(persistPath), { recursive: true });
+    fs.writeFileSync(persistPath, '{ not json at all');
+    expect(() => freshHub()).not.toThrow();
+    expect(freshHub().getState('news')!.tickerItems).toEqual(['default headline']);
+  });
+
+  it('rejects a manifest whose transientFields are not strings', () => {
+    const res = validateManifest({
+      id: 'x',
+      name: 'X',
+      version: '1.0.0',
+      renders: [{ id: 'r', file: 'r.html' }],
+      transientFields: ['ok', 42],
+    });
+    expect(res.ok).toBe(false);
+  });
+});

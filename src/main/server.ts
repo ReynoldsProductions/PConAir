@@ -61,6 +61,11 @@ export interface ServerDeps {
   stageTimer?: RouteServices['stageTimer'];
   /** Directory (or ordered list: bundled first, then user) scanned for graphics packages; omit to disable the packages system. */
   packagesRoot?: string | string[];
+  /**
+   * Where to persist package state across restarts. Omit (as tests do) to keep
+   * package state purely in-memory.
+   */
+  packageStatePath?: string;
   /** Serves static graphics templates at /graphics; omit to disable. */
   graphicsRoot?: string;
   /** Serves the vendored React + Slate bundle at /vendor; omit to fall back to routes/index.ts's self-resolving guess (breaks in a packaged app — see RouteServices.vendorRoot). */
@@ -199,7 +204,9 @@ export function createServer(deps: ServerDeps) {
     wsRegistry.closeFor(sessionId);
   }
 
-  const packageHub: PackageHub | null = deps.packagesRoot ? createPackageHub(deps.packagesRoot) : null;
+  const packageHub: PackageHub | null = deps.packagesRoot
+    ? createPackageHub(deps.packagesRoot, { persistPath: deps.packageStatePath })
+    : null;
 
   const routeServices: RouteServices = {
     store,

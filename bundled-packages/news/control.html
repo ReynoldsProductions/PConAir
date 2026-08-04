@@ -44,6 +44,8 @@
     background:#3a3632;color:#8a8378;}
   .onair.hot{background:var(--live);color:#fff;}
   .cardhead{display:flex;align-items:center;justify-content:space-between;}
+  .check{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;}
+  .check input{width:auto;accent-color:var(--tan);width:18px;height:18px;}
 </style>
 </head>
 <body>
@@ -87,7 +89,16 @@
   <div class="row">
     <button class="clear" data-act="clearBoth" style="flex:1">CLEAR BOTH LOWER THIRDS</button>
   </div>
-  <div class="hint">Leave a field blank to drop that line — the row collapses rather than leaving a gap.</div>
+  <div class="row">
+    <label class="check"><input type="checkbox" id="autoClear"> Auto-clear after</label>
+    <input id="autoClearSeconds" type="number" min="1" max="600" step="1" style="width:90px">
+    <span class="hint">seconds</span>
+  </div>
+  <div class="hint">
+    Leave a field blank to drop that line — the row collapses rather than leaving a gap.
+    Auto-clear runs in the <code>l3</code> render, so it keeps working with this panel closed;
+    reloading that render restarts the countdown for anything still up.
+  </div>
 </div>
 
 <div class="section">
@@ -136,6 +147,17 @@
         <option value="plain">No chip</option>
       </select>
     </label>
+  </div>
+  <div class="row">
+    <label class="hint" style="flex:1">Logo size (%)
+      <input id="logoScale" type="number" min="25" max="300" step="5">
+    </label>
+    <div class="hint" style="flex:2">
+      A custom logo set in the admin portal (Branding) replaces the Faire wordmark.
+      Best results: transparent PNG or SVG, wider than tall, at least 120px tall so it
+      stays crisp. It is scaled to fit the bar automatically — no cropping — so very
+      tall or square art just reads narrow; use this % to tune it.
+    </div>
   </div>
   <div class="hint">
     Two renders to add as sources — stack the lower thirds over the ticker:<br>
@@ -193,6 +215,9 @@
 
     if (document.activeElement !== g('theme')) g('theme').value = state.theme || 'default';
     if (document.activeElement !== g('logo')) g('logo').value = state.logo || 'tan';
+    if (document.activeElement !== g('autoClear')) g('autoClear').checked = !!state.autoClear;
+    syncInput('autoClearSeconds', state.autoClearSeconds);
+    syncInput('logoScale', state.logoScale);
   }
 
   // `visible` is TAKE/CLEAR. Patches are shallow-merged server-side, so a nested
@@ -236,6 +261,22 @@
 
   g('theme').addEventListener('change', () => patch({ theme: g('theme').value }));
   g('logo').addEventListener('change', () => patch({ logo: g('logo').value }));
+  g('autoClear').addEventListener('change', () => patch({ autoClear: g('autoClear').checked }));
+
+  // Commit the numeric fields on blur/Enter rather than per keystroke, so typing
+  // "12" doesn't briefly apply a 1-second auto-clear.
+  function commitNumber(id, field, fallback) {
+    const el = g(id);
+    const send = () => {
+      const n = parseFloat(el.value);
+      if (isFinite(n) && n > 0) patch({ [field]: n });
+      else el.value = state && state[field] != null ? state[field] : fallback;
+    };
+    el.addEventListener('blur', send);
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { send(); el.blur(); } });
+  }
+  commitNumber('autoClearSeconds', 'autoClearSeconds', 8);
+  commitNumber('logoScale', 'logoScale', 100);
 </script>
 </body>
 </html>

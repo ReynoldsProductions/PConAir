@@ -221,6 +221,9 @@ async function main() {
     },
     openGoogleAuthWindow: () => slidesManager.openGoogleAuthWindow(),
     getGoogleAuthState: () => slidesManager.getGoogleAuthState(),
+    // Survives a crash mid-show: headlines and name-card copy come back, while
+    // on-air flags stay off (see the package manifests' transientFields).
+    packageStatePath: path.join(userData, 'package-state.json'),
     packagesRoot: (() => {
       const userPackages = path.join(userData, 'packages');
       fs.mkdirSync(userPackages, { recursive: true });

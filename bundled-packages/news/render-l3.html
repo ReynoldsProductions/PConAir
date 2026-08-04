@@ -211,8 +211,52 @@
   var left = makeCard('cardLeft');
   var right = makeCard('cardRight');
 
+  // ── auto-clear ───────────────────────────────────────────────────────────
+  // The countdown lives here rather than in the control page, so closing the
+  // control panel (or driving everything from Companion) doesn't stop it. The
+  // timer clears STATE, not just the visuals, so the control badges and
+  // Companion feedbacks stay honest. Two open renders both firing is harmless —
+  // setting visible:false twice is idempotent.
+  //
+  // A render reload mid-hold restarts the countdown for whatever is still up:
+  // there is no take timestamp in state to resume from, because Companion's
+  // declarative ops cannot stamp one.
+  var client = null;
+  var last = {};
+  var timers = { l3Left: null, l3Right: null };
+
+  function cancel(key) {
+    if (timers[key]) { clearTimeout(timers[key]); timers[key] = null; }
+  }
+
+  function schedule(key, seconds) {
+    cancel(key);
+    var ms = Number(seconds) * 1000;
+    if (!isFinite(ms) || ms <= 0) return;
+    timers[key] = setTimeout(function () {
+      timers[key] = null;
+      var card = last[key] || {};
+      if (!card.visible || !client) return;
+      var patch = {};
+      patch[key] = { name: card.name, title: card.title, subtitle: card.subtitle, visible: false };
+      client.patch(patch);
+    }, ms);
+  }
+
+  function syncAutoClear(key, card, s) {
+    var wasVisible = !!(last[key] && last[key].visible);
+    var isVisible = !!(card && card.visible);
+    if (!isVisible) { cancel(key); return; }
+    if (!s.autoClear) { cancel(key); return; }
+    // (re)start on the take, and when auto-clear is switched on while up
+    if (!wasVisible || !timers[key]) schedule(key, s.autoClearSeconds);
+  }
+
   function applyState(s) {
     document.body.dataset.theme = s.theme || 'default';
+    syncAutoClear('l3Left', s.l3Left, s);
+    syncAutoClear('l3Right', s.l3Right, s);
+    last = { l3Left: s.l3Left, l3Right: s.l3Right };
     left.apply(s.l3Left);
     right.apply(s.l3Right);
   }
@@ -222,7 +266,7 @@
     document.fonts.ready.then(function () { left.refit(); right.refit(); });
   }
 
-  PConAirPackage.connect('news', applyState);
+  client = PConAirPackage.connect('news', applyState);
 </script>
 </body>
 </html>

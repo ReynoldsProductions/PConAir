@@ -476,30 +476,42 @@ These are intentional sport-specific fields:
 
 ---
 
-### `news` — Faire Nightly News
+### `news` — Faire Wire
+
+> Reshaped in v2.0.0: the LIVE indicator, clock and top-left wordmark are gone, the
+> "Faire Wire" text label is now the Faire logo bug, and the lower third split into
+> `l3Left`/`l3Right` on a dedicated render. Render IDs are `ticker` and `l3`.
 
 #### SHOULD FIX
 
-**9. Ticker should use `ticker.*` nested object** (same as hoops #6)
+**9. Ticker should use `ticker.*` nested object** (same as hoops #6) — STILL OPEN
 
 Current:
 ```json
 "tickerVisible": true,
 "tickerItems": [...],
-"tickerLabel": "Faire Wire"
+"tickerSeconds": 180
 ```
-Standard: `ticker.visible`, `ticker.messages`, `ticker.label` (add label to standard).
-`news_set_ticker` companion action and `news_clear_ticker` need updating accordingly.
-The `ticker_visible` feedback and `ticker_label` variable field paths need updating.
+Standard: `ticker.visible`, `ticker.messages`, `ticker.speed`. Left flat in v2.0.0 to
+keep the change reviewable; nesting is a mechanical follow-up that also touches
+`news_set_ticker`, `news_clear_ticker`, and the `ticker_visible` feedback path.
+
+Note `tickerLabel` is gone (the logo replaced it), so the proposed standard amendment
+adding `ticker.label` no longer has a consumer here.
+
+`tickerSpeed` → `tickerSeconds` was a deliberate rename: the old field was an inverted
+factor (`38 * 80 / speed`), which no operator can reason about. It is now simply the
+seconds one full pass takes.
 
 #### ACCEPTABLE DEVIATIONS
 
-- `l3.*` (name/title/visible) — package-level lower third; distinct from the system L3
-  module; keep as-is
-- `bugVisible`, `liveVisible`, `theme` — overlay-specific controls, no standard
-  equivalent
-- Render ID `overlay` — single-render news package; acceptable for a composite overlay
-  that doesn't separate ticker/l3 into independent renders
+- `l3Left.*` / `l3Right.*` (name/title/subtitle/visible) — package-level lower thirds,
+  two of them so a left and a right card can title two speakers at once; distinct from
+  the system L3 module; keep as-is
+- `theme`, `logo`, `logoScale`, `autoClear`, `autoClearSeconds` — overlay-specific
+  controls, no standard equivalent
+- Render IDs `ticker` / `l3` — the ticker is persistent while name cards come and go, so
+  they are separate renders to be stacked rather than one composite overlay
 
 ---
 
@@ -524,8 +536,16 @@ The `ticker_visible` feedback and `ticker_label` variable field paths need updat
 
 Based on the audit, add these to the standard:
 
-1. **`ticker.label`** — short string prefix shown in the ticker bar (e.g. "Faire Wire",
+1. **`transientFields`** — optional array of dotted state paths that must never be
+   restored from persisted state; they always come back at their manifest default.
+   Package state now survives a restart (see "State persistence" below), so every
+   manifest needs to declare which of its fields are on-air flags rather than content.
+   `news` uses `["l3Left.visible", "l3Right.visible"]`.
+
+2. **`ticker.label`** — short string prefix shown in the ticker bar (e.g.
    "AROUND THE LEAGUE"). Add to the `ticker` schema alongside `messages`/`speed`/`visible`.
+   Note `news` no longer needs this (its label became a logo), so hoops is the only
+   remaining consumer.
 
 2. **`h2h_set_slot` Companion action** — sets both `h2h.{slot}.left` and
    `h2h.{slot}.right` in one action (better UX than two separate actions).
@@ -611,3 +631,28 @@ demo-scores/
     ticker.html
 ```
 
+
+
+---
+
+## State persistence
+
+Package state used to be in-memory only: a crash mid-show cost the operator every
+headline and name they had typed. It is now written to
+`<userData>/package-state.json` (debounced 400ms after each mutation) and overlaid on
+the manifest defaults at scan time.
+
+The merge is deliberately not `{...defaults, ...saved}`:
+
+- keys the manifest no longer declares are **dropped**, so a renamed field cannot
+  linger in the save file forever
+- newly declared keys pick up their **default**, so shipping a new field Just Works
+- nested objects merge recursively; **arrays are replaced wholesale**, since a ticker
+  item list is a value, not something to merge element-wise
+- a corrupt or unreadable save file falls back to defaults rather than blocking boot
+
+Anything listed in `transientFields` is then reset to its default. This is what stops a
+restart from silently putting a stale name card back on air — restoring *copy* is the
+point, restoring *on-air state* is a hazard.
+
+Pass no `persistPath` to `createPackageHub` (as the tests do) to keep state in memory.

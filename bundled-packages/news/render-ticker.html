@@ -43,7 +43,15 @@
     background:var(--tan);color:var(--ink);flex:none;}
   .ticker .bug.on-dark{background:rgba(51,51,51,0);color:var(--cream);}
   .ticker .bug.cream{background:var(--cream);color:var(--ink);}
-  .ticker .bug .wordmark{display:block;height:26px;width:auto;}
+  /* Built-in wordmark and a custom upload share one sizing box, so a logo set in
+     the admin portal lands at the same optical weight. `contain` means any
+     aspect ratio fits without distortion — a square logo just ends up narrower
+     than a wide one, never stretched or cropped. --logo-scale (from state) tunes
+     it without re-exporting the asset. */
+  .ticker .bug .wordmark{display:block;height:calc(26px * var(--logo-scale, 1));width:auto;}
+  .ticker .bug .brandmark{display:block;width:auto;object-fit:contain;
+    height:calc(44px * var(--logo-scale, 1));
+    max-height:calc(var(--ticker-h) - 26px);max-width:360px;}
   .ticker .mask{flex:1;overflow:hidden;position:relative;}
   .ticker .track{position:absolute;top:0;left:0;height:100%;display:flex;align-items:center;
     white-space:nowrap;will-change:transform;animation:crawl var(--crawl) linear infinite;}
@@ -106,8 +114,30 @@
     track.appendChild(buildRun(items)); // two runs → the -50% keyframe loops seamlessly
   }
 
+  // A logo set in the admin portal (Branding → custom logo) replaces the Faire
+  // wordmark. /branding/logo 404s when none is configured, which is the signal
+  // to keep the built-in mark — so this is probe-once, not a per-state fetch.
+  function loadBrandLogo() {
+    const img = new Image();
+    img.onload = function () {
+      const mark = document.querySelector('#bug .wordmark');
+      if (mark) mark.remove();
+      img.className = 'brandmark';
+      img.alt = '';
+      g('bug').appendChild(img);
+    };
+    img.src = '/branding/logo';
+  }
+  loadBrandLogo();
+
   function applyState(s) {
     const items = Array.isArray(s.tickerItems) ? s.tickerItems.filter(Boolean) : [];
+
+    const scale = Number(s.logoScale);
+    document.documentElement.style.setProperty(
+      '--logo-scale',
+      isFinite(scale) && scale > 0 ? String(scale / 100) : '1'
+    );
 
     const bug = g('bug');
     bug.classList.remove('cream', 'on-dark');
