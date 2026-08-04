@@ -75,6 +75,20 @@ describe('GET /graphics (built-in templates)', () => {
     expect(res.text).toContain('.l3 .subtitle:empty');
   });
 
+  it('does not force a reflow inside exit() — that cut the out animation', async () => {
+    const srv = makeServer(true);
+    const res = await request(srv.app).get('/graphics/_shared/lower-third.js');
+    expect(res.status).toBe(200);
+    const exitBody = /function exit\(\) \{([\s\S]*?)\n {4}\}/.exec(res.text)?.[1];
+    expect(exitBody).toBeTruthy();
+    expect(exitBody).toContain("classList.remove('in')");
+    expect(exitBody).toContain("classList.add('out')");
+    // A reflow between those two commits the base .l3 rule (already off-screen,
+    // opacity 0, no transition declared), so .out has nothing left to animate
+    // and the card cuts instead of sliding off.
+    expect(exitBody).not.toContain('offsetWidth');
+  });
+
   it('reads params with has() so an empty value clears instead of falling back', async () => {
     const srv = makeServer(true);
     const res = await request(srv.app).get('/graphics/_shared/lower-third.js');

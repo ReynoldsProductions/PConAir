@@ -159,16 +159,23 @@
     }
 
     function enter() {
-      // force a reflow so re-adding "in" after "out" reliably re-triggers the
-      // transition instead of being coalesced into one style recalculation
+      // Reflow between the classes so re-entering after an exit reliably
+      // re-triggers the transition. Safe here: the intermediate state is the
+      // base .l3 rule, which is where the card already sits visually (off
+      // screen, opacity 0), so committing it is invisible.
       el.classList.remove('out');
       el.classList.remove('in');
       void el.offsetWidth;
       el.classList.add('in');
     }
     function exit() {
+      // NO reflow between these two — that is what made the exit cut instead of
+      // animate. Dropping .in falls back to the base .l3 rule, which is already
+      // the off-screen/opacity-0 target AND declares no transition; forcing a
+      // recalc there commits that jump instantly, leaving .out nothing to
+      // animate. Mutating both classes in one task means a single style
+      // recalculation, so the transition interpolates from the on-screen state.
       el.classList.remove('in');
-      void el.offsetWidth;
       el.classList.add('out');
     }
 
