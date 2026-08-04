@@ -100,6 +100,13 @@ export interface PackageManifest {
   stateSchema?: PackageSchema;
   /** Optional initial state — wins over schema-derived defaults. */
   initialState?: Record<string, unknown>;
+  /**
+   * Dotted state paths that must NOT be restored from persisted state — they
+   * always come back at their manifest default. Use for on-air flags: restoring
+   * a lower third's `visible` after a crash would silently put a stale name
+   * card back on screen.
+   */
+  transientFields?: string[];
   companionActions?: PkgCompanionAction[];
   companionFeedbacks?: PkgCompanionFeedback[];
   companionVariables?: PkgCompanionVariable[];
@@ -133,6 +140,11 @@ export function validateManifest(raw: unknown): { ok: true; manifest: PackageMan
     }
     if (rr.file.includes('..') || path.isAbsolute(String(rr.file))) {
       return { ok: false, error: `render file path '${rr.file}' must be relative to the package` };
+    }
+  }
+  if (m.transientFields !== undefined) {
+    if (!Array.isArray(m.transientFields) || m.transientFields.some((f) => typeof f !== 'string' || f.length === 0)) {
+      return { ok: false, error: 'transientFields must be an array of non-empty dotted state paths' };
     }
   }
   return { ok: true, manifest: raw as PackageManifest };

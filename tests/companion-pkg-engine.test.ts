@@ -124,23 +124,35 @@ describe('hoops manifest', () => {
 describe('news manifest', () => {
   const m = loadManifest('news');
 
-  it('news_l3_take keeps existing name/title when options are blank', () => {
-    const patch = applyOps(action(m, 'news_l3_take').ops, { name: '', title: 'CTO' }, m.initialState);
-    const l3 = patch.l3 as Record<string, unknown>;
+  it('news_l3_left_take keeps existing name/title when options are blank', () => {
+    const patch = applyOps(action(m, 'news_l3_left_take').ops, { name: '', title: 'CTO' }, m.initialState);
+    const l3 = patch.l3Left as Record<string, unknown>;
     expect(l3.visible).toBe(true);
-    expect(l3.name).toBe('Jane Smith');
+    expect(l3.name).toBe('Jane Smith'); // kept via orState
     expect(l3.title).toBe('CTO');
   });
 
-  it('news_set_ticker splits items on |', () => {
+  it('takes each side independently, leaving the other alone', () => {
+    const patch = applyOps(action(m, 'news_l3_right_take').ops, { name: 'Sam Patel' }, m.initialState);
+    expect((patch.l3Right as Record<string, unknown>).name).toBe('Sam Patel');
+    expect((patch.l3Right as Record<string, unknown>).visible).toBe(true);
+    expect(patch.l3Left).toBeUndefined();
+  });
+
+  it('news_l3_clear_both drops both sides in one action', () => {
+    const patch = applyOps(action(m, 'news_l3_clear_both').ops, {}, m.initialState);
+    expect((patch.l3Left as Record<string, unknown>).visible).toBe(false);
+    expect((patch.l3Right as Record<string, unknown>).visible).toBe(false);
+  });
+
+  it('news_set_ticker splits items on | and keeps the :: accent syntax intact', () => {
     const patch = applyOps(
       action(m, 'news_set_ticker').ops,
-      { items: 'One:: story | Two:: more ', label: '' },
+      { items: 'One:: story | Two:: more ' },
       m.initialState
     );
     expect(patch.tickerItems).toEqual(['One:: story', 'Two:: more']);
     expect(patch.tickerVisible).toBe(true);
-    expect(patch.tickerLabel).toBe('Faire Wire'); // kept via orState
   });
 });
 

@@ -140,7 +140,7 @@ describe('bundled packages (phase 8)', () => {
       'champion',
     ]);
     expect(hub.find('hoops')!.manifest.renders.map((r) => r.id)).toEqual(['scorebug']);
-    expect(hub.find('news')!.manifest.renders.map((r) => r.id)).toEqual(['overlay']);
+    expect(hub.find('news')!.manifest.renders.map((r) => r.id)).toEqual(['ticker', 'l3']);
   });
 
   it('seeds initial state from the manifests', () => {
@@ -153,7 +153,11 @@ describe('bundled packages (phase 8)', () => {
     });
     expect((hub.getState('ffg')!.teams as Array<{ handle: string }>).length).toBe(4);
     expect(hub.getState('hoops')).toMatchObject({ teamA: 'BOS', clockEndsAt: 0, quarter: 3 });
-    expect(hub.getState('news')).toMatchObject({ bugVisible: true, l3: { visible: false } });
+    expect(hub.getState('news')).toMatchObject({
+      tickerVisible: true,
+      l3Left: { visible: false },
+      l3Right: { visible: false },
+    });
   });
 
   it('serves bundled render, control, and asset files over HTTP', async () => {
@@ -165,7 +169,8 @@ describe('bundled packages (phase 8)', () => {
       expect(list.body.packages.map((p: { id: string }) => p.id).sort()).toEqual(['ffg', 'hoops', 'news']);
 
       expect((await request(server.app).get('/packages/hoops/render/scorebug')).text).toContain('COURTVISION');
-      expect((await request(server.app).get('/packages/news/render/overlay')).text).toContain('Nightly News');
+      expect((await request(server.app).get('/packages/news/render/ticker')).text).toContain('wordmark');
+      expect((await request(server.app).get('/packages/news/render/l3')).text).toContain('data-side="right"');
       for (const r of ['single-pip', 'four-portrait', 'four-up', 'head-to-head', 'champion']) {
         const res = await request(server.app).get(`/packages/ffg/render/${r}`);
         expect(res.status).toBe(200);
@@ -268,5 +273,169 @@ describe('packages HTTP + WS', () => {
     await request(server.app).post('/api/packages/rescan');
     const list = await request(server.app).get('/api/packages');
     expect(list.body.packages.map((p: { id: string }) => p.id).sort()).toEqual(['hoops', 'news']);
+  });
+});
+
+describe('package state persistence', () => {
+  let root: string;
+  let persistPath: string;
+
+  function writePkg(dir: string, extra: Record<string, unknown> = {}): void {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, 'package.json'),
+      JSON.stringify({
+        id: 'news',
+        name: 'News',
+        version: '1.0.0',
+        renders: [{ id: 'main', label: 'Main', file: 'render.html' }],
+        stateSchema: {
+          tickerItems: 'array',
+          tickerVisible: 'boolean',
+          l3Left: { visible: 'boolean', name: 'string', title: 'string' },
+        },
+        initialState: {
+          tickerItems: ['default headline'],
+          tickerVisible: true,
+          l3Left: { visible: false, name: 'Jane Smith', title: 'CEO' },
+        },
+        transientFields: ['l3Left.visible'],
+        ...extra,
+      })
+    );
+    fs.writeFileSync(path.join(dir, 'render.html'), '<html></html>');
+  }
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'pkg-persist-'));
+    persistPath = path.join(root, 'state', 'package-state.json');
+    writePkg(path.join(root, 'news'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  function freshHub() {
+    const hub = createPackageHub(path.join(root), { persistPath });
+    hub.rescan();
+    return hub;
+  }
+
+  it('restores operator-entered copy across a restart', () => {
+    const first = freshHub();
+    first.patchState('news', {
+      tickerItems: ['KW:: hot water tank floods office'],
+      l3Left: { visible: true, name: 'Tom Reynolds', title: 'Head of AV' },
+    });
+    first.flushState();
+
+    // a crash and relaunch: brand new hub, same file on disk
+    const second = freshHub();
+    const s = second.getState('news')!;
+    expect(s.tickerItems).toEqual(['KW:: hot water tank floods office']);
+    expect((s.l3Left as Record<string, unknown>).name).toBe('Tom Reynolds');
+    expect((s.l3Left as Record<string, unknown>).title).toBe('Head of AV');
+  });
+
+  it('does not bring a lower third back on air after a restart', () => {
+    const first = freshHub();
+    first.patchState('news', { l3Left: { visible: true, name: 'Tom Reynolds', title: 'Head of AV' } });
+    first.flushState();
+
+    const s = freshHub().getState('news')!;
+    // transientFields resets the on-air flag; the copy behind it survives
+    expect((s.l3Left as Record<string, unknown>).visible).toBe(false);
+    expect((s.l3Left as Record<string, unknown>).name).toBe('Tom Reynolds');
+  });
+
+  it('keeps package state in memory when no persistPath is given', () => {
+    const hub = createPackageHub(root);
+    hub.rescan();
+    hub.patchState('news', { tickerItems: ['gone on restart'] });
+    hub.flushState();
+    expect(fs.existsSync(persistPath)).toBe(false);
+
+    const second = createPackageHub(root);
+    second.rescan();
+    expect(second.getState('news')!.tickerItems).toEqual(['default headline']);
+  });
+
+  it('picks up newly declared manifest fields and drops removed ones', () => {
+    const first = freshHub();
+    first.patchState('news', { tickerItems: ['kept'] });
+    first.flushState();
+
+    // the package ships a new field and retires tickerVisible
+    fs.rmSync(path.join(root, 'news'), { recursive: true, force: true });
+    writePkg(path.join(root, 'news'), {
+      stateSchema: { tickerItems: 'array', tickerSeconds: 'number' },
+      initialState: { tickerItems: ['default headline'], tickerSeconds: 180 },
+      transientFields: [],
+    });
+
+    const s = freshHub().getState('news')!;
+    expect(s.tickerItems).toEqual(['kept']); // saved value still wins
+    expect(s.tickerSeconds).toBe(180); // new field defaults in
+    expect('tickerVisible' in s).toBe(false); // retired field does not linger
+  });
+
+  it('rescan surfaces newly declared manifest fields without losing live state', () => {
+    const hub = freshHub();
+    hub.patchState('news', {
+      tickerItems: ['live copy'],
+      l3Left: { visible: true, name: 'On Air', title: 'Do not clear me' },
+    });
+
+    // author a new field and hit Rescan Packages
+    fs.rmSync(path.join(root, 'news'), { recursive: true, force: true });
+    writePkg(path.join(root, 'news'), {
+      stateSchema: {
+        tickerItems: 'array',
+        tickerVisible: 'boolean',
+        logoAsset: 'string',
+        l3Left: { visible: 'boolean', name: 'string', title: 'string' },
+      },
+      initialState: {
+        tickerItems: ['default headline'],
+        tickerVisible: true,
+        logoAsset: '',
+        l3Left: { visible: false, name: 'Jane Smith', title: 'CEO' },
+      },
+    });
+    hub.rescan();
+
+    const s = hub.getState('news')!;
+    expect('logoAsset' in s).toBe(true); // new field appears
+    expect(s.tickerItems).toEqual(['live copy']); // live copy untouched
+    // a rescan must not yank an on-air card off screen, unlike a restart
+    expect((s.l3Left as Record<string, unknown>).visible).toBe(true);
+    expect((s.l3Left as Record<string, unknown>).name).toBe('On Air');
+  });
+
+  it('pushes rescanned state to subscribers so open pages update', () => {
+    const hub = freshHub();
+    const seen: Array<Record<string, unknown>> = [];
+    hub.subscribe('package:news', (st) => seen.push(st));
+    hub.rescan();
+    expect(seen.length).toBeGreaterThan(0);
+  });
+
+  it('boots from manifest defaults when the save file is corrupt', () => {
+    fs.mkdirSync(path.dirname(persistPath), { recursive: true });
+    fs.writeFileSync(persistPath, '{ not json at all');
+    expect(() => freshHub()).not.toThrow();
+    expect(freshHub().getState('news')!.tickerItems).toEqual(['default headline']);
+  });
+
+  it('rejects a manifest whose transientFields are not strings', () => {
+    const res = validateManifest({
+      id: 'x',
+      name: 'X',
+      version: '1.0.0',
+      renders: [{ id: 'r', file: 'r.html' }],
+      transientFields: ['ok', 42],
+    });
+    expect(res.ok).toBe(false);
   });
 });

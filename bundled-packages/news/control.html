@@ -3,8 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Faire Nightly News — control</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+<title>Faire Wire — control</title>
+<style>
+  /* self-hosted so the panel looks the same offline (ships at graphics/_fonts/) */
+  @font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url('/graphics/_fonts/inter-latin-400.woff2') format('woff2');}
+  @font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:swap;src:url('/graphics/_fonts/inter-latin-600.woff2') format('woff2');}
+</style>
 <style>
   :root{
     --ink:#333333; --sub:#757575; --cream:#fbf8f6; --tan:#b5a998;
@@ -12,9 +16,9 @@
   }
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:var(--bg);color:var(--cream);font-family:'Inter',sans-serif;min-height:100dvh;
-    padding:16px;display:flex;flex-direction:column;gap:14px;max-width:640px;margin:0 auto;}
+    padding:16px;display:flex;flex-direction:column;gap:14px;max-width:820px;margin:0 auto;}
   .header{display:flex;align-items:center;justify-content:space-between;}
-  h1{font-family:'Lora',serif;font-weight:500;font-size:22px;color:var(--tan);}
+  h1{font-weight:600;font-size:20px;letter-spacing:.14em;text-transform:uppercase;color:var(--tan);}
   .pill{font-size:10px;font-weight:700;letter-spacing:.12em;padding:4px 10px;border-radius:20px;}
   .pill.live{background:#1a3a1a;color:#6ecf6e;}
   .pill.offline{background:#3a1a1a;color:#cf6e6e;}
@@ -28,35 +32,88 @@
   button.take{background:#2d6a2d;}
   button.clear{background:var(--live);}
   button.toggled{outline:2px solid var(--tan);}
-  input,textarea{background:var(--bg);border:1px solid #585550;border-radius:6px;color:var(--cream);
+  input,textarea,select{background:var(--bg);border:1px solid #585550;border-radius:6px;color:var(--cream);
     font-family:'Inter',sans-serif;font-size:14px;padding:10px;width:100%;}
-  input:focus,textarea:focus{outline:none;border-color:var(--tan);}
-  textarea{resize:vertical;min-height:110px;line-height:1.5;}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--tan);}
+  textarea{resize:vertical;min-height:150px;line-height:1.5;}
   .hint{font-size:11px;color:#8a8378;line-height:1.4;}
+  /* the two lower thirds sit side by side, mirroring what is on air */
+  .l3grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media (max-width:560px){ .l3grid{grid-template-columns:1fr;} }
+  .onair{font-size:9px;font-weight:700;letter-spacing:.14em;padding:3px 7px;border-radius:4px;
+    background:#3a3632;color:#8a8378;}
+  .onair.hot{background:var(--live);color:#fff;}
+  .cardhead{display:flex;align-items:center;justify-content:space-between;}
+  .check{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;}
+  .check input{width:auto;accent-color:var(--tan);width:18px;height:18px;}
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>Faire Nightly News</h1>
+  <h1>Faire Wire</h1>
   <div class="pill offline" id="pill">CONNECTING…</div>
 </div>
 
-<div class="section">
-  <div class="lbl">Lower third</div>
-  <input id="l3name" placeholder="Name">
-  <input id="l3title" placeholder="Title">
-  <div class="row">
-    <button class="take" data-act="l3take" style="flex:1">TAKE</button>
-    <button class="clear" data-act="l3clear" style="flex:1">CLEAR</button>
+<div class="l3grid">
+  <div class="section">
+    <div class="cardhead">
+      <div class="lbl">Lower third — Left</div>
+      <span class="onair" id="onairL">OFF</span>
+    </div>
+    <input id="nameL" placeholder="Name">
+    <input id="titleL" placeholder="Title">
+    <input id="subtitleL" placeholder="Subtitle (optional)">
+    <div class="row">
+      <button class="take" data-act="takeL" style="flex:1">TAKE</button>
+      <button class="clear" data-act="clearL" style="flex:1">CLEAR</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="cardhead">
+      <div class="lbl">Lower third — Right</div>
+      <span class="onair" id="onairR">OFF</span>
+    </div>
+    <input id="nameR" placeholder="Name">
+    <input id="titleR" placeholder="Title">
+    <input id="subtitleR" placeholder="Subtitle (optional)">
+    <div class="row">
+      <button class="take" data-act="takeR" style="flex:1">TAKE</button>
+      <button class="clear" data-act="clearR" style="flex:1">CLEAR</button>
+    </div>
   </div>
 </div>
 
 <div class="section">
-  <div class="lbl">Ticker</div>
-  <input id="tickerLabel" placeholder="Ticker label (Faire Wire)">
+  <div class="row">
+    <button class="clear" data-act="clearBoth" style="flex:1">CLEAR BOTH LOWER THIRDS</button>
+  </div>
+  <div class="row">
+    <label class="check"><input type="checkbox" id="autoClear"> Auto-clear after</label>
+    <input id="autoClearSeconds" type="number" min="1" max="600" step="1" style="width:90px">
+    <span class="hint">seconds</span>
+  </div>
+  <div class="hint">
+    Leave a field blank to drop that line — the row collapses rather than leaving a gap.
+    Auto-clear runs in the <code>l3</code> render, so it keeps working with this panel closed;
+    reloading that render restarts the countdown for anything still up.
+  </div>
+</div>
+
+<div class="section">
+  <div class="cardhead">
+    <div class="lbl">Ticker</div>
+    <span class="onair" id="onairT">OFF</span>
+  </div>
   <textarea id="tickerItems" placeholder="One headline per line"></textarea>
-  <div class="hint">One item per line. Use <b>lead:: rest of headline</b> to bold the lead-in.</div>
+  <div class="hint">One item per line. Use <b>lead:: rest of headline</b> to accent the lead-in in tan.</div>
+  <div class="row">
+    <label class="hint" style="flex:1">Seconds per full pass
+      <input id="tickerSeconds" type="number" min="10" max="900" step="5">
+    </label>
+  </div>
+  <div class="hint" id="speedHint"></div>
   <div class="row">
     <button class="take" data-act="tickerSet" style="flex:1">UPDATE TICKER</button>
     <button class="clear" data-act="tickerClear" style="flex:1">CLEAR TICKER</button>
@@ -64,11 +121,51 @@
 </div>
 
 <div class="section">
-  <div class="lbl">Bugs &amp; theme</div>
+  <div class="lbl">Look</div>
   <div class="row">
-    <button data-act="bug" id="bBug" style="flex:1">LOGO BUG</button>
-    <button data-act="live" id="bLive" style="flex:1">LIVE + CLOCK</button>
-    <button data-act="theme" id="bTheme" style="flex:1">DARK L3</button>
+    <label class="hint" style="flex:1">Lower-third theme
+      <select id="theme">
+        <option value="default">Default (light)</option>
+        <option value="dark">Dark</option>
+        <option value="dark_alt">Dark alt (black)</option>
+        <option value="bright">Bright</option>
+        <option value="bright_info">Bright info</option>
+        <option value="bright_insider">Bright insider</option>
+        <option value="bright_warm">Bright warm</option>
+        <option value="palette_copper">Copper</option>
+        <option value="palette_olive">Olive</option>
+        <option value="palette_plum">Plum</option>
+        <option value="palette_sage">Sage</option>
+        <option value="palette_teal">Teal</option>
+        <option value="palette_terracotta">Terracotta</option>
+      </select>
+    </label>
+    <label class="hint" style="flex:1">Logo chip
+      <select id="logo">
+        <option value="tan">Tan chip</option>
+        <option value="cream">Cream chip</option>
+        <option value="plain">No chip</option>
+      </select>
+    </label>
+  </div>
+  <div class="row">
+    <label class="hint" style="flex:2">Logo image
+      <select id="logoAsset"></select>
+    </label>
+    <label class="hint" style="flex:1">Logo size (%)
+      <input id="logoScale" type="number" min="25" max="300" step="5">
+    </label>
+  </div>
+  <div class="hint">
+    Upload logos in <b>admin → Packages → Faire Wire → Upload Image</b>, then pick one here
+    (the list refreshes when you open it). Best results: transparent PNG or SVG, wider than
+    tall, at least 120px tall. It is scaled to fit the bar with no cropping, so square-ish
+    art reads narrow — the bar is only 96px high, so a wide mark carries much better. Use
+    the % to tune without re-exporting.
+  </div>
+  <div class="hint">
+    Two renders to add as sources — stack the lower thirds over the ticker:<br>
+    <code>/packages/news/render/ticker</code> · <code>/packages/news/render/l3</code>
   </div>
 </div>
 
@@ -86,48 +183,144 @@
 
   function patch(p) { client.patch(p); }
 
+  // Never stomp a field the operator is mid-edit.
   function syncInput(id, value) {
     const el = g(id);
     if (document.activeElement !== el) el.value = value ?? '';
   }
 
+  function badge(id, on) {
+    const el = g(id);
+    el.classList.toggle('hot', !!on);
+    el.textContent = on ? 'ON AIR' : 'OFF';
+  }
+
   function render() {
     if (!state) return;
-    const l3 = state.l3 || {};
-    syncInput('l3name', l3.name);
-    syncInput('l3title', l3.title);
-    syncInput('tickerLabel', state.tickerLabel);
-    syncInput('tickerItems', (state.tickerItems || []).join('\n'));
-    g('bBug').classList.toggle('toggled', !!state.bugVisible);
-    g('bLive').classList.toggle('toggled', !!state.liveVisible);
-    g('bTheme').classList.toggle('toggled', state.theme === 'dark');
+    const L = state.l3Left || {};
+    const R = state.l3Right || {};
+    syncInput('nameL', L.name); syncInput('titleL', L.title); syncInput('subtitleL', L.subtitle);
+    syncInput('nameR', R.name); syncInput('titleR', R.title); syncInput('subtitleR', R.subtitle);
+    badge('onairL', L.visible);
+    badge('onairR', R.visible);
+
+    const items = state.tickerItems || [];
+    syncInput('tickerItems', items.join('\n'));
+    syncInput('tickerSeconds', state.tickerSeconds);
+    badge('onairT', state.tickerVisible && items.length > 0);
+
+    // A crawl that is too fast to read is the easiest way to ruin this, so show
+    // the derived per-headline pace rather than making it guesswork.
+    const secs = Number(state.tickerSeconds);
+    g('speedHint').textContent = (items.length && isFinite(secs) && secs > 0)
+      ? `${items.length} headlines · ~${(secs / items.length).toFixed(1)}s each` +
+        (secs / items.length < 5 ? ' — too fast to read comfortably' : '')
+      : '';
+
+    if (document.activeElement !== g('theme')) g('theme').value = state.theme || 'default';
+    if (document.activeElement !== g('logo')) g('logo').value = state.logo || 'tan';
+    if (document.activeElement !== g('autoClear')) g('autoClear').checked = !!state.autoClear;
+    if (document.activeElement !== g('logoAsset')) g('logoAsset').value = state.logoAsset || '';
+    syncInput('autoClearSeconds', state.autoClearSeconds);
+    syncInput('logoScale', state.logoScale);
+  }
+
+  // `visible` is TAKE/CLEAR. Patches are shallow-merged server-side, so a nested
+  // object has to be sent whole or the untouched keys would be dropped.
+  function side(which) {
+    const sfx = which === 'l3Left' ? 'L' : 'R';
+    return {
+      visible: true,
+      name: g('name' + sfx).value,
+      title: g('title' + sfx).value,
+      subtitle: g('subtitle' + sfx).value,
+    };
+  }
+  function clearSide(which) {
+    return { ...(state[which] || {}), visible: false };
   }
 
   document.body.addEventListener('click', (e) => {
     const btn = e.target.closest('button');
     if (!btn || !state) return;
     switch (btn.dataset.act) {
-      case 'l3take':
-        patch({ l3: { visible: true, name: g('l3name').value, title: g('l3title').value } });
+      case 'takeL': patch({ l3Left: side('l3Left') }); break;
+      case 'clearL': patch({ l3Left: clearSide('l3Left') }); break;
+      case 'takeR': patch({ l3Right: side('l3Right') }); break;
+      case 'clearR': patch({ l3Right: clearSide('l3Right') }); break;
+      case 'clearBoth':
+        patch({ l3Left: clearSide('l3Left'), l3Right: clearSide('l3Right') });
         break;
-      case 'l3clear':
-        patch({ l3: { ...(state.l3 || {}), visible: false } });
-        break;
-      case 'tickerSet':
+      case 'tickerSet': {
+        const secs = parseFloat(g('tickerSeconds').value);
         patch({
-          tickerLabel: g('tickerLabel').value,
           tickerItems: g('tickerItems').value.split('\n').map((l) => l.trim()).filter(Boolean),
+          tickerSeconds: isFinite(secs) && secs > 0 ? secs : state.tickerSeconds,
           tickerVisible: true,
         });
         break;
-      case 'tickerClear':
-        patch({ tickerVisible: false });
-        break;
-      case 'bug': patch({ bugVisible: !state.bugVisible }); break;
-      case 'live': patch({ liveVisible: !state.liveVisible }); break;
-      case 'theme': patch({ theme: state.theme === 'dark' ? 'light' : 'dark' }); break;
+      }
+      case 'tickerClear': patch({ tickerVisible: false }); break;
     }
   });
+
+  // Asset list comes from the package's own assets dir, so a file uploaded in the
+  // admin Packages page shows up here. Filtered to images: the dir also holds
+  // state.js and macOS Icon droppings.
+  const IMAGE_RE = /\.(png|jpe?g|svg|webp|gif|avif)$/i;
+  async function refreshLogoAssets() {
+    const sel = g('logoAsset');
+    let assets = [];
+    try {
+      const res = await fetch('/api/packages/news/assets');
+      const body = await res.json();
+      assets = (body.assets || []).filter((a) => IMAGE_RE.test(a.filename));
+    } catch (err) { /* offline — keep whatever is already listed */ }
+
+    const chosen = state ? (state.logoAsset || '') : '';
+    sel.textContent = '';
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = 'Faire wordmark (built-in)';
+    sel.appendChild(none);
+    for (const a of assets) {
+      const opt = document.createElement('option');
+      opt.value = a.filename;
+      opt.textContent = a.filename;
+      sel.appendChild(opt);
+    }
+    // a logo that was chosen and then deleted must stay visible as the selection,
+    // otherwise the picker would silently misreport what is on air
+    if (chosen && !assets.some((a) => a.filename === chosen)) {
+      const missing = document.createElement('option');
+      missing.value = chosen;
+      missing.textContent = chosen + ' (missing)';
+      sel.appendChild(missing);
+    }
+    sel.value = chosen;
+  }
+  refreshLogoAssets();
+  g('logoAsset').addEventListener('mousedown', refreshLogoAssets);
+  g('logoAsset').addEventListener('change', () => patch({ logoAsset: g('logoAsset').value }));
+
+  g('theme').addEventListener('change', () => patch({ theme: g('theme').value }));
+  g('logo').addEventListener('change', () => patch({ logo: g('logo').value }));
+  g('autoClear').addEventListener('change', () => patch({ autoClear: g('autoClear').checked }));
+
+  // Commit the numeric fields on blur/Enter rather than per keystroke, so typing
+  // "12" doesn't briefly apply a 1-second auto-clear.
+  function commitNumber(id, field, fallback) {
+    const el = g(id);
+    const send = () => {
+      const n = parseFloat(el.value);
+      if (isFinite(n) && n > 0) patch({ [field]: n });
+      else el.value = state && state[field] != null ? state[field] : fallback;
+    };
+    el.addEventListener('blur', send);
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { send(); el.blur(); } });
+  }
+  commitNumber('autoClearSeconds', 'autoClearSeconds', 8);
+  commitNumber('logoScale', 'logoScale', 100);
 </script>
 </body>
 </html>

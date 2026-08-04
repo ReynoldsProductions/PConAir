@@ -49,7 +49,8 @@ Seed a **template registry** (`graphics/manifest.json`: id, title, mode, default
 
 ## 7. Per-template notes
 
-- **news/** — lower-third → L3 mode (FaireL3s theme); the full bar (clock + "Faire Wire" ticker) → URL mode. Params `name,title,theme(light|dark),label`. Phase 2 fields: `lowerThird`, `ticker.items`.
+- **news/** — URL mode, ticker only: headline crawl + the Faire logo bug. The live clock, the "Faire Nightly News" wordmark and the built-in lower third were all removed; the L3 now ships as its own stackable scenes (below). Params `ticker,speed,logo`; headlines otherwise come from `news/ticker.json`. Phase 2 field: `ticker.items` (would replace both the file and the param).
+- **lower-third-left/**, **lower-third-right/** — URL mode, transparent, one scene per side so two speakers can be titled at once over the ticker. Self-animating rather than persistent: `delay` → `in` → `hold` → `out` (seconds). Params `name,title,subtitle,theme,delay,in,hold,out,w,bottom`; shared style/behaviour in `graphics/_shared/lower-third.{css,js}`. Phase 2 field: `lowerThird` — note `graphics/lower-third-live/` already does the WS-driven version of this for external keyers, on an opaque background.
 - **quarterly/** — URL mode; camera composited *behind* (PC On Air outputs the frame; the portrait window is a transparent cut-out the downstream keyer/camera fills, or run as a full graphic over a camera input). Params `name,role,headline(\n),kicker,issue,ed`.
 - **tactical-hud/** — URL mode, full-frame over camera. Mostly self-animating; `?grade=thermal` for night-vision. Optional phase-2 telemetry feed.
 - **scoreboard-basketball/** — URL mode. The marquee live-data case: `gameClock`/`shotClock`/scores/fouls/possession/timeouts → drive in phase 2/3. Params cover all fields for phase 1.
@@ -79,7 +80,12 @@ Transparent templates + **luma key or solid background** for downstream keying; 
 ```
 graphics/
   README.md
-  news/index.html                  (Faire Nightly News)
+  _shared/lower-third.css          (shared L3 style — geometry, sides, themes)
+  _shared/lower-third.js           (shared L3 behaviour — params, animation timeline)
+  news/index.html                  (Faire Wire ticker + logo bug)
+  news/ticker.json                 (operator-editable headlines)
+  lower-third-left/index.html      (left name card)
+  lower-third-right/index.html     (right name card, mirrored)
   quarterly/index.html             (Faire Quarterly cover)
   tactical-hud/index.html          (ORBITAL HUD)
   scoreboard-basketball/index.html (COURTVISION scorebug)
