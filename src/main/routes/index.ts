@@ -113,6 +113,8 @@ export interface RouteServices {
   saveAppSettingsPatch?: (patch: Partial<Omit<import('../app-settings').AppSettings, 'schemaVersion'>>) => import('../app-settings').AppSettings;
   /** Returns backup settings for fan-out and GSC status. */
   getBackupSettings?: () => { operationMode: import('../app-settings').AppSettings['operationMode']; backupIps: string[]; port: number };
+  /** Opens the Director window (Electron main only); absent in tests. */
+  openDirectorWindow?: () => void;
 }
 
 // Renderer windows (operator, admin, remote) are loaded through this app's
@@ -254,6 +256,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       getBackupSettings: s.getBackupSettings,
       getAppSettings: s.getAppSettings,
       saveAppSettingsPatch: s.saveAppSettingsPatch,
+      openDirectorWindow: s.openDirectorWindow,
     })
   );
 }

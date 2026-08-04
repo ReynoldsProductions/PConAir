@@ -2,6 +2,7 @@ import { app, BrowserWindow, screen, session } from 'electron';
 import type { StateStore } from '../state';
 import type { ABInstance } from '../../shared/types';
 import { scheduleFullscreenChrome } from '../fullscreen-chrome';
+import { hideCursorOnLoad } from '../output-cursor';
 
 interface SlidesWindowConfig {
   store: StateStore;
@@ -89,6 +90,7 @@ export function createSlidesWindowManager(config: SlidesWindowConfig) {
       show: false,
       // Windows are shown explicitly via showInstance(); do not auto-show on ready-to-show
     });
+    hideCursorOnLoad(win);
     return win;
   }
 

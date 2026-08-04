@@ -6,7 +6,7 @@ import type { L3PlaylistStore } from './l3/playlist-store';
 import type { MediaLibraryStore } from './media-library/item-store';
 import type { SlideshowEngine } from './media-library/slideshow';
 import type { SlidesWindowManager } from './slides/window-manager';
-import type { Mode, SlideshowTransition, ScoreboardState, LowerThirdState, LowerThirdTheme } from '../shared/types';
+import type { Mode, SlideshowTransition, ScoreboardState, LowerThirdState, LowerThirdTheme, LowerThirdAnimationStyle } from '../shared/types';
 import { slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideLoadOp, slideOfflineModeOp } from './services/slide-ops';
 import { urlLoadOp, urlReloadOp, setDisplayTargetOp } from './services/url-ops';
 import { fanOutSlideCommand } from './services/backup-fanout';
@@ -47,6 +47,24 @@ function str(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
 }
 
+function bool(v: unknown): boolean | undefined {
+  return typeof v === 'boolean' ? v : undefined;
+}
+
+function num(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+}
+
+const LOWER_THIRD_ANIMATION_STYLES: LowerThirdAnimationStyle[] = [
+  'fade', 'wipe', 'grow', 'slide-up', 'slide-down', 'zoom', 'flip',
+];
+const LOWER_THIRD_FADE_MS_MIN = 0;
+// The operator UI's slider tops out at 5000ms, but the paired number input
+// allows typing a larger custom value — this is the server-side ceiling for
+// that, not the slider's suggested range.
+const LOWER_THIRD_FADE_MS_MAX = 60000;
+const LOWER_THIRD_DEFAULT_FADE_MS = 550;
+
 export function createActionDispatcher(deps: {
   store: StateStore;
   auth: AuthManager;
@@ -68,6 +86,29 @@ export function createActionDispatcher(deps: {
   getBackupSettings?: () => { operationMode: AppSettings['operationMode']; backupIps: string[]; port: number };
 }) {
   const { store, presets, cues, playlists, media, slideshow, windowManager, getTeleprompterHost, isTeleprompterEnabled, getBackupSettings } = deps;
+
+  const reloadTimers = new Map<'A' | 'B', ReturnType<typeof setTimeout>>();
+
+  /** POST a state patch to the teleprompter host and mirror it into the store. */
+  async function teleprompterPatch(patch: Record<string, unknown>): Promise<ActionResult> {
+    const host = getTeleprompterHost?.() ?? '';
+    if (!isTeleprompterEnabled?.() || !host) return { ok: true, body: { skipped: true } };
+    const tp = store.getState().teleprompter;
+    try {
+      await fetch(`${host}/api/state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+        signal: AbortSignal.timeout(3000),
+      });
+      const stateUpdate: Record<string, unknown> = {};
+      if ('scrolling' in patch) stateUpdate['scrolling'] = patch['scrolling'];
+      if ('speed' in patch) stateUpdate['speed'] = patch['speed'];
+      if ('font_size' in patch) stateUpdate['fontSize'] = patch['font_size'];
+      store.setState({ teleprompter: { ...tp, ...stateUpdate } });
+    } catch { /* fire-and-forget from Companion; log nothing */ }
+    return { ok: true, body: {} };
+  }
 
   function fanOut(endpoint: string, body: Record<string, unknown>): void {
     if (!getBackupSettings) return;
@@ -348,8 +389,6 @@ export function createActionDispatcher(deps: {
       case 'teleprompter_scroll_slower':
       case 'teleprompter_font_size_in':
       case 'teleprompter_font_size_out': {
-        const host = getTeleprompterHost?.() ?? '';
-        if (!isTeleprompterEnabled?.() || !host) return { ok: true, body: { skipped: true } };
         const tp = store.getState().teleprompter;
         let patch: Record<string, unknown> = {};
         if (actionId === 'teleprompter_start') patch = { scrolling: true };
@@ -358,20 +397,78 @@ export function createActionDispatcher(deps: {
         else if (actionId === 'teleprompter_scroll_slower') patch = { speed: Math.max(0, tp.speed - 10) };
         else if (actionId === 'teleprompter_font_size_in') patch = { font_size: Math.min(200, tp.fontSize + 4) };
         else patch = { font_size: Math.max(24, tp.fontSize - 4) };
-        try {
-          await fetch(`${host}/api/state`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(patch),
-            signal: AbortSignal.timeout(3000),
+        return teleprompterPatch(patch);
+      }
+      case 'teleprompter_set_speed': {
+        const speed = num(p.speed);
+        if (speed === undefined) {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'speed must be a number' } };
+        }
+        return teleprompterPatch({ speed: Math.min(200, Math.max(0, Math.round(speed))) });
+      }
+      case 'teleprompter_set_font_size': {
+        const fontSize = num(p.font_size) ?? num(p.fontSize);
+        if (fontSize === undefined) {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'font_size must be a number' } };
+        }
+        return teleprompterPatch({ font_size: Math.min(200, Math.max(24, Math.round(fontSize))) });
+      }
+      case 'teleprompter_load_script': {
+        const text = str(p.text) ?? str(p.script);
+        if (text === undefined) {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'text is required' } };
+        }
+        return teleprompterPatch({ script: text });
+      }
+      case 'teleprompter_toggle': {
+        return teleprompterPatch({ scrolling: !store.getState().teleprompter.scrolling });
+      }
+      case 'panic': {
+        const action = str(p.action) ?? 'toggle';
+        if (action !== 'toggle' && action !== 'on' && action !== 'off') {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'action must be "toggle", "on", or "off"' } };
+        }
+        const rel = store.getState().reliability;
+        const next = action === 'toggle' ? !rel.panicActive : action === 'on';
+        store.setState({ reliability: { panicActive: next, panicSlate: rel.panicSlate } });
+        return {
+          ok: true,
+          body: {
+            panicActive: next,
+            message: next ? 'Panic activated — output hidden' : 'Panic cleared — output restored',
+          },
+        };
+      }
+      case 'reload_instance': {
+        const instance = str(p.instance);
+        if (instance !== 'A' && instance !== 'B') {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'instance must be "A" or "B"' } };
+        }
+        const state = store.getState();
+        if (instance === state.abState.activeInstance) {
+          return {
+            ok: false,
+            status: 400,
+            error: { code: 'INVALID_INSTANCE', message: 'Cannot reload on-air instance; use off-air instance for safe reload.' },
+          };
+        }
+        const key = instance === 'A' ? 'instanceA' : 'instanceB';
+        const prevT = reloadTimers.get(instance);
+        if (prevT) clearTimeout(prevT);
+        store.setState({
+          abState: { ...state.abState, [key]: { ...state.abState[key], isLoading: true, isReady: false } },
+        });
+        /** Simulated async completion, matching POST /api/reload-instance. */
+        const delayMs = 50;
+        const t = setTimeout(() => {
+          const s = store.getState();
+          store.setState({
+            abState: { ...s.abState, [key]: { ...s.abState[key], isLoading: false, isReady: true } },
           });
-          const stateUpdate: Record<string, unknown> = {};
-          if ('scrolling' in patch) stateUpdate['scrolling'] = patch['scrolling'];
-          if ('speed' in patch) stateUpdate['speed'] = patch['speed'];
-          if ('font_size' in patch) stateUpdate['fontSize'] = patch['font_size'];
-          store.setState({ teleprompter: { ...tp, ...stateUpdate } });
-        } catch { /* fire-and-forget from Companion; log nothing */ }
-        return { ok: true, body: {} };
+          reloadTimers.delete(instance);
+        }, delayMs);
+        reloadTimers.set(instance, t);
+        return { ok: true, body: { status: 'reloading', instance } };
       }
       case 'graphics_scoreboard_set': {
         const existing = store.getState().graphics?.scoreboard ?? { ...DEFAULT_SCOREBOARD };
@@ -442,6 +539,19 @@ export function createActionDispatcher(deps: {
           ? (themeRaw as LowerThirdTheme)
           : (existing?.theme ?? 'default');
 
+        const animationStyleRaw = str(p.animationStyle) ?? str(p.animation_style);
+        const animationStyle: LowerThirdAnimationStyle =
+          (animationStyleRaw && (LOWER_THIRD_ANIMATION_STYLES as string[]).includes(animationStyleRaw))
+            ? (animationStyleRaw as LowerThirdAnimationStyle)
+            : (existing?.animationStyle ?? 'fade');
+
+        const fadeEnabled = bool(p.fadeEnabled) ?? bool(p.fade_enabled) ?? existing?.fadeEnabled ?? true;
+
+        const fadeMsRaw = num(p.fadeMs) ?? num(p.fade_ms);
+        const fadeMs = fadeMsRaw !== undefined
+          ? Math.min(LOWER_THIRD_FADE_MS_MAX, Math.max(LOWER_THIRD_FADE_MS_MIN, Math.round(fadeMsRaw)))
+          : (existing?.fadeMs ?? LOWER_THIRD_DEFAULT_FADE_MS);
+
         const lowerThird: LowerThirdState = {
           visible: true,
           name: name.trim(),
@@ -452,6 +562,9 @@ export function createActionDispatcher(deps: {
           subtitle: subtitle !== undefined ? (subtitle.trim() || null) : (existing?.subtitle ?? null),
           theme,
           sourceCueId: cueId ?? null,
+          fadeEnabled,
+          fadeMs,
+          animationStyle,
         };
         store.setState({ graphics: { ...store.getState().graphics, lowerThird } });
         return { ok: true, body: { graphics: { lowerThird } } };

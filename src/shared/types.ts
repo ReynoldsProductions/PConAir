@@ -230,6 +230,9 @@ export type LowerThirdTheme =
   | 'palette_olive' | 'palette_teal' | 'palette_terracotta'
   | 'palette_plum' | 'palette_copper' | 'palette_sage';
 
+export type LowerThirdAnimationStyle =
+  | 'fade' | 'wipe' | 'grow' | 'slide-up' | 'slide-down' | 'zoom' | 'flip';
+
 export interface LowerThirdState {
   visible: boolean;
   name: string;
@@ -238,6 +241,12 @@ export interface LowerThirdState {
   theme: LowerThirdTheme;
   /** Traceability only — which L3 cue (if any) this was prefilled from. Never used to mutate the cue store or L3State. */
   sourceCueId: string | null;
+  /** When false, the lower third cuts in/out instantly with no transition. */
+  fadeEnabled: boolean;
+  /** Entrance/exit transition duration in ms, applied when fadeEnabled is true. */
+  fadeMs: number;
+  /** Entrance/exit transition style, applied when fadeEnabled is true. */
+  animationStyle: LowerThirdAnimationStyle;
 }
 
 export interface GraphicsState {

@@ -24,8 +24,11 @@ jobs:
 
       - name: Download cloudflared binary
         run: |
+          version=$(curl -sL https://api.github.com/repos/cloudflare/cloudflared/releases/latest | jq -r .tag_name)
           mkdir -p cloudflared
-          curl -L "https://github.com/cloudflare/cloudflared/releases/download/2026.6.0/cloudflared-darwin-arm64" -o cloudflared/cloudflared-darwin-arm64
+          curl -L "https://github.com/cloudflare/cloudflared/releases/download/${version}/cloudflared-darwin-arm64.tgz" -o /tmp/cloudflared.tgz
+          tar -xzf /tmp/cloudflared.tgz -C cloudflared
+          mv cloudflared/cloudflared cloudflared/cloudflared-darwin-arm64
           chmod +x cloudflared/cloudflared-darwin-arm64
 
       - name: Build DMG
@@ -47,6 +50,13 @@ jobs:
             **macOS:** Open the DMG, drag PConAir to Applications.
             First launch: right-click → Open to bypass Gatekeeper.
 
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        if: github.event_name != 'push'
+        with:
+          name: macos-dmg
+          path: out/make/**/*.dmg
+
   build-windows:
     runs-on: windows-latest
     permissions:
@@ -63,9 +73,11 @@ jobs:
         run: npm ci
 
       - name: Download cloudflared binary
+        shell: bash
         run: |
+          version=$(curl -sL https://api.github.com/repos/cloudflare/cloudflared/releases/latest | jq -r .tag_name)
           mkdir -p cloudflared
-          curl -L "https://github.com/cloudflare/cloudflared/releases/download/2026.6.0/cloudflared-windows-amd64.exe" -o cloudflared/cloudflared-windows-amd64.exe
+          curl -L "https://github.com/cloudflare/cloudflared/releases/download/${version}/cloudflared-windows-amd64.exe" -o cloudflared/cloudflared-windows-amd64.exe
 
       - name: Build Windows ZIP
         run: npx electron-forge make --platform win32 --arch x64

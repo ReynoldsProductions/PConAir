@@ -4,6 +4,7 @@ import path from 'path';
 import type { StateStore } from '../state';
 import type { MediaLibraryStore } from './item-store';
 import { scheduleFullscreenChrome } from '../fullscreen-chrome';
+import { hideCursorOnLoad } from '../output-cursor';
 
 export function createMediaLibraryWindowManager(config: { store: StateStore; media: MediaLibraryStore; getDisplayPreference?: () => string | null }) {
   const { store, media, getDisplayPreference } = config;
@@ -38,6 +39,7 @@ export function createMediaLibraryWindowManager(config: { store: StateStore; med
         sandbox: true,
       },
     });
+    hideCursorOnLoad(win);
     return win;
   }
 

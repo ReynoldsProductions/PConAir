@@ -46,6 +46,7 @@ export function buildFeedbacks(getApp: GetAppState, isConnected: () => boolean):
           id: 'mode',
           label: 'Mode',
           default: 'slides',
+          allowCustom: true,
           choices: [
             { id: 'slides', label: 'Slides' },
             { id: 'url', label: 'URL' },
@@ -55,7 +56,8 @@ export function buildFeedbacks(getApp: GetAppState, isConnected: () => boolean):
           ],
         },
       ],
-      callback: ({ options }) => (getApp().currentMode ?? 'idle') === options['mode'],
+      callback: async (feedback, context) =>
+        (getApp().currentMode ?? 'idle') === (await context.parseVariablesInString(String(feedback.options['mode'] ?? ''))),
     },
 
     is_ab_instance: {
@@ -69,13 +71,16 @@ export function buildFeedbacks(getApp: GetAppState, isConnected: () => boolean):
           id: 'instance',
           label: 'Instance',
           default: 'A',
+          allowCustom: true,
           choices: [
             { id: 'A', label: 'Instance A' },
             { id: 'B', label: 'Instance B' },
           ],
         },
       ],
-      callback: ({ options }) => (getApp().abState?.activeInstance ?? 'A') === options['instance'],
+      callback: async (feedback, context) =>
+        (getApp().abState?.activeInstance ?? 'A') ===
+        (await context.parseVariablesInString(String(feedback.options['instance'] ?? ''))),
     },
 
     slide_at: {
@@ -84,11 +89,12 @@ export function buildFeedbacks(getApp: GetAppState, isConnected: () => boolean):
       description: 'Highlights when the current slide matches the configured number',
       defaultStyle: { bgcolor: green, color: white },
       options: [
-        { type: 'number', id: 'slide_number', label: 'Slide Number (1-based)', default: 1, min: 1, max: 9999 },
+        { type: 'textinput', id: 'slide_number', label: 'Slide Number (1-based)', default: '1', useVariables: true },
       ],
-      callback: ({ options }) => {
+      callback: async (feedback, context) => {
         const s = slidesReady()
-        return s !== null && s.slideIndex + 1 === Number(options['slide_number'])
+        const n = Number(await context.parseVariablesInString(String(feedback.options['slide_number'] ?? '')))
+        return s !== null && Number.isFinite(n) && s.slideIndex + 1 === n
       },
     },
 
@@ -116,10 +122,11 @@ export function buildFeedbacks(getApp: GetAppState, isConnected: () => boolean):
       name: 'On Specific Slide',
       description: 'Indicates when the presentation is on a specific slide number',
       defaultStyle: { color: white, bgcolor: orange },
-      options: [{ type: 'number', id: 'slide', label: 'Slide Number', min: 1, max: 9999, default: 1 }],
-      callback: ({ options }) => {
+      options: [{ type: 'textinput', id: 'slide', label: 'Slide Number', default: '1', useVariables: true }],
+      callback: async (feedback, context) => {
         const s = slidesReady()
-        return s !== null && s.slideIndex + 1 === Number(options['slide'])
+        const n = Number(await context.parseVariablesInString(String(feedback.options['slide'] ?? '')))
+        return s !== null && Number.isFinite(n) && s.slideIndex + 1 === n
       },
       showInvert: true,
     },
@@ -230,11 +237,11 @@ export function buildFeedbacks(getApp: GetAppState, isConnected: () => boolean):
       description: 'Active when the configured cue (ID or name) is on air',
       defaultStyle: { bgcolor: purple, color: white },
       options: [
-        { type: 'textinput', id: 'cue', label: 'Cue ID or Name', default: '' },
+        { type: 'textinput', id: 'cue', label: 'Cue ID or Name', default: '', useVariables: true },
       ],
-      callback: ({ options }) => {
+      callback: async (feedback, context) => {
         const l3 = getApp().l3
-        const cue = String(options['cue'] ?? '')
+        const cue = await context.parseVariablesInString(String(feedback.options['cue'] ?? ''))
         return cue.length > 0 && (l3?.activeCueId === cue || l3?.activeCueName === cue)
       },
       showInvert: true,
@@ -281,11 +288,11 @@ export function buildFeedbacks(getApp: GetAppState, isConnected: () => boolean):
       description: 'Active when the configured image (ID or name) is on air',
       defaultStyle: { bgcolor: purple, color: white },
       options: [
-        { type: 'textinput', id: 'item', label: 'Image ID or Name', default: '' },
+        { type: 'textinput', id: 'item', label: 'Image ID or Name', default: '', useVariables: true },
       ],
-      callback: ({ options }) => {
+      callback: async (feedback, context) => {
         const ml = getApp().mediaLibrary
-        const item = String(options['item'] ?? '')
+        const item = await context.parseVariablesInString(String(feedback.options['item'] ?? ''))
         return item.length > 0 && (ml?.activeItemId === item || ml?.activeItemName === item)
       },
       showInvert: true,
@@ -395,6 +402,221 @@ export function buildFeedbacks(getApp: GetAppState, isConnected: () => boolean):
         const ro = getApp().renderOutputs ?? {}
         return ro[String(options['content'])]?.bg === options['bg']
       },
+    },
+
+    // ── slides v2 extras ──
+    slides_loading: {
+      type: 'boolean',
+      name: 'Slides Loading',
+      description: 'Active while a deck is loading',
+      defaultStyle: { bgcolor: orange, color: white },
+      options: [],
+      callback: () => getApp().slides?.isLoading === true,
+      showInvert: true,
+    },
+    cache_warmed: {
+      type: 'boolean',
+      name: 'Offline Cache Warmed',
+      description: 'Active when the offline slide cache is fully warmed',
+      defaultStyle: { bgcolor: green, color: white },
+      options: [],
+      callback: () => getApp().slides?.cacheWarmed === true,
+      showInvert: true,
+    },
+    content_kind_is: {
+      type: 'boolean',
+      name: 'Slides Content Kind Is',
+      description: 'Active when the native slides content kind matches',
+      defaultStyle: { bgcolor: teal, color: white },
+      options: [
+        {
+          type: 'dropdown',
+          id: 'kind',
+          label: 'Content Kind',
+          default: 'slides',
+          choices: [
+            { id: 'slides', label: 'Slides' },
+            { id: 'url', label: 'URL' },
+            { id: 'none', label: 'None' },
+          ],
+        },
+      ],
+      callback: ({ options }) => (getApp().slides?.contentKind ?? 'none') === options['kind'],
+    },
+
+    // ── still store extras ──
+    slideshow_at: {
+      type: 'boolean',
+      name: 'Slideshow At Position',
+      description: 'Active when the slideshow is at the configured 1-based position',
+      defaultStyle: { bgcolor: green, color: white },
+      options: [
+        { type: 'textinput', id: 'position', label: 'Position (1-based)', default: '1', useVariables: true },
+      ],
+      callback: async (feedback, context) => {
+        const show = getApp().mediaLibrary?.slideshow
+        const n = Number(await context.parseVariablesInString(String(feedback.options['position'] ?? '')))
+        return Boolean(show) && Number.isFinite(n) && (show?.position ?? -1) + 1 === n
+      },
+    },
+
+    // ── teleprompter ──
+    teleprompter_enabled: {
+      type: 'boolean',
+      name: 'Teleprompter Enabled',
+      description: 'Active when the teleprompter integration is enabled',
+      defaultStyle: { bgcolor: teal, color: white },
+      options: [],
+      callback: () => getApp().teleprompter?.enabled === true,
+      showInvert: true,
+    },
+    teleprompter_scrolling: {
+      type: 'boolean',
+      name: 'Teleprompter Scrolling',
+      description: 'Active while the teleprompter is scrolling',
+      defaultStyle: { bgcolor: green, color: white },
+      options: [],
+      callback: () => getApp().teleprompter?.scrolling === true,
+      showInvert: true,
+    },
+
+    // ── graphics: lower third overlay ──
+    gfx_lower_third_visible: {
+      type: 'boolean',
+      name: 'Graphics Lower Third Visible',
+      description: 'Active while the graphics lower-third overlay is on screen',
+      defaultStyle: { bgcolor: green, color: white },
+      options: [],
+      callback: () => getApp().graphics?.lowerThird?.visible === true,
+      showInvert: true,
+    },
+
+    // ── graphics: scoreboard ──
+    game_clock_running: {
+      type: 'boolean',
+      name: 'Game Clock Running',
+      description: 'Active while the scoreboard game clock runs',
+      defaultStyle: { bgcolor: green, color: white },
+      options: [],
+      callback: () => getApp().graphics?.scoreboard?.gameClockRunning === true,
+      showInvert: true,
+    },
+    shot_clock_running: {
+      type: 'boolean',
+      name: 'Shot Clock Running',
+      description: 'Active while the scoreboard shot clock runs',
+      defaultStyle: { bgcolor: green, color: white },
+      options: [],
+      callback: () => getApp().graphics?.scoreboard?.shotClockRunning === true,
+      showInvert: true,
+    },
+    possession_is: {
+      type: 'boolean',
+      name: 'Possession Is',
+      description: 'Active when the configured team has possession',
+      defaultStyle: { bgcolor: gold, color: white },
+      options: [
+        {
+          type: 'dropdown',
+          id: 'team',
+          label: 'Team',
+          default: 'a',
+          choices: [
+            { id: 'a', label: 'Team A' },
+            { id: 'b', label: 'Team B' },
+          ],
+        },
+      ],
+      callback: ({ options }) => getApp().graphics?.scoreboard?.possession === options['team'],
+    },
+    score_leader_is: {
+      type: 'boolean',
+      name: 'Score Leader Is',
+      description: 'Active when the configured team leads (or the game is tied)',
+      defaultStyle: { bgcolor: gold, color: white },
+      options: [
+        {
+          type: 'dropdown',
+          id: 'team',
+          label: 'Team',
+          default: 'a',
+          choices: [
+            { id: 'a', label: 'Team A' },
+            { id: 'b', label: 'Team B' },
+            { id: 'tied', label: 'Tied' },
+          ],
+        },
+      ],
+      callback: ({ options }) => {
+        const sb = getApp().graphics?.scoreboard
+        if (!sb) return false
+        const leader = sb.scoreA > sb.scoreB ? 'a' : sb.scoreB > sb.scoreA ? 'b' : 'tied'
+        return leader === options['team']
+      },
+    },
+
+    // ── watchdog / health ──
+    watchdog_unresponsive: {
+      type: 'boolean',
+      name: 'Program Unresponsive',
+      description: 'Active while the watchdog reports the program renderer unresponsive',
+      defaultStyle: { bgcolor: red, color: white },
+      options: [],
+      callback: () => getApp().watchdog?.programUnresponsive === true,
+    },
+    memory_pressure: {
+      type: 'boolean',
+      name: 'Memory Pressure',
+      description: 'Active while the watchdog reports memory pressure',
+      defaultStyle: { bgcolor: red, color: white },
+      options: [],
+      callback: () => getApp().watchdog?.memoryPressure === true,
+    },
+
+    // ── stagetimer / tunnel extras ──
+    stagetimer_configured: {
+      type: 'boolean',
+      name: 'Stagetimer Configured',
+      description: 'Active when a stagetimer room + API key are configured',
+      defaultStyle: { bgcolor: teal, color: white },
+      options: [],
+      callback: () => getApp().stageTimer?.configured === true,
+      showInvert: true,
+    },
+    tunnel_enabled: {
+      type: 'boolean',
+      name: 'Tunnel Enabled',
+      description: 'Active when the tunnel is enabled in settings (regardless of status)',
+      defaultStyle: { bgcolor: teal, color: white },
+      options: [],
+      callback: () => getApp().tunnel?.enabled === true,
+      showInvert: true,
+    },
+    tunnel_pin_required: {
+      type: 'boolean',
+      name: 'Tunnel PIN Required',
+      description: 'Active when tunnel clients must enter a PIN',
+      defaultStyle: { bgcolor: gold, color: white },
+      options: [],
+      callback: () => getApp().tunnel?.pinRequired === true,
+      showInvert: true,
+    },
+
+    // ── presets ──
+    current_preset_is: {
+      type: 'boolean',
+      name: 'Current URL Preset Is',
+      description: 'Active when the configured preset (ID or name) is loaded',
+      defaultStyle: { bgcolor: purple, color: white },
+      options: [
+        { type: 'textinput', id: 'preset', label: 'Preset ID or Name', default: '', useVariables: true },
+      ],
+      callback: async (feedback, context) => {
+        const cur = getApp().currentPreset
+        const preset = await context.parseVariablesInString(String(feedback.options['preset'] ?? ''))
+        return preset.length > 0 && (cur?.id === preset || cur?.name === preset)
+      },
+      showInvert: true,
     },
   }
 }

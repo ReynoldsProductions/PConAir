@@ -126,3 +126,25 @@ describe('backupIps', () => {
     expect(result.backupIps).toEqual(['10.0.0.1']);
   });
 });
+
+describe('launchAtLogin', () => {
+  it('defaults to false when the field is missing', () => {
+    expect(loadAppSettings(file).launchAtLogin).toBe(false);
+  });
+
+  it('falls back to false for a non-boolean value', () => {
+    fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, launchAtLogin: 'yes' }));
+    expect(loadAppSettings(file).launchAtLogin).toBe(false);
+  });
+
+  it('round-trips true through save', () => {
+    saveAppSettings(file, { launchAtLogin: true });
+    expect(loadAppSettings(file).launchAtLogin).toBe(true);
+  });
+
+  it('round-trips back to false through save', () => {
+    saveAppSettings(file, { launchAtLogin: true });
+    saveAppSettings(file, { launchAtLogin: false });
+    expect(loadAppSettings(file).launchAtLogin).toBe(false);
+  });
+});

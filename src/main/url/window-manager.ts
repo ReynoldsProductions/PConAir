@@ -2,6 +2,7 @@ import { BrowserWindow, screen, session } from 'electron';
 import type { StateStore } from '../state';
 import type { ABInstance } from '../../shared/types';
 import { scheduleFullscreenChrome } from '../fullscreen-chrome';
+import { hideCursorOnLoad } from '../output-cursor';
 
 interface UrlWindowConfig {
   store: StateStore;
@@ -50,6 +51,7 @@ export function createUrlWindowManager(config: UrlWindowConfig) {
       frame: false,
       show: false,
     });
+    hideCursorOnLoad(win);
     return win;
   }
 

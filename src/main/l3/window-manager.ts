@@ -3,6 +3,7 @@ import type { StateStore } from '../state';
 import type { L3CueStore } from './cue-store';
 import type { L3ThemeStore } from './theme-store';
 import { scheduleFullscreenChrome } from '../fullscreen-chrome';
+import { hideCursorOnLoad } from '../output-cursor';
 
 interface L3StackEntry {
   cueId: string;
@@ -111,6 +112,7 @@ export function createL3WindowManager(config: L3WindowConfig) {
         sandbox: true,
       },
     });
+    hideCursorOnLoad(win);
     return win;
   }
 

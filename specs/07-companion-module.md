@@ -771,10 +771,81 @@ The Companion module implementation is complete and testable when:
 
 ---
 
+## 13. v2 Addendum (module 0.3.0)
+
+Everything in this section shipped in module **0.3.0** on top of the v1 spec above.
+
+### 13.1 Variables in every input
+
+- Every `textinput` option in every action and feedback sets `useVariables: true`
+  and is expanded with `context.parseVariablesInString()` in the callback.
+- All former `number` options are `textinput` fields parsed with a
+  numeric-fallback helper (`parsedNum`). A static upgrade script
+  (`src/upgrades.ts`) stringifies saved numeric option values from pre-0.3.0
+  configs for: `go_to_slide.slide`, `show_share_qr.durationSec`,
+  `stagetimer_overlay_settings.size`, `perfectcue_set_port_enabled.port`,
+  `slides_goto.slide_number`, `stills_slideshow_play.interval_sec`, and
+  feedbacks `slide_at.slide_number`, `on_slide.slide`.
+- Dropdowns whose value can meaningfully come from a variable set
+  `allowCustom: true`; custom values are parsed then validated against the
+  choice ids with fallback to the default (`parsedChoice`).
+
+### 13.2 New dispatcher actions (server)
+
+`src/main/action-dispatch.ts` gained operator-level actions so Companion can
+reach them over the cookie-less WebSocket: `panic` (`action: on|off|toggle`),
+`reload_instance` (`instance: A|B`, on-air instance rejected),
+`teleprompter_set_speed` (0–200), `teleprompter_set_font_size` (24–200),
+`teleprompter_load_script` (`text`), `teleprompter_toggle`.
+
+### 13.3 New module actions
+
+- **Graphics:** `graphics_scoreboard_set` (all fields optional; blank = keep),
+  `graphics_score_bump`, `graphics_clock_start/stop`,
+  `graphics_shot_clock_start/stop`, `graphics_possession_set`,
+  `lower_third_apply` (cue prefill or inline; subtitle keep/set/clear; theme,
+  animation style, fade control), `lower_third_hide`.
+- **Slides:** `slides_notes_scroll_up/down`, `slides_notes_zoom_in/out`
+  (native); GSC `scroll_notes_*` / `zoom_*_notes` rewired from the 400-ing
+  compat endpoints to these dispatcher ids.
+- **Teleprompter:** `teleprompter_set_speed`, `teleprompter_set_font_size`,
+  `teleprompter_load_script`, `teleprompter_toggle`.
+- **System:** `panic_on/off/toggle`, `reload_instance`.
+
+### 13.4 New variables / feedbacks
+
+Variables now cover teleprompter, scoreboard, graphics lower third, watchdog /
+memory health, background, displays, current preset id, tunnel enabled/error,
+slides loading / native content kind, and A/B instance urls/readiness
+(153 total). Feedbacks add teleprompter, content kind, cache warmed, loading,
+watchdog, memory pressure, stagetimer configured, tunnel enabled/PIN,
+slideshow position, graphics L3 visible, game/shot clock running, possession,
+score leader, and current preset (47 total).
+
+### 13.5 Scope: admin-only functions excluded
+
+The module deliberately does **not** expose actions requiring an admin session
+(tunnel start/stop/config, background set/presets, show lock, app settings,
+teleprompter/stagetimer config, media upload/delete, preset CRUD, director
+window). Demoting these to the operator/cookie-less trust level was considered
+and rejected; their state remains readable via variables/feedbacks.
+
+### 13.6 File layout
+
+`src/actions.ts` is a re-export of `src/actions/` split by domain: `helpers.ts`
+(parsing utilities), `gsc.ts`, `slides.ts`, `url.ts`, `l3.ts`, `stills.ts`,
+`graphics.ts`, `system.ts`, aggregated in `index.ts`. Tests:
+`tests/companion-defs.test.ts` (definition contracts incl. the
+no-number-options regression guard), `tests/companion-upgrades.test.ts`,
+`tests/companion-actions.test.ts` (dispatcher integration).
+
+---
+
 ## Document Control
 
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-05-11 | Initial specification |
+| 2.0 | 2026-07-13 | v2 addendum: variables-in-every-input, graphics/teleprompter/system actions, 153 vars / 47 feedbacks / 55 presets, module 0.3.0 |
 
 ---

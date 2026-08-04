@@ -4,13 +4,16 @@ Bitfocus Companion module for **PC On Air** — a live event graphics and playou
 
 ## What this module does
 
-Connects Companion to a running PC On Air instance over WebSocket (with HTTP polling fallback). Exposes button actions, dynamic feedbacks, variables, and ready-made preset buttons for controlling:
+Connects Companion to a running PC On Air instance over WebSocket (with HTTP polling fallback). Exposes **100 actions, 47 feedbacks, 153 variables, and 55 preset buttons** for controlling:
 
-- Slide deck navigation and loading (Google Slides / A/B instances)
-- URL playout mode with A/B instance switching
-- Lower thirds cue take/clear and stacking control
-- Global mode switching (Slides / URL / Lower Thirds / Idle)
-- Connection status display
+- Slide deck navigation and loading (Google Slides / A/B instances) + speaker notes
+- URL playout mode with A/B instance switching and URL presets
+- Lower thirds cue take/clear, playlists, stacking, and the graphics overlay
+- Still store takes and slideshows
+- Scoreboard graphics (scores, clocks, possession, fouls, timeouts)
+- Teleprompter scroll/speed/font/script control
+- Global mode switching, render backgrounds, stagetimer overlay, panic slate
+- Connection, health, and tunnel status display
 
 ## Installation
 
@@ -48,7 +51,7 @@ This will:
 2. Create a `pkg/` directory
 3. Copy `companion/`, `dist/`, and `package.json` into `pkg/`
 4. Install production dependencies only inside `pkg/`
-5. Produce **`pkg/pconair-companion-0.1.0.zip`** — ready to submit to the Companion marketplace
+5. Produce **`pkg/pconair-companion-0.3.0.zip`** — ready to submit to the Companion marketplace
 
 ## Configuration
 
@@ -59,59 +62,82 @@ This will:
 | Operator PIN | _(empty)_ | Optional PIN for operator-level authentication |
 | HTTP Polling Interval (ms) | `2000` | Fallback polling interval when WebSocket is unavailable |
 
-## Actions
+## Variables in every input
 
-| Action ID | Description |
-|-----------|-------------|
-| `load_url` | Load a URL into the URL playout window |
-| `load_url_preset` | Load a saved URL preset by ID or name |
-| `reload_url` | Reload the active on-air URL |
-| `reload_url_offair` | Reload the off-air URL instance |
-| `url_switch_ab` | Toggle between A and B URL instances |
-| `url_switch_to` | Switch to a specific URL instance (A or B) |
-| `set_mode` | Switch the active mode (Slides / URL / Lower Thirds / Idle) |
-| `slides_next` | Advance to the next slide |
-| `slides_prev` | Go back to the previous slide |
-| `slides_goto` | Jump to a specific slide number |
-| `slides_load` | Load a Google Slides deck by URL |
-| `ab_switch` | Toggle the active A/B instance for the current mode |
-| `l3_take` | Take a lower third cue with optional overrides |
-| `l3_clear` | Clear the active lower third |
-| `l3_stacking_on` | Enable lower third stacking mode |
-| `l3_stacking_off` | Disable lower third stacking mode |
-| `set_display` | Set the target HDMI display index |
+Every text input in every action and feedback supports Companion variables
+(`$(internal:custom_my_var)`, `$(pconair:slide_index)`, …). Numeric inputs are
+text fields for the same reason — type a number or a variable expression.
+Dropdowns accept custom values where useful (`allowCustom`), so a variable can
+drive the mode, instance, transition, etc.; unknown values fall back to the
+option's default. Configs saved before v0.3.0 are migrated automatically by an
+upgrade script when the module loads.
 
-## Feedbacks
+## Actions (100)
 
-| Feedback ID | Description |
-|-------------|-------------|
-| `connection_status` | Button style reflects current connection state (green = connected, red = disconnected) |
-| `current_mode` | Highlights when the module is in a specified mode |
-| `slide_at` | Highlights when the current slide matches a given number |
-| `l3_cue_active` | Highlights when any lower third is on-air |
-| `ab_active_instance` | Highlights when a specified A/B instance (A or B) is active |
+Grouped by category — see `src/actions/` for the full definitions:
 
-## Variables
+- **GSC compat** (`src/actions/gsc.ts`): the complete `companion-module-gslide-opener`
+  ID set — open/close presentation, next/prev/goto slide, speaker notes
+  open/close/scroll/zoom (scroll/zoom now run natively), tunnel QR show/hide,
+  backup controls / notes layout / PerfectCue stubs
+- **Slides** (`slides.ts`): native next/prev/goto/first/last, deck load with
+  backup + instance targeting, reload, A/B switch, offline mode, native notes
+  scroll/zoom
+- **URL** (`url.ts`): load URL / preset, reload on-air / off-air, A/B switch
+- **Lower thirds** (`l3.ts`): cue take/clear, playlists (activate/next/prev),
+  stacking, plus the graphics overlay `lower_third_apply` / `lower_third_hide`
+  with theme, animation style and fade control
+- **Still store** (`stills.ts`): take/clear, slideshow play/pause/resume/stop/step
+- **Graphics** (`graphics.ts`): `graphics_scoreboard_set` (every field optional —
+  blank leaves it unchanged), `graphics_score_bump`, game/shot clock start/stop,
+  possession
+- **System** (`system.ts`): mode/display/A-B, render background modes,
+  stagetimer overlay show/hide/toggle/settings, teleprompter (start/stop/toggle,
+  speed and font nudge or set, script load), panic slate on/off/toggle,
+  off-air instance reload, debug status log
 
-| Variable | Description |
-|----------|-------------|
-| `$(pconair:connection_status)` | Human-readable connection status |
-| `$(pconair:current_mode)` | Current active mode |
-| `$(pconair:current_slide)` | Current slide number (1-based) |
-| `$(pconair:total_slides)` | Total number of slides in the loaded deck |
-| `$(pconair:deck_title)` | Title of the loaded deck |
-| `$(pconair:active_url)` | URL currently loaded in the playout window |
-| `$(pconair:l3_active_cue_name)` | Name of the active lower third cue |
+## Feedbacks (47)
 
-## Presets (19)
+Connection, mode, A/B instance, slide position (first/last/at-number), deck and
+backup state, offline mode/cache, lower third on-air / specific cue / stacking /
+playlist, still store on-air / specific still / slideshow state + position,
+stagetimer overlay + configured, tunnel active/error/enabled/PIN, panic, show
+lock, render background modes, slides loading / content kind, teleprompter
+enabled/scrolling, graphics lower-third visible, game/shot clock running,
+possession, score leader, watchdog unresponsive, memory pressure, current preset.
+
+## Variables (153)
+
+All GSC-compat names preserved (`current_slide`, `slide_info`, …) plus the full
+PConAir state: slides (index/count/title/urls/notes/offline/cache), lower thirds
+(cue/playlist), still store + slideshow, stagetimer, tunnel, render outputs,
+teleprompter (enabled/scrolling/speed/font), scoreboard (teams, scores, clocks,
+possession, fouls, timeouts), graphics lower third (name/title/subtitle/theme),
+watchdog + memory health, background, displays, A/B instance urls/readiness.
+
+## Presets (55)
 
 Ready-made button presets organised into categories:
 
-- **Slides**: Next, Previous, Counter display, Load Deck slots 1–3
+- **Slides**: Next, Previous, Counter, Load Deck slots 1–3, Offline toggle, Notes scroll/zoom
 - **A/B**: Switch toggle, Instance A, Instance B
 - **Mode**: Slides, URL, Lower Third, Idle
-- **Lower Thirds**: Take slots 1–2, Clear, Stacking On, Stacking Off
-- **Status**: Connection status, Current mode display
+- **Lower Thirds**: Take slots, Clear, Stacking, Playlist next/prev
+- **Still Store**: Clear, Slideshow play/pause/stop
+- **Graphics**: Score +1/+2/+3 per team, scoreboard display, game clock start/stop, possession, graphics L3 take/clear
+- **Teleprompter**: Start/stop toggle, speed ±, font ±
+- **System**: Panic toggle, reload off-air instance, health tile
+- **Tunnel / Status**: QR, tunnel status, connection status, stagetimer overlay
+
+## Not exposed (admin-only)
+
+The module talks to PConAir over the cookie-less Companion WebSocket and the
+operator-level action API. Functions that require an **admin session** are
+deliberately not exposed as actions: tunnel start/stop/config, program
+background set + background presets, show lock, app settings, teleprompter/
+stagetimer configuration, media upload/delete, URL preset management, and the
+director window. Use the admin UI for those; their *state* is still readable
+through variables and feedbacks where available.
 
 ## Links
 

@@ -56,7 +56,11 @@ export interface PcoState {
       transition: 'cut' | 'fade'
     } | null
   } | null
-  abState: { activeInstance: 'A' | 'B' }
+  abState: {
+    activeInstance: 'A' | 'B'
+    instanceA: { url: string | null; isLoading: boolean; isReady: boolean } | null
+    instanceB: { url: string | null; isLoading: boolean; isReady: boolean } | null
+  }
   connectionStatus: { webSocketClients: number; companionConnected: boolean; adminShowLocked: boolean }
   reliability: { panicActive: boolean }
   tunnel: { enabled: boolean; status: string; url: string | null; pinRequired: boolean; lastError: string | null }
@@ -68,6 +72,41 @@ export interface PcoState {
     roomId: string | null
     configured: boolean
   }
+  teleprompter: { enabled: boolean; scrolling: boolean; speed: number; fontSize: number } | null
+  graphics: {
+    scoreboard: {
+      teamA: string
+      teamB: string
+      scoreA: number
+      scoreB: number
+      quarter: string
+      gameClock: string
+      gameClockRunning: boolean
+      shotClock: number
+      shotClockRunning: boolean
+      possession: 'a' | 'b' | null
+      foulsA: number
+      foulsB: number
+      timeoutsA: number
+      timeoutsB: number
+    } | null
+    lowerThird: {
+      visible: boolean
+      name: string
+      title: string
+      subtitle: string | null
+      theme: string
+      animationStyle: string
+    } | null
+  } | null
+  watchdog: {
+    programUnresponsive: boolean
+    programUnresponsiveSecs: number
+    memoryPressure: boolean
+    memoryPressurePct: number
+  } | null
+  background: { presetId: string | null; presetName: string | null; type: string; value: string } | null
+  displays: Array<{ id: string; name: string; isPrimary: boolean }> | null
 }
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
