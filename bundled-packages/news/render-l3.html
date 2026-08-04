@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Faire Wire — lower thirds</title>
+<!--
+  Lower-third render: a left card and a right card in one transparent 1920x1080
+  page, so two speakers can be titled at once from a single output. Stack this
+  over the ticker render (render-ticker.html).
+
+  Each card is driven purely by state — l3Left / l3Right, with `visible` acting
+  as TAKE/CLEAR. There is no auto-hold timer: a card stays up until it is
+  cleared, from /packages/news/control or a Companion button.
+
+  Geometry matches the FaireL3s spec: panel 169 tall, 5x104 accent inset 24,
+  name 52 / title 32, 96px screen margin. Cards hug their text between 400px and
+  780px so a left and a right card can never collide.
+-->
+<style>
+  /* self-hosted, so a lost connection cannot silently change the typeface
+     mid-broadcast (these ship with the app at graphics/_fonts/) */
+  @font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:block;src:url('/graphics/_fonts/inter-latin-400.woff2') format('woff2');}
+  @font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:block;src:url('/graphics/_fonts/inter-latin-600.woff2') format('woff2');}
+</style>
+<style>
+  :root{
+    --font-sans:'Inter',-apple-system,sans-serif;
+    --panel-w:780px;        /* max width; the panel hugs its text up to this */
+    --panel-min:400px;
+    --panel-bottom:124px;   /* clears the 96px ticker bar with 28px of air */
+    --margin-x:96px;
+    --in-dur:550ms;
+    --out-dur:400ms;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{width:1920px;height:1080px;overflow:hidden;background:transparent;
+    font-family:var(--font-sans);-webkit-font-smoothing:antialiased;}
+  #stage{position:absolute;inset:0;}
+
+  /* `--off` is the off-screen resting offset, set per side below. It stays a
+     custom property on purpose: `.l3[data-side=…]` ties with `.l3.in` on
+     specificity, so a transform declared there could win on source order and
+     the card would never slide on. */
+  .l3{position:absolute;bottom:var(--panel-bottom);
+    width:max-content;min-width:var(--panel-min);max-width:var(--panel-w);
+    min-height:169px;background:var(--panel-fill);
+    border:1px solid var(--panel-border);border-radius:4px;display:flex;align-items:center;
+    box-shadow:0 4px 24px rgba(0,0,0,.18);
+    transform:translateX(var(--off));opacity:0;}
+  .l3 .accent{width:5px;height:104px;background:var(--accent);flex:none;}
+  .l3 .text{padding:16px 0;min-width:0;}
+  /* the name never wraps: it shrinks toward 34px to fit, and ellipsis catches
+     anything still too long at that floor */
+  .l3 .name{font-weight:600;font-size:52px;line-height:1;color:var(--name-color);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .l3 .title{font-size:32px;color:var(--title-color);margin-top:14px;line-height:1.15;}
+  .l3 .subtitle{font-size:23px;font-weight:400;color:var(--title-color);opacity:.72;
+    margin-top:10px;line-height:1.15;}
+  /* an empty line collapses instead of leaving a gap, so clearing a field
+     removes the row and the remaining text stays centred */
+  .l3 .name:empty,
+  .l3 .title:empty,
+  .l3 .subtitle:empty{display:none;margin:0;}
+
+  .l3[data-side="left"]{--off:calc(-1 * (var(--margin-x) + var(--panel-w)));
+    left:var(--margin-x);}
+  .l3[data-side="left"] .accent{margin:0 16px 0 24px;}
+  .l3[data-side="left"] .text{text-align:left;padding-right:44px;}
+
+  .l3[data-side="right"]{--off:calc(var(--margin-x) + var(--panel-w));
+    right:var(--margin-x);flex-direction:row-reverse;}
+  .l3[data-side="right"] .accent{margin:0 24px 0 16px;}
+  .l3[data-side="right"] .text{text-align:right;padding-left:44px;}
+
+  .l3.in{transform:translateX(0);opacity:1;
+    transition:transform var(--in-dur) cubic-bezier(.2,.7,.2,1),opacity calc(var(--in-dur) * .8) ease-out;}
+  .l3.out{transform:translateX(var(--off));opacity:0;
+    transition:transform var(--out-dur) cubic-bezier(.4,0,1,1),opacity calc(var(--out-dur) * .85) ease-in;}
+
+  /* ── per-theme colour tokens, from FaireL3s style*.json ── */
+  [data-theme="default"]{
+    --panel-fill: rgba(251,248,246,0.94); --panel-border: rgb(223,224,225);
+    --accent: rgb(181,169,152); --name-color: rgb(51,51,51); --title-color: rgb(117,117,117);
+  }
+  [data-theme="dark"]{
+    --panel-fill: rgba(51,51,51,0.96); --panel-border: rgb(88,85,80);
+    --accent: rgb(181,169,152); --name-color: rgb(255,255,255); --title-color: rgb(224,224,224);
+  }
+  [data-theme="dark_alt"]{
+    --panel-fill: rgba(0,0,0,0.96); --panel-border: rgb(51,51,51);
+    --accent: rgb(181,169,152); --name-color: rgb(255,255,255); --title-color: rgb(200,200,200);
+  }
+  [data-theme="bright"]{
+    --panel-fill: rgba(221,227,208,1.0); --panel-border: rgb(145,167,147);
+    --accent: rgb(73,105,76); --name-color: rgb(62,64,35); --title-color: rgb(62,64,35);
+  }
+  [data-theme="bright_info"]{
+    --panel-fill: rgba(226,231,240,1.0); --panel-border: rgb(122,120,133);
+    --accent: rgb(27,40,52); --name-color: rgb(27,40,52); --title-color: rgb(122,120,133);
+  }
+  [data-theme="bright_insider"]{
+    --panel-fill: rgba(242,245,245,1.0); --panel-border: rgb(54,103,106);
+    --accent: rgb(21,69,72); --name-color: rgb(21,69,72); --title-color: rgb(54,103,106);
+  }
+  [data-theme="bright_warm"]{
+    --panel-fill: rgba(246,239,219,1.0); --panel-border: rgb(209,185,133);
+    --accent: rgb(144,124,58); --name-color: rgb(144,124,58); --title-color: rgb(144,124,58);
+  }
+  [data-theme="palette_copper"]{
+    --panel-fill: rgba(250,242,232,1.0); --panel-border: rgb(200,170,145);
+    --accent: rgb(175,105,65); --name-color: rgb(75,50,38); --title-color: rgb(140,95,65);
+  }
+  [data-theme="palette_olive"]{
+    --panel-fill: rgba(235,225,195,1.0); --panel-border: rgb(160,155,125);
+    --accent: rgb(118,115,70); --name-color: rgb(62,60,40); --title-color: rgb(118,115,70);
+  }
+  [data-theme="palette_plum"]{
+    --panel-fill: rgba(242,238,248,1.0); --panel-border: rgb(175,165,195);
+    --accent: rgb(95,80,130); --name-color: rgb(55,48,72); --title-color: rgb(115,100,140);
+  }
+  [data-theme="palette_sage"]{
+    --panel-fill: rgba(232,238,232,1.0); --panel-border: rgb(140,165,150);
+    --accent: rgb(75,100,88); --name-color: rgb(45,58,50); --title-color: rgb(85,110,95);
+  }
+  [data-theme="palette_teal"]{
+    --panel-fill: rgba(228,238,238,1.0); --panel-border: rgb(100,155,160);
+    --accent: rgb(35,95,105); --name-color: rgb(25,70,75); --title-color: rgb(55,115,120);
+  }
+  [data-theme="palette_terracotta"]{
+    --panel-fill: rgba(248,238,232,1.0); --panel-border: rgb(195,165,155);
+    --accent: rgb(165,95,85); --name-color: rgb(85,55,52); --title-color: rgb(130,85,80);
+  }
+</style>
+</head>
+<body data-theme="default">
+<div id="stage">
+  <div class="l3" data-side="left" id="cardLeft">
+    <div class="accent"></div>
+    <div class="text">
+      <div class="name"></div><div class="title"></div><div class="subtitle"></div>
+    </div>
+  </div>
+  <div class="l3" data-side="right" id="cardRight">
+    <div class="accent"></div>
+    <div class="text">
+      <div class="name"></div><div class="title"></div><div class="subtitle"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/packages/news/assets/state.js"></script>
+<script>
+  var NAME_MIN = 34;
+
+  function makeCard(id) {
+    var el = document.getElementById(id);
+    var nameEl = el.querySelector('.name');
+    var titleEl = el.querySelector('.title');
+    var subEl = el.querySelector('.subtitle');
+    var shown = false;
+
+    function fitName() {
+      nameEl.style.fontSize = '';
+      for (var i = 0; i < 3; i++) {
+        var avail = nameEl.clientWidth;
+        if (!avail || nameEl.scrollWidth <= avail + 1) return;
+        var size = parseFloat(getComputedStyle(nameEl).fontSize) * (avail / nameEl.scrollWidth);
+        size = Math.max(NAME_MIN, Math.floor(size));
+        nameEl.style.fontSize = size + 'px';
+        if (size === NAME_MIN) return;
+      }
+    }
+
+    function apply(data) {
+      data = data || {};
+      var visible = !!data.visible;
+
+      // Set copy before animating in, so the slide never shows stale text. While
+      // the card is up, edits apply live.
+      if (visible) {
+        nameEl.textContent = data.name || '';
+        titleEl.textContent = data.title || '';
+        subEl.textContent = data.subtitle || '';
+        fitName();
+      }
+
+      if (visible === shown) return;
+      shown = visible;
+
+      if (visible) {
+        // reflow between the classes so re-entering after a clear reliably
+        // re-triggers the transition; safe because the intermediate base state
+        // is where the card already sits visually
+        el.classList.remove('out');
+        el.classList.remove('in');
+        void el.offsetWidth;
+        el.classList.add('in');
+      } else {
+        // NO reflow between these two. Dropping .in falls back to the base .l3
+        // rule, which is already the off-screen/opacity-0 target AND declares no
+        // transition — forcing a recalc there commits the jump instantly and the
+        // card cuts instead of animating off.
+        el.classList.remove('in');
+        el.classList.add('out');
+      }
+    }
+
+    return { apply: apply, refit: fitName };
+  }
+
+  var left = makeCard('cardLeft');
+  var right = makeCard('cardRight');
+
+  function applyState(s) {
+    document.body.dataset.theme = s.theme || 'default';
+    left.apply(s.l3Left);
+    right.apply(s.l3Right);
+  }
+
+  // web-font metrics differ from the fallback — re-measure once they settle
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { left.refit(); right.refit(); });
+  }
+
+  PConAirPackage.connect('news', applyState);
+</script>
+</body>
+</html>

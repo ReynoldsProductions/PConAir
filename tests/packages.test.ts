@@ -140,7 +140,7 @@ describe('bundled packages (phase 8)', () => {
       'champion',
     ]);
     expect(hub.find('hoops')!.manifest.renders.map((r) => r.id)).toEqual(['scorebug']);
-    expect(hub.find('news')!.manifest.renders.map((r) => r.id)).toEqual(['overlay']);
+    expect(hub.find('news')!.manifest.renders.map((r) => r.id)).toEqual(['ticker', 'l3']);
   });
 
   it('seeds initial state from the manifests', () => {
@@ -153,7 +153,11 @@ describe('bundled packages (phase 8)', () => {
     });
     expect((hub.getState('ffg')!.teams as Array<{ handle: string }>).length).toBe(4);
     expect(hub.getState('hoops')).toMatchObject({ teamA: 'BOS', clockEndsAt: 0, quarter: 3 });
-    expect(hub.getState('news')).toMatchObject({ bugVisible: true, l3: { visible: false } });
+    expect(hub.getState('news')).toMatchObject({
+      tickerVisible: true,
+      l3Left: { visible: false },
+      l3Right: { visible: false },
+    });
   });
 
   it('serves bundled render, control, and asset files over HTTP', async () => {
@@ -165,7 +169,8 @@ describe('bundled packages (phase 8)', () => {
       expect(list.body.packages.map((p: { id: string }) => p.id).sort()).toEqual(['ffg', 'hoops', 'news']);
 
       expect((await request(server.app).get('/packages/hoops/render/scorebug')).text).toContain('COURTVISION');
-      expect((await request(server.app).get('/packages/news/render/overlay')).text).toContain('Nightly News');
+      expect((await request(server.app).get('/packages/news/render/ticker')).text).toContain('wordmark');
+      expect((await request(server.app).get('/packages/news/render/l3')).text).toContain('data-side="right"');
       for (const r of ['single-pip', 'four-portrait', 'four-up', 'head-to-head', 'champion']) {
         const res = await request(server.app).get(`/packages/ffg/render/${r}`);
         expect(res.status).toBe(200);

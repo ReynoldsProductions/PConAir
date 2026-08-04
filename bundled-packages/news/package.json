@@ -1,223 +1,159 @@
 {
   "id": "news",
-  "name": "Faire Nightly News",
-  "version": "1.0.0",
-  "description": "Broadcast overlay — logo bug, LIVE indicator + clock, lower third, ticker",
+  "name": "Faire Wire",
+  "version": "2.0.0",
+  "description": "Ticker with the Faire logo bug, plus left/right lower thirds as a separate render. TAKE/CLEAR driven.",
   "renders": [
     {
-      "id": "overlay",
-      "label": "Overlay",
-      "file": "render.html"
+      "id": "ticker",
+      "label": "Ticker + logo bug",
+      "file": "render-ticker.html"
+    },
+    {
+      "id": "l3",
+      "label": "Lower thirds (left + right)",
+      "file": "render-l3.html"
     }
   ],
   "stateSchema": {
-    "bugVisible": "boolean",
-    "liveVisible": "boolean",
     "theme": "string",
-    "l3": {
+    "logo": "string",
+    "l3Left": {
       "visible": "boolean",
       "name": "string",
-      "title": "string"
+      "title": "string",
+      "subtitle": "string"
+    },
+    "l3Right": {
+      "visible": "boolean",
+      "name": "string",
+      "title": "string",
+      "subtitle": "string"
     },
     "tickerItems": "array",
     "tickerVisible": "boolean",
-    "tickerLabel": "string",
-    "tickerSpeed": "number"
+    "tickerSeconds": "number"
   },
   "initialState": {
-    "bugVisible": true,
-    "liveVisible": true,
-    "theme": "light",
-    "l3": {
+    "theme": "default",
+    "logo": "tan",
+    "l3Left": {
       "visible": false,
       "name": "Jane Smith",
-      "title": "Chief Executive Officer"
+      "title": "Chief Executive Officer",
+      "subtitle": ""
+    },
+    "l3Right": {
+      "visible": false,
+      "name": "Alex Chen",
+      "title": "Head of Supply",
+      "subtitle": ""
     },
     "tickerItems": [
-      "Q2 wrap:: — fulfillment hit 99.1% on-time across all four hubs",
-      "Toronto:: clears a record 12,400-order day",
-      "New:: Insider perks go live next week",
-      "Brand spotlight:: — Maison Balzac joins Faire Direct"
+      "KW:: Tens of engineers displaced after flooding in KW, prompting AI-powered mop project for Hack Week",
+      "NYC:: 12th floor declared official icebox, 10th floor still sweating it out",
+      "SF:: Wagon Rock frontman steps down, Faire COO Jeff Kolovson considers auditioning",
+      "KW:: Ghost of iPad Jim spotted haunting the new espresso machine",
+      "SF:: Bevi machine out of CO2 for the third time, employees consider rationing bubbles",
+      "NYC:: Employee asks \"is there like, a vote?\" on the AC, no referendum scheduled",
+      "KW:: Local hero returns MacBook after two years and 59 stickers, KW office mourns",
+      "Shadow Top 8 caucus keeps biweekly slot with Max, insiders confirm",
+      "KW:: Evil parking man strikes again, ghost of iPad Jim spotted in his driver's seat",
+      "TOR:: Dark blue phone found on 2nd floor, finder invokes 'finders keepers' in thread",
+      "KW:: Capybara plush sells out in four minutes flat, Sculptor neighbourhood in mourning",
+      "SF:: Nespresso jams again, SF third floor declares state of emergency",
+      "Meeting cap quietly raised from 9 to 15, math abandoned",
+      "NYC:: Workplace ops caught between hot meeting rooms and cold open floor, diplomacy fails",
+      "KW:: Ghost of iPad Jim blamed for grounds left in espresso machine, again",
+      "SF:: Volunteer sign-up sheet turns cutthroat, Faire Summer Give Back \"not a competition\" officially a competition",
+      "TOR:: BEEP shuttle capped at 10 passengers, waitlist treated like Studio 54 guest list",
+      "Top 8 hopefuls brace for reshuffle, sources say \"they'll change\" again",
+      "LON:: Sources: espresso machine \"having a moment,\" employees strongly request an upgrade",
+      "NYC:: Max's Corner sells $34 umbrellas mid-downpour, capitalism wins",
+      "KW:: Hot water tank floods office, HR clarifies this is not a metaphor",
+      "SF:: Wagon Rock camp denies Kolovson audition rumors, sources call \"no comment\" a maybe",
+      "TOR:: Office library honor system holds strong, one overdue biography under internal investigation",
+      "Planning feedback survey sent again, response rate holds steady at zero",
+      "LON:: Football sweepstake crowns office champion, Golden Boot goes uncontested"
     ],
     "tickerVisible": true,
-    "tickerLabel": "Faire Wire",
-    "tickerSpeed": 80
+    "tickerSeconds": 180
   },
   "companionActions": [
     {
-      "id": "news_l3_take",
-      "label": "Take lower third",
+      "id": "news_l3_left_take",
+      "label": "Take lower third — LEFT",
       "options": [
-        {
-          "id": "name",
-          "label": "Name",
-          "type": "textinput",
-          "default": ""
-        },
-        {
-          "id": "title",
-          "label": "Title",
-          "type": "textinput",
-          "default": ""
-        }
+        { "id": "name", "label": "Name", "type": "textinput", "default": "" },
+        { "id": "title", "label": "Title", "type": "textinput", "default": "" },
+        { "id": "subtitle", "label": "Subtitle", "type": "textinput", "default": "" }
       ],
       "ops": [
-        {
-          "op": "set",
-          "field": "l3.name",
-          "value": {
-            "option": "name",
-            "orState": "l3.name"
-          }
-        },
-        {
-          "op": "set",
-          "field": "l3.title",
-          "value": {
-            "option": "title",
-            "orState": "l3.title"
-          }
-        },
-        {
-          "op": "set",
-          "field": "l3.visible",
-          "value": true
-        }
+        { "op": "set", "field": "l3Left.name", "value": { "option": "name", "orState": "l3Left.name" } },
+        { "op": "set", "field": "l3Left.title", "value": { "option": "title", "orState": "l3Left.title" } },
+        { "op": "set", "field": "l3Left.subtitle", "value": { "option": "subtitle", "orState": "l3Left.subtitle" } },
+        { "op": "set", "field": "l3Left.visible", "value": true }
       ]
     },
     {
-      "id": "news_l3_clear",
-      "label": "Clear lower third",
+      "id": "news_l3_left_clear",
+      "label": "Clear lower third — LEFT",
+      "ops": [{ "op": "set", "field": "l3Left.visible", "value": false }]
+    },
+    {
+      "id": "news_l3_right_take",
+      "label": "Take lower third — RIGHT",
+      "options": [
+        { "id": "name", "label": "Name", "type": "textinput", "default": "" },
+        { "id": "title", "label": "Title", "type": "textinput", "default": "" },
+        { "id": "subtitle", "label": "Subtitle", "type": "textinput", "default": "" }
+      ],
       "ops": [
-        {
-          "op": "set",
-          "field": "l3.visible",
-          "value": false
-        }
+        { "op": "set", "field": "l3Right.name", "value": { "option": "name", "orState": "l3Right.name" } },
+        { "op": "set", "field": "l3Right.title", "value": { "option": "title", "orState": "l3Right.title" } },
+        { "op": "set", "field": "l3Right.subtitle", "value": { "option": "subtitle", "orState": "l3Right.subtitle" } },
+        { "op": "set", "field": "l3Right.visible", "value": true }
+      ]
+    },
+    {
+      "id": "news_l3_right_clear",
+      "label": "Clear lower third — RIGHT",
+      "ops": [{ "op": "set", "field": "l3Right.visible", "value": false }]
+    },
+    {
+      "id": "news_l3_clear_both",
+      "label": "Clear both lower thirds",
+      "ops": [
+        { "op": "set", "field": "l3Left.visible", "value": false },
+        { "op": "set", "field": "l3Right.visible", "value": false }
       ]
     },
     {
       "id": "news_set_ticker",
       "label": "Set ticker items",
       "options": [
-        {
-          "id": "items",
-          "label": "Items (separate with |)",
-          "type": "textinput",
-          "default": ""
-        },
-        {
-          "id": "label",
-          "label": "Ticker label",
-          "type": "textinput",
-          "default": ""
-        }
+        { "id": "items", "label": "Items (separate with |, use lead:: rest to accent the lead-in)", "type": "textinput", "default": "" }
       ],
       "ops": [
-        {
-          "op": "set",
-          "field": "tickerItems",
-          "value": {
-            "option": "items",
-            "split": "|"
-          }
-        },
-        {
-          "op": "set",
-          "field": "tickerLabel",
-          "value": {
-            "option": "label",
-            "orState": "tickerLabel"
-          }
-        },
-        {
-          "op": "set",
-          "field": "tickerVisible",
-          "value": true
-        }
+        { "op": "set", "field": "tickerItems", "value": { "option": "items", "split": "|" } },
+        { "op": "set", "field": "tickerVisible", "value": true }
       ]
     },
     {
       "id": "news_clear_ticker",
       "label": "Clear ticker",
-      "ops": [
-        {
-          "op": "set",
-          "field": "tickerVisible",
-          "value": false
-        }
-      ]
-    },
-    {
-      "id": "news_toggle_bug",
-      "label": "Toggle logo bug",
-      "ops": [
-        {
-          "op": "toggle",
-          "field": "bugVisible"
-        }
-      ]
-    },
-    {
-      "id": "news_show_live",
-      "label": "Show LIVE indicator",
-      "ops": [
-        {
-          "op": "set",
-          "field": "liveVisible",
-          "value": true
-        }
-      ]
-    },
-    {
-      "id": "news_hide_live",
-      "label": "Hide LIVE indicator",
-      "ops": [
-        {
-          "op": "set",
-          "field": "liveVisible",
-          "value": false
-        }
-      ]
+      "ops": [{ "op": "set", "field": "tickerVisible", "value": false }]
     }
   ],
   "companionFeedbacks": [
-    {
-      "id": "l3_visible",
-      "label": "Lower third on air",
-      "field": "l3.visible"
-    },
-    {
-      "id": "bug_visible",
-      "label": "Logo bug visible",
-      "field": "bugVisible"
-    },
-    {
-      "id": "live_visible",
-      "label": "LIVE indicator visible",
-      "field": "liveVisible"
-    },
-    {
-      "id": "ticker_visible",
-      "label": "Ticker visible",
-      "field": "tickerVisible"
-    }
+    { "id": "l3_left_visible", "label": "Lower third LEFT on air", "field": "l3Left.visible" },
+    { "id": "l3_right_visible", "label": "Lower third RIGHT on air", "field": "l3Right.visible" },
+    { "id": "ticker_visible", "label": "Ticker visible", "field": "tickerVisible" }
   ],
   "companionVariables": [
-    {
-      "id": "l3_name",
-      "label": "Lower third name",
-      "field": "l3.name"
-    },
-    {
-      "id": "l3_title",
-      "label": "Lower third title",
-      "field": "l3.title"
-    },
-    {
-      "id": "ticker_label",
-      "label": "Ticker label",
-      "field": "tickerLabel"
-    }
+    { "id": "l3_left_name", "label": "Lower third LEFT name", "field": "l3Left.name" },
+    { "id": "l3_left_title", "label": "Lower third LEFT title", "field": "l3Left.title" },
+    { "id": "l3_right_name", "label": "Lower third RIGHT name", "field": "l3Right.name" },
+    { "id": "l3_right_title", "label": "Lower third RIGHT title", "field": "l3Right.title" }
   ]
 }
