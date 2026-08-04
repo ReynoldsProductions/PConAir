@@ -27,6 +27,36 @@ describe('GET /graphics (built-in templates)', () => {
     expect(ids).toContain('scoreboard-basketball');
     expect(ids).toContain('news');
     expect(ids).toContain('lower-third-live');
+    expect(ids).toContain('lower-third-left');
+    expect(ids).toContain('lower-third-right');
+  });
+
+  it('serves the ticker headline file the news template reads', async () => {
+    const srv = makeServer(true);
+    const res = await request(srv.app).get('/graphics/news/ticker.json');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.items)).toBe(true);
+    expect(res.body.items.length).toBeGreaterThan(0);
+  });
+
+  it.each(['lower-third-left', 'lower-third-right'])(
+    'serves the %s template index.html',
+    async (dir) => {
+      const srv = makeServer(true);
+      const res = await request(srv.app).get(`/graphics/${dir}/index.html`);
+      expect(res.status).toBe(200);
+      expect(res.text).toContain(`data-side="${dir === 'lower-third-left' ? 'left' : 'right'}"`);
+      expect(res.text).toContain('../_shared/lower-third.css');
+      expect(res.text).toContain('../_shared/lower-third.js');
+    },
+  );
+
+  // the L3 pages are thin shells — an unserved _shared/ would render nothing at all
+  it.each(['lower-third.css', 'lower-third.js'])('serves _shared/%s', async (file) => {
+    const srv = makeServer(true);
+    const res = await request(srv.app).get(`/graphics/_shared/${file}`);
+    expect(res.status).toBe(200);
+    expect(res.text.length).toBeGreaterThan(0);
   });
 
   it('serves a template index.html', async () => {

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lower Third — Right</title>
+<!--
+  Right-hand lower third — mirror of graphics/lower-third-left: anchored to the
+  right margin, accent bar on the right, text right-aligned, slides in from
+  off-screen right. Stack both scenes to title two speakers at once.
+
+  Transparent background — keyed over camera/program downstream. (This is NOT
+  graphics/lower-third-live, which is the opaque, WebSocket-driven card for
+  external hardware keyers; that one stays as it is.)
+
+  Style, timings and URL params: ../_shared/lower-third.css + lower-third.js
+-->
+<link rel="stylesheet" href="../_shared/lower-third.css">
+</head>
+<body data-side="right" data-theme="default">
+<div id="stage">
+  <div class="l3" id="l3">
+    <div class="accent"></div>
+    <div class="text">
+      <div class="name" id="l3name">Alex Chen</div>
+      <div class="title" id="l3title">Head of Supply</div>
+      <div class="subtitle" id="l3subtitle" style="display:none"></div>
+    </div>
+  </div>
+</div>
+<script src="../_shared/lower-third.js"></script>
+</body>
+</html>
