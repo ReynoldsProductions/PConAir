@@ -180,9 +180,14 @@ export function createAdminRouter(d: AdminRouterDeps): Router {
     const adminSession = adminSid ? d.auth.getSession(adminSid) : null;
 
     if (!adminSession || adminSession.role !== 'admin') {
-      // Browser navigations (sec-fetch-dest: document) get an HTML login page.
-      // API clients get JSON errors.
-      const isBrowserNav = req.headers['sec-fetch-dest'] === 'document';
+      // Browser navigations get an HTML login page; API clients get JSON errors.
+      // Sec-Fetch-Dest is the reliable signal, but browsers only send Sec-Fetch-*
+      // to "potentially trustworthy" origins (https, localhost, 127.0.0.1) — over
+      // plain http:// to a LAN IP the header is absent, so fall back to Accept.
+      const dest = req.headers['sec-fetch-dest'];
+      const accept = req.headers.accept ?? '';
+      const isBrowserNav =
+        dest === 'document' || (dest === undefined && accept.includes('text/html'));
       if (isBrowserNav) {
         const loginCode = typeof req.query.login === 'string' ? req.query.login : '';
         res.status(401).setHeader('Content-Type', 'text/html; charset=utf-8').send(
