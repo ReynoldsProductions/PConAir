@@ -299,7 +299,8 @@ export type ErrorCode =
   | 'ITEM_NOT_FOUND'
   | 'AUTH_REQUIRED'
   | 'RATE_LIMITED'
-  | 'FORBIDDEN';
+  | 'FORBIDDEN'
+  | 'FILE_TOO_LARGE';
 
 // ---- WebSocket message types ----
 

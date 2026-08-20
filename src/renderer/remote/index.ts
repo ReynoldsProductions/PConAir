@@ -667,24 +667,112 @@ function wireStillsPage(): void {
   $('ss-next').addEventListener('click', () => void ssAction('next')());
   $('ss-prev').addEventListener('click', () => void ssAction('prev')());
 
-  $('stills-upload').addEventListener('change', async () => {
+  $('stills-upload').addEventListener('change', () => {
     const input = $('stills-upload') as HTMLInputElement;
     if (!input.files?.length) return;
-    const form = new FormData();
-    for (const f of Array.from(input.files)) form.append('files[]', f);
-    try {
-      const res = await fetch('/api/media-library/upload', { method: 'POST', body: form });
-      const data = (await res.json().catch(() => null)) as { imported?: number } | null;
-      $('stills-upload-msg').textContent = res.ok
-        ? `Imported ${data?.imported ?? 0} image(s).`
-        : res.status === 401 || res.status === 403
-          ? 'Admin session required.'
-          : 'Upload failed.';
-      if (res.ok) void refreshStillsData();
-    } catch {
-      $('stills-upload-msg').textContent = 'Upload failed.';
-    }
+    void uploadStills(Array.from(input.files));
     input.value = '';
+  });
+}
+
+function formatBytes(n: number): string {
+  if (n >= 1024 * 1024 * 1024) return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  if (n >= 1024 * 1024) return `${Math.round(n / (1024 * 1024))} MB`;
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+  return `${n} B`;
+}
+
+interface UploadResponse {
+  imported?: number;
+  failed?: number;
+  failures?: string[];
+  error?: { message?: string };
+}
+
+/**
+ * Uploads via XHR rather than fetch: fetch exposes no upload progress, and a
+ * 500 MB clip over Wi-Fi with no feedback is indistinguishable from a hang.
+ */
+function uploadStills(files: File[]): Promise<void> {
+  const msg = $('stills-upload-msg');
+  const bar = $('stills-upload-bar');
+  const fill = $('stills-upload-fill');
+  const label = $('stills-upload-label');
+  const total = files.reduce((sum, f) => sum + f.size, 0);
+  const noun = files.length === 1 ? files[0].name : `${files.length} files`;
+
+  const setBusy = (busy: boolean): void => {
+    label.classList.toggle('disabled', busy);
+    bar.hidden = !busy;
+    if (!busy) fill.style.width = '0%';
+  };
+
+  setBusy(true);
+  msg.textContent = `Uploading ${noun} (${formatBytes(total)})…`;
+
+  return new Promise<void>((resolve) => {
+    const form = new FormData();
+    for (const f of files) form.append('files[]', f);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/media-library/upload');
+
+    xhr.upload.addEventListener('progress', (ev) => {
+      if (!ev.lengthComputable) return;
+      const pct = Math.round((ev.loaded / ev.total) * 100);
+      fill.style.width = `${pct}%`;
+      // Below 100% this is bytes on the wire; at 100% the server is still
+      // decoding (HEIC conversion especially), so say so rather than look stuck.
+      msg.textContent =
+        pct < 100
+          ? `Uploading ${noun} — ${pct}% of ${formatBytes(total)}`
+          : `Processing ${noun}…`;
+    });
+
+    const finish = (text: string): void => {
+      setBusy(false);
+      msg.textContent = text;
+      resolve();
+    };
+
+    xhr.addEventListener('load', () => {
+      let data: UploadResponse | null = null;
+      try {
+        data = JSON.parse(xhr.responseText) as UploadResponse;
+      } catch {
+        /* non-JSON body */
+      }
+
+      if (xhr.status < 200 || xhr.status >= 300) {
+        if (xhr.status === 401) {
+          finish('Session expired — sign in again to upload.');
+          return;
+        }
+        finish(data?.error?.message ?? `Upload failed (HTTP ${xhr.status}).`);
+        return;
+      }
+
+      const imported = data?.imported ?? 0;
+      const failed = data?.failed ?? 0;
+      void refreshStillsData();
+
+      if (failed === 0) {
+        finish(`✓ Added ${imported} item${imported === 1 ? '' : 's'} to the still store.`);
+        return;
+      }
+      // Surface *which* files were rejected and why — a bare count leaves the
+      // operator guessing which of their files did not make it.
+      const detail = (data?.failures ?? []).join('; ');
+      finish(
+        imported > 0
+          ? `Added ${imported} of ${imported + failed}. Skipped: ${detail}`
+          : `Nothing added — ${detail || 'files were not usable'}`
+      );
+    });
+
+    xhr.addEventListener('error', () => finish('Upload failed — check the connection.'));
+    xhr.addEventListener('abort', () => finish('Upload cancelled.'));
+    xhr.send(form);
   });
 }
 

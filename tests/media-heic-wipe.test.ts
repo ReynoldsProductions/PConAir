@@ -94,7 +94,7 @@ describe('HEIC upload', () => {
     expect(dl.body[1]).toBe(0xd8);
   });
 
-  it('rejects a file that claims HEIC brands but cannot be decoded', async () => {
+  it('rejects a file that claims HEIC brands but cannot be decoded, and says why', async () => {
     const fake = Buffer.concat([ftypOnly('heic', ['mif1', 'heic']), Buffer.alloc(64)]);
     const res = await request(app)
       .post('/api/media-library/upload')
@@ -103,6 +103,31 @@ describe('HEIC upload', () => {
     expect(res.status).toBe(200);
     expect(res.body.imported).toBe(0);
     expect(res.body.failed).toBe(1);
+    // The operator has no console — the cause must travel in the response.
+    expect(res.body.failures[0]).toContain('broken.heic');
+    expect(res.body.failures[0]).toMatch(/HEIC/i);
+  });
+
+  it('explains an unrecognised file type instead of failing silently', async () => {
+    const res = await request(app)
+      .post('/api/media-library/upload')
+      .set('Cookie', operatorCookie)
+      .attach('files[]', Buffer.from('this is a text file, not media'), 'notes.txt');
+    expect(res.body.failed).toBe(1);
+    expect(res.body.failures[0]).toContain('notes.txt');
+    expect(res.body.failures[0]).toMatch(/unrecognised file type/i);
+    // Lists what IS accepted, so the operator knows what to do next.
+    expect(res.body.failures[0]).toMatch(/HEIC/);
+    expect(res.body.failures[0]).toMatch(/MP4/);
+  });
+
+  it('explains an empty file', async () => {
+    const res = await request(app)
+      .post('/api/media-library/upload')
+      .set('Cookie', operatorCookie)
+      .attach('files[]', Buffer.alloc(0), 'empty.png');
+    expect(res.body.failed).toBe(1);
+    expect(res.body.failures[0]).toMatch(/empty/i);
   });
 });
 
@@ -206,5 +231,57 @@ describe('wiping the still store', () => {
     expect(del.status).toBe(204);
     const list = await request(app).get('/api/media-library').set('Cookie', operatorCookie);
     expect(list.body.items).toHaveLength(1);
+  });
+});
+
+describe('upload failure reporting', () => {
+  let app: Express;
+  let operatorCookie: string;
+
+  beforeEach(async () => {
+    const store = createStateStore();
+    ({ app } = createFullServer({
+      store,
+      operatorPin: AUTH.operatorPin,
+      adminPin: AUTH.adminPin,
+      operatorSessionMs: AUTH.operatorSessionMs,
+      adminSessionMs: AUTH.adminSessionMs,
+    }));
+    const op = await request(app).post('/auth/operator').send({ pin: '1234' });
+    operatorCookie = op.headers['set-cookie'][0].split(';')[0];
+  });
+
+  it('names which files were rejected, not just how many', async () => {
+    const res = await request(app)
+      .post('/api/media-library/upload')
+      .set('Cookie', operatorCookie)
+      .attach('files[]', PNG_1PX, 'good.png')
+      .attach('files[]', Buffer.from('not media'), 'bad.png');
+    expect(res.status).toBe(200);
+    expect(res.body.imported).toBe(1);
+    expect(res.body.failed).toBe(1);
+    // The operator needs to know *which* file failed.
+    expect(res.body.failures).toHaveLength(1);
+    expect(res.body.failures[0]).toContain('bad.png');
+  });
+
+  it('reports an over-count upload with a usable message instead of a 500', async () => {
+    let req = request(app).post('/api/media-library/upload').set('Cookie', operatorCookie);
+    for (let i = 0; i < 26; i += 1) req = req.attach('files[]', PNG_1PX, `f${i}.png`);
+    const res = await req;
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/max 25/i);
+  });
+
+  it('reports a successful import count', async () => {
+    const res = await request(app)
+      .post('/api/media-library/upload')
+      .set('Cookie', operatorCookie)
+      .attach('files[]', PNG_1PX, 'a.png')
+      .attach('files[]', PNG_1PX, 'b.png');
+    expect(res.status).toBe(200);
+    expect(res.body.imported).toBe(2);
+    expect(res.body.failed).toBe(0);
+    expect(res.body.items).toHaveLength(2);
   });
 });

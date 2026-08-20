@@ -35,6 +35,10 @@ export interface MediaLibraryItemRecord {
   updatedAt: number;
 }
 
+export type IngestOutcome =
+  | { ok: true; record: MediaLibraryItemRecord }
+  | { ok: false; reason: string };
+
 interface IndexFileV1 {
   version: typeof INDEX_VERSION;
   items: MediaLibraryItemRecord[];
@@ -145,28 +149,45 @@ export function createMediaLibraryStore(opts: { rootDir: string; onChange?: () =
    * Ingest that first converts formats the render page cannot display (HEIC).
    * Async because decoding is; callers handling uploads should prefer this over
    * `ingestBuffer`, which stays sync for the formats that need no conversion.
+   *
+   * Returns a reason on failure rather than a bare null. The operator is on a
+   * remote page with no console, so "upload failed" with no cause is unusable —
+   * the reason travels back in the upload response.
    */
   async function ingestUpload(
     originalFilename: string,
     buf: Buffer
-  ): Promise<MediaLibraryItemRecord | null> {
+  ): Promise<IngestOutcome> {
+    if (buf.length === 0) return { ok: false, reason: 'file is empty' };
+
     const sniffed = sniffMediaMime(buf);
-    if (!sniffed || !needsTranscode(sniffed)) return ingestBuffer(originalFilename, buf);
+    if (!sniffed) {
+      return {
+        ok: false,
+        reason: 'unrecognised file type (supported: PNG, JPEG, GIF, WebP, SVG, HEIC, AVIF, MP4, MOV, WebM)',
+      };
+    }
+
+    if (!needsTranscode(sniffed)) {
+      const rec = ingestBuffer(originalFilename, buf);
+      // sniffMediaMime already accepted it, so a null here means the write failed.
+      return rec ? { ok: true, record: rec } : { ok: false, reason: `could not store ${sniffed} file` };
+    }
 
     const converted = await heicToJpeg(buf);
-    if (!converted) return null;
+    if (!converted.ok) return { ok: false, reason: converted.reason };
 
     const base = safeBasename(originalFilename);
-    const renamed = `${base.replace(/\.[^.]+$/, '')}.${converted.ext}`;
-    const rec = ingestBuffer(renamed, converted.buffer);
-    if (rec) {
-      // Keep the name the operator uploaded so the gallery stays recognisable,
-      // even though the bytes on disk are now JPEG.
-      rec.displayName = base;
-      rec.originalMimeType = sniffed;
-      touch();
-    }
-    return rec;
+    const renamed = `${base.replace(/\.[^.]+$/, '')}.${converted.result.ext}`;
+    const rec = ingestBuffer(renamed, converted.result.buffer);
+    if (!rec) return { ok: false, reason: 'converted JPEG could not be stored' };
+
+    // Keep the name the operator uploaded so the gallery stays recognisable,
+    // even though the bytes on disk are now JPEG.
+    rec.displayName = base;
+    rec.originalMimeType = sniffed;
+    touch();
+    return { ok: true, record: rec };
   }
 
   fs.mkdirSync(filesDir, { recursive: true });

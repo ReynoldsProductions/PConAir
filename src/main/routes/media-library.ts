@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
@@ -9,11 +9,52 @@ import { createSlideshowEngine, type SlideshowEngine } from '../media-library/sl
 import { stillsTakeOp, stillsClearOp } from '../media-library/stills-ops';
 import type { SlideshowTransition } from '../../shared/types';
 
+const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+const MAX_UPLOAD_FILES = 25;
+
 const upload = multer({
   storage: multer.memoryStorage(),
   // 500 MB per file to accommodate video clips alongside stills.
-  limits: { fileSize: 500 * 1024 * 1024 },
+  limits: { fileSize: MAX_UPLOAD_BYTES, files: MAX_UPLOAD_FILES },
 });
+
+/**
+ * Multer rejects oversized or over-count uploads by erroring out of its
+ * middleware. Without this the express default handler returns an opaque 500
+ * HTML page, so the operator sees "Upload failed" with no reason.
+ */
+function handleUploadErrors(
+  mw: (req: Request, res: Response, next: (err?: unknown) => void) => void
+) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    mw(req, res, (err?: unknown) => {
+      if (!err) {
+        next();
+        return;
+      }
+      const code = (err as { code?: string }).code;
+      if (code === 'LIMIT_FILE_SIZE') {
+        res.status(413).json({
+          error: {
+            code: 'FILE_TOO_LARGE',
+            message: `File is larger than the ${Math.round(MAX_UPLOAD_BYTES / (1024 * 1024))} MB limit.`,
+          },
+        });
+        return;
+      }
+      if (code === 'LIMIT_FILE_COUNT' || code === 'LIMIT_UNEXPECTED_FILE') {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_MODE',
+            message: `Too many files in one upload (max ${MAX_UPLOAD_FILES}).`,
+          },
+        });
+        return;
+      }
+      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'Upload rejected.' } });
+    });
+  };
+}
 
 function listPayload(items: ReturnType<MediaLibraryStore['list']>) {
   return {
@@ -94,10 +135,12 @@ export function createMediaLibraryRouter(
   router.post(
     '/upload',
     opGuard,
-    upload.fields([
-      { name: 'files[]', maxCount: 25 },
-      { name: 'files', maxCount: 25 },
-    ]),
+    handleUploadErrors(
+      upload.fields([
+        { name: 'files[]', maxCount: MAX_UPLOAD_FILES },
+        { name: 'files', maxCount: MAX_UPLOAD_FILES },
+      ])
+    ),
     async (req: Request, res: Response) => {
       const grouped = req.files as Record<string, Express.Multer.File[]> | undefined;
       const raw = [...(grouped?.['files[]'] ?? []), ...(grouped?.files ?? [])];
@@ -118,12 +161,13 @@ export function createMediaLibraryRouter(
       const failures: string[] = [];
 
       for (const file of raw) {
-        const rec = await media.ingestUpload(file.originalname, file.buffer);
-        if (!rec) {
+        const outcome = await media.ingestUpload(file.originalname, file.buffer);
+        if (!outcome.ok) {
           failed += 1;
-          failures.push(`${file.originalname}: unsupported or invalid media file`);
+          failures.push(`${file.originalname}: ${outcome.reason}`);
           continue;
         }
+        const rec = outcome.record;
         imported += 1;
         items.push({
           id: rec.id,

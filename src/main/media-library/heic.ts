@@ -19,27 +19,51 @@ export interface TranscodeResult {
   ext: string;
 }
 
+export type TranscodeOutcome =
+  | { ok: true; result: TranscodeResult }
+  | { ok: false; reason: string };
+
 /**
- * Convert a HEIC buffer to JPEG. Returns null when the file cannot be decoded,
- * so the caller can reject it rather than store something unplayable.
+ * Convert a HEIC buffer to JPEG.
  *
- * `heic-convert` is loaded lazily: it pulls in a multi-megabyte libheif wasm
- * build, and a show that never touches HEIC should not pay for it at boot.
+ * Failures carry a reason rather than a bare null: this runs inside a packaged
+ * Electron app where the operator has no console, so a swallowed error means an
+ * upload that "just fails" with nothing to act on. The reason is surfaced in the
+ * upload response.
+ *
+ * `heic-convert` is loaded lazily: it pulls in a multi-megabyte libheif build,
+ * and a show that never touches HEIC should not pay for it at boot.
  */
-export async function heicToJpeg(buf: Buffer): Promise<TranscodeResult | null> {
+export async function heicToJpeg(buf: Buffer): Promise<TranscodeOutcome> {
+  let convert: (opts: {
+    buffer: Buffer;
+    format: 'JPEG' | 'PNG';
+    quality?: number;
+  }) => Promise<ArrayBufferLike>;
+
+  // Resolution and decoding fail for different reasons and need telling apart:
+  // a missing module is a packaging problem, a decode error is a bad file.
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const convert = require('heic-convert') as (opts: {
-      buffer: Buffer;
-      format: 'JPEG' | 'PNG';
-      quality?: number;
-    }) => Promise<ArrayBufferLike>;
+    convert = require('heic-convert');
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    console.error('[media-library] heic-convert unavailable:', detail);
+    return { ok: false, reason: `HEIC support unavailable in this build (${detail})` };
+  }
+
+  try {
     const out = await convert({ buffer: buf, format: 'JPEG', quality: JPEG_QUALITY });
     const jpeg = Buffer.from(out);
     // Guard against a decoder that "succeeds" with something unusable.
-    if (!jpeg.length || sniffImageMime(jpeg) !== 'image/jpeg') return null;
-    return { buffer: jpeg, mimeType: 'image/jpeg', ext: 'jpg' };
-  } catch {
-    return null;
+    if (!jpeg.length) return { ok: false, reason: 'HEIC decoded to an empty image' };
+    if (sniffImageMime(jpeg) !== 'image/jpeg') {
+      return { ok: false, reason: 'HEIC decoded to something that is not a JPEG' };
+    }
+    return { ok: true, result: { buffer: jpeg, mimeType: 'image/jpeg', ext: 'jpg' } };
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    console.error('[media-library] HEIC decode failed:', detail);
+    return { ok: false, reason: `HEIC could not be decoded (${detail})` };
   }
 }

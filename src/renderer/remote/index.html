@@ -159,6 +159,9 @@
     .stills-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-bottom: 14px; }
     .still-card { position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; background: var(--surface); padding: 0; }
     .still-card img, .still-card video { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; background: #000; }
+    .upload-bar { height: 6px; border-radius: 999px; background: var(--border); overflow: hidden; margin: 10px 0 4px; }
+    .upload-fill { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.15s linear; }
+    .small-btn.disabled { opacity: 0.5; pointer-events: none; }
     .danger-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
     .small-btn.danger { border-color: #7a2b26; color: #ff8a80; }
     .small-btn.danger.armed { background: #b3261e; border-color: #b3261e; color: #fff; font-weight: 700; }
@@ -350,9 +353,10 @@
       <details class="card loader-card">
         <summary>Upload images</summary>
         <div class="loader-buttons">
-          <label class="small-btn" for="stills-upload" style="cursor:pointer;">Choose media<input id="stills-upload" type="file" accept="image/*,.heic,.heif,video/mp4,video/quicktime,video/webm" multiple hidden /></label>
+          <label class="small-btn" id="stills-upload-label" for="stills-upload" style="cursor:pointer;">Choose media<input id="stills-upload" type="file" accept="image/*,.heic,.heif,video/mp4,video/quicktime,video/webm" multiple hidden /></label>
         </div>
-        <p class="hint-line" id="stills-upload-msg"></p>
+        <div class="upload-bar" id="stills-upload-bar" hidden><span class="upload-fill" id="stills-upload-fill"></span></div>
+        <p class="hint-line" id="stills-upload-msg" aria-live="polite"></p>
         <div class="danger-row">
           <button id="stills-wipe" class="small-btn danger">Wipe still store</button>
           <span class="hint-line" id="stills-wipe-msg"></span>
