@@ -30,6 +30,8 @@ export function stillsTakeOp(
     mediaLibrary: {
       activeItemId: item.id,
       activeItemName: item.displayName,
+      activeItemMime: item.mimeType,
+      activeItemDurationMs: item.durationMs ?? null,
       slideshow: store.getState().mediaLibrary?.slideshow ?? null,
     },
   });

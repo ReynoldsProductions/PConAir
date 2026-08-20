@@ -89,6 +89,10 @@ export interface SlideshowState {
 export interface MediaLibraryState {
   activeItemId: string | null;
   activeItemName: string | null;
+  /** MIME of the active item — the render page needs it to pick <img> vs <video>. */
+  activeItemMime?: string | null;
+  /** Video only: playback length in ms, when it could be determined. */
+  activeItemDurationMs?: number | null;
   slideshow: SlideshowState | null;
 }
 

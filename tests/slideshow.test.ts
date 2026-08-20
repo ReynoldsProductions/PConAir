@@ -92,3 +92,87 @@ describe('slideshow engine', () => {
     expect(engine.play({ itemIds: ids, intervalSec: 0, transition: 'cut' }).ok).toBe(false);
   });
 });
+
+describe('slideshow engine with video items', () => {
+  let store: StateStore;
+  let dir: string;
+  let engine: ReturnType<typeof createSlideshowEngine>;
+  let stillId: string;
+  let videoId: string;
+
+  function box(type: string, payload: Buffer): Buffer {
+    const size = Buffer.alloc(4);
+    size.writeUInt32BE(8 + payload.length, 0);
+    return Buffer.concat([size, Buffer.from(type, 'ascii'), payload]);
+  }
+
+  /** Minimal ISO-BMFF file whose mvhd reports `durationMs` at a 1000 timescale. */
+  function makeMp4(durationMs: number): Buffer {
+    const ftyp = box('ftyp', Buffer.concat([Buffer.from('isom', 'ascii'), Buffer.alloc(4), Buffer.from('isom', 'ascii')]));
+    const ts = Buffer.alloc(4);
+    ts.writeUInt32BE(1000, 0);
+    const dur = Buffer.alloc(4);
+    dur.writeUInt32BE(durationMs, 0);
+    const mvhd = Buffer.concat([Buffer.alloc(12), ts, dur, Buffer.alloc(80)]);
+    return Buffer.concat([ftyp, box('moov', box('mvhd', mvhd)), box('mdat', Buffer.alloc(32))]);
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    store = createStateStore();
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pconair-ssv-'));
+    const media = createMediaLibraryStore({ rootDir: dir });
+    stillId = media.ingestBuffer('still.png', PNG_16)!.id;
+    // 8s clip — deliberately longer than the 2s still interval below
+    videoId = media.ingestBuffer('clip.mp4', makeMp4(8000))!.id;
+    engine = createSlideshowEngine({ store, media });
+  });
+
+  afterEach(() => {
+    engine.destroy();
+    vi.useRealTimers();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('holds a video for its own duration instead of the still interval', () => {
+    engine.play({ itemIds: [videoId, stillId], intervalSec: 2, transition: 'cut' });
+    expect(store.getState().mediaLibrary?.activeItemId).toBe(videoId);
+
+    // The 2s still interval must NOT cut the 8s clip short.
+    vi.advanceTimersByTime(2100);
+    expect(store.getState().mediaLibrary?.activeItemId).toBe(videoId);
+
+    // It advances once the clip has actually played through.
+    vi.advanceTimersByTime(6000);
+    expect(store.getState().mediaLibrary?.activeItemId).toBe(stillId);
+  });
+
+  it('falls back to the still interval for the still that follows', () => {
+    engine.play({ itemIds: [videoId, stillId], intervalSec: 2, transition: 'cut' });
+    vi.advanceTimersByTime(8100);
+    expect(store.getState().mediaLibrary?.activeItemId).toBe(stillId);
+    // Still uses intervalSec, so it wraps back to the video after 2s
+    vi.advanceTimersByTime(2100);
+    expect(store.getState().mediaLibrary?.activeItemId).toBe(videoId);
+  });
+
+  it('publishes the active item mime so the render page can pick <video>', () => {
+    engine.play({ itemIds: [videoId, stillId], intervalSec: 2, transition: 'cut' });
+    expect(store.getState().mediaLibrary?.activeItemMime).toBe('video/mp4');
+    expect(store.getState().mediaLibrary?.activeItemDurationMs).toBe(8000);
+    vi.advanceTimersByTime(8100);
+    expect(store.getState().mediaLibrary?.activeItemMime).toBe('image/png');
+  });
+
+  it('restarts the dwell when the operator steps manually', () => {
+    engine.play({ itemIds: [videoId, stillId], intervalSec: 2, transition: 'cut' });
+    vi.advanceTimersByTime(1000);
+    engine.next();
+    expect(store.getState().mediaLibrary?.activeItemId).toBe(stillId);
+    // A full 2s still interval from the manual step, not the 1s left on the clip
+    vi.advanceTimersByTime(1500);
+    expect(store.getState().mediaLibrary?.activeItemId).toBe(stillId);
+    vi.advanceTimersByTime(700);
+    expect(store.getState().mediaLibrary?.activeItemId).toBe(videoId);
+  });
+});

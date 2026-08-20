@@ -1,4 +1,5 @@
 import type { StateStore } from '../state';
+import { isVideoMime } from './image-meta';
 import type { MediaLibraryStore } from './item-store';
 import type { SlideshowState, SlideshowTransition } from '../../shared/types';
 
@@ -10,7 +11,7 @@ import type { SlideshowState, SlideshowTransition } from '../../shared/types';
  */
 export function createSlideshowEngine(deps: { store: StateStore; media: MediaLibraryStore }) {
   const { store, media } = deps;
-  let timer: ReturnType<typeof setInterval> | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
 
   function currentSlideshow(): SlideshowState | null {
     return store.getState().mediaLibrary?.slideshow ?? null;
@@ -25,6 +26,8 @@ export function createSlideshowEngine(deps: { store: StateStore; media: MediaLib
       mediaLibrary: {
         activeItemId: item?.id ?? null,
         activeItemName: item?.displayName ?? null,
+        activeItemMime: item?.mimeType ?? null,
+        activeItemDurationMs: item?.durationMs ?? null,
         slideshow: { ...show, position },
       },
     });
@@ -32,18 +35,43 @@ export function createSlideshowEngine(deps: { store: StateStore; media: MediaLib
 
   function clearTimer(): void {
     if (timer) {
-      clearInterval(timer);
+      clearTimeout(timer);
       timer = null;
     }
   }
 
-  function startTimer(intervalSec: number): void {
+  /**
+   * Dwell for whatever is on screen right now. A video plays through once and
+   * then the show moves on, so its own duration wins over the still interval;
+   * a video of unknown length (e.g. WebM) falls back to the interval.
+   */
+  function dwellMs(show: SlideshowState): number {
+    const itemId = show.itemIds[show.position];
+    const item = itemId ? media.findById(itemId) : null;
+    if (item && isVideoMime(item.mimeType) && item.durationMs) return item.durationMs;
+    return show.intervalSec * 1000;
+  }
+
+  /**
+   * Self-rescheduling timeout rather than a fixed interval, so each slide's
+   * dwell is computed from the item actually on screen.
+   */
+  function scheduleNext(): void {
     clearTimer();
-    timer = setInterval(() => {
-      const show = currentSlideshow();
-      if (!show || !show.running || show.paused) return;
-      applyPosition(show, (show.position + 1) % show.itemIds.length);
-    }, intervalSec * 1000);
+    const show = currentSlideshow();
+    if (!show || !show.running) return;
+    timer = setTimeout(() => {
+      timer = null;
+      const cur = currentSlideshow();
+      if (!cur || !cur.running) return;
+      if (cur.paused) {
+        // Hold position, keep checking so resume() needs no extra wiring.
+        scheduleNext();
+        return;
+      }
+      applyPosition(cur, (cur.position + 1) % cur.itemIds.length);
+      scheduleNext();
+    }, dwellMs(show));
   }
 
   function play(opts: { itemIds: string[]; intervalSec: number; transition: SlideshowTransition }): { ok: true } | { ok: false; error: string } {
@@ -63,7 +91,7 @@ export function createSlideshowEngine(deps: { store: StateStore; media: MediaLib
       transition: opts.transition,
     };
     applyPosition(show, 0);
-    startTimer(opts.intervalSec);
+    scheduleNext();
     return { ok: true };
   }
 
@@ -96,6 +124,7 @@ export function createSlideshowEngine(deps: { store: StateStore; media: MediaLib
     if (!show) return false;
     const len = show.itemIds.length;
     applyPosition(show, (show.position + direction + len) % len);
+    scheduleNext();
     return true;
   }
 
