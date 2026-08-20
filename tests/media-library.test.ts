@@ -56,12 +56,44 @@ describe('Media Library API', () => {
     expect(res.body.items).toEqual([]);
   });
 
-  it('POST /api/media-library/upload returns 403 for operator', async () => {
+  // Operators drive the still store from /remote/#/stills, so upload and delete
+  // are operator-level; admin-gating them 403'd the whole upload flow there.
+  it('POST /api/media-library/upload imports PNG as operator', async () => {
     const res = await request(app)
       .post('/api/media-library/upload')
       .set('Cookie', operatorCookie)
       .attach('files[]', PNG_1PX, 'a.png');
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(res.body.imported).toBe(1);
+  });
+
+  it('POST /api/media-library/upload still returns 401 without any session', async () => {
+    const res = await request(app)
+      .post('/api/media-library/upload')
+      .attach('files[]', PNG_1PX, 'a.png');
+    expect(res.status).toBe(401);
+  });
+
+  it('DELETE /api/media-library/:itemId works for operator', async () => {
+    const up = await request(app)
+      .post('/api/media-library/upload')
+      .set('Cookie', operatorCookie)
+      .attach('files[]', PNG_1PX, 'a.png');
+    const id = up.body.items[0].id;
+    const del = await request(app)
+      .delete(`/api/media-library/${id}`)
+      .set('Cookie', operatorCookie);
+    expect(del.status).toBe(204);
+  });
+
+  it('DELETE /api/media-library/:itemId returns 401 without any session', async () => {
+    const up = await request(app)
+      .post('/api/media-library/upload')
+      .set('Cookie', operatorCookie)
+      .attach('files[]', PNG_1PX, 'a.png');
+    const id = up.body.items[0].id;
+    const del = await request(app).delete(`/api/media-library/${id}`);
+    expect(del.status).toBe(401);
   });
 
   it('POST /api/media-library/upload imports PNG as admin', async () => {

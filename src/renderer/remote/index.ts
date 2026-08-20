@@ -458,9 +458,18 @@ interface StillsSlice {
   } | null;
 }
 
+function formatClipLength(ms: number): string {
+  const total = Math.round(ms / 1000);
+  const m = Math.floor(total / 60);
+  const sec = total % 60;
+  return m > 0 ? `${m}:${String(sec).padStart(2, '0')}` : `${sec}s`;
+}
+
 interface MediaItem {
   id: string;
   displayName: string;
+  mimeType?: string;
+  durationMs?: number;
 }
 
 let mediaItems: MediaItem[] = [];
@@ -488,11 +497,28 @@ function renderStillsGallery(): void {
     card.className = 'still-card';
     if (item.id === stillSelectedId) card.classList.add('selected');
     if (item.id === lastStills?.activeItemId) card.classList.add('live');
-    const img = document.createElement('img');
-    img.loading = 'lazy';
-    img.src = `/api/media-library/${encodeURIComponent(item.id)}/download`;
-    img.alt = item.displayName;
-    card.appendChild(img);
+    const src = `/api/media-library/${encodeURIComponent(item.id)}/download`;
+    const isVideo = (item.mimeType ?? '').startsWith('video/');
+    if (isVideo) {
+      // <img> can't decode a video, so the thumbnail is a muted video element
+      // holding its first frame — metadata-only so the gallery stays cheap.
+      const vid = document.createElement('video');
+      vid.muted = true;
+      vid.playsInline = true;
+      vid.preload = 'metadata';
+      vid.src = src;
+      card.appendChild(vid);
+      const tag = document.createElement('span');
+      tag.className = 'vid-badge';
+      tag.textContent = item.durationMs ? `▶ ${formatClipLength(item.durationMs)}` : '▶';
+      card.appendChild(tag);
+    } else {
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.src = src;
+      img.alt = item.displayName;
+      card.appendChild(img);
+    }
     const ssIdx = ssSelection.indexOf(item.id);
     if (ssIdx !== -1) {
       const badge = document.createElement('span');
@@ -539,7 +565,7 @@ async function refreshStillsData(): Promise<void> {
 function wireStillsPage(): void {
   $('stills-take').addEventListener('click', () => {
     if (!stillSelectedId) {
-      $('stills-msg').textContent = 'Select an image first.';
+      $('stills-msg').textContent = 'Select an item first.';
       return;
     }
     haptic();
@@ -558,7 +584,7 @@ function wireStillsPage(): void {
     const intervalSec = parseInt(($('ss-interval') as HTMLInputElement).value, 10) || 5;
     const transition = ($('ss-transition') as HTMLSelectElement).value;
     if (ssSelection.length === 0) {
-      $('stills-msg').textContent = 'Tap images to add them to the slideshow first.';
+      $('stills-msg').textContent = 'Tap items to add them to the slideshow first.';
       return;
     }
     void ssAction('play', { itemIds: ssSelection, intervalSec, transition })();

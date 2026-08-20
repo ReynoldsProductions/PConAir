@@ -3,14 +3,16 @@ import multer from 'multer';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { MediaLibraryStore } from '../media-library/item-store';
-import { requireOperator, requireAdmin } from './middleware';
+import { requireOperator } from './middleware';
+import { isVideoMime } from '../media-library/image-meta';
 import { createSlideshowEngine, type SlideshowEngine } from '../media-library/slideshow';
 import { stillsTakeOp, stillsClearOp } from '../media-library/stills-ops';
 import type { SlideshowTransition } from '../../shared/types';
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 },
+  // 500 MB per file to accommodate video clips alongside stills.
+  limits: { fileSize: 500 * 1024 * 1024 },
 });
 
 function listPayload(items: ReturnType<MediaLibraryStore['list']>) {
@@ -24,6 +26,7 @@ function listPayload(items: ReturnType<MediaLibraryStore['list']>) {
       width: it.width,
       height: it.height,
       hasTransparency: it.hasTransparency,
+      durationMs: it.durationMs,
       uploadedAt: it.uploadedAt,
     })),
   };
@@ -36,8 +39,9 @@ export function createMediaLibraryRouter(
   slideshowEngine?: SlideshowEngine
 ): Router {
   const router = Router();
+  // Operators manage the still store from /remote/#/stills, which carries an
+  // operator session — admin-gating these would 403 the whole upload flow.
   const opGuard = requireOperator(auth);
-  const adminGuard = requireAdmin(auth);
   // Shared with the action dispatcher when injected (Companion drives the same engine).
   const slideshow = slideshowEngine ?? createSlideshowEngine({ store, media });
 
@@ -89,7 +93,7 @@ export function createMediaLibraryRouter(
 
   router.post(
     '/upload',
-    adminGuard,
+    opGuard,
     upload.fields([
       { name: 'files[]', maxCount: 25 },
       { name: 'files', maxCount: 25 },
@@ -117,7 +121,7 @@ export function createMediaLibraryRouter(
         const rec = media.ingestBuffer(file.originalname, file.buffer);
         if (!rec) {
           failed += 1;
-          failures.push(`${file.originalname}: unsupported or invalid image`);
+          failures.push(`${file.originalname}: unsupported or invalid media file`);
           continue;
         }
         imported += 1;
@@ -163,7 +167,10 @@ export function createMediaLibraryRouter(
     }
     const abs = media.absolutePath(item);
     res.setHeader('Content-Type', item.mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(item.filename)}"`);
+    // Video must be inline so <video> on the render page plays it rather than
+    // treating it as a download; sendFile already honours Range for seeking.
+    const disposition = isVideoMime(item.mimeType) ? 'inline' : 'attachment';
+    res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(item.filename)}"`);
     res.sendFile(abs, (err) => {
       if (err && !res.headersSent) {
         res.status(500).json({ error: { code: 'INVALID_MODE', message: 'Failed to read file' } });
@@ -171,7 +178,7 @@ export function createMediaLibraryRouter(
     });
   });
 
-  router.delete('/:itemId', adminGuard, (req: Request, res: Response) => {
+  router.delete('/:itemId', opGuard, (req: Request, res: Response) => {
     const { itemId } = req.params;
     if (!media.findById(itemId)) {
       res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: `Media item '${itemId}' not found` } });

@@ -1,7 +1,14 @@
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import { hashBuffer, pngDimensions, pngHasTransparency, sniffImageMime } from './image-meta';
+import {
+  hashBuffer,
+  isVideoMime,
+  mp4DurationMs,
+  pngDimensions,
+  pngHasTransparency,
+  sniffMediaMime,
+} from './image-meta';
 
 const INDEX_VERSION = 1 as const;
 
@@ -17,6 +24,8 @@ export interface MediaLibraryItemRecord {
   width?: number;
   height?: number;
   hasTransparency?: boolean;
+  /** Video only: playback length in ms, when it could be determined. */
+  durationMs?: number;
   tags?: string[];
   uploadedAt: number;
   updatedAt: number;
@@ -39,6 +48,9 @@ function extForMime(mime: string, fallbackExt: string): string {
     'image/gif': 'gif',
     'image/webp': 'webp',
     'image/svg+xml': 'svg',
+    'video/mp4': 'mp4',
+    'video/quicktime': 'mov',
+    'video/webm': 'webm',
   };
   return m[mime] ?? fallbackExt;
 }
@@ -86,7 +98,7 @@ export function createMediaLibraryStore(opts: { rootDir: string; onChange?: () =
   }
 
   function ingestBuffer(originalFilename: string, buf: Buffer): MediaLibraryItemRecord | null {
-    const mime = sniffImageMime(buf);
+    const mime = sniffMediaMime(buf);
     if (!mime) return null;
     const id = randomUUID();
     const base = safeBasename(originalFilename);
@@ -97,8 +109,10 @@ export function createMediaLibraryStore(opts: { rootDir: string; onChange?: () =
     fs.mkdirSync(filesDir, { recursive: true });
     fs.writeFileSync(dest, buf);
     const now = Date.now();
+    const video = isVideoMime(mime);
     const dims = mime === 'image/png' ? pngDimensions(buf) : null;
     const alpha = mime === 'image/png' ? pngHasTransparency(buf) : mime === 'image/svg+xml' ? true : undefined;
+    const durationMs = video ? (mp4DurationMs(buf) ?? undefined) : undefined;
     const rec: MediaLibraryItemRecord = {
       id,
       filename: base,
@@ -115,6 +129,7 @@ export function createMediaLibraryStore(opts: { rootDir: string; onChange?: () =
       rec.height = dims.height;
     }
     if (alpha !== undefined) rec.hasTransparency = alpha;
+    if (durationMs !== undefined) rec.durationMs = durationMs;
     items.set(id, rec);
     touch();
     return rec;

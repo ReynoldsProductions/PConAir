@@ -26,7 +26,7 @@ function renderPageHtml(type: RenderContentType): string {
 <style>
   html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
   #stage { position: fixed; inset: 0; }
-  #stage img.full { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  #stage img.full, #stage video.full { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
   .fade-layer { position: absolute; inset: 0; opacity: 0; transition: opacity 0.5s ease; }
   .fade-layer.visible { opacity: 1; }
   .fade-layer.cut { transition: none; }
@@ -66,21 +66,57 @@ function renderPageHtml(type: RenderContentType): string {
   function renderStills() {
     var m = state.mediaLibrary;
     var id = m && m.activeItemId;
-    var transition = (m && m.slideshow && m.slideshow.transition) || 'cut';
+    var mime = (m && m.activeItemMime) || '';
+    var show = m && m.slideshow;
+    var transition = (show && show.transition) || 'cut';
     var key = 'stills:' + (id || '');
     if (key === lastKey) return;
     lastKey = key;
     if (!id) { stage.innerHTML = ''; return; }
-    var img = document.createElement('img');
-    img.className = 'full fade-layer' + (transition === 'cut' ? ' cut' : '');
-    img.src = '/api/media-library/' + encodeURIComponent(id) + '/download';
-    img.onload = function () {
-      requestAnimationFrame(function () { img.classList.add('visible'); });
+
+    var isVideo = mime.indexOf('video/') === 0;
+    var el;
+    if (isVideo) {
+      el = document.createElement('video');
+      // Muted is what makes autoplay actually start — an unmuted video is
+      // blocked with no user gesture on the render page. A lone clip loops so
+      // the output never goes black; inside a running slideshow it plays once
+      // and the engine advances on the clip's own duration.
+      el.muted = true;
+      el.defaultMuted = true;
+      el.autoplay = true;
+      el.playsInline = true;
+      el.loop = !(show && show.running);
+      el.setAttribute('muted', '');
+      el.setAttribute('disablepictureinpicture', '');
+    } else {
+      el = document.createElement('img');
+    }
+    el.className = 'full fade-layer' + (transition === 'cut' ? ' cut' : '');
+
+    function reveal() {
+      requestAnimationFrame(function () { el.classList.add('visible'); });
       Array.prototype.slice.call(stage.children).forEach(function (c) {
-        if (c !== img) setTimeout(function () { c.remove(); }, transition === 'cut' ? 0 : 600);
+        if (c !== el) setTimeout(function () { c.remove(); }, transition === 'cut' ? 0 : 600);
       });
-    };
-    stage.appendChild(img);
+    }
+
+    if (isVideo) {
+      // Swap on first decoded frame, not on 'ended' — waiting for load would
+      // hold the outgoing item on screen for the whole clip.
+      el.addEventListener('loadeddata', reveal);
+      // Autoplay can still be refused; reveal anyway so the poster frame shows.
+      el.addEventListener('error', reveal);
+    } else {
+      el.onload = reveal;
+    }
+
+    el.src = '/api/media-library/' + encodeURIComponent(id) + '/download';
+    stage.appendChild(el);
+    if (isVideo && el.play) {
+      var p = el.play();
+      if (p && p.catch) p.catch(function () { /* blocked autoplay — poster frame stands */ });
+    }
   }
 
   var themeCssLoaded = null;
