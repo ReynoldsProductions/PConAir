@@ -116,12 +116,18 @@ export function createRemoteRouter(auth: AuthManager): Router {
       return;
     }
     res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    // Must match the HTML's policy, or a fresh page loads a stale bundle.
+    res.setHeader('Cache-Control', 'no-store, must-revalidate');
     res.send(REMOTE_JS_CONTENT);
   });
 
   router.get('/', (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Content-Security-Policy', REMOTE_CSP);
+    // The page ships inside the app, so a cached copy on an operator's tablet
+    // silently pins them to a previous build's UI — controls appear missing and
+    // fixes look like they never landed. Always revalidate.
+    res.setHeader('Cache-Control', 'no-store, must-revalidate');
     if (!operatorSessionOk(req, auth)) {
       const code = typeof req.query.login === 'string' ? req.query.login : '';
       res.send(remoteLoginHtml(LOGIN_QUERY_HINTS[code] ?? ''));

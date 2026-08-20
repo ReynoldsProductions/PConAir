@@ -42,6 +42,7 @@ export function createSlideshowEngine(deps: { store: StateStore; media: MediaLib
         activeItemName: item?.displayName ?? null,
         activeItemMime: item?.mimeType ?? null,
         activeItemDurationMs: item?.durationMs ?? null,
+        activeItemVersion: item?.updatedAt ?? null,
         transition: show.transition,
         slideshow: { ...show, position },
       },

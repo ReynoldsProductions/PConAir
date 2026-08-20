@@ -97,6 +97,12 @@ export interface MediaLibraryState {
   /** Video only: playback length in ms, when it could be determined. */
   activeItemDurationMs?: number | null;
   /**
+   * `updatedAt` of the active item. Re-uploading a name replaces it in place
+   * and keeps the id, so without a version the render page would short-circuit
+   * on an unchanged key and keep the previous bytes on screen.
+   */
+  activeItemVersion?: number | null;
+  /**
    * Transition for the item currently on screen. Lives here rather than only on
    * `slideshow` so a plain take honours it too — previously the render page read
    * it exclusively from the slideshow, so every manual take was a hard cut no

@@ -71,7 +71,10 @@ function renderPageHtml(type: RenderContentType): string {
     // Top-level transition first: a plain take has no slideshow, and reading it
     // only from there made every manual take a hard cut.
     var transition = (m && m.transition) || (show && show.transition) || 'cut';
-    var key = 'stills:' + (id || '');
+    // Version is part of the key: replacing an item keeps its id, so without
+    // this the early-return below would leave the old bytes on screen.
+    var version = (m && m.activeItemVersion) || 0;
+    var key = 'stills:' + (id || '') + ':' + version;
     if (key === lastKey) return;
     lastKey = key;
     if (!id) { stage.innerHTML = ''; return; }
@@ -113,7 +116,7 @@ function renderPageHtml(type: RenderContentType): string {
       el.onload = reveal;
     }
 
-    el.src = '/api/media-library/' + encodeURIComponent(id) + '/download';
+    el.src = '/api/media-library/' + encodeURIComponent(id) + '/download?v=' + version;
     stage.appendChild(el);
     if (isVideo && el.play) {
       var p = el.play();

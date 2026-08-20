@@ -69,6 +69,7 @@ function listPayload(items: ReturnType<MediaLibraryStore['list']>) {
       hasTransparency: it.hasTransparency,
       durationMs: it.durationMs,
       uploadedAt: it.uploadedAt,
+      updatedAt: it.updatedAt,
     })),
   };
 }
