@@ -285,3 +285,73 @@ describe('upload failure reporting', () => {
     expect(res.body.items).toHaveLength(2);
   });
 });
+
+describe('large imports across sequential batches', () => {
+  let app: Express;
+  let operatorCookie: string;
+
+  beforeEach(async () => {
+    const store = createStateStore();
+    ({ app } = createFullServer({
+      store,
+      operatorPin: AUTH.operatorPin,
+      adminPin: AUTH.adminPin,
+      operatorSessionMs: AUTH.operatorSessionMs,
+      adminSessionMs: AUTH.adminSessionMs,
+    }));
+    const op = await request(app).post('/auth/operator').send({ pin: '1234' });
+    operatorCookie = op.headers['set-cookie'][0].split(';')[0];
+  });
+
+  /** Mirrors the client's batching: sequential requests of BATCH files each. */
+  async function importInBatches(count: number, batchSize: number) {
+    let imported = 0;
+    const failures: string[] = [];
+    for (let start = 0; start < count; start += batchSize) {
+      const n = Math.min(batchSize, count - start);
+      let req = request(app).post('/api/media-library/upload').set('Cookie', operatorCookie);
+      for (let i = 0; i < n; i += 1) req = req.attach('files[]', PNG_1PX, `f${start + i}.png`);
+      const res = await req;
+      expect(res.status).toBe(200);
+      imported += res.body.imported;
+      failures.push(...(res.body.failures ?? []));
+    }
+    return { imported, failures };
+  }
+
+  it('imports 240 files — far past any single-request cap', async () => {
+    const { imported, failures } = await importInBatches(240, 20);
+    expect(imported).toBe(240);
+    expect(failures).toEqual([]);
+
+    const list = await request(app).get('/api/media-library').set('Cookie', operatorCookie);
+    expect(list.body.items).toHaveLength(240);
+  });
+
+  it('a bad file costs only itself, not the rest of the batch or the import', async () => {
+    // 20 good, one unusable in the middle of the second batch, 19 more good.
+    let first = request(app).post('/api/media-library/upload').set('Cookie', operatorCookie);
+    for (let i = 0; i < 20; i += 1) first = first.attach('files[]', PNG_1PX, `a${i}.png`);
+    expect((await first).body.imported).toBe(20);
+
+    let second = request(app).post('/api/media-library/upload').set('Cookie', operatorCookie);
+    for (let i = 0; i < 10; i += 1) second = second.attach('files[]', PNG_1PX, `b${i}.png`);
+    second = second.attach('files[]', Buffer.from('junk'), 'corrupt.png');
+    for (let i = 10; i < 19; i += 1) second = second.attach('files[]', PNG_1PX, `b${i}.png`);
+    const res2 = await second;
+    expect(res2.body.imported).toBe(19);
+    expect(res2.body.failed).toBe(1);
+    expect(res2.body.failures[0]).toContain('corrupt.png');
+
+    const list = await request(app).get('/api/media-library').set('Cookie', operatorCookie);
+    expect(list.body.items).toHaveLength(39);
+  });
+
+  it('keeps the per-request cap as a backstop', async () => {
+    let req = request(app).post('/api/media-library/upload').set('Cookie', operatorCookie);
+    for (let i = 0; i < 26; i += 1) req = req.attach('files[]', PNG_1PX, `f${i}.png`);
+    const res = await req;
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_MODE');
+  });
+});

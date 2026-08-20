@@ -690,27 +690,32 @@ interface UploadResponse {
 }
 
 /**
- * Uploads via XHR rather than fetch: fetch exposes no upload progress, and a
- * 500 MB clip over Wi-Fi with no feedback is indistinguishable from a hang.
+ * Files per request. The server holds every file of a request in memory at once
+ * (multer memoryStorage), so this is what bounds peak RAM — a 600-photo import
+ * costs one batch of resident buffers, not six hundred. Kept under the server's
+ * own 25-file cap, which stays in place as a backstop.
  */
-function uploadStills(files: File[]): Promise<void> {
-  const msg = $('stills-upload-msg');
-  const bar = $('stills-upload-bar');
-  const fill = $('stills-upload-fill');
-  const label = $('stills-upload-label');
-  const total = files.reduce((sum, f) => sum + f.size, 0);
-  const noun = files.length === 1 ? files[0].name : `${files.length} files`;
+const UPLOAD_BATCH_SIZE = 20;
 
-  const setBusy = (busy: boolean): void => {
-    label.classList.toggle('disabled', busy);
-    bar.hidden = !busy;
-    if (!busy) fill.style.width = '0%';
-  };
+/** How many individual failure reasons to spell out before summarising. */
+const MAX_FAILURES_SHOWN = 5;
 
-  setBusy(true);
-  msg.textContent = `Uploading ${noun} (${formatBytes(total)})…`;
+interface BatchOutcome {
+  imported: number;
+  failed: number;
+  failures: string[];
+  /** Set when the whole request failed rather than individual files. */
+  fatal?: string;
+  /** True when the session is gone and continuing is pointless. */
+  unauthorized?: boolean;
+}
 
-  return new Promise<void>((resolve) => {
+/**
+ * One batch over XHR rather than fetch: fetch exposes no upload progress, and a
+ * large import over Wi-Fi with no feedback is indistinguishable from a hang.
+ */
+function uploadBatch(files: File[], onBytes: (loaded: number) => void): Promise<BatchOutcome> {
+  return new Promise<BatchOutcome>((resolve) => {
     const form = new FormData();
     for (const f of files) form.append('files[]', f);
 
@@ -718,22 +723,8 @@ function uploadStills(files: File[]): Promise<void> {
     xhr.open('POST', '/api/media-library/upload');
 
     xhr.upload.addEventListener('progress', (ev) => {
-      if (!ev.lengthComputable) return;
-      const pct = Math.round((ev.loaded / ev.total) * 100);
-      fill.style.width = `${pct}%`;
-      // Below 100% this is bytes on the wire; at 100% the server is still
-      // decoding (HEIC conversion especially), so say so rather than look stuck.
-      msg.textContent =
-        pct < 100
-          ? `Uploading ${noun} — ${pct}% of ${formatBytes(total)}`
-          : `Processing ${noun}…`;
+      if (ev.lengthComputable) onBytes(ev.loaded);
     });
-
-    const finish = (text: string): void => {
-      setBusy(false);
-      msg.textContent = text;
-      resolve();
-    };
 
     xhr.addEventListener('load', () => {
       let data: UploadResponse | null = null;
@@ -742,38 +733,117 @@ function uploadStills(files: File[]): Promise<void> {
       } catch {
         /* non-JSON body */
       }
-
+      if (xhr.status === 401) {
+        resolve({ imported: 0, failed: files.length, failures: [], unauthorized: true });
+        return;
+      }
       if (xhr.status < 200 || xhr.status >= 300) {
-        if (xhr.status === 401) {
-          finish('Session expired — sign in again to upload.');
-          return;
-        }
-        finish(data?.error?.message ?? `Upload failed (HTTP ${xhr.status}).`);
+        resolve({
+          imported: 0,
+          failed: files.length,
+          failures: [],
+          fatal: data?.error?.message ?? `HTTP ${xhr.status}`,
+        });
         return;
       }
-
-      const imported = data?.imported ?? 0;
-      const failed = data?.failed ?? 0;
-      void refreshStillsData();
-
-      if (failed === 0) {
-        finish(`✓ Added ${imported} item${imported === 1 ? '' : 's'} to the still store.`);
-        return;
-      }
-      // Surface *which* files were rejected and why — a bare count leaves the
-      // operator guessing which of their files did not make it.
-      const detail = (data?.failures ?? []).join('; ');
-      finish(
-        imported > 0
-          ? `Added ${imported} of ${imported + failed}. Skipped: ${detail}`
-          : `Nothing added — ${detail || 'files were not usable'}`
-      );
+      resolve({
+        imported: data?.imported ?? 0,
+        failed: data?.failed ?? 0,
+        failures: data?.failures ?? [],
+      });
     });
 
-    xhr.addEventListener('error', () => finish('Upload failed — check the connection.'));
-    xhr.addEventListener('abort', () => finish('Upload cancelled.'));
+    xhr.addEventListener('error', () =>
+      resolve({ imported: 0, failed: files.length, failures: [], fatal: 'network error' })
+    );
+    xhr.addEventListener('abort', () =>
+      resolve({ imported: 0, failed: files.length, failures: [], fatal: 'cancelled' })
+    );
     xhr.send(form);
   });
+}
+
+/**
+ * Uploads any number of files by splitting them into sequential batches. A
+ * failing batch does not abandon the rest — a single unreadable photo in a
+ * 600-file import should not cost the other 599 — but a lost session stops
+ * immediately, since every remaining request would fail the same way.
+ */
+async function uploadStills(files: File[]): Promise<void> {
+  const msg = $('stills-upload-msg');
+  const bar = $('stills-upload-bar');
+  const fill = $('stills-upload-fill');
+  const label = $('stills-upload-label');
+
+  const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
+  const batches: File[][] = [];
+  for (let i = 0; i < files.length; i += UPLOAD_BATCH_SIZE) {
+    batches.push(files.slice(i, i + UPLOAD_BATCH_SIZE));
+  }
+
+  const setBusy = (busy: boolean): void => {
+    label.classList.toggle('disabled', busy);
+    bar.hidden = !busy;
+    if (!busy) fill.style.width = '0%';
+  };
+
+  setBusy(true);
+  const noun = files.length === 1 ? files[0].name : `${files.length} files`;
+  msg.textContent = `Uploading ${noun} (${formatBytes(totalBytes)})…`;
+
+  let imported = 0;
+  let failed = 0;
+  const failures: string[] = [];
+  let fatal: string | null = null;
+  let bytesDone = 0;
+
+  for (let b = 0; b < batches.length; b += 1) {
+    const batch = batches[b];
+    const batchBytes = batch.reduce((sum, f) => sum + f.size, 0);
+    const batchLabel = batches.length > 1 ? ` — batch ${b + 1} of ${batches.length}` : '';
+
+    const outcome = await uploadBatch(batch, (loaded) => {
+      const pct = totalBytes > 0 ? Math.round(((bytesDone + loaded) / totalBytes) * 100) : 0;
+      fill.style.width = `${Math.min(pct, 100)}%`;
+      msg.textContent =
+        loaded < batchBytes
+          ? `Uploading ${noun}${batchLabel} — ${Math.min(pct, 100)}% of ${formatBytes(totalBytes)}`
+          : `Processing${batchLabel}…`;
+    });
+
+    bytesDone += batchBytes;
+    imported += outcome.imported;
+    failed += outcome.failed;
+    failures.push(...outcome.failures);
+
+    if (outcome.unauthorized) {
+      fatal = 'session expired — sign in again to upload';
+      break;
+    }
+    if (outcome.fatal) {
+      failures.push(`batch ${b + 1}: ${outcome.fatal}`);
+    }
+    // Show items landing as they go rather than only at the very end.
+    void refreshStillsData();
+  }
+
+  setBusy(false);
+
+  if (fatal) {
+    msg.textContent = imported > 0 ? `Added ${imported} before the ${fatal}.` : `Upload stopped — ${fatal}.`;
+    return;
+  }
+  if (failed === 0) {
+    msg.textContent = `✓ Added ${imported} item${imported === 1 ? '' : 's'} to the still store.`;
+    return;
+  }
+  // Name what was skipped and why; a bare count leaves the operator guessing.
+  const shown = failures.slice(0, MAX_FAILURES_SHOWN).join('; ');
+  const rest = failures.length > MAX_FAILURES_SHOWN ? ` (and ${failures.length - MAX_FAILURES_SHOWN} more)` : '';
+  msg.textContent =
+    imported > 0
+      ? `Added ${imported} of ${imported + failed}. Skipped: ${shown}${rest}`
+      : `Nothing added — ${shown || 'files were not usable'}${rest}`;
 }
 
 // ---- Packages page ----
