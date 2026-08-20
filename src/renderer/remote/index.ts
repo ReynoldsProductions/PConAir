@@ -576,6 +576,77 @@ function wireStillsPage(): void {
     void api('/api/media-library/clear');
   });
 
+  // Select-all covers video too — a clip in a slideshow plays once and the show
+  // advances on its own length, so mixing them needs no special handling.
+  $('ss-select-all').addEventListener('click', () => {
+    haptic();
+    ssSelection = mediaItems.map((it) => it.id);
+    $('ss-count').textContent = String(ssSelection.length);
+    $('stills-msg').textContent = ssSelection.length
+      ? `Selected all ${ssSelection.length} item${ssSelection.length === 1 ? '' : 's'}.`
+      : 'Nothing in the still store to select.';
+    renderStillsGallery();
+  });
+  $('ss-select-none').addEventListener('click', () => {
+    haptic();
+    ssSelection = [];
+    $('ss-count').textContent = '0';
+    $('stills-msg').textContent = '';
+    renderStillsGallery();
+  });
+
+  // Wiping is unrecoverable, so the button arms on first press and only fires on
+  // a second press, disarming itself after a few seconds.
+  let wipeArmTimer: ReturnType<typeof setTimeout> | null = null;
+  const wipeBtn = $('stills-wipe') as HTMLButtonElement;
+  const disarmWipe = (): void => {
+    if (wipeArmTimer) {
+      clearTimeout(wipeArmTimer);
+      wipeArmTimer = null;
+    }
+    wipeBtn.classList.remove('armed');
+    wipeBtn.textContent = 'Wipe still store';
+  };
+  wipeBtn.addEventListener('click', async () => {
+    haptic();
+    if (!wipeBtn.classList.contains('armed')) {
+      if (mediaItems.length === 0) {
+        $('stills-wipe-msg').textContent = 'Still store is already empty.';
+        return;
+      }
+      wipeBtn.classList.add('armed');
+      wipeBtn.textContent = `Delete all ${mediaItems.length} — tap to confirm`;
+      $('stills-wipe-msg').textContent = 'This cannot be undone.';
+      wipeArmTimer = setTimeout(() => {
+        disarmWipe();
+        $('stills-wipe-msg').textContent = '';
+      }, 5000);
+      return;
+    }
+    disarmWipe();
+    $('stills-wipe-msg').textContent = 'Wiping…';
+    try {
+      const res = await fetch('/api/media-library', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: true }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+        $('stills-wipe-msg').textContent = data?.error?.message ?? `HTTP ${res.status}`;
+        return;
+      }
+      const body = (await res.json()) as { removed?: number };
+      ssSelection = [];
+      stillSelectedId = null;
+      $('ss-count').textContent = '0';
+      $('stills-wipe-msg').textContent = `Removed ${body.removed ?? 0} item${body.removed === 1 ? '' : 's'}.`;
+      await refreshStillsData();
+    } catch {
+      $('stills-wipe-msg').textContent = 'Wipe failed.';
+    }
+  });
+
   const ssAction = (action: string, extra?: Record<string, unknown>) => async () => {
     const r = await api('/api/media-library/slideshow', { action, ...extra });
     $('stills-msg').textContent = r.ok ? '' : r.error ?? `${action} failed`;
