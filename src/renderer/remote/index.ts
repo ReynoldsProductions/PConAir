@@ -471,6 +471,7 @@ interface MediaItem {
   displayName: string;
   mimeType?: string;
   durationMs?: number;
+  updatedAt?: number;
 }
 
 let mediaItems: MediaItem[] = [];
@@ -511,7 +512,9 @@ function renderStillsGallery(): void {
     card.className = 'still-card';
     if (item.id === stillSelectedId) card.classList.add('selected');
     if (item.id === lastStills?.activeItemId) card.classList.add('live');
-    const src = `/api/media-library/${encodeURIComponent(item.id)}/download`;
+    // ?v= busts the browser cache when an item is replaced in place — the id
+    // stays the same, so the URL would otherwise be unchanged.
+    const src = `/api/media-library/${encodeURIComponent(item.id)}/download?v=${item.updatedAt ?? 0}`;
     const isVideo = (item.mimeType ?? '').startsWith('video/');
     if (isVideo) {
       // <img> can't decode a video, so the thumbnail is a muted video element
@@ -872,7 +875,13 @@ async function uploadStills(files: File[]): Promise<void> {
     return;
   }
   if (failed === 0) {
-    msg.textContent = `✓ Added ${imported} item${imported === 1 ? '' : 's'} to the still store.`;
+    // Report against what the picker actually handed us. If the browser capped
+    // the selection, selected < what was chosen and the counts disagree —
+    // which is the only way to tell a picker limit from a server one.
+    const accounted = imported === files.length
+      ? `✓ Added ${imported} item${imported === 1 ? '' : 's'} to the still store.`
+      : `✓ Added ${imported} of ${files.length} selected — ${files.length - imported} unaccounted for.`;
+    msg.textContent = accounted;
     return;
   }
   // Name what was skipped and why; a bare count leaves the operator guessing.

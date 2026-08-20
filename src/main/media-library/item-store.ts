@@ -107,17 +107,42 @@ export function createMediaLibraryStore(opts: { rootDir: string; onChange?: () =
     return path.join(rootDir, it.relativePath);
   }
 
+  /**
+   * An item already in the library under this name, matched on the stored
+   * filename as well as the display name: a HEIC arrives as `photo.heic` but is
+   * stored as `photo.jpg`, so only the stored name matches on re-upload.
+   */
+  function findByName(base: string): MediaLibraryItemRecord | null {
+    for (const it of items.values()) {
+      if (it.filename === base || it.displayName === base) return it;
+    }
+    return null;
+  }
+
   function ingestBuffer(originalFilename: string, buf: Buffer): MediaLibraryItemRecord | null {
     const mime = sniffMediaMime(buf);
     if (!mime) return null;
-    const id = randomUUID();
     const base = safeBasename(originalFilename);
+    // Re-uploading a name replaces it in place and keeps the id, so slideshow
+    // selections and anything currently on air still point at a live item.
+    const existing = findByName(base);
+    const id = existing?.id ?? randomUUID();
     const extFromName = path.extname(base).slice(1).toLowerCase();
     const ext = extForMime(mime, extFromName || 'bin');
     const relativePath = `files/${id}.${ext}`;
     const dest = path.join(rootDir, relativePath);
     fs.mkdirSync(filesDir, { recursive: true });
     fs.writeFileSync(dest, buf);
+    // A format change (photo.png replaced by a photo.jpg) leaves the old file
+    // behind under a different extension.
+    if (existing && existing.relativePath !== relativePath) {
+      try {
+        const stale = path.join(rootDir, existing.relativePath);
+        if (fs.existsSync(stale)) fs.unlinkSync(stale);
+      } catch {
+        /* ignore — index no longer references it */
+      }
+    }
     const now = Date.now();
     const video = isVideoMime(mime);
     const dims = mime === 'image/png' ? pngDimensions(buf) : null;
@@ -131,7 +156,8 @@ export function createMediaLibraryStore(opts: { rootDir: string; onChange?: () =
       relativePath,
       fileSize: buf.length,
       fileHash: hashBuffer(buf),
-      uploadedAt: now,
+      // Keep the original slot in the gallery when replacing.
+      uploadedAt: existing?.uploadedAt ?? now,
       updatedAt: now,
     };
     if (dims) {

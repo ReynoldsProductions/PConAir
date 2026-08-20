@@ -33,6 +33,7 @@ export function stillsTakeOp(
       activeItemName: item.displayName,
       activeItemMime: item.mimeType,
       activeItemDurationMs: item.durationMs ?? null,
+      activeItemVersion: item.updatedAt,
       transition,
       slideshow: store.getState().mediaLibrary?.slideshow ?? null,
     },
