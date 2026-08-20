@@ -92,13 +92,14 @@ export function createMediaLibraryRouter(
       itemIds?: string[];
       intervalSec?: number;
       transition?: string;
+      shuffle?: boolean;
     };
     const action = body.action;
     if (action === 'play') {
       const itemIds = Array.isArray(body.itemIds) ? body.itemIds.filter((x): x is string => typeof x === 'string') : [];
       const intervalSec = typeof body.intervalSec === 'number' ? body.intervalSec : 5;
       const transition: SlideshowTransition = body.transition === 'fade' ? 'fade' : 'cut';
-      const r = slideshow.play({ itemIds, intervalSec, transition });
+      const r = slideshow.play({ itemIds, intervalSec, transition, shuffle: body.shuffle === true });
       if (!r.ok) {
         res.status(400).json({ error: { code: 'ITEM_NOT_FOUND', message: r.error } });
         return;
@@ -115,6 +116,16 @@ export function createMediaLibraryRouter(
       }
     } else if (action === 'stop') {
       slideshow.stop();
+    } else if (action === 'shuffle') {
+      // Defaults to enabling: the button exists to turn randomness on.
+      const enabled = body.shuffle !== false;
+      const sourceIds = Array.isArray(body.itemIds)
+        ? body.itemIds.filter((x): x is string => typeof x === 'string')
+        : undefined;
+      if (!slideshow.setShuffle(enabled, sourceIds)) {
+        res.status(400).json({ error: { code: 'INVALID_MODE', message: 'No slideshow loaded' } });
+        return;
+      }
     } else if (action === 'next' || action === 'prev') {
       const moved = action === 'next' ? slideshow.next() : slideshow.prev();
       if (!moved) {
@@ -122,7 +133,7 @@ export function createMediaLibraryRouter(
         return;
       }
     } else {
-      res.status(400).json({ error: { code: 'INVALID_MODE', message: "action must be play|pause|resume|stop|next|prev" } });
+      res.status(400).json({ error: { code: 'INVALID_MODE', message: "action must be play|pause|resume|stop|shuffle|next|prev" } });
       return;
     }
     res.json({ mediaLibrary: store.getState().mediaLibrary });
@@ -184,12 +195,12 @@ export function createMediaLibraryRouter(
   );
 
   router.post('/take', opGuard, (req: Request, res: Response) => {
-    const { itemId } = req.body as { itemId?: string };
+    const { itemId, transition } = req.body as { itemId?: string; transition?: string };
     if (!itemId || typeof itemId !== 'string') {
       res.status(400).json({ error: { code: 'INVALID_MODE', message: 'itemId is required' } });
       return;
     }
-    const r = stillsTakeOp(store, media, itemId);
+    const r = stillsTakeOp(store, media, itemId, transition === 'fade' ? 'fade' : 'cut');
     if (!r.ok) {
       res.status(r.status).json({ error: r.error });
       return;

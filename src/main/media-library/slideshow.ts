@@ -17,6 +17,20 @@ export function createSlideshowEngine(deps: { store: StateStore; media: MediaLib
     return store.getState().mediaLibrary?.slideshow ?? null;
   }
 
+  /**
+   * Fisher-Yates. Every item appears once per cycle, which a naive
+   * random-pick-per-advance would not guarantee — repeats and gaps read as a
+   * bug on air.
+   */
+  function shuffled(ids: string[]): string[] {
+    const out = [...ids];
+    for (let i = out.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  }
+
   function applyPosition(show: SlideshowState, position: number): void {
     const itemId = show.itemIds[position];
     const item = itemId ? media.findById(itemId) : null;
@@ -28,6 +42,7 @@ export function createSlideshowEngine(deps: { store: StateStore; media: MediaLib
         activeItemName: item?.displayName ?? null,
         activeItemMime: item?.mimeType ?? null,
         activeItemDurationMs: item?.durationMs ?? null,
+        transition: show.transition,
         slideshow: { ...show, position },
       },
     });
@@ -69,12 +84,17 @@ export function createSlideshowEngine(deps: { store: StateStore; media: MediaLib
         scheduleNext();
         return;
       }
-      applyPosition(cur, (cur.position + 1) % cur.itemIds.length);
+      applyPosition(advanced(cur), nextPosition(cur));
       scheduleNext();
     }, dwellMs(show));
   }
 
-  function play(opts: { itemIds: string[]; intervalSec: number; transition: SlideshowTransition }): { ok: true } | { ok: false; error: string } {
+  function play(opts: {
+    itemIds: string[];
+    intervalSec: number;
+    transition: SlideshowTransition;
+    shuffle?: boolean;
+  }): { ok: true } | { ok: false; error: string } {
     const validIds = opts.itemIds.filter((id) => media.findById(id) !== null);
     if (validIds.length === 0) {
       return { ok: false, error: 'No valid items for slideshow' };
@@ -82,13 +102,15 @@ export function createSlideshowEngine(deps: { store: StateStore; media: MediaLib
     if (!(opts.intervalSec >= 1 && opts.intervalSec <= 3600)) {
       return { ok: false, error: 'intervalSec must be between 1 and 3600' };
     }
+    const shuffle = opts.shuffle === true;
     const show: SlideshowState = {
       running: true,
       paused: false,
-      itemIds: validIds,
+      itemIds: shuffle ? shuffled(validIds) : validIds,
       position: 0,
       intervalSec: opts.intervalSec,
       transition: opts.transition,
+      shuffle,
     };
     applyPosition(show, 0);
     scheduleNext();
@@ -119,6 +141,42 @@ export function createSlideshowEngine(deps: { store: StateStore; media: MediaLib
     }
   }
 
+  function nextPosition(show: SlideshowState): number {
+    return (show.position + 1) % show.itemIds.length;
+  }
+
+  /**
+   * Reshuffle when a shuffled show wraps, so successive cycles differ instead
+   * of repeating one fixed random order forever.
+   */
+  function advanced(show: SlideshowState): SlideshowState {
+    if (!show.shuffle || nextPosition(show) !== 0 || show.itemIds.length < 3) return show;
+    return { ...show, itemIds: shuffled(show.itemIds) };
+  }
+
+  /**
+   * Turn shuffle on (reordering immediately, keeping the item on screen first so
+   * the output does not jump) or off, restoring the given source order.
+   */
+  function setShuffle(enabled: boolean, sourceIds?: string[]): boolean {
+    const show = currentSlideshow();
+    if (!show) return false;
+    let itemIds: string[];
+    if (enabled) {
+      const current = show.itemIds[show.position];
+      const rest = shuffled(show.itemIds.filter((id) => id !== current));
+      itemIds = current ? [current, ...rest] : shuffled(show.itemIds);
+    } else {
+      const restored = (sourceIds ?? show.itemIds).filter((id) => media.findById(id) !== null);
+      itemIds = restored.length > 0 ? restored : show.itemIds;
+    }
+    const active = store.getState().mediaLibrary?.activeItemId ?? null;
+    const position = Math.max(0, itemIds.indexOf(active ?? ''));
+    applyPosition({ ...show, itemIds, shuffle: enabled }, position);
+    scheduleNext();
+    return true;
+  }
+
   function step(direction: 1 | -1): boolean {
     const show = currentSlideshow();
     if (!show) return false;
@@ -132,7 +190,7 @@ export function createSlideshowEngine(deps: { store: StateStore; media: MediaLib
     clearTimer();
   }
 
-  return { play, pause, resume, stop, next: () => step(1), prev: () => step(-1), destroy };
+  return { play, pause, resume, stop, setShuffle, next: () => step(1), prev: () => step(-1), destroy };
 }
 
 export type SlideshowEngine = ReturnType<typeof createSlideshowEngine>;

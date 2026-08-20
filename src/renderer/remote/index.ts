@@ -455,6 +455,7 @@ interface StillsSlice {
     position: number;
     intervalSec: number;
     transition: 'cut' | 'fade';
+    shuffle: boolean;
   } | null;
 }
 
@@ -476,6 +477,13 @@ let mediaItems: MediaItem[] = [];
 let stillSelectedId: string | null = null;
 let ssSelection: string[] = [];
 let lastStills: StillsSlice | null = null;
+let shuffleOn = false;
+
+function renderShuffleButton(): void {
+  const btn = $('ss-shuffle');
+  btn.textContent = `Shuffle: ${shuffleOn ? 'on' : 'off'}`;
+  btn.setAttribute('aria-pressed', shuffleOn ? 'true' : 'false');
+}
 
 function renderStills(m: StillsSlice | null): void {
   lastStills = m;
@@ -486,6 +494,12 @@ function renderStills(m: StillsSlice | null): void {
   $('ss-status').hidden = !(show?.running && !show.paused);
   $('ss-pos').textContent = show ? `${show.position + 1} / ${show.itemIds.length}` : '';
   ($('ss-pause') as HTMLButtonElement).textContent = show?.paused ? 'Resume' : 'Pause';
+  // Follow the server for a running show so the button survives a reload and
+  // stays right when another operator toggles it.
+  if (show) {
+    shuffleOn = show.shuffle === true;
+  }
+  renderShuffleButton();
   renderStillsGallery();
 }
 
@@ -563,13 +577,17 @@ async function refreshStillsData(): Promise<void> {
 }
 
 function wireStillsPage(): void {
+  const chosenTransition = (): string => ($('ss-transition') as HTMLSelectElement).value;
+
   $('stills-take').addEventListener('click', () => {
     if (!stillSelectedId) {
       $('stills-msg').textContent = 'Select an item first.';
       return;
     }
     haptic();
-    void api('/api/media-library/take', { itemId: stillSelectedId });
+    // Send the transition: takes have no slideshow, so without this the render
+    // page had nothing to read and always hard-cut.
+    void api('/api/media-library/take', { itemId: stillSelectedId, transition: chosenTransition() });
   });
   $('stills-clear').addEventListener('click', () => {
     haptic();
@@ -653,12 +671,32 @@ function wireStillsPage(): void {
   };
   $('ss-play').addEventListener('click', () => {
     const intervalSec = parseInt(($('ss-interval') as HTMLInputElement).value, 10) || 5;
-    const transition = ($('ss-transition') as HTMLSelectElement).value;
     if (ssSelection.length === 0) {
       $('stills-msg').textContent = 'Tap items to add them to the slideshow first.';
       return;
     }
-    void ssAction('play', { itemIds: ssSelection, intervalSec, transition })();
+    void ssAction('play', {
+      itemIds: ssSelection,
+      intervalSec,
+      transition: chosenTransition(),
+      shuffle: shuffleOn,
+    })();
+  });
+
+  $('ss-shuffle').addEventListener('click', async () => {
+    haptic();
+    shuffleOn = !shuffleOn;
+    renderShuffleButton();
+    // If a show is already running, reorder it live; otherwise the flag just
+    // applies to the next Play.
+    if (lastStills?.slideshow?.running) {
+      const r = await api('/api/media-library/slideshow', {
+        action: 'shuffle',
+        shuffle: shuffleOn,
+        itemIds: ssSelection,
+      });
+      $('stills-msg').textContent = r.ok ? '' : r.error ?? 'Shuffle failed';
+    }
   });
   $('ss-pause').addEventListener('click', () => {
     void ssAction(lastStills?.slideshow?.paused ? 'resume' : 'pause')();

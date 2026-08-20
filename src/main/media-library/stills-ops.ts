@@ -1,6 +1,6 @@
 import type { StateStore } from '../state';
 import type { MediaLibraryStore, MediaLibraryItemRecord } from './item-store';
-import type { MediaLibraryState } from '../../shared/types';
+import type { MediaLibraryState, SlideshowTransition } from '../../shared/types';
 
 type Err = { ok: false; status: number; error: { code: string; message: string } };
 type Ok<T> = { ok: true; body: T };
@@ -18,7 +18,8 @@ export function findMediaItem(media: MediaLibraryStore, idOrName: string): Media
 export function stillsTakeOp(
   store: StateStore,
   media: MediaLibraryStore,
-  idOrName: string
+  idOrName: string,
+  transition: SlideshowTransition = 'cut'
 ): Err | Ok<{ currentMode: string; mediaLibrary: MediaLibraryState | null }> {
   const item = findMediaItem(media, idOrName);
   if (!item) {
@@ -32,6 +33,7 @@ export function stillsTakeOp(
       activeItemName: item.displayName,
       activeItemMime: item.mimeType,
       activeItemDurationMs: item.durationMs ?? null,
+      transition,
       slideshow: store.getState().mediaLibrary?.slideshow ?? null,
     },
   });
