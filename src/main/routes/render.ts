@@ -68,7 +68,9 @@ function renderPageHtml(type: RenderContentType): string {
     var id = m && m.activeItemId;
     var mime = (m && m.activeItemMime) || '';
     var show = m && m.slideshow;
-    var transition = (show && show.transition) || 'cut';
+    // Top-level transition first: a plain take has no slideshow, and reading it
+    // only from there made every manual take a hard cut.
+    var transition = (m && m.transition) || (show && show.transition) || 'cut';
     var key = 'stills:' + (id || '');
     if (key === lastKey) return;
     lastKey = key;

@@ -79,11 +79,14 @@ export type SlideshowTransition = 'cut' | 'fade';
 export interface SlideshowState {
   running: boolean;
   paused: boolean;
+  /** Play order. Already shuffled when `shuffle` is set. */
   itemIds: string[];
   /** 0-based index into itemIds. */
   position: number;
   intervalSec: number;
   transition: SlideshowTransition;
+  /** Play in random order, reshuffling each time the show wraps. */
+  shuffle: boolean;
 }
 
 export interface MediaLibraryState {
@@ -93,6 +96,13 @@ export interface MediaLibraryState {
   activeItemMime?: string | null;
   /** Video only: playback length in ms, when it could be determined. */
   activeItemDurationMs?: number | null;
+  /**
+   * Transition for the item currently on screen. Lives here rather than only on
+   * `slideshow` so a plain take honours it too — previously the render page read
+   * it exclusively from the slideshow, so every manual take was a hard cut no
+   * matter what the operator had selected.
+   */
+  transition?: SlideshowTransition;
   slideshow: SlideshowState | null;
 }
 

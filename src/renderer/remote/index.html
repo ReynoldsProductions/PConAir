@@ -163,6 +163,7 @@
     .upload-fill { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.15s linear; }
     .small-btn.disabled { opacity: 0.5; pointer-events: none; }
     .danger-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .small-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #08111c; font-weight: 700; }
     .small-btn.danger { border-color: #7a2b26; color: #ff8a80; }
     .small-btn.danger.armed { background: #b3261e; border-color: #b3261e; color: #fff; font-weight: 700; }
     .still-card .vid-badge { position: absolute; bottom: 22px; left: 4px; background: rgba(0,0,0,0.72); color: #fff; font-size: 10px; font-weight: 600; border-radius: 4px; padding: 1px 5px; }
@@ -320,6 +321,14 @@
         <button id="stills-clear" class="nav-btn nav-prev">Clear</button>
         <button id="stills-take" class="nav-btn nav-next">Take selected</button>
       </div>
+      <div class="goto-row">
+        <label class="haptic-label" for="ss-transition">Transition</label>
+        <select id="ss-transition" class="settings-input" style="max-width:110px;">
+          <option value="cut">Hard cut</option>
+          <option value="fade">Fade</option>
+        </select>
+        <span class="hint-line" style="color:var(--text-dim)">Applies to takes and slideshows</span>
+      </div>
 
       <div id="stills-gallery" class="stills-gallery"></div>
 
@@ -334,15 +343,12 @@
           <label class="haptic-label">Interval
             <input id="ss-interval" type="number" min="1" max="3600" value="5" style="width:64px;margin-left:6px;" />s
           </label>
-          <select id="ss-transition" class="settings-input" style="max-width:110px;">
-            <option value="cut">Hard cut</option>
-            <option value="fade">Fade</option>
-          </select>
         </div>
         <div class="loader-buttons">
           <button id="ss-play" class="small-btn primary">Play</button>
           <button id="ss-pause" class="small-btn">Pause</button>
           <button id="ss-stop" class="small-btn">Stop</button>
+          <button id="ss-shuffle" class="small-btn" aria-pressed="false">Shuffle: off</button>
           <button id="ss-prev" class="small-btn">‹ Prev</button>
           <button id="ss-next" class="small-btn">Next ›</button>
           <span id="ss-pos" class="haptic-label"></span>
