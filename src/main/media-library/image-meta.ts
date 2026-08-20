@@ -41,25 +41,61 @@ export function isVideoMime(mime: string): boolean {
 }
 
 /**
- * Sniff video MIME from magic bytes. ISO-BMFF (MP4/MOV) carries a `ftyp` box at
- * offset 4 whose brand distinguishes QuickTime from MP4; Matroska/WebM opens
- * with the EBML magic.
+ * HEIF/HEIC and AVIF are ISO-BMFF files just like MP4, so the `ftyp` brands are
+ * the only thing separating a still photo from a movie. Getting this wrong means
+ * an iPhone photo is stored as a video and rendered into a <video> element.
+ */
+const HEIF_BRANDS = new Set(['heic', 'heix', 'heim', 'heis', 'hevc', 'hevx', 'hevm', 'hevs', 'mif1', 'msf1']);
+const AVIF_BRANDS = new Set(['avif', 'avis']);
+
+/**
+ * Major brand plus the compatible-brands list from an ISO-BMFF `ftyp` box.
+ * Real HEICs often carry a generic major brand with the telling brand only in
+ * the compatible list, so both have to be considered.
+ */
+function ftypBrands(buf: Buffer): string[] | null {
+  if (buf.length < 12 || buf.slice(4, 8).toString('ascii') !== 'ftyp') return null;
+  let size = buf.readUInt32BE(0);
+  if (size < 8 || size > buf.length) size = buf.length;
+  const brands = [buf.slice(8, 12).toString('ascii')];
+  for (let i = 16; i + 4 <= size; i += 4) {
+    brands.push(buf.slice(i, i + 4).toString('ascii'));
+  }
+  return brands;
+}
+
+/** ISO-BMFF *image* types (HEIC/HEIF, AVIF) — checked before the video brands. */
+export function sniffBmffImageMime(buf: Buffer): string | null {
+  const brands = ftypBrands(buf);
+  if (!brands) return null;
+  if (brands.some((b) => AVIF_BRANDS.has(b))) return 'image/avif';
+  if (brands.some((b) => HEIF_BRANDS.has(b))) return 'image/heic';
+  return null;
+}
+
+/**
+ * Sniff video MIME from magic bytes. Matroska/WebM opens with the EBML magic;
+ * ISO-BMFF is video only once the HEIF/AVIF image brands are ruled out.
  */
 export function sniffVideoMime(buf: Buffer): string | null {
   if (buf.length >= 4 && buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) {
     return 'video/webm';
   }
-  if (buf.length >= 12 && buf.slice(4, 8).toString('ascii') === 'ftyp') {
-    const brand = buf.slice(8, 12).toString('ascii');
-    if (brand === 'qt  ') return 'video/quicktime';
-    return 'video/mp4';
-  }
-  return null;
+  const brands = ftypBrands(buf);
+  if (!brands) return null;
+  if (sniffBmffImageMime(buf)) return null;
+  if (brands[0] === 'qt  ') return 'video/quicktime';
+  return 'video/mp4';
 }
 
 /** Sniff any supported media type — images first, then video. */
 export function sniffMediaMime(buf: Buffer): string | null {
-  return sniffImageMime(buf) ?? sniffVideoMime(buf);
+  return sniffImageMime(buf) ?? sniffBmffImageMime(buf) ?? sniffVideoMime(buf);
+}
+
+/** True for the image types Chromium cannot decode, so they need transcoding. */
+export function needsTranscode(mime: string): boolean {
+  return mime === 'image/heic';
 }
 
 /**
