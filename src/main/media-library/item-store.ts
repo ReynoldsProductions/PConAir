@@ -5,10 +5,12 @@ import {
   hashBuffer,
   isVideoMime,
   mp4DurationMs,
+  needsTranscode,
   pngDimensions,
   pngHasTransparency,
   sniffMediaMime,
 } from './image-meta';
+import { heicToJpeg } from './heic';
 
 const INDEX_VERSION = 1 as const;
 
@@ -26,6 +28,8 @@ export interface MediaLibraryItemRecord {
   hasTransparency?: boolean;
   /** Video only: playback length in ms, when it could be determined. */
   durationMs?: number;
+  /** Set when the upload was transcoded on ingest, e.g. `image/heic` for a HEIC. */
+  originalMimeType?: string;
   tags?: string[];
   uploadedAt: number;
   updatedAt: number;
@@ -51,6 +55,8 @@ function extForMime(mime: string, fallbackExt: string): string {
     'video/mp4': 'mp4',
     'video/quicktime': 'mov',
     'video/webm': 'webm',
+    'image/avif': 'avif',
+    'image/heic': 'heic',
   };
   return m[mime] ?? fallbackExt;
 }
@@ -135,10 +141,39 @@ export function createMediaLibraryStore(opts: { rootDir: string; onChange?: () =
     return rec;
   }
 
+  /**
+   * Ingest that first converts formats the render page cannot display (HEIC).
+   * Async because decoding is; callers handling uploads should prefer this over
+   * `ingestBuffer`, which stays sync for the formats that need no conversion.
+   */
+  async function ingestUpload(
+    originalFilename: string,
+    buf: Buffer
+  ): Promise<MediaLibraryItemRecord | null> {
+    const sniffed = sniffMediaMime(buf);
+    if (!sniffed || !needsTranscode(sniffed)) return ingestBuffer(originalFilename, buf);
+
+    const converted = await heicToJpeg(buf);
+    if (!converted) return null;
+
+    const base = safeBasename(originalFilename);
+    const renamed = `${base.replace(/\.[^.]+$/, '')}.${converted.ext}`;
+    const rec = ingestBuffer(renamed, converted.buffer);
+    if (rec) {
+      // Keep the name the operator uploaded so the gallery stays recognisable,
+      // even though the bytes on disk are now JPEG.
+      rec.displayName = base;
+      rec.originalMimeType = sniffed;
+      touch();
+    }
+    return rec;
+  }
+
   fs.mkdirSync(filesDir, { recursive: true });
   loadIndex();
 
   return {
+    ingestUpload,
     rootDir,
     list(): MediaLibraryItemRecord[] {
       return Array.from(items.values()).sort((a, b) => b.uploadedAt - a.uploadedAt);
@@ -160,6 +195,26 @@ export function createMediaLibraryStore(opts: { rootDir: string; onChange?: () =
       }
       touch();
       return true;
+    },
+    /**
+     * Wipe the whole library — every record and its file on disk. Returns how
+     * many items were removed so the caller can report it. Files that fail to
+     * unlink are still dropped from the index: leaving a record pointing at a
+     * file we could not delete is worse than an orphan on disk.
+     */
+    removeAll(): number {
+      const all = [...items.values()];
+      items.clear();
+      for (const it of all) {
+        try {
+          const abs = path.join(rootDir, it.relativePath);
+          if (fs.existsSync(abs)) fs.unlinkSync(abs);
+        } catch {
+          /* ignore — index entry is gone regardless */
+        }
+      }
+      touch();
+      return all.length;
     },
     replaceAll(next: MediaLibraryItemRecord[]): void {
       items.clear();

@@ -98,7 +98,7 @@ export function createMediaLibraryRouter(
       { name: 'files[]', maxCount: 25 },
       { name: 'files', maxCount: 25 },
     ]),
-    (req: Request, res: Response) => {
+    async (req: Request, res: Response) => {
       const grouped = req.files as Record<string, Express.Multer.File[]> | undefined;
       const raw = [...(grouped?.['files[]'] ?? []), ...(grouped?.files ?? [])];
       if (raw.length === 0) {
@@ -118,7 +118,7 @@ export function createMediaLibraryRouter(
       const failures: string[] = [];
 
       for (const file of raw) {
-        const rec = media.ingestBuffer(file.originalname, file.buffer);
+        const rec = await media.ingestUpload(file.originalname, file.buffer);
         if (!rec) {
           failed += 1;
           failures.push(`${file.originalname}: unsupported or invalid media file`);
@@ -176,6 +176,33 @@ export function createMediaLibraryRouter(
         res.status(500).json({ error: { code: 'INVALID_MODE', message: 'Failed to read file' } });
       }
     });
+  });
+
+  /**
+   * Wipe the entire still store. Registered before `/:itemId` so the bare path
+   * is not captured as an id. Destructive and unrecoverable, so it takes an
+   * explicit `confirm: true` body rather than firing on the bare verb.
+   */
+  router.delete('/', opGuard, (req: Request, res: Response) => {
+    const body = (req.body ?? {}) as { confirm?: unknown };
+    if (body.confirm !== true) {
+      res.status(400).json({
+        error: {
+          code: 'INVALID_MODE',
+          message: 'Wiping the still store requires confirm: true',
+        },
+      });
+      return;
+    }
+    // Anything on air necessarily refers to an item that is about to be gone.
+    const st = store.getState();
+    if (st.currentMode === 'media-library' || st.mediaLibrary) {
+      slideshow.stop();
+      store.setState({ currentMode: 'idle', mediaLibrary: null });
+    }
+    const removed = media.removeAll();
+    const after = store.getState();
+    res.json({ removed, currentMode: after.currentMode, mediaLibrary: after.mediaLibrary });
   });
 
   router.delete('/:itemId', opGuard, (req: Request, res: Response) => {
