@@ -114,3 +114,42 @@ describe('re-uploading a name replaces rather than duplicates', () => {
     }
   });
 });
+
+describe('a mixed folder reports exactly what it rejected', () => {
+  let app: Express;
+  let cookie: string;
+
+  beforeEach(async () => {
+    const store = createStateStore();
+    ({ app } = createFullServer({
+      store, operatorPin: '1234', adminPin: 'supersecret',
+      operatorSessionMs: 3600000, adminSessionMs: 3600000,
+    }));
+    const op = await request(app).post('/auth/operator').send({ pin: '1234' });
+    cookie = op.headers['set-cookie'][0].split(';')[0];
+  });
+
+  // With the picker's accept filter removed, sidecar files from a camera export
+  // now reach the server and must be reported rather than silently dropped.
+  it('imports the images and names the sidecars it skipped', async () => {
+    let req = request(app).post('/api/media-library/upload').set('Cookie', cookie);
+    for (let i = 0; i < 12; i += 1) req = req.attach('files[]', PNG_1PX, `IMG_${i}.png`);
+    // Photos-style sidecars: real bytes, but not media.
+    for (let i = 0; i < 6; i += 1) {
+      req = req.attach('files[]', Buffer.from('adjustment data'), `IMG_${i}.AAE`);
+    }
+    const res = await req;
+    expect(res.status).toBe(200);
+    expect(res.body.imported).toBe(12);
+    expect(res.body.failed).toBe(6);
+    expect(res.body.failures).toHaveLength(6);
+    // Every rejection names its file and a reason the operator can act on.
+    for (const f of res.body.failures) {
+      expect(f).toMatch(/IMG_\d\.AAE/);
+      expect(f).toMatch(/unrecognised file type/i);
+    }
+    // And the library holds only the real images.
+    const list = await request(app).get('/api/media-library').set('Cookie', cookie);
+    expect(list.body.items).toHaveLength(12);
+  });
+});
