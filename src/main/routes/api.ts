@@ -21,6 +21,12 @@ export interface CreateApiRouterDeps {
   setAdminShowLocked: (locked: boolean) => void;
   syncAdminShowLockedToStore: () => void;
   getActiveProfileId: () => string;
+  /** Server port — used to build the share URLs in GET /api/server-info. */
+  port: number;
+  /** Directory Electron writes crash dumps to; surfaced by GET /api/server-info. */
+  crashDumpsPath: string;
+  /** Display name of the active profile, shown as "Machine" in the admin UI. */
+  getProfileName: () => string;
   /** Returns current backup settings for GSC status field population. */
   getBackupSettings?: () => Pick<AppSettings, 'operationMode' | 'backupIps'>;
   /** Returns all app settings (for GET /api/app-settings). */
@@ -46,6 +52,9 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
     setAdminShowLocked,
     syncAdminShowLockedToStore,
     getActiveProfileId,
+    port,
+    crashDumpsPath,
+    getProfileName,
     getBackupSettings,
     getAppSettings,
     saveAppSettingsPatch,
@@ -338,6 +347,30 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
       abState: { ...state.abState, activeInstance: instance as 'A' | 'B' },
     });
     res.json({ abState: { activeInstance: instance as 'A' | 'B' } });
+  });
+
+  // Machine identity + every LAN URL the operator/admin/Companion clients can
+  // be reached on. The admin dashboard and Network pages are built from this.
+  router.get('/server-info', opGuard, (_req: Request, res: Response) => {
+    const addresses: Array<{ name: string; address: string; family: string }> = [];
+    for (const [name, list] of Object.entries(os.networkInterfaces())) {
+      for (const entry of list ?? []) {
+        if (!entry.internal) {
+          addresses.push({ name, address: entry.address, family: entry.family });
+        }
+      }
+    }
+    addresses.unshift({ name: 'localhost', address: '127.0.0.1', family: 'IPv4' });
+    res.json({
+      machineName: getProfileName(),
+      port,
+      networkAddresses: addresses,
+      operatorUrls: addresses.map((a) => `http://${a.address}:${port}/operator/`),
+      adminUrls: addresses.map((a) => `http://${a.address}:${port}/admin/`),
+      companionUrls: addresses.map((a) => `http://${a.address}:${port}`),
+      crashDumpsPath,
+      uptime: Math.floor((Date.now() - serverStartedAt) / 1000),
+    });
   });
 
   // App settings — read and patch (admin-level; these are machine-wide)

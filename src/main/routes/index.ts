@@ -21,6 +21,7 @@ import { createActionRouter } from './action';
 import { createBackgroundRouter } from './background';
 import { createMediaLibraryRouter } from './media-library';
 import { createProfilesRouter } from './profiles';
+import { loadProfile } from '../profiles/bootstrap';
 import { createBrandingRouter } from './branding';
 import { createTeleprompterRouter } from './teleprompter';
 import type { StateStore } from '../state';
@@ -253,6 +254,13 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       setAdminShowLocked: s.setAdminShowLocked,
       syncAdminShowLockedToStore: s.syncAdminShowLockedToStore,
       getActiveProfileId: s.getActiveProfileId,
+      port: s.port,
+      crashDumpsPath: s.crashDumpsPath,
+      // Electron main doesn't inject getProfileName (server.ts defaults it to
+      // ''), so fall back to the active profile's name — the same value the
+      // admin dashboard writes back via PATCH /api/profiles/:id.
+      getProfileName: () =>
+        s.getProfileName() || loadProfile(s.profilePaths, s.getActiveProfileId())?.name || '',
       getBackupSettings: s.getBackupSettings,
       getAppSettings: s.getAppSettings,
       saveAppSettingsPatch: s.saveAppSettingsPatch,
