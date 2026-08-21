@@ -738,8 +738,31 @@ interface UploadResponse {
  */
 const UPLOAD_BATCH_SIZE = 20;
 
-/** How many individual failure reasons to spell out before summarising. */
-const MAX_FAILURES_SHOWN = 5;
+/** How many example filenames to name per distinct reason. */
+const MAX_FAILURE_EXAMPLES = 3;
+
+/**
+ * Collapses `name: reason` lines into one clause per distinct reason, naming a
+ * few examples. Turns 38 identical rejections into something readable.
+ */
+function summariseFailures(failures: string[]): string {
+  const byReason = new Map<string, string[]>();
+  for (const line of failures) {
+    const idx = line.indexOf(': ');
+    const name = idx === -1 ? line : line.slice(0, idx);
+    const reason = idx === -1 ? 'not usable' : line.slice(idx + 2);
+    const names = byReason.get(reason) ?? [];
+    names.push(name);
+    byReason.set(reason, names);
+  }
+  return [...byReason.entries()]
+    .map(([reason, names]) => {
+      const examples = names.slice(0, MAX_FAILURE_EXAMPLES).join(', ');
+      const more = names.length > MAX_FAILURE_EXAMPLES ? ` and ${names.length - MAX_FAILURE_EXAMPLES} more` : '';
+      return `${names.length} × ${reason} (${examples}${more})`;
+    })
+    .join('; ');
+}
 
 interface BatchOutcome {
   imported: number;
@@ -884,13 +907,14 @@ async function uploadStills(files: File[]): Promise<void> {
     msg.textContent = accounted;
     return;
   }
-  // Name what was skipped and why; a bare count leaves the operator guessing.
-  const shown = failures.slice(0, MAX_FAILURES_SHOWN).join('; ');
-  const rest = failures.length > MAX_FAILURES_SHOWN ? ` (and ${failures.length - MAX_FAILURES_SHOWN} more)` : '';
+  // Name what was skipped and why. Grouped by reason: a folder of camera
+  // exports can reject dozens of sidecar files for the same cause, and listing
+  // each one individually buries the reason the operator actually needs.
+  const summary = summariseFailures(failures);
   msg.textContent =
     imported > 0
-      ? `Added ${imported} of ${imported + failed}. Skipped: ${shown}${rest}`
-      : `Nothing added — ${shown || 'files were not usable'}${rest}`;
+      ? `Added ${imported} of ${imported + failed}. Skipped — ${summary}`
+      : `Nothing added — ${summary || 'files were not usable'}`;
 }
 
 // ---- Packages page ----
