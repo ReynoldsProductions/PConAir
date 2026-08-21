@@ -1533,6 +1533,103 @@ async function loadPackageAssets(pkgId) {
   });
 }
 
+// ── Section: Network ──────────────────────────────────────────────────────────
+async function renderNetwork() {
+  content().innerHTML = '<div class="section-title">Network</div><div class="card"><div class="card-title">Loading…</div></div>';
+  let info;
+  try {
+    info = await api('GET', '/api/server-info');
+  } catch { return; }
+
+  const urlList = (urls) => urls.map(u => `<div style="font-family:monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;margin-bottom:4px;word-break:break-all;user-select:all;">${escHtml(u)}</div>`).join('');
+
+  content().innerHTML = `
+    <div class="section-title">Network</div>
+
+    <div class="card">
+      <div class="card-title">Server Port</div>
+      <p style="font-size:13px;color:var(--text-dim);line-height:1.5;">
+        Listening on port <strong style="color:var(--text);font-size:16px;">${escHtml(String(info.port))}</strong>
+        &nbsp;<span style="font-size:11px;">(set at startup — restart required to change)</span>
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Network Interfaces</div>
+      ${info.networkAddresses.length === 0
+        ? '<p style="color:var(--text-dim);font-size:12px;">No network interfaces detected.</p>'
+        : info.networkAddresses.map(a => `
+          <div class="item-row">
+            <span class="item-name" style="font-family:monospace;">${escHtml(a.address)}</span>
+            <span class="item-meta">${escHtml(a.name)} · ${escHtml(a.family)}</span>
+          </div>`).join('')}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Share URLs — Operator</div>
+      ${urlList(info.operatorUrls)}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Share URLs — Admin</div>
+      ${urlList(info.adminUrls)}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Share URLs — Companion API</div>
+      ${urlList(info.companionUrls)}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Access Control</div>
+      <p style="font-size:12px;color:var(--text-dim);line-height:1.5;">
+        The IP allowlist that decides which of these addresses may connect lives on the
+        <strong>System</strong> page, alongside the multi-machine settings.
+      </p>
+    </div>
+  `;
+}
+
+// ── Section: Appearance ───────────────────────────────────────────────────────
+async function renderAppearance() {
+  content().innerHTML = '<div class="section-title">Appearance</div><div class="card"><div class="card-title">Loading…</div></div>';
+  let profileFull;
+  try {
+    const active = await api('GET', '/api/profiles/active');
+    profileFull = await api('GET', '/api/profiles/' + active.id);
+  } catch { return; }
+
+  const theme = profileFull.appPreferences?.operatorTheme ?? 'light';
+
+  content().innerHTML = `
+    <div class="section-title">Appearance</div>
+
+    <div class="card">
+      <div class="card-title">Operator Web UI Theme</div>
+      <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">Changes how the operator web remote looks for anyone accessing it in a browser.</p>
+      <div style="display:flex;gap:16px;margin-bottom:16px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+          <input type="radio" name="op-theme" value="light" ${theme === 'light' ? 'checked' : ''} style="accent-color:var(--accent);" />
+          Light
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+          <input type="radio" name="op-theme" value="dark" ${theme === 'dark' ? 'checked' : ''} style="accent-color:var(--accent);" />
+          Dark
+        </label>
+      </div>
+      <button class="btn btn-primary" id="save-theme-btn">Save Theme</button>
+    </div>
+  `;
+
+  document.getElementById('save-theme-btn').addEventListener('click', async () => {
+    const selected = document.querySelector('input[name="op-theme"]:checked')?.value ?? 'light';
+    try {
+      await api('PATCH', '/api/profiles/' + profileFull.id, { appPreferences: { operatorTheme: selected } });
+      showSuccess('Theme saved. The operator web UI picks it up on next load.');
+    } catch { /* api() shows the error */ }
+  });
+}
+
 // ── Monitors ─────────────────────────────────────────────────────────────────
 async function renderMonitors() {
   content().innerHTML = '<div class="section-title">Monitors</div><div class="card"><div class="card-title">Loading…</div></div>';

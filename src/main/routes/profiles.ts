@@ -64,6 +64,43 @@ export function createProfilesRouter(d: ProfilesRouterDeps): Router {
     });
   });
 
+  // ── Display preference (active profile only) ──────────────────────────────
+
+  router.get('/display-preference', admin, (_req: Request, res: Response) => {
+    const id = d.getActiveProfileId();
+    const p = loadProfile(d.paths, id);
+    if (!p) {
+      res.status(404).json({ error: { code: 'PRESET_NOT_FOUND', message: 'Active profile not found' } });
+      return;
+    }
+    const displays = d.store.getState().displays;
+    res.json({ displayPreference: p.displayPreference, displays });
+  });
+
+  router.patch('/display-preference', admin, (req: Request, res: Response) => {
+    const id = d.getActiveProfileId();
+    const p = loadProfile(d.paths, id);
+    if (!p) {
+      res.status(404).json({ error: { code: 'PRESET_NOT_FOUND', message: 'Active profile not found' } });
+      return;
+    }
+    const body = req.body as { displayPreference?: unknown };
+    if (!('displayPreference' in body)) {
+      res.status(400).json({ error: { code: 'INVALID_URL', message: 'displayPreference is required' } });
+      return;
+    }
+    const pref = body.displayPreference;
+    if (pref !== null && typeof pref !== 'string') {
+      res.status(400).json({ error: { code: 'INVALID_URL', message: 'displayPreference must be a string or null' } });
+      return;
+    }
+    const next = patchShowProfile(p, { displayPreference: pref as string | null });
+    writeProfile(d.paths, next, 'automatic');
+    res.json({ displayPreference: next.displayPreference });
+  });
+
+  // Registered before `/:profileId` — Express matches in declaration order, so
+  // a literal path listed after the param route is never reached.
   router.get('/:profileId', admin, (req: Request, res: Response) => {
     const p = loadProfile(d.paths, req.params.profileId);
     if (!p) {
@@ -284,41 +321,6 @@ export function createProfilesRouter(d: ProfilesRouterDeps): Router {
       return;
     }
     res.status(204).end();
-  });
-
-  // ── Display preference (active profile only) ──────────────────────────────
-
-  router.get('/display-preference', admin, (_req: Request, res: Response) => {
-    const id = d.getActiveProfileId();
-    const p = loadProfile(d.paths, id);
-    if (!p) {
-      res.status(404).json({ error: { code: 'PRESET_NOT_FOUND', message: 'Active profile not found' } });
-      return;
-    }
-    const displays = d.store.getState().displays;
-    res.json({ displayPreference: p.displayPreference, displays });
-  });
-
-  router.patch('/display-preference', admin, (req: Request, res: Response) => {
-    const id = d.getActiveProfileId();
-    const p = loadProfile(d.paths, id);
-    if (!p) {
-      res.status(404).json({ error: { code: 'PRESET_NOT_FOUND', message: 'Active profile not found' } });
-      return;
-    }
-    const body = req.body as { displayPreference?: unknown };
-    if (!('displayPreference' in body)) {
-      res.status(400).json({ error: { code: 'INVALID_URL', message: 'displayPreference is required' } });
-      return;
-    }
-    const pref = body.displayPreference;
-    if (pref !== null && typeof pref !== 'string') {
-      res.status(400).json({ error: { code: 'INVALID_URL', message: 'displayPreference must be a string or null' } });
-      return;
-    }
-    const next = patchShowProfile(p, { displayPreference: pref as string | null });
-    writeProfile(d.paths, next, 'automatic');
-    res.json({ displayPreference: next.displayPreference });
   });
 
   return router;

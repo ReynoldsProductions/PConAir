@@ -114,3 +114,44 @@ describe('Profile export bundle', () => {
     expect(buf.subarray(0, 2).toString('ascii')).toBe('PK');
   });
 });
+
+// `/display-preference` is a literal path, but it was registered *after*
+// `/:profileId`, so Express matched it as a profile id first and the admin
+// Monitors page got 404 "Profile not found" instead of its display list.
+describe('Profiles display preference', () => {
+  let app: Express;
+  let srv: ReturnType<typeof makeServer>['srv'];
+  let store: ReturnType<typeof makeServer>['store'];
+  let adm: string;
+
+  beforeEach(async () => {
+    const made = makeServer();
+    srv = made.srv;
+    store = made.store;
+    await srv.listen();
+    app = srv.app;
+    adm = await adminCookie(app);
+  });
+
+  afterEach(() => srv.close());
+
+  it('GET /api/profiles/display-preference returns displays, not a profile lookup', async () => {
+    store.setState({ displays: [{ id: '1', name: 'Display 1', isPrimary: true }] });
+    const res = await request(app).get('/api/profiles/display-preference').set('Cookie', adm);
+    expect(res.status).toBe(200);
+    expect(res.body.displays).toHaveLength(1);
+    expect(res.body).toHaveProperty('displayPreference');
+  });
+
+  it('PATCH /api/profiles/display-preference persists the preference', async () => {
+    const res = await request(app)
+      .patch('/api/profiles/display-preference')
+      .set('Cookie', adm)
+      .send({ displayPreference: '2' });
+    expect(res.status).toBe(200);
+    expect(res.body.displayPreference).toBe('2');
+
+    const after = await request(app).get('/api/profiles/display-preference').set('Cookie', adm);
+    expect(after.body.displayPreference).toBe('2');
+  });
+});

@@ -268,3 +268,46 @@ describe('Security headers', () => {
     expect(res.headers['cache-control']).toBe('no-store');
   });
 });
+
+// PR #23's merge dropped GET /api/server-info while the admin dashboard and
+// operator UI kept calling it, so both got Express's HTML 404 page back and
+// died on `response.json()` ("Unexpected token '<'").
+describe('GET /api/server-info', () => {
+  let app: Express;
+  let operatorCookie: string;
+
+  beforeEach(async () => {
+    const store = createStateStore();
+    ({ app } = createFullServer({
+      store,
+      operatorPin: AUTH_CONFIG.operatorPin,
+      adminPin: AUTH_CONFIG.adminPin,
+      operatorSessionMs: AUTH_CONFIG.operatorSessionMs,
+      adminSessionMs: AUTH_CONFIG.adminSessionMs,
+      port: 8080,
+    }));
+    const res = await request(app).post('/auth/operator').send({ pin: AUTH_CONFIG.operatorPin });
+    operatorCookie = res.headers['set-cookie'][0].split(';')[0];
+  });
+
+  it('returns machine, port, and share URLs as JSON', async () => {
+    const res = await request(app).get('/api/server-info').set('Cookie', operatorCookie);
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('application/json');
+    expect(typeof res.body.machineName).toBe('string');
+    expect(res.body.port).toBe(8080);
+    expect(typeof res.body.uptime).toBe('number');
+    expect(res.body.networkAddresses[0]).toMatchObject({ address: '127.0.0.1' });
+    for (const key of ['operatorUrls', 'adminUrls', 'companionUrls']) {
+      expect(Array.isArray(res.body[key])).toBe(true);
+      expect(res.body[key].length).toBeGreaterThan(0);
+    }
+    expect(res.body.operatorUrls[0]).toBe('http://127.0.0.1:8080/operator/');
+    expect(res.body.adminUrls[0]).toBe('http://127.0.0.1:8080/admin/');
+  });
+
+  it('requires a session', async () => {
+    const res = await request(app).get('/api/server-info');
+    expect(res.status).toBe(401);
+  });
+});
