@@ -4,6 +4,33 @@
  * Connects to the server WebSocket for live state and shows connection status.
  */
 
+// ── Theme ────────────────────────────────────────────────────────────────────
+// Light is the CSS default. A per-device override wins over the show-wide
+// default set in Admin → Appearance. Applied at module top-level rather than
+// from an inline <script> because the remote's CSP is `script-src 'self'`.
+function applyTheme(): void {
+  let local: string | null = null;
+  try {
+    local = localStorage.getItem('pconair-operator-theme');
+  } catch {
+    /* storage disabled — fall back to the profile default */
+  }
+  if (local === 'light' || local === 'dark') {
+    document.documentElement.setAttribute('data-theme', local);
+    return;
+  }
+  void fetch('/api/profiles/active')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((p: { appPreferences?: { operatorTheme?: string } } | null) => {
+      const theme = p?.appPreferences?.operatorTheme === 'dark' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+    })
+    .catch(() => {
+      /* keep the light default */
+    });
+}
+applyTheme();
+
 interface NavPage {
   id: string;
   label: string;

@@ -851,8 +851,8 @@ input[type="radio"] {
         <div class="nav-group">
           <div class="nav-group-label">Show Control</div>
           <a href="#" class="nav-item" data-target="url">URL Mode</a>
-          <a href="#" class="nav-item" data-target="l3">Lower Thirds (ATEM Export)</a>
-          <a href="#" class="nav-item" data-target="lower-third-live">Lower Third — Live (use this)</a>
+          <a href="#" class="nav-item" data-target="lower-third-live">Lower Thirds</a>
+          <a href="#" class="nav-item" data-target="l3">L3 Cue Library</a>
           <a href="#" class="nav-item" data-target="media">Media Library</a>
         </div>
         <div class="nav-group">
@@ -948,8 +948,8 @@ input[type="radio"] {
         </section>
 
         <section data-tab="l3" hidden>
-          <h1 class="page-title">Lower Thirds</h1>
-          <p class="field-hint" style="margin-top:-16px;margin-bottom:16px;">Exports PNGs to the ATEM media pool via Companion — separate from the Lower Third — Live tab.</p>
+          <h1 class="page-title">Lower Thirds — Cue Library</h1>
+          <p class="field-hint" style="margin-top:-16px;margin-bottom:16px;">Recalls saved cues to the <strong>lower-third-left / -right / -duo</strong> graphics — the same output the mobile remote and Companion drive. Pick a cue, and optionally retype the name or title to override its wording for this take only. Separate output from the Lower Thirds tab.</p>
           <div class="panel">
             <div id="l3-active-line" class="field-hint" style="margin-bottom:12px;">Active: —</div>
             <div class="form-group">
@@ -962,11 +962,11 @@ input[type="radio"] {
               </div>
             </div>
             <div class="form-group">
-              <label for="l3-name-input">Name (manual take)</label>
+              <label for="l3-name-input">Name (blank = use the cue’s)</label>
               <input type="text" id="l3-name-input" class="input-field" placeholder="Speaker name" autocomplete="off" />
             </div>
             <div class="form-group">
-              <label for="l3-title-input">Title (manual take)</label>
+              <label for="l3-title-input">Title (blank = use the cue’s)</label>
               <input type="text" id="l3-title-input" class="input-field" placeholder="Role or second line" autocomplete="off" />
             </div>
             <label class="form-group" style="display:flex;flex-direction:row;align-items:center;gap:8px;cursor:pointer;user-select:none;margin-bottom:0;">
@@ -985,13 +985,18 @@ input[type="radio"] {
         </section>
 
         <section data-tab="lower-third-live" hidden>
-          <h1 class="page-title">Lower Third — Live Graphic</h1>
+          <h1 class="page-title">Lower Thirds</h1>
           <div class="panel">
             <div class="panel-title">Step 1 — Open the output display</div>
             <p class="field-hint" style="margin-bottom:16px;">Apply/Hide below only update the live graphic's data — they don't by themselves show anything. Click this once per show (or after switching modes/displays) to point a URL-mode output window at the live graphic. Solid black background, safe to key over.</p>
             <div class="form-group">
-              <label for="lt-output-display-input">Display target (optional)</label>
-              <input type="text" id="lt-output-display-input" class="input-field" placeholder="Match a display from status" autocomplete="off" />
+              <label for="lt-output-display-select">Display target</label>
+              <div class="ml-l3-select-wrap">
+                <select id="lt-output-display-select" class="select-input">
+                  <option value="">Primary display (default)</option>
+                </select>
+                <button type="button" class="btn btn-secondary" id="lt-displays-refresh-btn" title="Reload display list">Refresh</button>
+              </div>
             </div>
             <button type="button" class="btn btn-primary" id="lt-open-output-btn">Open Output Display</button>
             <p id="lt-output-status" class="url-status-line field-hint" style="margin-top:8px;"></p>

@@ -1,22 +1,78 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PC On Air — Admin</title>
+  <script>
+    // Runs before first paint: applies the per-device override synchronously so
+    // the page never flashes light before switching to dark. The show-wide
+    // default from Admin → Appearance is fetched later in the main script.
+    (function () {
+      try {
+        var t = localStorage.getItem('pconair-operator-theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { /* private mode / storage disabled — fall back to light */ }
+    })();
+  </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* Light is the default; dark is an opt-in override. Same structure as the
+       operator UI (:root = light, [data-theme="dark"] = overrides) so the two
+       stay in step. Set globally from Admin → Appearance. */
     :root {
+      --bg: #ffffff;
+      --surface: #fbf8f6;
+      --surface-2: #f3f0ed;
+      --input-bg: #ffffff;
+      --border: #dfe0e1;
+      --border-hover: #c4c6c8;
+      --text: #333333;
+      --text-dim: #757575;
+      --accent: #1a6dd4;
+      --accent-hover: #155ab0;
+      --accent-tint: rgba(26,109,212,0.10);
+      --green: #2f7d34;
+      --green-hover: #276b2b;
+      --red: #b3261e;
+      --danger-tint: rgba(179,38,30,0.10);
+      --orange: #9a6100;
+      --orange-hover: #7d4f00;
+      --btn-hover-bg: #f0eeec;
+      --btn-active-bg: #e6e3e0;
+      --btn-hover-border: #b9bbbd;
+      --badge-media-bg: #efe6fb;
+      --badge-media-fg: #5b32a0;
+      --on-accent: #ffffff;
+      --shadow: rgba(0,0,0,0.18);
+    }
+
+    [data-theme="dark"] {
       --bg: #111;
       --surface: #1e1e1e;
+      --surface-2: #161616;
+      --input-bg: #0d0d0d;
       --border: #333;
+      --border-hover: #444;
       --text: #e0e0e0;
       --text-dim: #888;
       --accent: #4a9eff;
+      --accent-hover: #3a8eef;
+      --accent-tint: rgba(74,158,255,0.10);
       --green: #3cba54;
+      --green-hover: #2da847;
       --red: #e53935;
+      --danger-tint: rgba(229,57,53,0.12);
       --orange: #ff9800;
+      --orange-hover: #e68900;
+      --btn-hover-bg: #2a2a2a;
+      --btn-active-bg: #333;
+      --btn-hover-border: #555;
+      --badge-media-bg: #2a1a3a;
+      --badge-media-fg: #b388ff;
+      --on-accent: #fff;
+      --shadow: rgba(0,0,0,0.5);
     }
 
     body {
@@ -80,7 +136,7 @@
     #mode-badge.slides { background: #1a3a5c; color: var(--accent); }
     #mode-badge.url    { background: #1a3a2a; color: var(--green); }
     #mode-badge.l3     { background: #3a2a1a; color: var(--orange); }
-    #mode-badge.media-library { background: #2a1a3a; color: #b388ff; }
+    #mode-badge.media-library { background: var(--badge-media-bg); color: var(--badge-media-fg); }
 
     /* ── Layout ── */
     #layout {
@@ -122,7 +178,7 @@
     }
     .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
     .nav-item.active {
-      background: rgba(74,158,255,0.10);
+      background: var(--accent-tint);
       color: var(--accent);
       border-left-color: var(--accent);
     }
@@ -181,21 +237,21 @@
       transition: background 0.1s, border-color 0.1s;
       white-space: nowrap;
     }
-    .btn:hover { background: #2a2a2a; border-color: #555; }
-    .btn:active { background: #333; }
+    .btn:hover { background: var(--btn-hover-bg); border-color: var(--btn-hover-border); }
+    .btn:active { background: var(--btn-active-bg); }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .btn-primary:hover { background: #3a8eef; border-color: #3a8eef; }
+    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
     .btn-danger { background: transparent; border-color: var(--red); color: var(--red); }
-    .btn-danger:hover { background: rgba(229,57,53,0.12); }
+    .btn-danger:hover { background: var(--danger-tint); }
 
     .btn-success { background: var(--green); border-color: var(--green); color: #fff; }
-    .btn-success:hover { background: #2da847; border-color: #2da847; }
+    .btn-success:hover { background: var(--green-hover); border-color: var(--green-hover); }
 
     .btn-warn { background: var(--orange); border-color: var(--orange); color: #111; font-weight: 700; }
-    .btn-warn:hover { background: #e68900; border-color: #e68900; }
+    .btn-warn:hover { background: var(--orange-hover); border-color: var(--orange-hover); }
 
     .btn-sm { padding: 4px 10px; font-size: 12px; }
     .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -206,7 +262,7 @@
       padding: 8px 10px;
       border-radius: 5px;
       border: 1px solid var(--border);
-      background: #0d0d0d;
+      background: var(--input-bg);
       color: var(--text);
       font-size: 13px;
       font-family: inherit;
@@ -235,11 +291,11 @@
       align-items: center;
       gap: 8px;
       padding: 8px 10px;
-      background: #161616;
+      background: var(--surface-2);
       border: 1px solid var(--border);
       border-radius: 5px;
     }
-    .item-row:hover { border-color: #444; }
+    .item-row:hover { border-color: var(--border-hover); }
 
     .item-name { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .item-meta { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
@@ -278,7 +334,7 @@
       min-height: 120px;
       border-radius: 8px;
       border: 2px solid var(--border);
-      background: #161616;
+      background: var(--surface-2);
       margin-bottom: 16px;
     }
     .lock-status-label {
@@ -300,14 +356,14 @@
       bottom: 16px;
       right: 16px;
       background: var(--red);
-      color: #fff;
+      color: var(--on-accent);
       padding: 10px 14px;
       border-radius: 6px;
       font-size: 13px;
       display: none;
       max-width: 320px;
       z-index: 100;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      box-shadow: 0 4px 16px var(--shadow);
     }
 
     /* ── Success toast ── */
@@ -316,14 +372,14 @@
       bottom: 52px;
       right: 16px;
       background: var(--green);
-      color: #fff;
+      color: var(--on-accent);
       padding: 10px 14px;
       border-radius: 6px;
       font-size: 13px;
       display: none;
       max-width: 320px;
       z-index: 100;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      box-shadow: 0 4px 16px var(--shadow);
     }
 
     .empty-state { color: var(--text-dim); font-size: 13px; font-style: italic; padding: 12px 0; }
@@ -332,7 +388,7 @@
 
     /* ── Inline edit form ── */
     .edit-form {
-      background: #161616;
+      background: var(--surface-2);
       border: 1px solid var(--accent);
       border-radius: 6px;
       padding: 12px;
@@ -1605,8 +1661,8 @@ async function renderAppearance() {
     <div class="section-title">Appearance</div>
 
     <div class="card">
-      <div class="card-title">Operator Web UI Theme</div>
-      <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">Changes how the operator web remote looks for anyone accessing it in a browser.</p>
+      <div class="card-title">Web UI Theme</div>
+      <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">Sets the default theme for <strong>all</strong> web UIs — this admin page, the operator console, and the mobile remote — for everyone who opens them. A device that has picked its own theme locally keeps that choice.</p>
       <div style="display:flex;gap:16px;margin-bottom:16px;">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
           <input type="radio" name="op-theme" value="light" ${theme === 'light' ? 'checked' : ''} style="accent-color:var(--accent);" />
@@ -1625,7 +1681,13 @@ async function renderAppearance() {
     const selected = document.querySelector('input[name="op-theme"]:checked')?.value ?? 'light';
     try {
       await api('PATCH', '/api/profiles/' + profileFull.id, { appPreferences: { operatorTheme: selected } });
-      showSuccess('Theme saved. The operator web UI picks it up on next load.');
+      // Reflect it here immediately unless this device has its own override.
+      let local = null;
+      try { local = localStorage.getItem('pconair-operator-theme'); } catch { /* storage disabled */ }
+      if (local !== 'light' && local !== 'dark') {
+        document.documentElement.setAttribute('data-theme', selected);
+      }
+      showSuccess('Theme saved. Other web UIs pick it up on their next load.');
     } catch { /* api() shows the error */ }
   });
 }
@@ -2099,7 +2161,22 @@ async function renderLogs() {
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
+// Show-wide default from Admin → Appearance. A per-device override (already
+// applied pre-paint in <head>) always wins, so this only fills in the default.
+async function applyProfileTheme() {
+  let local = null;
+  try { local = localStorage.getItem('pconair-operator-theme'); } catch { /* storage disabled */ }
+  if (local === 'light' || local === 'dark') return;
+  try {
+    const p = await fetch('/api/profiles/active').then(r => r.ok ? r.json() : null);
+    const theme = p && p.appPreferences && p.appPreferences.operatorTheme === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+  } catch { /* leave the pre-paint default in place */ }
+}
+
 (async function init() {
+  void applyProfileTheme();
+
   // Load initial state
   try {
     const s = await api('GET', '/api/status');

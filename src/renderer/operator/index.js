@@ -154,6 +154,7 @@
   var switchAB = (instance) => apiPost("/api/ab/switch", { instance });
   var setMode = (mode) => apiPost("/api/mode", { mode });
   var loadUrl = (url, display) => apiPost("/api/url", display ? { url, display } : { url });
+  var listDisplays = () => apiGet("/api/displays");
   var urlReload = (instance) => apiPost("/api/url/reload", instance ? { instance } : {});
   var l3ListCues = () => apiGet("/api/l3/cues");
   var l3Take = (body) => apiPost("/api/l3/take", body);
@@ -352,6 +353,24 @@
       sel.appendChild(o);
     }
     if (prev && cues.some((x) => x.id === prev)) sel.value = prev;
+  }
+  async function refreshDisplaySelect() {
+    const { displays } = await listDisplays();
+    const sel = document.getElementById("lt-output-display-select");
+    if (!sel) return;
+    const prev = sel.value;
+    sel.replaceChildren();
+    const opt0 = document.createElement("option");
+    opt0.value = "";
+    opt0.textContent = "Primary display (default)";
+    sel.appendChild(opt0);
+    for (const d of displays) {
+      const o = document.createElement("option");
+      o.value = d.id;
+      o.textContent = d.isPrimary ? `${d.name} (primary)` : d.name;
+      sel.appendChild(o);
+    }
+    if (prev && displays.some((x) => x.id === prev)) sel.value = prev;
   }
   async function refreshGoogleAuth() {
     const statusEl = document.getElementById("google-auth-status");
@@ -673,21 +692,31 @@
       const autoOutSec = parseFloat(document.getElementById("l3-auto-out-input").value);
       const autoOutMs = Number.isFinite(autoOutSec) && autoOutSec > 0 ? Math.round(autoOutSec * 1e3) : null;
       const sel = document.getElementById("l3-cue-select");
-      if (sel.value) {
-        await l3Take({ cueId: sel.value, autoOutMs: autoOutMs ?? void 0 });
-        return;
-      }
       const name = document.getElementById("l3-name-input").value.trim();
       const title = document.getElementById("l3-title-input").value.trim();
+      if (sel.value) {
+        await l3Take({
+          cueId: sel.value,
+          name: name || void 0,
+          title: title || void 0,
+          autoOutMs: autoOutMs ?? void 0
+        });
+        return;
+      }
       await l3Take({ name, title, autoOutMs: autoOutMs ?? void 0 });
     });
     on("l3-clear-btn", () => l3Clear());
     on("lt-open-output-btn", async () => {
-      const displayRaw = document.getElementById("lt-output-display-input").value.trim();
+      const sel = document.getElementById("lt-output-display-select");
+      const displayId = sel.value;
+      const displayLabel = displayId ? sel.options[sel.selectedIndex].textContent : "primary display";
       const url = `${location.origin}/graphics/lower-third-live/index.html`;
       const statusEl = document.getElementById("lt-output-status");
-      await loadUrl(url, displayRaw || void 0);
-      if (statusEl) statusEl.textContent = `Output opened: ${url}${displayRaw ? ` \u2192 ${displayRaw}` : ""}`;
+      await loadUrl(url, displayId || void 0);
+      if (statusEl) statusEl.textContent = `Output opened: ${url} \u2192 ${displayLabel}`;
+    });
+    document.getElementById("lt-displays-refresh-btn").addEventListener("click", () => {
+      void refreshDisplaySelect().catch((e) => showError(e.message));
     });
     document.getElementById("lt-fade-ms-slider").addEventListener("input", () => {
       const slider = document.getElementById("lt-fade-ms-slider");
@@ -824,6 +853,10 @@
         } else {
           stopNotesPolling();
         }
+        if (target === "lower-third-live") {
+          void refreshDisplaySelect().catch(() => {
+          });
+        }
       });
     });
   }
@@ -859,17 +892,22 @@
     });
   }
   initSettingsTab();
-  var savedTheme = localStorage.getItem("pconair-operator-theme");
-  if (savedTheme === "light" || savedTheme === "dark") {
-    document.documentElement.setAttribute("data-theme", savedTheme);
+  var localTheme = localStorage.getItem("pconair-operator-theme");
+  if (localTheme === "light" || localTheme === "dark") {
+    document.documentElement.setAttribute("data-theme", localTheme);
   }
   void refreshSlidePresets().catch(() => {
   });
   void refreshUrlPresets().catch(() => {
   });
+  void refreshDisplaySelect().catch(() => {
+  });
   void fetchActiveProfile().then((p) => {
-    const theme = p.appPreferences?.operatorTheme ?? "light";
+    if (localTheme === "light" || localTheme === "dark") return;
+    const theme = p.appPreferences?.operatorTheme === "dark" ? "dark" : "light";
     document.documentElement.setAttribute("data-theme", theme);
+    const radio = document.querySelector(`input[name="theme-radio"][value="${theme}"]`);
+    if (radio) radio.checked = true;
   }).catch(() => {
   });
 })();

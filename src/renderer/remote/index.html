@@ -1,11 +1,36 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>PConAir</title>
   <style>
+    /* Light is the default; dark is an opt-in override, mirroring the operator
+       and admin UIs. Set globally from Admin → Appearance. */
     :root {
+      --bg: #ffffff;
+      --surface: #fbf8f6;
+      --surface-2: #f3f0ed;
+      --border: #dfe0e1;
+      --text: #333333;
+      --text-dim: #757575;
+      --accent: #1a6dd4;
+      --on-accent: #ffffff;
+      --live: #2f7d34;
+      --warn: #9a6100;
+      --err: #b3261e;
+      --danger-border: #e0a9a5;
+      --danger-fg: #b3261e;
+      --danger-armed-bg: #b3261e;
+      --scrim: rgba(0,0,0,0.45);
+      --badge-scrim: rgba(0,0,0,0.62);
+      --on-scrim: #ffffff;
+      --media-letterbox: #000;
+      --qr-paper: #fff;
+      --nav-h: 64px;
+    }
+
+    [data-theme="dark"] {
       --bg: #111315;
       --surface: #1c1f22;
       --surface-2: #25292d;
@@ -13,10 +38,18 @@
       --text: #e8eaec;
       --text-dim: #9aa0a6;
       --accent: #4da3ff;
+      --on-accent: #08111c;
       --live: #2ecc71;
       --warn: #e5a53a;
       --err: #e53935;
-      --nav-h: 64px;
+      --danger-border: #7a2b26;
+      --danger-fg: #ff8a80;
+      --danger-armed-bg: #b3261e;
+      --scrim: rgba(0,0,0,0.75);
+      --badge-scrim: rgba(0,0,0,0.72);
+      --on-scrim: #fff;
+      --media-letterbox: #000;
+      --qr-paper: #fff;
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { margin: 0; height: 100%; }
@@ -124,12 +157,12 @@
     .slide-controls { display: flex; gap: 10px; margin: 12px 0; }
     .nav-btn { flex: 1; height: 72px; border-radius: 8px; font-size: 13px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer; }
     .nav-prev { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
-    .nav-next { background: var(--accent); border: 1px solid var(--accent); color: #08111c; }
+    .nav-next { background: var(--accent); border: 1px solid var(--accent); color: var(--on-accent); }
     .nav-btn:disabled { opacity: 0.4; }
     .goto-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
     .goto-row input[type="number"] { width: 90px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 14px; }
     .small-btn { padding: 9px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; }
-    .small-btn.primary { background: var(--accent); border-color: var(--accent); color: #08111c; }
+    .small-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
     .haptic-label { font-size: 12px; color: var(--text-dim); display: inline-flex; align-items: center; gap: 5px; }
     .chip { font-size: 10px; font-weight: 700; letter-spacing: 0.6px; border-radius: 999px; padding: 3px 10px; border: 1px solid var(--live); color: var(--live); }
     .loader-card summary { cursor: pointer; font-size: 13px; font-weight: 600; }
@@ -139,10 +172,10 @@
     .hint-line { font-size: 12px; color: var(--warn); margin: 8px 0 0; min-height: 14px; }
 
     /* ---- QR modal ---- */
-    .qr-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .qr-modal { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; z-index: 100; }
     .qr-modal[hidden] { display: none; }
     .qr-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; text-align: center; max-width: 340px; }
-    .qr-box img { width: 280px; height: 280px; border-radius: 8px; background: #fff; }
+    .qr-box img { width: 280px; height: 280px; border-radius: 8px; background: var(--qr-paper); }
     .qr-url { font-size: 12px; color: var(--text-dim); margin: 10px 0; word-break: break-all; }
 
     /* ---- L3 page ---- */
@@ -158,19 +191,19 @@
     /* ---- Stills page ---- */
     .stills-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-bottom: 14px; }
     .still-card { position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; background: var(--surface); padding: 0; }
-    .still-card img, .still-card video { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; background: #000; }
+    .still-card img, .still-card video { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; background: var(--media-letterbox); }
     .upload-bar { height: 6px; border-radius: 999px; background: var(--border); overflow: hidden; margin: 10px 0 4px; }
     .upload-fill { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.15s linear; }
     .small-btn.disabled { opacity: 0.5; pointer-events: none; }
     .danger-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
-    .small-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #08111c; font-weight: 700; }
-    .small-btn.danger { border-color: #7a2b26; color: #ff8a80; }
-    .small-btn.danger.armed { background: #b3261e; border-color: #b3261e; color: #fff; font-weight: 700; }
-    .still-card .vid-badge { position: absolute; bottom: 22px; left: 4px; background: rgba(0,0,0,0.72); color: #fff; font-size: 10px; font-weight: 600; border-radius: 4px; padding: 1px 5px; }
+    .small-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+    .small-btn.danger { border-color: var(--danger-border); color: var(--danger-fg); }
+    .small-btn.danger.armed { background: var(--danger-armed-bg); border-color: var(--danger-armed-bg); color: var(--on-scrim); font-weight: 700; }
+    .still-card .vid-badge { position: absolute; bottom: 22px; left: 4px; background: var(--badge-scrim); color: var(--on-scrim); font-size: 10px; font-weight: 600; border-radius: 4px; padding: 1px 5px; }
     .still-card .still-name { font-size: 10px; color: var(--text-dim); padding: 4px 6px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .still-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
     .still-card.live { border-color: var(--live); box-shadow: 0 0 0 1px var(--live); }
-    .still-card .ss-badge { position: absolute; top: 4px; right: 4px; background: var(--accent); color: #08111c; font-size: 10px; font-weight: 700; border-radius: 999px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
+    .still-card .ss-badge { position: absolute; top: 4px; right: 4px; background: var(--accent); color: var(--on-accent); font-size: 10px; font-weight: 700; border-radius: 999px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
 
     /* ---- Settings page tunnel section ---- */
     .settings-field { display: block; font-size: 12px; color: var(--text-dim); margin: 10px 0 4px; }

@@ -156,6 +156,26 @@ async function refreshL3CueSelect(): Promise<void> {
   if (prev && cues.some((x) => x.id === prev)) sel.value = prev;
 }
 
+async function refreshDisplaySelect(): Promise<void> {
+  const { displays } = await api.listDisplays();
+  const sel = document.getElementById('lt-output-display-select') as HTMLSelectElement | null;
+  if (!sel) return;
+  const prev = sel.value;
+  sel.replaceChildren();
+  const opt0 = document.createElement('option');
+  opt0.value = '';
+  opt0.textContent = 'Primary display (default)';
+  sel.appendChild(opt0);
+  for (const d of displays) {
+    const o = document.createElement('option');
+    // Value is the display *id* — window-manager matches on id, never on name.
+    o.value = d.id;
+    o.textContent = d.isPrimary ? `${d.name} (primary)` : d.name;
+    sel.appendChild(o);
+  }
+  if (prev && displays.some((x) => x.id === prev)) sel.value = prev;
+}
+
 async function refreshGoogleAuth(): Promise<void> {
   const statusEl = document.getElementById('google-auth-status');
   const signinBtn = document.getElementById('google-signin-btn') as HTMLButtonElement | null;
@@ -541,22 +561,36 @@ function bindEvents(): void {
     const autoOutSec = parseFloat((document.getElementById('l3-auto-out-input') as HTMLInputElement).value);
     const autoOutMs = Number.isFinite(autoOutSec) && autoOutSec > 0 ? Math.round(autoOutSec * 1000) : null;
     const sel = document.getElementById('l3-cue-select') as HTMLSelectElement;
-    if (sel.value) {
-      await api.l3Take({ cueId: sel.value, autoOutMs: autoOutMs ?? undefined });
-      return;
-    }
     const name = (document.getElementById('l3-name-input') as HTMLInputElement).value.trim();
     const title = (document.getElementById('l3-title-input') as HTMLInputElement).value.trim();
+    if (sel.value) {
+      // Recall-then-edit: pass whatever was typed alongside the cue as a
+      // per-take override. Blank fields fall back to the cue's stored wording
+      // server-side, and the cue itself is never rewritten.
+      await api.l3Take({
+        cueId: sel.value,
+        name: name || undefined,
+        title: title || undefined,
+        autoOutMs: autoOutMs ?? undefined,
+      });
+      return;
+    }
     await api.l3Take({ name, title, autoOutMs: autoOutMs ?? undefined });
   });
   on('l3-clear-btn', () => api.l3Clear());
 
   on('lt-open-output-btn', async () => {
-    const displayRaw = (document.getElementById('lt-output-display-input') as HTMLInputElement).value.trim();
+    const sel = document.getElementById('lt-output-display-select') as HTMLSelectElement;
+    const displayId = sel.value;
+    const displayLabel = displayId ? sel.options[sel.selectedIndex].textContent : 'primary display';
     const url = `${location.origin}/graphics/lower-third-live/index.html`;
     const statusEl = document.getElementById('lt-output-status');
-    await api.loadUrl(url, displayRaw || undefined);
-    if (statusEl) statusEl.textContent = `Output opened: ${url}${displayRaw ? ` → ${displayRaw}` : ''}`;
+    await api.loadUrl(url, displayId || undefined);
+    if (statusEl) statusEl.textContent = `Output opened: ${url} → ${displayLabel}`;
+  });
+
+  document.getElementById('lt-displays-refresh-btn')!.addEventListener('click', () => {
+    void refreshDisplaySelect().catch((e: Error) => showError(e.message));
   });
 
   document.getElementById('lt-fade-ms-slider')!.addEventListener('input', () => {
@@ -718,6 +752,11 @@ function bindEvents(): void {
       } else {
         stopNotesPolling();
       }
+      // Displays change when monitors are plugged/unplugged, and the boot fetch
+      // 401s before login — so re-pull the list whenever the tab is opened.
+      if (target === 'lower-third-live') {
+        void refreshDisplaySelect().catch(() => {});
+      }
     });
   });
 }
@@ -759,17 +798,24 @@ function initSettingsTab(): void {
 }
 initSettingsTab();
 
-// Apply localStorage theme override if present
-const savedTheme = localStorage.getItem('pconair-operator-theme');
-if (savedTheme === 'light' || savedTheme === 'dark') {
-  document.documentElement.setAttribute('data-theme', savedTheme);
+// Per-device override, applied synchronously so there's no flash of the wrong
+// theme before the profile default arrives over the network.
+const localTheme = localStorage.getItem('pconair-operator-theme');
+if (localTheme === 'light' || localTheme === 'dark') {
+  document.documentElement.setAttribute('data-theme', localTheme);
 }
 
 void refreshSlidePresets().catch(() => {});
 void refreshUrlPresets().catch(() => {});
+void refreshDisplaySelect().catch(() => { /* no session yet */ });
 
-// Apply saved theme from profile
+// The profile supplies the show-wide *default*. A per-device override always
+// wins — this used to overwrite it unconditionally, so the Settings toggle
+// silently reverted on every reload.
 void api.fetchActiveProfile().then((p) => {
-  const theme = p.appPreferences?.operatorTheme ?? 'light';
+  if (localTheme === 'light' || localTheme === 'dark') return;
+  const theme = p.appPreferences?.operatorTheme === 'dark' ? 'dark' : 'light';
   document.documentElement.setAttribute('data-theme', theme);
+  const radio = document.querySelector<HTMLInputElement>(`input[name="theme-radio"][value="${theme}"]`);
+  if (radio) radio.checked = true;
 }).catch(() => {});

@@ -49,6 +49,9 @@ export const setMode     = (mode: string)              => apiPost('/api/mode',  
 export const loadUrl = (url: string, display?: string) =>
   apiPost<unknown>('/api/url', display ? { url, display } : { url });
 
+export const listDisplays = () =>
+  apiGet<{ displays: { id: string; name: string; isPrimary: boolean }[] }>('/api/displays');
+
 export const urlReload = (instance?: 'A' | 'B') =>
   apiPost<unknown>('/api/url/reload', instance ? { instance } : {});
 
