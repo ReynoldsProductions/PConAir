@@ -1,23 +1,35 @@
 {
-  "id": "pconair",
-  "name": "PC On Air",
-  "shortname": "PC On Air",
-  "description": "Control PConAir live event graphics and playout \u2014 slides, lower thirds, still store, packages",
-  "version": "0.3.0",
-  "main": "dist/index.js",
-  "runtime": "NodeJS",
-  "manufacturer": "TomsFaire",
-  "products": [
-    "PC On Air"
-  ],
-  "keywords": [
-    "playout",
-    "lower-thirds",
-    "slides",
-    "live-event",
-    "graphics"
-  ],
-  "bugs": "",
-  "repository": "https://github.com/TomsFaire/PConAir",
-  "license": "MIT"
+	"id": "pconair",
+	"name": "PC On Air",
+	"shortname": "PC On Air",
+	"description": "Control PConAir live event graphics and playout — slides, lower thirds, still store, packages",
+	"version": "0.3.0",
+	"license": "MIT",
+	"repository": "https://github.com/ReynoldsProductions/PConAir",
+	"bugs": "https://github.com/ReynoldsProductions/PConAir/issues",
+	"maintainers": [
+		{
+			"name": "Thomas Reynolds",
+			"email": "tom@reynoldsproduction.com",
+			"github": "ReynoldsProductions"
+		}
+	],
+	"legacyIds": [],
+	"runtime": {
+		"type": "node22",
+		"api": "nodejs-ipc",
+		"apiVersion": "0.0.0",
+		"entrypoint": "../dist/index.js"
+	},
+	"manufacturer": "Reynolds Productions",
+	"products": [
+		"PC On Air"
+	],
+	"keywords": [
+		"playout",
+		"lower-thirds",
+		"slides",
+		"live-event",
+		"graphics"
+	]
 }
