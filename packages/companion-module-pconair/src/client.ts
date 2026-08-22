@@ -111,6 +111,14 @@ export interface PcoState {
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
+/**
+ * How the module is currently reaching PConAir.
+ * - `ws`   — WebSocket: state is pushed, actions need no PIN.
+ * - `http` — degraded: state is polled, actions need the operator PIN.
+ * - `null` — unreachable.
+ */
+export type Transport = 'ws' | 'http' | null
+
 export interface ClientConfig {
   host: string
   port: number
@@ -119,7 +127,7 @@ export interface ClientConfig {
   pollingIntervalMs: number
   onAppState: (state: Partial<PcoState>, replace: boolean) => void
   onPackageState: (pkgId: string, state: Record<string, unknown>) => void
-  onConnectionChange: (connected: boolean) => void
+  onTransportChange: (transport: Transport) => void
   log: (level: LogLevel, msg: string) => void
 }
 
@@ -131,6 +139,7 @@ export class PcoClient {
   private reconnectDelay = 1000
   private destroyed = false
   private wsConnected = false
+  private transport: Transport = null
   private packageIds: string[] = []
 
   constructor(config: ClientConfig) {
@@ -159,7 +168,14 @@ export class PcoClient {
   }
 
   get connected(): boolean {
-    return this.wsConnected
+    return this.transport !== null
+  }
+
+  /** Fire onTransportChange only on an actual change (the instance re-registers on every call). */
+  private setTransport(next: Transport): void {
+    if (next === this.transport) return
+    this.transport = next
+    this.config.onTransportChange(next)
   }
 
   /** Subscribe to package state namespaces (resubscribed on every reconnect). */
@@ -255,7 +271,7 @@ export class PcoClient {
         for (const id of this.packageIds) {
           ws.send(JSON.stringify({ type: 'subscribe', namespace: `package:${id}` }))
         }
-        this.config.onConnectionChange(true)
+        this.setTransport('ws')
         this.config.log('info', `Connected to PConAir at ${this.config.host}:${this.config.port}`)
       })
 
@@ -286,7 +302,7 @@ export class PcoClient {
         this.wsConnected = false
         this.ws = null
         if (!this.destroyed) {
-          this.config.onConnectionChange(false)
+          this.setTransport(null)
           this.config.log('warn', 'WebSocket closed; polling over HTTP until it returns')
           this.startHttpFallback()
           this.scheduleReconnect()
@@ -333,7 +349,7 @@ export class PcoClient {
     }
     try {
       const state = await this.httpGet('/api/status')
-      this.config.onConnectionChange(true)
+      this.setTransport('http')
       this.config.onAppState(state as Partial<PcoState>, true)
       for (const id of this.packageIds) {
         try {
@@ -344,7 +360,7 @@ export class PcoClient {
         }
       }
     } catch {
-      this.config.onConnectionChange(false)
+      this.setTransport(null)
     }
   }
 }
