@@ -4,7 +4,7 @@ import {
   InstanceStatus,
   type SomeCompanionConfigField,
 } from '@companion-module/base'
-import { PcoClient, type PcoState } from './client.js'
+import { PcoClient, type PcoState, type Transport } from './client.js'
 import { VARIABLE_DEFINITIONS, stateToVariables } from './variables.js'
 import { buildActions } from './actions.js'
 import { buildFeedbacks } from './feedbacks.js'
@@ -24,7 +24,7 @@ const PACKAGE_REFRESH_MS = 30_000
 
 class PcOnAirInstance extends InstanceBase<Config> {
   private client: PcoClient | null = null
-  private connected = false
+  private transport: Transport = null
   private state: Partial<PcoState> = {}
   private pkgStates = new Map<string, PkgState>()
   private packages: PackageInfo[] = []
@@ -36,7 +36,7 @@ class PcOnAirInstance extends InstanceBase<Config> {
   async init(config: Config): Promise<void> {
     this.registerDefinitions()
     this.updateStatus(InstanceStatus.Connecting)
-    this.setVariableValues({ connection_status: 'connecting', connected: '0' })
+    this.setVariableValues({ connection_status: 'connecting', connected: '0', transport: '' })
     this.startClient(config)
     this.pkgRefreshTimer = setInterval(() => {
       void this.refreshPackages()
@@ -61,10 +61,16 @@ class PcOnAirInstance extends InstanceBase<Config> {
   async configUpdated(config: Config): Promise<void> {
     this.client?.destroy()
     this.client = null
-    this.connected = false
+    this.transport = null
+    // Drop everything the old host told us — otherwise its slide counts, cue
+    // names and scores sit on the buttons until the new host sends a snapshot.
+    this.state = {}
+    this.pkgStates.clear()
     this.updateStatus(InstanceStatus.Connecting)
-    this.setVariableValues({ connection_status: 'connecting', connected: '0' })
+    this.pushAllVariables()
+    this.setVariableValues({ connection_status: 'connecting' })
     this.startClient(config)
+    this.checkFeedbacks()
   }
 
   getConfigFields(): SomeCompanionConfigField[] {
@@ -143,7 +149,7 @@ class PcOnAirInstance extends InstanceBase<Config> {
     this.setFeedbackDefinitions({
       ...buildFeedbacks(
         () => this.state,
-        () => this.connected
+        () => this.transport !== null
       ),
       ...this.pkgDefs.feedbacks,
     })
@@ -168,13 +174,20 @@ class PcOnAirInstance extends InstanceBase<Config> {
         if (this.pkgDefs) this.setVariableValues(this.pkgDefs.computeVariableValues())
         this.checkFeedbacks()
       },
-      onConnectionChange: (connected) => {
-        if (connected === this.connected) return
-        this.connected = connected
-        this.updateStatus(connected ? InstanceStatus.Ok : InstanceStatus.ConnectionFailure)
+      onTransportChange: (transport) => {
+        this.transport = transport
+        // Surface the degraded HTTP path distinctly: on that transport state is
+        // polled, not pushed, and actions need the operator PIN to be set.
+        if (transport === 'ws') {
+          this.updateStatus(InstanceStatus.Ok)
+        } else if (transport === 'http') {
+          this.updateStatus(InstanceStatus.UnknownWarning, 'WebSocket unavailable — polling over HTTP')
+        } else {
+          this.updateStatus(InstanceStatus.ConnectionFailure)
+        }
         this.pushAllVariables()
         this.checkFeedbacks()
-        if (connected) void this.refreshPackages()
+        if (transport !== null) void this.refreshPackages()
       },
       log: (level, msg) => this.log(level, msg),
     })
@@ -187,7 +200,7 @@ class PcOnAirInstance extends InstanceBase<Config> {
    * become controllable without restarting Companion.
    */
   private async refreshPackages(): Promise<void> {
-    if (!this.client || !this.connected) return
+    if (!this.client || this.transport === null) return
     try {
       const body = await this.client.httpGet('/api/packages')
       const packages = parsePackageList(body)
@@ -208,7 +221,7 @@ class PcOnAirInstance extends InstanceBase<Config> {
 
   private pushAllVariables(): void {
     this.setVariableValues({
-      ...stateToVariables(this.state, this.connected),
+      ...stateToVariables(this.state, this.transport !== null, this.transport),
       ...(this.pkgDefs ? this.pkgDefs.computeVariableValues() : {}),
     })
   }
