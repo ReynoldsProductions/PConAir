@@ -156,24 +156,33 @@ async function refreshL3CueSelect(): Promise<void> {
   if (prev && cues.some((x) => x.id === prev)) sel.value = prev;
 }
 
+/** Display pickers on both lower-third pages are filled from the same list. */
+const DISPLAY_SELECT_IDS = ['lt-output-display-select', 'l3-output-display-select'] as const;
+
 async function refreshDisplaySelect(): Promise<void> {
   const { displays } = await api.listDisplays();
-  const sel = document.getElementById('lt-output-display-select') as HTMLSelectElement | null;
-  if (!sel) return;
-  const prev = sel.value;
-  sel.replaceChildren();
-  const opt0 = document.createElement('option');
-  opt0.value = '';
-  opt0.textContent = 'Primary display (default)';
-  sel.appendChild(opt0);
-  for (const d of displays) {
-    const o = document.createElement('option');
-    // Value is the display *id* — window-manager matches on id, never on name.
-    o.value = d.id;
-    o.textContent = d.isPrimary ? `${d.name} (primary)` : d.name;
-    sel.appendChild(o);
+  for (const id of DISPLAY_SELECT_IDS) {
+    const sel = document.getElementById(id) as HTMLSelectElement | null;
+    if (!sel) continue;
+    const prev = sel.value;
+    sel.replaceChildren();
+    const opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = 'Primary display (default)';
+    sel.appendChild(opt0);
+    for (const d of displays) {
+      const o = document.createElement('option');
+      // Value is the display *id* — window-manager matches on id, never on name.
+      o.value = d.id;
+      o.textContent = d.isPrimary ? `${d.name} (primary)` : d.name;
+      sel.appendChild(o);
+    }
+    if (prev && displays.some((x) => x.id === prev)) sel.value = prev;
   }
-  if (prev && displays.some((x) => x.id === prev)) sel.value = prev;
+  // The Cue Library picker reflects shared state, so show what's actually set.
+  const l3Sel = document.getElementById('l3-output-display-select') as HTMLSelectElement | null;
+  const current = store.getState().l3?.outputDisplayId ?? '';
+  if (l3Sel && current && displays.some((x) => x.id === current)) l3Sel.value = current;
 }
 
 async function refreshGoogleAuth(): Promise<void> {
@@ -593,6 +602,17 @@ function bindEvents(): void {
     void refreshDisplaySelect().catch((e: Error) => showError(e.message));
   });
 
+  document.getElementById('l3-displays-refresh-btn')!.addEventListener('click', () => {
+    void refreshDisplaySelect().catch((e: Error) => showError(e.message));
+  });
+
+  // Shared state, not a local preference — persist it so the program window
+  // retargets immediately and every other connected client agrees.
+  document.getElementById('l3-output-display-select')!.addEventListener('change', () => {
+    const sel = document.getElementById('l3-output-display-select') as HTMLSelectElement;
+    void api.l3SetOutputDisplay(sel.value || null).catch((e: Error) => showError(e.message));
+  });
+
   document.getElementById('lt-fade-ms-slider')!.addEventListener('input', () => {
     const slider = document.getElementById('lt-fade-ms-slider') as HTMLInputElement;
     (document.getElementById('lt-fade-ms-input') as HTMLInputElement).value = slider.value;
@@ -754,7 +774,7 @@ function bindEvents(): void {
       }
       // Displays change when monitors are plugged/unplugged, and the boot fetch
       // 401s before login — so re-pull the list whenever the tab is opened.
-      if (target === 'lower-third-live') {
+      if (target === 'lower-third-live' || target === 'l3') {
         void refreshDisplaySelect().catch(() => {});
       }
     });

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { randomUUID } from 'crypto';
+import type { BackgroundType } from '../../shared/types';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { ProfilePaths } from '../profiles/paths';
@@ -34,14 +35,14 @@ export function createBackgroundRouter(d: BackgroundRouterDeps): Router {
 
   // POST /api/background/presets — create a new background preset
   router.post('/presets', adminGuard, (req: Request, res: Response) => {
-    const { name, type, value } = req.body as { name?: string; type?: string; value?: string };
+    const { name, type, value } = req.body as { name?: string; type?: BackgroundType; value?: string };
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       res.status(400).json({ error: { code: 'INVALID_MODE', message: 'name is required' } });
       return;
     }
-    if (type !== 'luma' && type !== 'solid') {
-      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'type must be "luma" or "solid"' } });
+    if (type !== 'luma' && type !== 'solid' && type !== 'transparent') {
+      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'type must be "luma", "solid" or "transparent"' } });
       return;
     }
     if (!value || !HEX_COLOR_RE.test(value)) {
@@ -50,7 +51,7 @@ export function createBackgroundRouter(d: BackgroundRouterDeps): Router {
     }
 
     const now = new Date().toISOString();
-    const preset = { id: randomUUID(), name: name.trim(), type: type as 'luma' | 'solid', value, createdAt: now, updatedAt: now };
+    const preset = { id: randomUUID(), name: name.trim(), type, value, createdAt: now, updatedAt: now };
 
     const id = getActiveProfileId();
     const profile = loadProfile(paths, id);
@@ -85,7 +86,7 @@ export function createBackgroundRouter(d: BackgroundRouterDeps): Router {
   router.post('/', adminGuard, (req: Request, res: Response) => {
     const { presetId, type, value } = req.body as {
       presetId?: string | null;
-      type?: string;
+      type?: BackgroundType;
       value?: string;
     };
 
@@ -112,7 +113,7 @@ export function createBackgroundRouter(d: BackgroundRouterDeps): Router {
         return;
       }
 
-      if (preset.type !== 'luma' && preset.type !== 'solid') {
+      if (preset.type !== 'luma' && preset.type !== 'solid' && preset.type !== 'transparent') {
         res.status(500).json({ error: { code: 'INVALID_MODE', message: 'Stored background preset has invalid type' } });
         return;
       }
@@ -128,8 +129,8 @@ export function createBackgroundRouter(d: BackgroundRouterDeps): Router {
       return;
     }
 
-    if (type !== undefined && type !== 'luma' && type !== 'solid') {
-      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'Invalid background type; must be "luma" or "solid"' } });
+    if (type !== undefined && type !== 'luma' && type !== 'solid' && type !== 'transparent') {
+      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'Invalid background type; must be "luma", "solid" or "transparent"' } });
       return;
     }
     if (value !== undefined && !HEX_COLOR_RE.test(value)) {

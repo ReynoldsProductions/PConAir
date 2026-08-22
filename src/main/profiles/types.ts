@@ -1,11 +1,11 @@
-import type { UrlPreset } from '../../shared/types';
+import type { BackgroundType, UrlPreset } from '../../shared/types';
 
 export type ProfileSchemaVersion = '1.0';
 
 export interface BackgroundPreset {
   id: string;
   name: string;
-  type: 'luma' | 'solid';
+  type: BackgroundType;
   value: string;
   createdAt: string;
   updatedAt: string;

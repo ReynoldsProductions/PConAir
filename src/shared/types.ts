@@ -3,7 +3,14 @@
 
 export type Mode = 'slides' | 'url' | 'l3' | 'media-library' | 'idle';
 export type ABInstance = 'A' | 'B';
-export type BackgroundType = 'luma' | 'solid';
+/**
+ * Backdrop behind PConAir's own output windows.
+ * - `solid`  — flat fill.
+ * - `luma`   — flat fill intended to be luma-keyed downstream.
+ * - `transparent` — no backdrop; the window keys straight through. Use when an
+ *   external switcher supplies the background.
+ */
+export type BackgroundType = 'luma' | 'solid' | 'transparent';
 export type SessionMode = 'persistent' | 'ephemeral';
 
 export interface Preset {
@@ -66,6 +73,12 @@ export interface L3State {
   /** Theme name of the live cue — render pages fetch its CSS. */
   activeTheme: string | null;
   isStacking: boolean;
+  /**
+   * Display id the L3 program window targets, chosen by the operator on the
+   * Cue Library page. null = fall back to the profile-wide preference from
+   * Admin → Monitors. Survives takes and clears.
+   */
+  outputDisplayId: string | null;
   currentPlaylistId: string | null;
   /** 1-based position of the active cue within the active playlist (null when none). */
   playlistPosition: number | null;

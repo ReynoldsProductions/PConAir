@@ -770,6 +770,12 @@ async function renderBackground() {
     <div class="section-title">Background</div>
     <div class="card">
       <div class="card-title">Current Background</div>
+      <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">
+        The backdrop painted behind PConAir's own output windows — lower thirds included.
+        <strong>Transparent</strong> keys straight through for an external switcher.
+        Graphics served as browser sources (<code>/graphics/…</code>) stay transparent regardless,
+        since your switcher supplies their background.
+      </p>
       <div style="margin-bottom:10px; font-size:13px; color:var(--text-dim);">
         Type: <strong style="color:var(--text)">${escHtml(bg.type || '—')}</strong>
         &nbsp;&nbsp;Value: <strong style="color:var(--text)">${escHtml(bg.value || '—')}</strong>
@@ -782,6 +788,7 @@ async function renderBackground() {
           <select id="bg-type-select">
             <option value="solid">Solid Color</option>
             <option value="luma">Luma Key</option>
+            <option value="transparent">Transparent (no background)</option>
           </select>
         </div>
         <div class="field">
@@ -799,9 +806,13 @@ async function renderBackground() {
       <div class="item-list" id="bg-presets-list">
         ${presets.length === 0 ? '<div class="empty-state">No presets yet.</div>' : presets.map(p => {
             const safeColor = /^#[0-9a-fA-F]{6}$/.test(p.value) ? p.value : '#000000';
+            // Checkerboard reads as "no fill" rather than showing a misleading colour.
+            const swatch = p.type === 'transparent'
+              ? 'background-image:linear-gradient(45deg,var(--border) 25%,transparent 25%,transparent 75%,var(--border) 75%),linear-gradient(45deg,var(--border) 25%,transparent 25%,transparent 75%,var(--border) 75%);background-size:8px 8px;background-position:0 0,4px 4px;'
+              : `background:${safeColor};`;
             return `
           <div class="item-row" data-id="${escHtml(p.id)}">
-            <div style="width:20px;height:20px;border-radius:3px;background:${safeColor};border:1px solid var(--border);flex-shrink:0;"></div>
+            <div style="width:20px;height:20px;border-radius:3px;${swatch}border:1px solid var(--border);flex-shrink:0;"></div>
             <div class="item-name">${escHtml(p.name)}</div>
             <div class="item-meta">${escHtml(p.type)} · ${escHtml(p.value)}</div>
             <button class="btn btn-sm bg-preset-apply-btn" data-id="${escHtml(p.id)}">Apply</button>
@@ -821,6 +832,7 @@ async function renderBackground() {
           <select id="new-bg-preset-type">
             <option value="solid">Solid</option>
             <option value="luma">Luma Key</option>
+            <option value="transparent">Transparent</option>
           </select>
         </div>
       </div>
@@ -850,11 +862,23 @@ async function renderBackground() {
     if (/^#[0-9a-fA-F]{6}$/.test(newVal.value)) newPicker.value = newVal.value;
   });
 
+  // 'transparent' ignores the colour, so don't demand one — but the API still
+  // wants a valid #RRGGBB, so send a harmless placeholder.
+  const bgTypeSelect = document.getElementById('bg-type-select');
+  function syncBgValueEnabled() {
+    const isTransparent = bgTypeSelect.value === 'transparent';
+    valInput.disabled = isTransparent;
+    picker.disabled = isTransparent;
+    valInput.style.opacity = isTransparent ? '0.5' : '';
+  }
+  bgTypeSelect.addEventListener('change', syncBgValueEnabled);
+  syncBgValueEnabled();
+
   document.getElementById('set-bg-btn').addEventListener('click', async () => {
-    const type  = document.getElementById('bg-type-select').value;
+    const type  = bgTypeSelect.value;
     const value = document.getElementById('bg-value-input').value.trim();
-    if (!value) { showError('Value is required'); return; }
-    await api('POST', '/api/background', { type, value });
+    if (type !== 'transparent' && !value) { showError('Value is required'); return; }
+    await api('POST', '/api/background', { type, value: type === 'transparent' ? '#000000' : value });
     showSuccess('Background updated'); renderBackground();
   });
 
@@ -877,8 +901,8 @@ async function renderBackground() {
     const name  = document.getElementById('new-bg-preset-name').value.trim();
     const type  = document.getElementById('new-bg-preset-type').value;
     const value = document.getElementById('new-bg-preset-value').value.trim();
-    if (!name || !value) { showError('Name and value are required'); return; }
-    await api('POST', '/api/background/presets', { name, type, value });
+    if (!name || (type !== 'transparent' && !value)) { showError('Name and value are required'); return; }
+    await api('POST', '/api/background/presets', { name, type, value: type === 'transparent' ? '#000000' : value });
     showSuccess('Preset added'); renderBackground();
   });
 }

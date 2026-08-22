@@ -1,4 +1,5 @@
 import { BrowserWindow, screen } from 'electron';
+import type { BackgroundState } from '../../shared/types';
 import type { StateStore } from '../state';
 import type { L3CueStore } from './cue-store';
 import type { L3ThemeStore } from './theme-store';
@@ -29,8 +30,21 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/**
+ * Resolve the CSS backdrop for the program window from Admin → Background.
+ * `transparent` (and no configured background at all) keys straight through.
+ */
+function resolveBackdrop(background: BackgroundState | null): string {
+  if (!background || background.type === 'transparent') return 'transparent';
+  return background.value;
+}
+
 /** Build program overlay HTML; exported for unit tests (theme link + fallback layout). */
-export function buildL3ProgramMarkup(stack: L3ProgramStackEntry[], themeCss: string | null): string {
+export function buildL3ProgramMarkup(
+  stack: L3ProgramStackEntry[],
+  themeCss: string | null,
+  background: BackgroundState | null = null
+): string {
   const blocks = stack
     .map(
       (e) => `
@@ -46,10 +60,15 @@ export function buildL3ProgramMarkup(stack: L3ProgramStackEntry[], themeCss: str
       ? `<link rel="stylesheet" href="data:text/css;charset=utf-8;base64,${Buffer.from(themeCss, 'utf8').toString('base64')}" />`
       : '';
 
+  // One backdrop for the whole window, behind every card in the stack. That is
+  // what makes stacked layers see-through: the cards themselves never carry a
+  // fill, so the card below and this backdrop both remain visible.
+  const backdrop = resolveBackdrop(background);
+
   return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"/>
 <style>
-html,body{margin:0;background:transparent;overflow:hidden;}
+html,body{margin:0;background:${backdrop};overflow:hidden;}
 #wrap{position:fixed;left:0;right:0;bottom:0;padding:32px 48px;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;gap:16px;pointer-events:none;}
 .cue{color:#fff;text-shadow:0 2px 8px #000;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
 .name{font-size:40px;font-weight:700;line-height:1.1;}
@@ -59,8 +78,12 @@ ${themeLink}
 </head><body><div id="wrap">${blocks}</div></body></html>`;
 }
 
-function buildDataUrl(stack: L3StackEntry[], themeCss: string | null): string {
-  const markup = buildL3ProgramMarkup(stack, themeCss);
+function buildDataUrl(
+  stack: L3StackEntry[],
+  themeCss: string | null,
+  background: BackgroundState | null
+): string {
+  const markup = buildL3ProgramMarkup(stack, themeCss, background);
   return `data:text/html;charset=utf-8,${encodeURIComponent(markup)}`;
 }
 
@@ -85,12 +108,24 @@ export function createL3WindowManager(config: L3WindowConfig) {
   let lastTakenCueId: string | null = null;
 
   function getTargetDisplay(): Electron.Display {
-    const pref = getDisplayPreference?.() ?? null;
+    // Operator's per-session choice on the Cue Library page wins; the profile
+    // preference from Admin → Monitors is the fallback.
+    const pref = store.getState().l3?.outputDisplayId ?? getDisplayPreference?.() ?? null;
     if (pref) {
       const found = screen.getAllDisplays().find((d) => String(d.id) === pref);
       if (found) return found;
     }
     return screen.getPrimaryDisplay();
+  }
+
+  /** Move an already-open window when the operator retargets it mid-show. */
+  function applyTargetDisplay(): void {
+    if (!win || win.isDestroyed()) return;
+    const b = getTargetDisplay().bounds;
+    const cur = win.getBounds();
+    if (cur.x === b.x && cur.y === b.y && cur.width === b.width && cur.height === b.height) return;
+    win.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
+    scheduleFullscreenChrome(win);
   }
 
   function ensureWindow(): BrowserWindow {
@@ -126,8 +161,9 @@ export function createL3WindowManager(config: L3WindowConfig) {
       return;
     }
     const themeCss = resolveThemeCss(entries, themes, cues);
-    const url = buildDataUrl(entries, themeCss);
+    const url = buildDataUrl(entries, themeCss, store.getState().background ?? null);
     const window = ensureWindow();
+    applyTargetDisplay();
     void window.loadURL(url).then(() => {
       if (!window.isDestroyed()) {
         window.show();
@@ -143,9 +179,12 @@ export function createL3WindowManager(config: L3WindowConfig) {
       // count, watchdog pings, other modes' actions) re-runs paint()'s
       // loadURL() on the live-preview window, aborting the previous in-flight
       // load each time (ERR_ABORTED) and hammering the renderer.
-      if (patch.currentMode === undefined && patch.l3 === undefined) return;
+      if (patch.currentMode === undefined && patch.l3 === undefined && patch.background === undefined) return;
 
       const state = store.getState();
+
+      // Retarget an open window even when nothing else about the take changed.
+      if (patch.l3?.outputDisplayId !== undefined) applyTargetDisplay();
 
       if (state.currentMode !== 'l3') {
         stack = [];
@@ -179,6 +218,8 @@ export function createL3WindowManager(config: L3WindowConfig) {
         lastTakenCueId = l3.activeCueId;
       }
 
+      // A background-only change falls through to here with an unchanged stack,
+      // repainting the live card over the new backdrop.
       paint(stack);
     });
   }
