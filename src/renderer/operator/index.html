@@ -953,6 +953,15 @@ input[type="radio"] {
           <div class="panel">
             <div id="l3-active-line" class="field-hint" style="margin-bottom:12px;">Active: —</div>
             <div class="form-group">
+              <label for="l3-output-display-select">Display target</label>
+              <div class="ml-l3-select-wrap">
+                <select id="l3-output-display-select" class="select-input">
+                  <option value="">Primary display (default)</option>
+                </select>
+                <button type="button" class="btn btn-secondary" id="l3-displays-refresh-btn" title="Reload display list">Refresh</button>
+              </div>
+            </div>
+            <div class="form-group">
               <label for="l3-cue-select">Cue from library</label>
               <div class="ml-l3-select-wrap">
                 <select id="l3-cue-select" class="select-input">

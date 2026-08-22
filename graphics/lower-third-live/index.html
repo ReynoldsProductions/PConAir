@@ -29,9 +29,11 @@
     --font-sans:'Inter',-apple-system,sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  html,body{width:1920px;height:1080px;overflow:hidden;background:#000;
+  html,body{width:1920px;height:1080px;overflow:hidden;background:var(--backdrop,#000);
     font-family:var(--font-sans);-webkit-font-smoothing:antialiased;}
-  #stage{position:absolute;inset:0;background:#000;}
+  /* Backdrop comes from Admin -> Background (AppState.background); the #000
+     default is what shows until the first state message lands. */
+  #stage{position:absolute;inset:0;background:var(--backdrop,#000);}
 
   /* ── lower third — geometry lifted from graphics/news/index.html's .l3 rules, ──
      ── generalized to read colors from per-theme CSS custom properties ── */
@@ -308,15 +310,25 @@
       if (el) triggerEnter(el, lt);
     }
 
+    // Admin -> Background is the single authority for this page's backdrop.
+    // 'transparent' keys straight through for an external switcher.
+    function applyBackdrop(bg) {
+      if (!bg) return;
+      var fill = bg.type === 'transparent' ? 'transparent' : bg.value;
+      document.documentElement.style.setProperty('--backdrop', fill);
+    }
+
     function connect() {
       var ws = new WebSocket(wsUrl);
       ws.onmessage = function(e) {
         try {
           var msg = JSON.parse(e.data);
           if (msg.type === 'state' && msg.payload) {
+            applyBackdrop(msg.payload.background);
             apply(msg.payload.graphics && msg.payload.graphics.lowerThird);
-          } else if (msg.type === 'state_patch' && msg.payload && msg.payload.graphics) {
-            apply(msg.payload.graphics.lowerThird);
+          } else if (msg.type === 'state_patch' && msg.payload) {
+            if (msg.payload.background) applyBackdrop(msg.payload.background);
+            if (msg.payload.graphics) apply(msg.payload.graphics.lowerThird);
           }
         } catch (err) {}
       };

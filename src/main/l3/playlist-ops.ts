@@ -3,22 +3,11 @@ import type { L3CueStore } from './cue-store';
 import type { L3PlaylistStore, L3Playlist } from './playlist-store';
 import type { L3State } from '../../shared/types';
 import { l3TakeOp } from './take-ops';
+import { emptyL3 } from './state-defaults';
 
 type Err = { ok: false; status: number; error: { code: string; message: string } };
 type Ok<T> = { ok: true; body: T };
 
-function emptyL3(): L3State {
-  return {
-    activeCueId: null,
-    activeCueName: null,
-    activeTitle: null,
-    activeTheme: null,
-    isStacking: false,
-    currentPlaylistId: null,
-    playlistPosition: null,
-    playlistLength: null,
-  };
-}
 
 /** Find a playlist by id, falling back to (unique) name match. */
 export function findPlaylist(playlists: L3PlaylistStore, idOrName: string): L3Playlist | null {

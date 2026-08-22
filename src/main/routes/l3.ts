@@ -9,7 +9,8 @@ import type { L3PlaylistStore } from '../l3/playlist-store';
 import type { L3ThemeStore } from '../l3/theme-store';
 import type { L3State } from '../../shared/types';
 import { requireOperator, requireAdmin } from './middleware';
-import { l3ClearOp, l3StackingOp, l3TakeOp } from '../l3/take-ops';
+import { l3ClearOp, l3SetOutputDisplayOp, l3StackingOp, l3TakeOp } from '../l3/take-ops';
+import { emptyL3, ensureL3 } from '../l3/state-defaults';
 import { playlistActivateOp, playlistStepOp } from '../l3/playlist-ops';
 import { sniffImageMime } from '../media-library/image-meta';
 
@@ -26,22 +27,7 @@ John Doe,CEO,default,Head of Company
 Jane Smith,CTO,default,
 `;
 
-function emptyL3(): L3State {
-  return {
-    activeCueId: null,
-    activeCueName: null,
-    activeTitle: null,
-    activeTheme: null,
-    isStacking: false,
-    currentPlaylistId: null,
-    playlistPosition: null,
-    playlistLength: null,
-  };
-}
 
-function ensureL3(state: ReturnType<StateStore['getState']>): L3State {
-  return state.l3 ?? emptyL3();
-}
 
 // ── CSV parsing helpers ──────────────────────────────────────────────────────
 
@@ -481,6 +467,18 @@ export function createL3Router(
 
   router.post('/clear', opGuard, (_req: Request, res: Response) => {
     const r = l3ClearOp(store);
+    res.json(r.body);
+  });
+
+  router.post('/output-display', opGuard, (req: Request, res: Response) => {
+    const { displayId } = req.body as { displayId?: unknown };
+    if (displayId !== null && typeof displayId !== 'string') {
+      res.status(400).json({
+        error: { code: 'INVALID_MODE', message: 'displayId must be a string or null' },
+      });
+      return;
+    }
+    const r = l3SetOutputDisplayOp(store, displayId === '' ? null : displayId);
     res.json(r.body);
   });
 

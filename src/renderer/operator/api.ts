@@ -62,6 +62,9 @@ export const l3Take = (body: { cueId?: string; name?: string; title?: string; au
 
 export const l3Clear = () => apiPost<unknown>('/api/l3/clear');
 
+export const l3SetOutputDisplay = (displayId: string | null) =>
+  apiPost<unknown>('/api/l3/output-display', { displayId });
+
 export const l3Stacking = (enabled: boolean) =>
   apiPost<unknown>('/api/l3/stacking', { enabled });
 

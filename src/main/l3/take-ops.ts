@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import type { StateStore } from '../state';
 import type { L3CueStore } from './cue-store';
 import type { L3State } from '../../shared/types';
+import { ensureL3 } from './state-defaults';
 
 const autoOutTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -27,21 +28,21 @@ function cancelAutoOut(layer: string): void {
 type Err = { ok: false; status: number; error: { code: string; message: string } };
 type Ok<T> = { ok: true; body: T };
 
-function emptyL3(): L3State {
-  return {
-    activeCueId: null,
-    activeCueName: null,
-    activeTitle: null,
-    activeTheme: null,
-    isStacking: false,
-    currentPlaylistId: null,
-    playlistPosition: null,
-    playlistLength: null,
-  };
-}
 
-function ensureL3(state: ReturnType<StateStore['getState']>): L3State {
-  return state.l3 ?? emptyL3();
+
+/**
+ * Point the L3 program window at a specific display. Kept on L3State (not the
+ * profile) so it is per-show-session and visible to every connected client;
+ * null hands control back to the Admin → Monitors preference.
+ */
+export function l3SetOutputDisplayOp(
+  store: StateStore,
+  displayId: string | null
+): Ok<{ l3: L3State }> {
+  const base = ensureL3(store.getState());
+  const next: L3State = { ...base, outputDisplayId: displayId };
+  store.setState({ l3: next });
+  return { ok: true, body: { l3: next } };
 }
 
 export function l3TakeOp(

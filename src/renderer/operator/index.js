@@ -159,6 +159,7 @@
   var l3ListCues = () => apiGet("/api/l3/cues");
   var l3Take = (body) => apiPost("/api/l3/take", body);
   var l3Clear = () => apiPost("/api/l3/clear");
+  var l3SetOutputDisplay = (displayId) => apiPost("/api/l3/output-display", { displayId });
   var l3Stacking = (enabled) => apiPost("/api/l3/stacking", { enabled });
   var lowerThirdApply = (body) => apiPost("/api/action", { action_id: "lower_third_apply", params: body });
   var lowerThirdHide = () => apiPost("/api/action", { action_id: "lower_third_hide", params: {} });
@@ -354,23 +355,29 @@
     }
     if (prev && cues.some((x) => x.id === prev)) sel.value = prev;
   }
+  var DISPLAY_SELECT_IDS = ["lt-output-display-select", "l3-output-display-select"];
   async function refreshDisplaySelect() {
     const { displays } = await listDisplays();
-    const sel = document.getElementById("lt-output-display-select");
-    if (!sel) return;
-    const prev = sel.value;
-    sel.replaceChildren();
-    const opt0 = document.createElement("option");
-    opt0.value = "";
-    opt0.textContent = "Primary display (default)";
-    sel.appendChild(opt0);
-    for (const d of displays) {
-      const o = document.createElement("option");
-      o.value = d.id;
-      o.textContent = d.isPrimary ? `${d.name} (primary)` : d.name;
-      sel.appendChild(o);
+    for (const id of DISPLAY_SELECT_IDS) {
+      const sel = document.getElementById(id);
+      if (!sel) continue;
+      const prev = sel.value;
+      sel.replaceChildren();
+      const opt0 = document.createElement("option");
+      opt0.value = "";
+      opt0.textContent = "Primary display (default)";
+      sel.appendChild(opt0);
+      for (const d of displays) {
+        const o = document.createElement("option");
+        o.value = d.id;
+        o.textContent = d.isPrimary ? `${d.name} (primary)` : d.name;
+        sel.appendChild(o);
+      }
+      if (prev && displays.some((x) => x.id === prev)) sel.value = prev;
     }
-    if (prev && displays.some((x) => x.id === prev)) sel.value = prev;
+    const l3Sel = document.getElementById("l3-output-display-select");
+    const current = store.getState().l3?.outputDisplayId ?? "";
+    if (l3Sel && current && displays.some((x) => x.id === current)) l3Sel.value = current;
   }
   async function refreshGoogleAuth() {
     const statusEl = document.getElementById("google-auth-status");
@@ -718,6 +725,13 @@
     document.getElementById("lt-displays-refresh-btn").addEventListener("click", () => {
       void refreshDisplaySelect().catch((e) => showError(e.message));
     });
+    document.getElementById("l3-displays-refresh-btn").addEventListener("click", () => {
+      void refreshDisplaySelect().catch((e) => showError(e.message));
+    });
+    document.getElementById("l3-output-display-select").addEventListener("change", () => {
+      const sel = document.getElementById("l3-output-display-select");
+      void l3SetOutputDisplay(sel.value || null).catch((e) => showError(e.message));
+    });
     document.getElementById("lt-fade-ms-slider").addEventListener("input", () => {
       const slider = document.getElementById("lt-fade-ms-slider");
       document.getElementById("lt-fade-ms-input").value = slider.value;
@@ -853,7 +867,7 @@
         } else {
           stopNotesPolling();
         }
-        if (target === "lower-third-live") {
+        if (target === "lower-third-live" || target === "l3") {
           void refreshDisplaySelect().catch(() => {
           });
         }
