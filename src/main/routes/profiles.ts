@@ -56,11 +56,18 @@ export function createProfilesRouter(d: ProfilesRouterDeps): Router {
       res.status(404).json({ error: { code: 'PRESET_NOT_FOUND', message: 'No active profile' } });
       return;
     }
+    // Unauthenticated: every web UI reads this on boot to pick up the theme.
+    // Expose the theme and nothing else — appPreferences also carries the IP
+    // allowlist and session durations, which must not leak to anonymous callers.
+    const savedTheme = p.appPreferences?.operatorTheme;
     res.json({
       id: p.id,
       name: p.name,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
+      appPreferences: {
+        operatorTheme: savedTheme === 'dark' ? 'dark' : 'light',
+      },
     });
   });
 

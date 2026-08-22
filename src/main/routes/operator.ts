@@ -3,6 +3,7 @@ import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import type { AuthManager } from '../auth';
+import { renderLoginPage } from './login-page';
 import { requireOperator } from './middleware';
 
 // webpack-dev-server's HMR client (bundled into index.js in dev builds only) uses
@@ -21,13 +22,6 @@ function operatorSessionOk(req: Request, auth: AuthManager): boolean {
   return Boolean(sessionId && auth.getSession(sessionId));
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 const LOGIN_QUERY_HINTS: Record<string, string> = {
   bad: 'Incorrect PIN. Try again.',
@@ -37,38 +31,14 @@ const LOGIN_QUERY_HINTS: Record<string, string> = {
 };
 
 function operatorLoginHtml(message: string): string {
-  const msg = message ? `<p class="err">${escapeHtml(message)}</p>` : '';
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PC On Air — Operator sign-in</title>
-  <style>
-    body { font-family: system-ui, sans-serif; background: #fbf8f6; color: #333; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .box { background: #fff; border: 1px solid #dfe0e1; border-radius: 4px; padding: 28px 32px; max-width: 22rem; width: 100%; box-sizing: border-box; }
-    h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 8px; }
-    p.sub { font-size: 13px; color: #757575; margin: 0 0 20px; line-height: 1.45; }
-    .err { color: #921100; font-size: 13px; margin: 0 0 14px; }
-    label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
-    input { width: 100%; box-sizing: border-box; padding: 8px 12px; font-size: 15px; border: 1px solid #dfe0e1; border-radius: 4px; margin-bottom: 16px; }
-    button { width: 100%; padding: 10px 16px; font-size: 14px; font-weight: 600; border: none; border-radius: 4px; background: #333; color: #fff; cursor: pointer; }
-    button:hover { background: #000; }
-  </style>
-</head>
-<body>
-  <div class="box">
-    <h1>Operator sign-in</h1>
-    <p class="sub">Enter the operator PIN for this show machine. The Electron app signs in automatically; a normal browser needs this step.</p>
-    ${msg}
-    <form method="post" action="/auth/operator/browser" autocomplete="off">
-      <label for="pin">Operator PIN</label>
-      <input id="pin" name="pin" type="password" inputmode="numeric" required autofocus />
-      <button type="submit">Continue</button>
-    </form>
-  </div>
-</body>
-</html>`;
+  return renderLoginPage({
+    title: 'PC On Air — Operator sign-in',
+    heading: 'Operator sign-in',
+    intro: 'Enter the operator PIN for this show machine. The Electron app signs in automatically; a normal browser needs this step.',
+    action: '/auth/operator/browser',
+    pinLabel: 'Operator PIN',
+    message,
+  });
 }
 
 // Read once at startup — fs.readFileSync works inside Electron asars; res.sendFile does not.

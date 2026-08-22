@@ -63,11 +63,15 @@ export function l3TakeOp(
     if (!cue) {
       return { ok: false, status: 404, error: { code: 'CUE_NOT_FOUND', message: `Cue '${input.cueId}' not found` } };
     }
+    // Per-take overrides win; fall back to the cue's stored value. These are
+    // ephemeral — the cue store is never written back to, so recalling a preset
+    // and retyping its wording changes this take only.
+    const nameOverride = typeof input.name === 'string' ? input.name.trim() : '';
+    const titleOverride = typeof input.title === 'string' ? input.title.trim() : '';
     nextId = cue.id;
-    nextName = cue.name;
-    nextTitle = cue.title;
+    nextName = nameOverride || cue.name;
+    nextTitle = titleOverride || cue.title;
     nextTheme = cue.theme;
-    // Per-take override wins; fall back to cue's stored value
     resolvedAutoOutMs = input.autoOutMs != null ? input.autoOutMs : (cue.autoOutMs ?? null);
   } else {
     if (!input.name || typeof input.name !== 'string' || !input.name.trim()) {

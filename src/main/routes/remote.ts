@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import type { AuthManager } from '../auth';
 import { requireOperator } from './middleware';
+import { renderLoginPage } from './login-page';
 
 function operatorSessionOk(req: Request, auth: AuthManager): boolean {
   const sessionId =
@@ -11,13 +12,6 @@ function operatorSessionOk(req: Request, auth: AuthManager): boolean {
   return Boolean(sessionId && auth.getSession(sessionId));
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 const LOGIN_QUERY_HINTS: Record<string, string> = {
   bad: 'Incorrect PIN. Try again.',
@@ -27,38 +21,15 @@ const LOGIN_QUERY_HINTS: Record<string, string> = {
 };
 
 function remoteLoginHtml(message: string): string {
-  const msg = message ? `<p class="err">${escapeHtml(message)}</p>` : '';
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PConAir — Sign in</title>
-  <style>
-    body { font-family: system-ui, sans-serif; background: #111315; color: #e8eaec; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .box { background: #1c1f22; border: 1px solid #33383d; border-radius: 10px; padding: 28px 32px; max-width: 22rem; width: 100%; box-sizing: border-box; }
-    h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 8px; }
-    p.sub { font-size: 13px; color: #9aa0a6; margin: 0 0 20px; line-height: 1.45; }
-    .err { color: #ff6e62; font-size: 13px; margin: 0 0 14px; }
-    label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
-    input { width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 16px; border: 1px solid #33383d; border-radius: 6px; margin-bottom: 16px; background: #111315; color: #e8eaec; }
-    button { width: 100%; padding: 12px 16px; font-size: 14px; font-weight: 600; border: none; border-radius: 6px; background: #4da3ff; color: #08111c; cursor: pointer; }
-  </style>
-</head>
-<body>
-  <div class="box">
-    <h1>PConAir</h1>
-    <p class="sub">Enter the operator PIN to open the remote.</p>
-    ${msg}
-    <form method="post" action="/auth/operator/browser" autocomplete="off">
-      <input type="hidden" name="next" value="/remote/" />
-      <label for="pin">Operator PIN</label>
-      <input id="pin" name="pin" type="password" inputmode="numeric" required autofocus />
-      <button type="submit">Continue</button>
-    </form>
-  </div>
-</body>
-</html>`;
+  return renderLoginPage({
+    title: 'PConAir — Sign in',
+    heading: 'PConAir',
+    intro: 'Enter the operator PIN to open the remote.',
+    action: '/auth/operator/browser',
+    pinLabel: 'Operator PIN',
+    message,
+    next: '/remote/',
+  });
 }
 
 // Read once at startup — fs.readFileSync works inside Electron asars; res.sendFile does not.
