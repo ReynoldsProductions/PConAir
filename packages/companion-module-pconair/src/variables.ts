@@ -1,5 +1,5 @@
 import type { CompanionVariableDefinition, CompanionVariableValues } from '@companion-module/base'
-import type { PcoState } from './client.js'
+import type { PcoState, Transport } from './client.js'
 
 /**
  * Variable set = GSC module names preserved exactly (current_slide,
@@ -11,6 +11,7 @@ export const VARIABLE_DEFINITIONS: CompanionVariableDefinition[] = [
   // ── connection ──
   { variableId: 'connected', name: 'Connected (1/0)' },
   { variableId: 'connection_status', name: 'Connection Status' },
+  { variableId: 'transport', name: 'Transport (ws / http / blank)' },
 
   // ── PConAir core (v1 names preserved) ──
   { variableId: 'current_mode', name: 'Current Mode' },
@@ -165,7 +166,11 @@ function yn(v: boolean | null | undefined): string {
   return v ? 'Yes' : 'No'
 }
 
-export function stateToVariables(state: Partial<PcoState>, connected: boolean): CompanionVariableValues {
+export function stateToVariables(
+  state: Partial<PcoState>,
+  connected: boolean,
+  transport: Transport = connected ? 'ws' : null
+): CompanionVariableValues {
   const slides = state.slides ?? null
   const ready = slides !== null && !slides.isLoading
   // GSC semantics: 1-based slide numbers, null → blank.
@@ -185,7 +190,9 @@ export function stateToVariables(state: Partial<PcoState>, connected: boolean): 
 
   return {
     connected: connected ? '1' : '0',
-    connection_status: connected ? 'connected' : 'disconnected',
+    // 'http_fallback' is still controllable — just polled, and PIN-gated for actions.
+    connection_status: transport === 'ws' ? 'connected' : transport === 'http' ? 'http_fallback' : 'disconnected',
+    transport: transport ?? '',
 
     current_mode: state.currentMode ?? 'idle',
     current_url: state.currentUrl ?? '',

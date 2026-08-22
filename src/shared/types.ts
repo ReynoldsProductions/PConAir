@@ -340,7 +340,10 @@ export type WsServerMessage =
   | { type: 'action_result'; payload: unknown };
 
 export type WsClientMessage =
-  | { type: 'action'; action: string; payload: Record<string, unknown> };
+  /** Dispatch an action. `pin` is required when the socket carries only an admin session. */
+  | { type: 'action'; action_id: string; params?: Record<string, unknown>; pin?: string }
+  /** Subscribe to a package state namespace, e.g. `package:hoops`. */
+  | { type: 'subscribe'; namespace: string };
 
 // ---- Auth types ----
 
