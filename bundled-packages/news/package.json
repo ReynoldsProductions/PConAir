@@ -2,7 +2,7 @@
   "id": "news",
   "name": "Faire Wire",
   "version": "2.0.0",
-  "description": "Ticker with the Faire logo bug, plus left/right lower thirds as a separate render. TAKE/CLEAR driven.",
+  "description": "Ticker with the Faire logo bug, plus left/right lower thirds. Take them as separate renders or as one all-in-one render. TAKE/CLEAR driven.",
   "renders": [
     {
       "id": "ticker",
@@ -13,6 +13,11 @@
       "id": "l3",
       "label": "Lower thirds (left + right)",
       "file": "render-l3.html"
+    },
+    {
+      "id": "all",
+      "label": "Ticker + lower thirds (one source)",
+      "file": "render-all.html"
     }
   ],
   "stateSchema": {
