@@ -42,7 +42,7 @@ function makeAppState(overrides: Partial<AppState> = {}): AppState {
       url: { bg: 'transparent', chromaColor: '#00ff00', claimedOutput: null },
     },
     stageTimer: { overlayEnabled: false, overlayPosition: 'bottom-left', overlaySize: 10, roomId: null, configured: false },
-    teleprompter: { enabled: false, host: '', scrolling: false, speed: 40, fontSize: 72 },
+    prompter: { enabled: false, host: '', scrolling: false, speed: 40, fontSize: 72 },
     graphics: { scoreboard: null, lowerThird: null },
     ...overrides,
   };

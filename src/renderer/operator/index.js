@@ -46,6 +46,23 @@
   var React2 = __toESM(require_react_global_shim());
   var ReactDOMBase = __toESM(require_react_dom_global_shim());
 
+  // src/shared/types.ts
+  function makePrompterState() {
+    return {
+      enabled: false,
+      host: "",
+      scrolling: false,
+      speed: 40,
+      fontSize: 72,
+      lineHeight: 1.4,
+      script: "",
+      offset: 0,
+      startedAt: null,
+      mirrorX: false,
+      mirrorY: false
+    };
+  }
+
   // src/renderer/operator/state.ts
   var DEFAULT_STATE = {
     currentMode: "idle",
@@ -92,7 +109,7 @@
       roomId: null,
       configured: false
     },
-    teleprompter: { enabled: false, host: "", scrolling: false, speed: 40, fontSize: 72 },
+    prompter: makePrompterState(),
     graphics: { scoreboard: null, lowerThird: null }
   };
   function createClientStore() {

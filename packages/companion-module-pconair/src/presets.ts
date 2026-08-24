@@ -483,46 +483,54 @@ export function buildPresets(): Record<string, CompanionPresetDefinition> {
       steps: [{ down: [{ actionId: 'lower_third_hide', options: {} }], up: [] }],
     },
 
-    // 7.15 Teleprompter
-    teleprompter_toggle: {
+    // 7.15 Prompter
+    prompter_toggle: {
       type: 'button',
-      category: 'Teleprompter',
-      name: 'Teleprompter Start/Stop',
+      category: 'Prompter',
+      name: 'Prompter Start/Stop',
       style: { text: 'Prompter\n▶/⏸', size: '14', color: white, bgcolor: gray },
-      feedbacks: [{ feedbackId: 'teleprompter_scrolling', options: {}, style: { bgcolor: combineRgb(0, 180, 0) } }],
-      steps: [{ down: [{ actionId: 'teleprompter_toggle', options: {} }], up: [] }],
+      feedbacks: [{ feedbackId: 'prompter_scrolling', options: {}, style: { bgcolor: combineRgb(0, 180, 0) } }],
+      steps: [{ down: [{ actionId: 'prompter_toggle', options: {} }], up: [] }],
     },
-    teleprompter_faster: {
+    prompter_rewind: {
       type: 'button',
-      category: 'Teleprompter',
+      category: 'Prompter',
+      name: 'Rewind to Top',
+      style: { text: 'Prompter\n⏮ Top', size: '14', color: white, bgcolor: gray },
+      feedbacks: [],
+      steps: [{ down: [{ actionId: 'prompter_rewind', options: {} }], up: [] }],
+    },
+    prompter_faster: {
+      type: 'button',
+      category: 'Prompter',
       name: 'Scroll Faster',
-      style: { text: 'Speed +\n$(pconair:teleprompter_speed)', size: '14', color: white, bgcolor: gray },
+      style: { text: 'Speed +\n$(pconair:prompter_speed)', size: '14', color: white, bgcolor: gray },
       feedbacks: [],
-      steps: [{ down: [{ actionId: 'teleprompter_scroll_faster', options: {} }], up: [] }],
+      steps: [{ down: [{ actionId: 'prompter_scroll_faster', options: {} }], up: [] }],
     },
-    teleprompter_slower: {
+    prompter_slower: {
       type: 'button',
-      category: 'Teleprompter',
+      category: 'Prompter',
       name: 'Scroll Slower',
-      style: { text: 'Speed −\n$(pconair:teleprompter_speed)', size: '14', color: white, bgcolor: gray },
+      style: { text: 'Speed −\n$(pconair:prompter_speed)', size: '14', color: white, bgcolor: gray },
       feedbacks: [],
-      steps: [{ down: [{ actionId: 'teleprompter_scroll_slower', options: {} }], up: [] }],
+      steps: [{ down: [{ actionId: 'prompter_scroll_slower', options: {} }], up: [] }],
     },
-    teleprompter_font_up: {
+    prompter_font_up: {
       type: 'button',
-      category: 'Teleprompter',
+      category: 'Prompter',
       name: 'Font Size +',
-      style: { text: 'Font +\n$(pconair:teleprompter_font_size)', size: '14', color: white, bgcolor: gray },
+      style: { text: 'Font +\n$(pconair:prompter_font_size)', size: '14', color: white, bgcolor: gray },
       feedbacks: [],
-      steps: [{ down: [{ actionId: 'teleprompter_font_size_in', options: {} }], up: [] }],
+      steps: [{ down: [{ actionId: 'prompter_font_size_in', options: {} }], up: [] }],
     },
-    teleprompter_font_down: {
+    prompter_font_down: {
       type: 'button',
-      category: 'Teleprompter',
+      category: 'Prompter',
       name: 'Font Size −',
-      style: { text: 'Font −\n$(pconair:teleprompter_font_size)', size: '14', color: white, bgcolor: gray },
+      style: { text: 'Font −\n$(pconair:prompter_font_size)', size: '14', color: white, bgcolor: gray },
       feedbacks: [],
-      steps: [{ down: [{ actionId: 'teleprompter_font_size_out', options: {} }], up: [] }],
+      steps: [{ down: [{ actionId: 'prompter_font_size_out', options: {} }], up: [] }],
     },
 
     // 7.16 Reliability / system

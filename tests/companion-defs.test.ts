@@ -173,14 +173,14 @@ describe('companion module definitions', () => {
       expect(h.dispatched[1].params).toEqual({ instance: 'B' });
     });
 
-    it('teleprompter set-speed/font/script parse variables', async () => {
-      await run(actions, 'teleprompter_set_speed', { speed: '$(test:n)' });
-      await run(actions, 'teleprompter_set_font_size', { font_size: '96' });
-      await run(actions, 'teleprompter_load_script', { text: 'Hello $(test:name)' });
+    it('prompter set-speed/font/script parse variables', async () => {
+      await run(actions, 'prompter_set_speed', { speed: '$(test:n)' });
+      await run(actions, 'prompter_set_font_size', { font_size: '96' });
+      await run(actions, 'prompter_load_script', { text: 'Hello $(test:name)' });
       expect(h.dispatched).toEqual([
-        { actionId: 'teleprompter_set_speed', params: { speed: 7 } },
-        { actionId: 'teleprompter_set_font_size', params: { font_size: 96 } },
-        { actionId: 'teleprompter_load_script', params: { text: 'Hello Alice' } },
+        { actionId: 'prompter_set_speed', params: { speed: 7 } },
+        { actionId: 'prompter_set_font_size', params: { font_size: 96 } },
+        { actionId: 'prompter_load_script', params: { text: 'Hello Alice' } },
       ]);
     });
 
@@ -231,7 +231,7 @@ describe('companion module definitions', () => {
     it('new boolean feedbacks read their state fields', () => {
       const feedbacks = buildFeedbacks(
         () => ({
-          teleprompter: { enabled: true, scrolling: true, speed: 40, fontSize: 72 },
+          prompter: { enabled: true, scrolling: true, speed: 40, fontSize: 72 },
           watchdog: { programUnresponsive: true, programUnresponsiveSecs: 5, memoryPressure: false, memoryPressurePct: 40 },
           graphics: { scoreboard: null, lowerThird: { visible: true } as never },
           tunnel: { enabled: true, status: 'active', url: null, pinRequired: true, lastError: null },
@@ -239,7 +239,7 @@ describe('companion module definitions', () => {
         () => true
       );
       const check = (id: string) => (feedbacks[id].callback as (f: never) => boolean)({ options: {} } as never);
-      expect(check('teleprompter_scrolling')).toBe(true);
+      expect(check('prompter_scrolling')).toBe(true);
       expect(check('watchdog_unresponsive')).toBe(true);
       expect(check('memory_pressure')).toBe(false);
       expect(check('gfx_lower_third_visible')).toBe(true);
@@ -259,14 +259,14 @@ describe('companion module definitions', () => {
     it('is null-safe on an empty state', () => {
       const values = stateToVariables({}, false);
       expect(values['score_a']).toBe('');
-      expect(values['teleprompter_scrolling']).toBe('No');
+      expect(values['prompter_scrolling']).toBe('No');
       expect(values['display_count']).toBe('');
     });
 
     it('surfaces new state fields', () => {
       const values = stateToVariables(
         {
-          teleprompter: { enabled: true, scrolling: true, speed: 55, fontSize: 90 },
+          prompter: { enabled: true, scrolling: true, speed: 55, fontSize: 90 },
           graphics: {
             scoreboard: {
               teamA: 'HME', teamB: 'AWY', scoreA: 3, scoreB: 1, quarter: 'Q2',
@@ -288,7 +288,7 @@ describe('companion module definitions', () => {
         },
         true
       );
-      expect(values['teleprompter_speed']).toBe('55');
+      expect(values['prompter_speed']).toBe('55');
       expect(values['score_a']).toBe('3');
       expect(values['possession']).toBe('a');
       expect(values['gfx_l3_name']).toBe('Tom');

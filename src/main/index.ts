@@ -12,10 +12,12 @@ import { registerDirectorIpc, openDirectorWindow, broadcastOfficeStatus, broadca
 import { createOfficeManager } from './director/office-manager';
 import { createServer } from './server';
 import { getStore } from './state';
+import { makePrompterState } from '../shared/types';
 import { createAuthManager } from './auth';
 import { createPresetsStore } from './presets';
 import { createSlidesWindowManager } from './slides/window-manager';
 import { createUrlWindowManager } from './url/window-manager';
+import { createPrompterWindowManager } from './prompter/window-manager';
 import { createL3CueStore } from './l3/cue-store';
 import { createL3PlaylistStore } from './l3/playlist-store';
 import { createL3ThemeStore } from './l3/theme-store';
@@ -153,8 +155,8 @@ async function main() {
     media: mediaLibrary,
     slideshow,
     windowManager: slidesManager,
-    getTeleprompterHost: () => loadAppSettings(settingsFile).teleprompterHost,
-    isTeleprompterEnabled: () => loadAppSettings(settingsFile).teleprompterEnabled,
+    getPrompterHost: () => loadAppSettings(settingsFile).prompterHost,
+    isPrompterEnabled: () => loadAppSettings(settingsFile).prompterEnabled,
     getBackupSettings: () => {
       const s = loadAppSettings(settingsFile);
       return { operationMode: s.operationMode, backupIps: s.backupIps, port };
@@ -162,6 +164,10 @@ async function main() {
   });
 
   const urlManager = createUrlWindowManager({ store });
+
+  // Talent-facing prompter output — opened on demand from Admin → Prompter,
+  // on whichever monitor the confidence display or glass rig is wired to.
+  const prompterManager = createPrompterWindowManager({ getPort: () => port, getDisplayPreference });
   urlManager.initialize();
 
   const l3Manager = createL3WindowManager({ store, themes: l3ThemeStore, cues: l3Cues, getDisplayPreference });
@@ -185,12 +191,10 @@ async function main() {
       roomId: appSettings.stagetimerRoomId,
       configured: appSettings.stagetimerRoomId !== null && appSettings.stagetimerApiKey !== null,
     },
-    teleprompter: {
-      enabled: appSettings.teleprompterEnabled,
-      host: appSettings.teleprompterHost,
-      scrolling: false,
-      speed: 40,
-      fontSize: 72,
+    prompter: {
+      ...makePrompterState(),
+      enabled: appSettings.prompterEnabled,
+      host: appSettings.prompterHost,
     },
   });
 
@@ -278,12 +282,13 @@ async function main() {
       saveAppSettings(settingsFile, patch);
     },
     slidesWindowManager: slidesManager,
-    getTeleprompterHost: () => loadAppSettings(settingsFile).teleprompterHost,
-    isTeleprompterEnabled: () => loadAppSettings(settingsFile).teleprompterEnabled,
-    saveTeleprompterSettings: (patch) => {
+    getPrompterHost: () => loadAppSettings(settingsFile).prompterHost,
+    isPrompterEnabled: () => loadAppSettings(settingsFile).prompterEnabled,
+    prompterWindow: prompterManager,
+    savePrompterSettings: (patch) => {
       saveAppSettings(settingsFile, {
-        ...(patch.host !== undefined ? { teleprompterHost: patch.host } : {}),
-        ...(patch.enabled !== undefined ? { teleprompterEnabled: patch.enabled } : {}),
+        ...(patch.host !== undefined ? { prompterHost: patch.host } : {}),
+        ...(patch.enabled !== undefined ? { prompterEnabled: patch.enabled } : {}),
       });
     },
     getBackupSettings: () => {

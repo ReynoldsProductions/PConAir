@@ -460,23 +460,33 @@ export function buildFeedbacks(getApp: GetAppState, isConnected: () => boolean):
       },
     },
 
-    // ── teleprompter ──
-    teleprompter_enabled: {
+    // ── prompter ──
+    prompter_enabled: {
       type: 'boolean',
-      name: 'Teleprompter Enabled',
-      description: 'Active when the teleprompter integration is enabled',
+      name: 'Prompter Enabled',
+      description: 'Active when the prompter integration is enabled',
       defaultStyle: { bgcolor: teal, color: white },
       options: [],
-      callback: () => getApp().teleprompter?.enabled === true,
+      callback: () => getApp().prompter?.enabled === true,
       showInvert: true,
     },
-    teleprompter_scrolling: {
+    prompter_scrolling: {
       type: 'boolean',
-      name: 'Teleprompter Scrolling',
-      description: 'Active while the teleprompter is scrolling',
+      name: 'Prompter Scrolling',
+      description: 'Active while the prompter is scrolling',
       defaultStyle: { bgcolor: green, color: white },
       options: [],
-      callback: () => getApp().teleprompter?.scrolling === true,
+      callback: () => getApp().prompter?.scrolling === true,
+      showInvert: true,
+    },
+
+    prompter_script_loaded: {
+      type: 'boolean',
+      name: 'Prompter Script Loaded',
+      description: 'Active when the prompter has a script to read',
+      defaultStyle: { bgcolor: teal, color: white },
+      options: [],
+      callback: () => Boolean(getApp().prompter?.script),
       showInvert: true,
     },
 

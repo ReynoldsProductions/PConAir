@@ -72,7 +72,15 @@ export interface PcoState {
     roomId: string | null
     configured: boolean
   }
-  teleprompter: { enabled: boolean; scrolling: boolean; speed: number; fontSize: number } | null
+  prompter: {
+    enabled: boolean
+    scrolling: boolean
+    speed: number
+    fontSize: number
+    script?: string
+    mirrorX?: boolean
+    mirrorY?: boolean
+  } | null
   graphics: {
     scoreboard: {
       teamA: string

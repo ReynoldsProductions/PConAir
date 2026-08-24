@@ -129,37 +129,74 @@ export function buildSystemActions(deps: ActionDeps): Record<string, CompanionAc
       })
     ),
 
-    // ════ Teleprompter ════
-    teleprompter_start: simpleDispatch(deps, 'Teleprompter: Start Scrolling', 'teleprompter_start'),
-    teleprompter_stop: simpleDispatch(deps, 'Teleprompter: Stop Scrolling', 'teleprompter_stop'),
-    teleprompter_toggle: simpleDispatch(deps, 'Teleprompter: Toggle Scrolling', 'teleprompter_toggle'),
-    teleprompter_scroll_faster: simpleDispatch(deps, 'Teleprompter: Scroll Faster', 'teleprompter_scroll_faster'),
-    teleprompter_scroll_slower: simpleDispatch(deps, 'Teleprompter: Scroll Slower', 'teleprompter_scroll_slower'),
-    teleprompter_font_size_in: simpleDispatch(deps, 'Teleprompter: Font Size +', 'teleprompter_font_size_in'),
-    teleprompter_font_size_out: simpleDispatch(deps, 'Teleprompter: Font Size −', 'teleprompter_font_size_out'),
-    teleprompter_set_speed: {
-      name: 'Teleprompter: Set Scroll Speed',
+    // ════ Prompter ════
+    prompter_start: simpleDispatch(deps, 'Prompter: Start Scrolling', 'prompter_start'),
+    prompter_stop: simpleDispatch(deps, 'Prompter: Stop Scrolling', 'prompter_stop'),
+    prompter_toggle: simpleDispatch(deps, 'Prompter: Toggle Scrolling', 'prompter_toggle'),
+    prompter_scroll_faster: simpleDispatch(deps, 'Prompter: Scroll Faster', 'prompter_scroll_faster'),
+    prompter_scroll_slower: simpleDispatch(deps, 'Prompter: Scroll Slower', 'prompter_scroll_slower'),
+    prompter_font_size_in: simpleDispatch(deps, 'Prompter: Font Size +', 'prompter_font_size_in'),
+    prompter_font_size_out: simpleDispatch(deps, 'Prompter: Font Size −', 'prompter_font_size_out'),
+    prompter_set_speed: {
+      name: 'Prompter: Set Scroll Speed',
       options: [
         { type: 'textinput', id: 'speed', label: 'Speed (0-200)', default: '40', required: true, useVariables: true },
       ],
       callback: async (event, context) =>
-        dispatch('teleprompter_set_speed', { speed: await parsedNum(context, event, 'speed', 40) }),
+        dispatch('prompter_set_speed', { speed: await parsedNum(context, event, 'speed', 40) }),
     },
-    teleprompter_set_font_size: {
-      name: 'Teleprompter: Set Font Size',
+    prompter_set_font_size: {
+      name: 'Prompter: Set Font Size',
       options: [
         { type: 'textinput', id: 'font_size', label: 'Font Size (24-200)', default: '72', required: true, useVariables: true },
       ],
       callback: async (event, context) =>
-        dispatch('teleprompter_set_font_size', { font_size: await parsedNum(context, event, 'font_size', 72) }),
+        dispatch('prompter_set_font_size', { font_size: await parsedNum(context, event, 'font_size', 72) }),
     },
-    teleprompter_load_script: {
-      name: 'Teleprompter: Load Script',
+    prompter_rewind: simpleDispatch(deps, 'Prompter: Rewind to Top', 'prompter_rewind'),
+    prompter_jump: {
+      name: 'Prompter: Jump By Pixels',
+      options: [
+        { type: 'textinput', id: 'delta', label: 'Pixels (negative scrolls back)', default: '-200', required: true, useVariables: true },
+      ],
+      callback: async (event, context) =>
+        dispatch('prompter_jump', { delta: await parsedNum(context, event, 'delta', -200) }),
+    },
+    prompter_mirror: {
+      name: 'Prompter: Mirror Display',
+      options: [
+        {
+          type: 'dropdown',
+          id: 'axis',
+          label: 'Axis',
+          default: 'x',
+          choices: [
+            { id: 'x', label: 'Horizontal (beam-splitter glass)' },
+            { id: 'y', label: 'Vertical (ceiling mount)' },
+          ],
+        },
+        {
+          type: 'dropdown',
+          id: 'mode',
+          label: 'Mode',
+          default: 'toggle',
+          choices: [
+            { id: 'toggle', label: 'Toggle' },
+            { id: 'on', label: 'On' },
+            { id: 'off', label: 'Off' },
+          ],
+        },
+      ],
+      callback: async (event) =>
+        dispatch('prompter_mirror', { axis: event.options.axis, mode: event.options.mode }),
+    },
+    prompter_load_script: {
+      name: 'Prompter: Load Script',
       options: [
         { type: 'textinput', id: 'text', label: 'Script Text', default: '', required: true, useVariables: true },
       ],
       callback: async (event, context) =>
-        dispatch('teleprompter_load_script', { text: await parsed(context, event, 'text') }),
+        dispatch('prompter_load_script', { text: await parsed(context, event, 'text') }),
     },
 
     // ════ Reliability ════

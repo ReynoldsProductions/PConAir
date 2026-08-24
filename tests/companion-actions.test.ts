@@ -256,19 +256,67 @@ describe('action dispatcher — phase 9 Companion actions', () => {
     });
   });
 
-  describe('teleprompter (unconfigured)', () => {
-    it.each(['teleprompter_set_speed', 'teleprompter_set_font_size', 'teleprompter_load_script', 'teleprompter_toggle'])(
-      '%s is skipped when no teleprompter is configured',
+  describe('prompter (no external service configured)', () => {
+    it.each(['prompter_set_speed', 'prompter_set_font_size', 'prompter_load_script', 'prompter_toggle'])(
+      '%s drives the built-in prompter and forwards nowhere',
       async (actionId) => {
         const res = await act(actionId, { speed: 50, font_size: 80, text: 'hi' });
         expect(res.status).toBe(200);
-        expect(res.body.skipped).toBe(true);
+        expect(res.body.forwarded).toBe('off');
       }
     );
+
+    it('applies transport, script, and position changes to the built-in prompter', async () => {
+      await act('prompter_set_speed', { speed: 120 });
+      await act('prompter_set_font_size', { font_size: 90 });
+      await act('prompter_load_script', { text: 'Good evening.' });
+      expect(store.getState().prompter).toMatchObject({
+        speed: 120,
+        fontSize: 90,
+        script: 'Good evening.',
+        scrolling: false,
+        offset: 0,
+      });
+
+      await act('prompter_start');
+      expect(store.getState().prompter.scrolling).toBe(true);
+      expect(store.getState().prompter.startedAt).not.toBeNull();
+
+      await act('prompter_stop');
+      expect(store.getState().prompter.scrolling).toBe(false);
+
+      // Scrolling ran for a moment above, so the jump is relative to wherever
+      // the script had reached — not to the top.
+      const parkedAt = store.getState().prompter.offset;
+      await act('prompter_jump', { delta: 300 });
+      expect(store.getState().prompter.offset).toBeCloseTo(parkedAt + 300, 5);
+      await act('prompter_rewind');
+      expect(store.getState().prompter.offset).toBe(0);
+    });
+
+    it('prompter_jump rejects a missing delta', async () => {
+      const res = await act('prompter_jump', {});
+      expect(res.status).toBe(400);
+    });
+
+    it('prompter_mirror toggles an axis, or sets it outright', async () => {
+      await act('prompter_mirror', { axis: 'x' });
+      expect(store.getState().prompter.mirrorX).toBe(true);
+      await act('prompter_mirror', { axis: 'x' });
+      expect(store.getState().prompter.mirrorX).toBe(false);
+
+      await act('prompter_mirror', { axis: 'y', mode: 'on' });
+      expect(store.getState().prompter.mirrorY).toBe(true);
+      await act('prompter_mirror', { axis: 'y', mode: 'off' });
+      expect(store.getState().prompter.mirrorY).toBe(false);
+
+      const bad = await act('prompter_mirror', { axis: 'z' });
+      expect(bad.status).toBe(400);
+    });
   });
 });
 
-describe('action dispatcher — teleprompter with a configured host', () => {
+describe('action dispatcher — prompter with a configured host', () => {
   let srv: ReturnType<typeof createFullServer>;
   let store: StateStore;
   let app: Express;
@@ -302,8 +350,8 @@ describe('action dispatcher — teleprompter with a configured host', () => {
       store,
       ...PINS,
       port: 0,
-      getTeleprompterHost: () => tpHost,
-      isTeleprompterEnabled: () => true,
+      getPrompterHost: () => tpHost,
+      isPrompterEnabled: () => true,
     });
     await srv.listen();
     app = srv.app;
@@ -314,54 +362,54 @@ describe('action dispatcher — teleprompter with a configured host', () => {
     await new Promise((r) => tpServer.close(r));
   });
 
-  it('teleprompter_set_speed clamps to 0-200 and patches the remote + store', async () => {
-    let res = await act('teleprompter_set_speed', { speed: 500 });
+  it('prompter_set_speed clamps to 0-200 and patches the remote + store', async () => {
+    let res = await act('prompter_set_speed', { speed: 500 });
     expect(res.status).toBe(200);
-    expect(store.getState().teleprompter.speed).toBe(200);
+    expect(store.getState().prompter.speed).toBe(200);
     expect(received.at(-1)).toEqual({ speed: 200 });
 
-    res = await act('teleprompter_set_speed', { speed: -10 });
-    expect(store.getState().teleprompter.speed).toBe(0);
+    res = await act('prompter_set_speed', { speed: -10 });
+    expect(store.getState().prompter.speed).toBe(0);
     expect(received.at(-1)).toEqual({ speed: 0 });
   });
 
-  it('teleprompter_set_speed rejects a missing/non-numeric speed', async () => {
-    const res = await act('teleprompter_set_speed', {});
+  it('prompter_set_speed rejects a missing/non-numeric speed', async () => {
+    const res = await act('prompter_set_speed', {});
     expect(res.status).toBe(400);
   });
 
-  it('teleprompter_set_font_size clamps to 24-200 and patches the remote + store', async () => {
-    await act('teleprompter_set_font_size', { font_size: 10 });
-    expect(store.getState().teleprompter.fontSize).toBe(24);
+  it('prompter_set_font_size clamps to 24-200 and patches the remote + store', async () => {
+    await act('prompter_set_font_size', { font_size: 10 });
+    expect(store.getState().prompter.fontSize).toBe(24);
     expect(received.at(-1)).toEqual({ font_size: 24 });
 
-    await act('teleprompter_set_font_size', { font_size: 96 });
-    expect(store.getState().teleprompter.fontSize).toBe(96);
+    await act('prompter_set_font_size', { font_size: 96 });
+    expect(store.getState().prompter.fontSize).toBe(96);
   });
 
-  it('teleprompter_set_font_size rejects a missing font_size', async () => {
-    const res = await act('teleprompter_set_font_size', {});
+  it('prompter_set_font_size rejects a missing font_size', async () => {
+    const res = await act('prompter_set_font_size', {});
     expect(res.status).toBe(400);
   });
 
-  it('teleprompter_load_script posts the script text to the remote', async () => {
-    const res = await act('teleprompter_load_script', { text: 'Good evening.' });
+  it('prompter_load_script posts the script text to the remote', async () => {
+    const res = await act('prompter_load_script', { text: 'Good evening.' });
     expect(res.status).toBe(200);
     expect(received.at(-1)).toEqual({ script: 'Good evening.' });
   });
 
-  it('teleprompter_load_script rejects a missing text', async () => {
-    const res = await act('teleprompter_load_script', {});
+  it('prompter_load_script rejects a missing text', async () => {
+    const res = await act('prompter_load_script', {});
     expect(res.status).toBe(400);
   });
 
-  it('teleprompter_toggle flips scrolling on the remote and in the store', async () => {
-    await act('teleprompter_toggle');
-    expect(store.getState().teleprompter.scrolling).toBe(true);
+  it('prompter_toggle flips scrolling on the remote and in the store', async () => {
+    await act('prompter_toggle');
+    expect(store.getState().prompter.scrolling).toBe(true);
     expect(received.at(-1)).toEqual({ scrolling: true });
 
-    await act('teleprompter_toggle');
-    expect(store.getState().teleprompter.scrolling).toBe(false);
+    await act('prompter_toggle');
+    expect(store.getState().prompter.scrolling).toBe(false);
     expect(received.at(-1)).toEqual({ scrolling: false });
   });
 });

@@ -13,7 +13,7 @@ export type { ActionDeps, SendAction, GscPost, Log } from './helpers.js'
 /**
  * Action set = original PConAir IDs + the full GSC module ID list (preserved
  * exactly) + v2 actions for slides extras, L3 playlists, still store,
- * graphics/scoreboard, teleprompter and reliability. Package actions are
+ * graphics/scoreboard, prompter and reliability. Package actions are
  * registered separately (see packages.ts).
  */
 export function buildActions(deps: ActionDeps): Record<string, CompanionActionDefinition> {

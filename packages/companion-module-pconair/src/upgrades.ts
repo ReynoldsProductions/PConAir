@@ -16,6 +16,28 @@ const FEEDBACK_NUMBER_OPTIONS: Record<string, string[]> = {
   on_slide: ['slide'],
 }
 
+/**
+ * v0.3.1: the prompter feature dropped its former name (a registered trademark).
+ * Rewrite saved buttons onto the new ids so existing pages keep working.
+ */
+const RENAMED_ACTION_IDS: Record<string, string> = {
+  teleprompter_start: 'prompter_start',
+  teleprompter_stop: 'prompter_stop',
+  teleprompter_toggle: 'prompter_toggle',
+  teleprompter_scroll_faster: 'prompter_scroll_faster',
+  teleprompter_scroll_slower: 'prompter_scroll_slower',
+  teleprompter_font_size_in: 'prompter_font_size_in',
+  teleprompter_font_size_out: 'prompter_font_size_out',
+  teleprompter_set_speed: 'prompter_set_speed',
+  teleprompter_set_font_size: 'prompter_set_font_size',
+  teleprompter_load_script: 'prompter_load_script',
+}
+
+const RENAMED_FEEDBACK_IDS: Record<string, string> = {
+  teleprompter_enabled: 'prompter_enabled',
+  teleprompter_scrolling: 'prompter_scrolling',
+}
+
 const upgradeScripts: CompanionStaticUpgradeScript<Config>[] = [
   function upgradeNumberOptionsToText(_context, props) {
     const result = {
@@ -48,6 +70,29 @@ const upgradeScripts: CompanionStaticUpgradeScript<Config>[] = [
         }
       }
       if (changed) result.updatedFeedbacks.push(feedback)
+    }
+
+    return result
+  },
+  function upgradePrompterIds(_context, props) {
+    const result = {
+      updatedConfig: null,
+      updatedActions: [] as typeof props.actions,
+      updatedFeedbacks: [] as typeof props.feedbacks,
+    }
+
+    for (const action of props.actions) {
+      const renamed = RENAMED_ACTION_IDS[action.actionId]
+      if (!renamed) continue
+      action.actionId = renamed
+      result.updatedActions.push(action)
+    }
+
+    for (const feedback of props.feedbacks) {
+      const renamed = RENAMED_FEEDBACK_IDS[feedback.feedbackId]
+      if (!renamed) continue
+      feedback.feedbackId = renamed
+      result.updatedFeedbacks.push(feedback)
     }
 
     return result

@@ -368,6 +368,7 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
       operatorUrls: addresses.map((a) => `http://${a.address}:${port}/operator/`),
       adminUrls: addresses.map((a) => `http://${a.address}:${port}/admin/`),
       companionUrls: addresses.map((a) => `http://${a.address}:${port}`),
+      prompterUrls: addresses.map((a) => `http://${a.address}:${port}/prompter/`),
       crashDumpsPath,
       uptime: Math.floor((Date.now() - serverStartedAt) / 1000),
     });
@@ -390,8 +391,8 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
       stageTimerOverlayPosition: s.stageTimerOverlayPosition,
       stageTimerOverlaySize: s.stageTimerOverlaySize,
       stageTimerOverlayEnabled: s.stageTimerOverlayEnabled,
-      teleprompterEnabled: s.teleprompterEnabled,
-      teleprompterHost: s.teleprompterHost,
+      prompterEnabled: s.prompterEnabled,
+      prompterHost: s.prompterHost,
       launchAtLogin: s.launchAtLogin,
       director: {
         offices: s.director.offices.map((o) => ({

@@ -228,16 +228,55 @@ export interface StageTimerState {
   configured: boolean;
 }
 
-export interface TeleprompterState {
+/**
+ * Built-in prompter. PConAir serves the talent-facing view itself (see
+ * `/prompter`), so this state is the source of truth for what that display
+ * shows; `enabled`/`host` only add optional forwarding to a third-party
+ * prompter service alongside it.
+ *
+ * Scroll position is stored as an anchor (`offset` px at the moment
+ * `startedAt` was stamped) rather than a live number, so every viewer —
+ * including one that joins mid-run — derives the same position from the same
+ * state instead of being driven frame by frame.
+ */
+export interface PrompterState {
+  /** Also forward transport commands to an external prompter service. */
   enabled: boolean;
+  /** Base URL of that external service; empty when there isn't one. */
   host: string;
   scrolling: boolean;
+  /** Scroll rate in px/sec (0–200). */
   speed: number;
+  /** Script text size in px (24–200). */
   fontSize: number;
+  /** Line height as a multiple of the font size (1–3). */
+  lineHeight: number;
+  /** The script the prompter display is showing. */
+  script: string;
+  /** Scroll position in px at the instant `startedAt` was stamped. */
+  offset: number;
+  /** Epoch ms the current run started; null while parked. */
+  startedAt: number | null;
+  /** Flip left-to-right for a beam-splitter (glass) prompter rig. */
+  mirrorX: boolean;
+  /** Flip top-to-bottom for a ceiling-mounted display. */
+  mirrorY: boolean;
 }
 
-export function makeTeleprompterState(): TeleprompterState {
-  return { enabled: false, host: '', scrolling: false, speed: 40, fontSize: 72 };
+export function makePrompterState(): PrompterState {
+  return {
+    enabled: false,
+    host: '',
+    scrolling: false,
+    speed: 40,
+    fontSize: 72,
+    lineHeight: 1.4,
+    script: '',
+    offset: 0,
+    startedAt: null,
+    mirrorX: false,
+    mirrorY: false,
+  };
 }
 
 export interface ScoreboardState {
@@ -303,7 +342,7 @@ export interface AppState {
   tunnel: TunnelState;
   renderOutputs: RenderOutputsState;
   stageTimer: StageTimerState;
-  teleprompter: TeleprompterState;
+  prompter: PrompterState;
   graphics: GraphicsState;
 }
 

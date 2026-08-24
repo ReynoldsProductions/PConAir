@@ -33,10 +33,10 @@ export interface AppSettings {
   customLogoPath: string | null;
   /** Absolute path to a custom CSS file for white-labeling the web remote; null = no override. */
   customCssPath: string | null;
-  /** Teleprompter proxy: base URL of the remote teleprompter service. */
-  teleprompterHost: string;
-  /** Teleprompter proxy: whether PConAir should forward control commands. */
-  teleprompterEnabled: boolean;
+  /** Prompter proxy: base URL of the remote prompter service. */
+  prompterHost: string;
+  /** Prompter proxy: whether PConAir should forward control commands. */
+  prompterEnabled: boolean;
   /** Multi-machine mode: primary fans out slide commands; backup receives only; standalone = off. */
   operationMode: 'primary' | 'backup' | 'standalone';
   /** IPs of backup machines to receive fan-out commands when operationMode is 'primary'. */
@@ -74,8 +74,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
   stageTimerOverlayEnabled: false,
   customLogoPath: null,
   customCssPath: null,
-  teleprompterHost: '',
-  teleprompterEnabled: false,
+  prompterHost: '',
+  prompterEnabled: false,
   operationMode: 'standalone',
   backupIps: [],
   director: { offices: [] },
@@ -130,6 +130,19 @@ export function isValidOverlaySize(v: unknown): v is number {
   return typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 100;
 }
 
+/** Prompter host, falling back to the pre-rename key in older settings files. */
+function legacyPrompterHost(obj: Record<string, unknown>): string {
+  if (typeof obj.prompterHost === 'string') return obj.prompterHost;
+  if (typeof obj.teleprompterHost === 'string') return obj.teleprompterHost;
+  return '';
+}
+
+/** Prompter enable flag, falling back to the pre-rename key in older settings files. */
+function legacyPrompterEnabled(obj: Record<string, unknown>): boolean {
+  if (typeof obj.prompterEnabled === 'boolean') return obj.prompterEnabled;
+  return obj.teleprompterEnabled === true;
+}
+
 /** Tolerant load: missing file, unreadable JSON, or bad fields fall back to defaults. */
 export function loadAppSettings(filePath: string): AppSettings {
   let raw: unknown;
@@ -160,8 +173,10 @@ export function loadAppSettings(filePath: string): AppSettings {
     stageTimerOverlayEnabled: obj.stageTimerOverlayEnabled === true,
     customLogoPath: strOrNull(obj.customLogoPath),
     customCssPath: strOrNull(obj.customCssPath),
-    teleprompterHost: typeof obj.teleprompterHost === 'string' ? obj.teleprompterHost : '',
-    teleprompterEnabled: obj.teleprompterEnabled === true,
+    // Settings files written before the prompter rename carry the old keys —
+    // read them as a fallback so an upgrade doesn't silently drop the config.
+    prompterHost: legacyPrompterHost(obj),
+    prompterEnabled: legacyPrompterEnabled(obj),
     operationMode: isValidOperationMode(obj.operationMode)
       ? obj.operationMode
       : DEFAULT_APP_SETTINGS.operationMode,
