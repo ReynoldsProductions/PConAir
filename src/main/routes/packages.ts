@@ -138,6 +138,18 @@ export function createPackagesRouter(hub: PackageHub): Router {
     res.json({ state: next });
   });
 
+  /**
+   * Render pages may be framed by another page from this same origin — that is
+   * how a package composes several of its renders into one browser source (see
+   * news/render-all.html). The global X-Frame-Options: DENY would block that, so
+   * render routes relax it to SAMEORIGIN; control pages, the admin GUI and every
+   * other route keep DENY. Renders carry no controls and no authenticated
+   * actions, so there is nothing for a same-origin frame to clickjack.
+   */
+  function allowSameOriginFraming(res: Response): void {
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  }
+
   function sendPackageFile(res: Response, baseDir: string, relFile: string): void {
     const abs = path.resolve(baseDir, relFile);
     if (!abs.startsWith(path.resolve(baseDir) + path.sep)) {
@@ -158,6 +170,7 @@ export function createPackagesRouter(hub: PackageHub): Router {
       res.status(404).type('text/plain').send('Package or render not found');
       return;
     }
+    allowSameOriginFraming(res);
     sendPackageFile(res, pkg.dir, render.file);
   });
 
@@ -168,6 +181,7 @@ export function createPackagesRouter(hub: PackageHub): Router {
       res.status(404).type('text/plain').send('Package not found');
       return;
     }
+    allowSameOriginFraming(res);
     sendPackageFile(res, pkg.dir, pkg.manifest.renders[0].file);
   });
 

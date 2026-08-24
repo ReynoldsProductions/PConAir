@@ -130,7 +130,7 @@ describe('bundled packages (phase 8)', () => {
     for (const p of result.packages) expect(p.controlFile).toBe('control.html');
   });
 
-  it('ffg declares the five plan renders; hoops and news declare one each', () => {
+  it('ffg declares the five plan renders; hoops one; news ticker, l3 and the all-in-one', () => {
     const hub = createPackageHub(bundledRoot);
     expect(hub.find('ffg')!.manifest.renders.map((r) => r.id)).toEqual([
       'single-pip',
@@ -140,7 +140,7 @@ describe('bundled packages (phase 8)', () => {
       'champion',
     ]);
     expect(hub.find('hoops')!.manifest.renders.map((r) => r.id)).toEqual(['scorebug']);
-    expect(hub.find('news')!.manifest.renders.map((r) => r.id)).toEqual(['ticker', 'l3']);
+    expect(hub.find('news')!.manifest.renders.map((r) => r.id)).toEqual(['ticker', 'l3', 'all']);
   });
 
   it('seeds initial state from the manifests', () => {
@@ -171,6 +171,17 @@ describe('bundled packages (phase 8)', () => {
       expect((await request(server.app).get('/packages/hoops/render/scorebug')).text).toContain('COURTVISION');
       expect((await request(server.app).get('/packages/news/render/ticker')).text).toContain('wordmark');
       expect((await request(server.app).get('/packages/news/render/l3')).text).toContain('data-side="right"');
+      // the all-in-one composes the other two renders rather than copying them,
+      // so the ticker and the cards cannot drift from their standalone versions
+      const all = await request(server.app).get('/packages/news/render/all');
+      expect(all.status).toBe(200);
+      expect(all.text).toContain('src="/packages/news/render/ticker"');
+      expect(all.text).toContain('src="/packages/news/render/l3"');
+      // …which only works because render routes allow same-origin framing.
+      // Everything else — control panels included — stays at DENY.
+      expect(all.headers['x-frame-options']).toBe('SAMEORIGIN');
+      expect((await request(server.app).get('/packages/news/render/ticker')).headers['x-frame-options']).toBe('SAMEORIGIN');
+      expect((await request(server.app).get('/packages/news/control')).headers['x-frame-options']).toBe('DENY');
       for (const r of ['single-pip', 'four-portrait', 'four-up', 'head-to-head', 'champion']) {
         const res = await request(server.app).get(`/packages/ffg/render/${r}`);
         expect(res.status).toBe(200);

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Faire Wire — ticker + lower thirds</title>
+<!--
+  All-in-one render: the ticker and the lower thirds in a single transparent
+  1920x1080 page, for when one browser source is easier to manage than two
+  stacked ones (a single OBS scene item, one thing to hide).
+
+  It COMPOSES the other two renders in iframes rather than re-implementing them,
+  so the ticker and the L3 cards can never drift from their standalone versions:
+  same markup, same CSS, same geometry (L3 at bottom:124px clearing the 96px
+  bar). Chromium keeps an iframe transparent when the embedded document is, and
+  both renders declare `background:transparent`.
+
+  Nothing is toggled here. Each frame is driven by package state exactly as it is
+  on its own, so the control panel and Companion hide/show them independently:
+  `tickerVisible` for the ticker, `l3Left.visible` / `l3Right.visible` for the
+  cards. Each frame keeps its own WebSocket subscription, so a frame that drops
+  its connection reconnects on its own without disturbing the other.
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{width:1920px;height:1080px;overflow:hidden;background:transparent;}
+  #stage{position:absolute;inset:0;}
+  /* Both layers fill the frame; the cards sit above the bar, matching the
+     stacking order the standalone renders are meant to be added in.
+     pointer-events:none — this page is output, never an input surface. */
+  #stage iframe{position:absolute;inset:0;width:1920px;height:1080px;border:0;
+    background:transparent;pointer-events:none;}
+  #layerTicker{z-index:1;}
+  #layerL3{z-index:2;}
+</style>
+</head>
+<body>
+<div id="stage">
+  <iframe id="layerTicker" src="/packages/news/render/ticker" scrolling="no" title="Ticker"></iframe>
+  <iframe id="layerL3" src="/packages/news/render/l3" scrolling="no" title="Lower thirds"></iframe>
+</div>
+</body>
+</html>
