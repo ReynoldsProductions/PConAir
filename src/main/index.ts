@@ -161,7 +161,7 @@ async function main() {
     },
   });
 
-  const urlManager = createUrlWindowManager({ store });
+  const urlManager = createUrlWindowManager({ store, getDisplayPreference });
   urlManager.initialize();
 
   const l3Manager = createL3WindowManager({ store, themes: l3ThemeStore, cues: l3Cues, getDisplayPreference });

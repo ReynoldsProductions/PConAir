@@ -1754,10 +1754,11 @@ async function renderMonitors() {
     </div>
 
     <div class="card">
-      <div class="card-title">Slides Presentation Monitor</div>
+      <div class="card-title">Default Output Monitor</div>
       <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;">
-        Select which connected display the Google Slides presentation window targets.
-        Changes take effect after reloading the current presentation.
+        The display every output window targets by default — Slides, URLs, lower thirds
+        and stills. Pages with their own display picker (URLs, Cue Library) override this
+        for their own output. Changes take effect the next time an output is loaded.
       </p>
       <div class="field">
         <div class="field-label">Target display</div>
@@ -1776,7 +1777,7 @@ async function renderMonitors() {
     const val = document.getElementById('display-select').value;
     try {
       await api('PATCH', '/api/profiles/display-preference', { displayPreference: val || null });
-      showSuccess('Monitor preference saved. Changes take effect after reloading the presentation.');
+      showSuccess('Default monitor saved. Takes effect the next time an output is loaded.');
     } catch { /* handled */ }
   });
 }

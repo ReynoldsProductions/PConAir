@@ -6,34 +6,44 @@ import { hideCursorOnLoad } from '../output-cursor';
 
 interface UrlWindowConfig {
   store: StateStore;
-}
-
-function applyDisplayTarget(win: BrowserWindow | null, displayId: string | null): void {
-  if (!win || win.isDestroyed()) return;
-  const target = displayId
-    ? screen.getAllDisplays().find((d) => String(d.id) === displayId)
-    : screen.getPrimaryDisplay();
-  if (!target) {
-    console.warn(`[window-manager] applyDisplayTarget: display "${displayId}" not found in Electron screen list`);
-    return;
-  }
-  win.setBounds({
-    x: target.bounds.x,
-    y: target.bounds.y,
-    width: target.bounds.width,
-    height: target.bounds.height,
-  });
-  scheduleFullscreenChrome(win);
+  /**
+   * Profile-wide default display from Admin -> Monitors. URL windows used to
+   * ignore it entirely and always open on the primary display, so the setting
+   * every other output honours silently did nothing here.
+   */
+  getDisplayPreference?: () => string | null;
 }
 
 export function createUrlWindowManager(config: UrlWindowConfig) {
-  const { store } = config;
+  const { store, getDisplayPreference } = config;
   let windowA: BrowserWindow | null = null;
   let windowB: BrowserWindow | null = null;
   let unsubscribe: (() => void) | null = null;
 
+  function getTargetDisplay(displayId: string | null): Electron.Display {
+    // The instance's own target wins; the profile preference from
+    // Admin -> Monitors is the fallback, primary the last resort.
+    const pref = displayId ?? getDisplayPreference?.() ?? null;
+    if (pref) {
+      const found = screen.getAllDisplays().find((d) => String(d.id) === pref);
+      if (found) return found;
+      console.warn(`[url-window-manager] display "${pref}" not found in Electron screen list`);
+    }
+    return screen.getPrimaryDisplay();
+  }
+
+  /** Move an already-open window when the target changes mid-show. */
+  function applyDisplayTarget(win: BrowserWindow | null, displayId: string | null): void {
+    if (!win || win.isDestroyed()) return;
+    const b = getTargetDisplay(displayId).bounds;
+    const cur = win.getBounds();
+    if (cur.x === b.x && cur.y === b.y && cur.width === b.width && cur.height === b.height) return;
+    win.setBounds({ x: b.x, y: b.y, width: b.width, height: b.height });
+    scheduleFullscreenChrome(win);
+  }
+
   function createUrlWindow(instance: ABInstance): BrowserWindow {
-    const display = screen.getPrimaryDisplay();
+    const display = getTargetDisplay(null);
     const sess = session.fromPartition(`persist:pconair-url-${instance}`);
     const win = new BrowserWindow({
       x: display.bounds.x,

@@ -265,6 +265,8 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       getAppSettings: s.getAppSettings,
       saveAppSettingsPatch: s.saveAppSettingsPatch,
       openDirectorWindow: s.openDirectorWindow,
+      getDisplayPreference: () =>
+        loadProfile(s.profilePaths, s.getActiveProfileId())?.displayPreference ?? null,
     })
   );
 }

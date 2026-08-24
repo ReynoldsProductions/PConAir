@@ -73,6 +73,9 @@ function showPage(id: string): void {
   document.querySelectorAll<HTMLButtonElement>('nav button').forEach((b) => {
     b.classList.toggle('active', b.dataset.page === id);
   });
+  // Monitors get plugged and unplugged mid-show, so re-pull the list whenever
+  // the page that targets them comes into view.
+  if (id === 'urls') void refreshUrlDisplays();
 }
 
 function setConn(connected: boolean, label: string): void {
@@ -1133,9 +1136,17 @@ interface UrlPageState {
   currentUrl: string | null;
   currentPresetName: string | null;
   activeInstance: 'A' | 'B';
+  /** Active instance's display override; null means "follow the profile default". */
+  displayTarget: string | null;
 }
 
-const urlPage: UrlPageState = { currentMode: 'idle', currentUrl: null, currentPresetName: null, activeInstance: 'A' };
+const urlPage: UrlPageState = {
+  currentMode: 'idle',
+  currentUrl: null,
+  currentPresetName: null,
+  activeInstance: 'A',
+  displayTarget: null,
+};
 let urlPresets: UrlPresetLike[] = [];
 
 function renderUrlState(patch: Record<string, unknown>): void {
@@ -1145,7 +1156,15 @@ function renderUrlState(patch: Record<string, unknown>): void {
     urlPage.currentPresetName = (patch.currentPreset as { name?: string } | null)?.name ?? null;
   }
   if ('abState' in patch) {
-    urlPage.activeInstance = ((patch.abState as { activeInstance?: 'A' | 'B' } | null)?.activeInstance ?? 'A');
+    const ab = patch.abState as {
+      activeInstance?: 'A' | 'B';
+      instanceA?: { displayTarget?: string | null };
+      instanceB?: { displayTarget?: string | null };
+    } | null;
+    urlPage.activeInstance = ab?.activeInstance ?? 'A';
+    const inst = urlPage.activeInstance === 'A' ? ab?.instanceA : ab?.instanceB;
+    urlPage.displayTarget = inst?.displayTarget ?? null;
+    syncUrlDisplaySelect();
   }
 
   const onAir = urlPage.currentMode === 'url';
@@ -1154,6 +1173,74 @@ function renderUrlState(patch: Record<string, unknown>): void {
     ? (urlPage.currentPresetName ? `${urlPage.currentPresetName} — ` : '') + urlPage.currentUrl
     : 'No URL loaded';
   $('url-ab-status').textContent = `Active: ${urlPage.activeInstance}`;
+}
+
+// ---- URL output display picker ----
+
+interface DisplayInfo {
+  id: string;
+  name: string;
+  isPrimary: boolean;
+}
+
+/**
+ * A selection made before anything is on air can't be pushed to the server
+ * yet, so it lives only in the `<select>`. Unrelated state patches must not
+ * reset it out from under the operator between picking a monitor and pressing
+ * Open — this flag pauses the state→UI sync until the choice is committed.
+ */
+let urlDisplayPending = false;
+
+/**
+ * Empty value = "follow the Admin -> Monitors default"; every load and preset
+ * take sends whatever is selected here, so the picker is the page's single
+ * answer to "where does this URL go?".
+ */
+function selectedUrlDisplay(): string {
+  return ($('url-display') as HTMLSelectElement).value;
+}
+
+/** Point the picker at the display the active instance is actually using. */
+function syncUrlDisplaySelect(): void {
+  if (urlDisplayPending) return;
+  const sel = document.getElementById('url-display') as HTMLSelectElement | null;
+  if (!sel || document.activeElement === sel) return;
+  const target = urlPage.displayTarget ?? '';
+  if (Array.from(sel.options).some((o) => o.value === target)) sel.value = target;
+}
+
+async function refreshUrlDisplays(): Promise<void> {
+  const sel = $('url-display') as HTMLSelectElement;
+  let displays: DisplayInfo[] = [];
+  let defaultDisplayId: string | null = null;
+  try {
+    const res = await fetch('/api/displays');
+    if (!res.ok) return;
+    const data = (await res.json()) as { displays: DisplayInfo[]; defaultDisplayId?: string | null };
+    displays = data.displays;
+    defaultDisplayId = data.defaultDisplayId ?? null;
+  } catch {
+    return; /* server unreachable — leave the current options in place */
+  }
+
+  const prev = sel.value;
+  sel.replaceChildren();
+  const fallback = displays.find((d) => d.id === defaultDisplayId) ?? displays.find((d) => d.isPrimary);
+  const opt0 = document.createElement('option');
+  opt0.value = '';
+  opt0.textContent = fallback ? `Default — ${fallback.name}` : 'Default (Admin → Monitors)';
+  sel.appendChild(opt0);
+  for (const d of displays) {
+    const o = document.createElement('option');
+    // Value is the display *id* — the window manager matches on id, never name.
+    o.value = d.id;
+    o.textContent = d.isPrimary ? `${d.name} (primary)` : d.name;
+    sel.appendChild(o);
+  }
+  // An uncommitted choice outranks the live value; otherwise show what the
+  // active instance is actually on.
+  const wanted = urlDisplayPending ? prev : urlPage.displayTarget ?? prev;
+  sel.value = wanted && displays.some((d) => d.id === wanted) ? wanted : '';
 }
 
 function renderUrlPresetList(): void {
@@ -1173,7 +1260,11 @@ function renderUrlPresetList(): void {
     open.title = p.url;
     open.addEventListener('click', async () => {
       haptic();
-      const r = await api('/api/action', { action_id: 'load_url_preset', params: { preset: p.id } });
+      const r = await api('/api/action', {
+        action_id: 'load_url_preset',
+        params: { preset: p.id, display: selectedUrlDisplay() },
+      });
+      if (r.ok) urlDisplayPending = false;
       $('url-preset-msg').textContent = r.ok ? '' : r.error ?? 'Failed';
     });
     const del = document.createElement('button');
@@ -1207,8 +1298,25 @@ function wireUrlsPage(): void {
     haptic();
     const url = ($('url-input') as HTMLInputElement).value.trim();
     if (!url) return;
-    const r = await api('/api/url', { url });
+    const r = await api('/api/url', { url, display: selectedUrlDisplay() });
+    if (r.ok) urlDisplayPending = false;
     $('url-msg').textContent = r.ok ? '' : r.error ?? 'Failed';
+  });
+  $('url-display').addEventListener('change', async () => {
+    // Retarget a URL that's already on air; otherwise the choice just rides
+    // along with the next Open or preset take.
+    if (urlPage.currentMode !== 'url' || !urlPage.currentUrl) {
+      urlDisplayPending = true;
+      return;
+    }
+    const display = selectedUrlDisplay();
+    const r = await api('/api/action', { action_id: 'set_display', params: { display: display || null } });
+    urlDisplayPending = !r.ok;
+    $('url-msg').textContent = r.ok ? '' : r.error ?? 'Failed';
+  });
+  $('url-display-refresh').addEventListener('click', () => {
+    haptic();
+    void refreshUrlDisplays();
   });
   $('url-reload').addEventListener('click', async () => {
     haptic();
@@ -1230,7 +1338,9 @@ function wireUrlsPage(): void {
     const res = await fetch('/api/presets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, url }),
+      // sessionMode is required by POST /api/presets — omitting it made every
+      // add from this page fail with 400 INVALID_MODE.
+      body: JSON.stringify({ name, url, sessionMode: 'persistent' }),
     });
     $('url-add-msg').textContent = res.ok
       ? 'Added.'
@@ -1420,4 +1530,5 @@ void refreshL3Data();
 void refreshStillsData();
 void refreshPackages();
 void refreshUrlPresets();
+void refreshUrlDisplays();
 connectWs();
