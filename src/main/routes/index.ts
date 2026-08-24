@@ -23,7 +23,7 @@ import { createMediaLibraryRouter } from './media-library';
 import { createProfilesRouter } from './profiles';
 import { loadProfile } from '../profiles/bootstrap';
 import { createBrandingRouter } from './branding';
-import { createTeleprompterRouter } from './teleprompter';
+import { createPrompterRouter, type PrompterRouterDeps } from './prompter';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { PresetsStore } from '../presets';
@@ -102,12 +102,14 @@ export interface RouteServices {
   saveBrandingSettings: (patch: { customLogoPath?: string | null; customCssPath?: string | null }) => void;
   /** Slides window manager — enables notes scroll/zoom HTTP endpoints. */
   slidesWindowManager?: SlidesWindowManager;
-  /** Returns the active teleprompter base URL (empty string when not configured). */
-  getTeleprompterHost: () => string;
-  /** Returns whether teleprompter proxy is enabled. */
-  isTeleprompterEnabled: () => boolean;
-  /** Persists teleprompter config to app-settings.json. */
-  saveTeleprompterSettings: (patch: { host?: string; enabled?: boolean }) => void;
+  /** Returns the active prompter base URL (empty string when not configured). */
+  getPrompterHost: () => string;
+  /** Returns whether prompter proxy is enabled. */
+  isPrompterEnabled: () => boolean;
+  /** Persists prompter config to app-settings.json. */
+  savePrompterSettings: (patch: { host?: string; enabled?: boolean }) => void;
+  /** Fullscreen prompter output window (Electron main only); absent in tests. */
+  prompterWindow?: PrompterRouterDeps['prompterWindow'];
   /** Returns all app settings for GET /api/app-settings. */
   getAppSettings?: () => import('../app-settings').AppSettings;
   /** Persists a patch to app settings for PATCH /api/app-settings. */
@@ -185,12 +187,15 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       getAdminShowLocked: s.getAdminShowLocked,
     })
   );
-  app.use('/api/teleprompter', createTeleprompterRouter({
+  // Mounted at the root: this router owns both the operator-facing
+  // /api/prompter endpoints and the public talent display at /prompter.
+  app.use(createPrompterRouter({
     store: s.store,
     auth: s.auth,
-    getTeleprompterHost: s.getTeleprompterHost,
-    isTeleprompterEnabled: s.isTeleprompterEnabled,
-    saveTeleprompterSettings: s.saveTeleprompterSettings,
+    getPrompterHost: s.getPrompterHost,
+    isPrompterEnabled: s.isPrompterEnabled,
+    savePrompterSettings: s.savePrompterSettings,
+    prompterWindow: s.prompterWindow,
   }));
   app.use('/api/slides', createSlidesRouter(s.store, s.auth, {
     openGoogleAuthWindow: s.openGoogleAuthWindow,

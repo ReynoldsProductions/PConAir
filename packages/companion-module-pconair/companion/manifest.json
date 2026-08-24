@@ -3,7 +3,7 @@
 	"name": "PC On Air",
 	"shortname": "PC On Air",
 	"description": "Control PConAir live event graphics and playout — slides, lower thirds, still store, packages",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"license": "MIT",
 	"repository": "https://github.com/ReynoldsProductions/PConAir",
 	"bugs": "https://github.com/ReynoldsProductions/PConAir/issues",

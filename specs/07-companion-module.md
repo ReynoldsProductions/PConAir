@@ -795,8 +795,9 @@ Everything in this section shipped in module **0.3.0** on top of the v1 spec abo
 `src/main/action-dispatch.ts` gained operator-level actions so Companion can
 reach them over the cookie-less WebSocket: `panic` (`action: on|off|toggle`),
 `reload_instance` (`instance: A|B`, on-air instance rejected),
-`teleprompter_set_speed` (0–200), `teleprompter_set_font_size` (24–200),
-`teleprompter_load_script` (`text`), `teleprompter_toggle`.
+`prompter_set_speed` (0–200), `prompter_set_font_size` (24–200),
+`prompter_load_script` (`text`), `prompter_toggle`, `prompter_rewind`,
+`prompter_jump` (`delta` px), `prompter_mirror` (`axis`, `mode`).
 
 ### 13.3 New module actions
 
@@ -808,16 +809,19 @@ reach them over the cookie-less WebSocket: `panic` (`action: on|off|toggle`),
 - **Slides:** `slides_notes_scroll_up/down`, `slides_notes_zoom_in/out`
   (native); GSC `scroll_notes_*` / `zoom_*_notes` rewired from the 400-ing
   compat endpoints to these dispatcher ids.
-- **Teleprompter:** `teleprompter_set_speed`, `teleprompter_set_font_size`,
-  `teleprompter_load_script`, `teleprompter_toggle`.
+- **Prompter:** `prompter_set_speed`, `prompter_set_font_size`,
+  `prompter_load_script`, `prompter_toggle`, `prompter_rewind`,
+  `prompter_jump`, `prompter_mirror`. These drive PConAir's own prompter
+  display at `/prompter`; a third-party prompter service is mirrored on top
+  when one is configured in Admin → Prompter.
 - **System:** `panic_on/off/toggle`, `reload_instance`.
 
 ### 13.4 New variables / feedbacks
 
-Variables now cover teleprompter, scoreboard, graphics lower third, watchdog /
+Variables now cover prompter, scoreboard, graphics lower third, watchdog /
 memory health, background, displays, current preset id, tunnel enabled/error,
 slides loading / native content kind, and A/B instance urls/readiness
-(153 total). Feedbacks add teleprompter, content kind, cache warmed, loading,
+(153 total). Feedbacks add prompter, content kind, cache warmed, loading,
 watchdog, memory pressure, stagetimer configured, tunnel enabled/PIN,
 slideshow position, graphics L3 visible, game/shot clock running, possession,
 score leader, and current preset (47 total).
@@ -826,7 +830,7 @@ score leader, and current preset (47 total).
 
 The module deliberately does **not** expose actions requiring an admin session
 (tunnel start/stop/config, background set/presets, show lock, app settings,
-teleprompter/stagetimer config, media upload/delete, preset CRUD, director
+prompter/stagetimer config, media upload/delete, preset CRUD, director
 window). Demoting these to the operator/cookie-less trust level was considered
 and rejected; their state remains readable via variables/feedbacks.
 
@@ -846,6 +850,7 @@ no-number-options regression guard), `tests/companion-upgrades.test.ts`,
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-05-11 | Initial specification |
-| 2.0 | 2026-07-13 | v2 addendum: variables-in-every-input, graphics/teleprompter/system actions, 153 vars / 47 feedbacks / 55 presets, module 0.3.0 |
+| 2.0 | 2026-07-13 | v2 addendum: variables-in-every-input, graphics/prompter/system actions, 153 vars / 47 feedbacks / 55 presets, module 0.3.0 |
+| 2.1 | 2026-08-23 | Prompter rename (`teleprompter_*` → `prompter_*`, with an upgrade script), built-in prompter display at `/prompter`, rewind/jump/mirror actions, module 0.3.1 |
 
 ---

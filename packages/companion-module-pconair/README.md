@@ -11,7 +11,7 @@ Connects Companion to a running PC On Air instance over WebSocket (with HTTP pol
 - Lower thirds cue take/clear, playlists, stacking, and the graphics overlay
 - Still store takes and slideshows
 - Scoreboard graphics (scores, clocks, possession, fouls, timeouts)
-- Teleprompter scroll/speed/font/script control
+- Prompter script load, transport, position, speed/font, and mirroring
 - Global mode switching, render backgrounds, stagetimer overlay, panic slate
 - Connection, health, and tunnel status display
 
@@ -119,26 +119,27 @@ Grouped by category — see `src/actions/` for the full definitions:
   blank leaves it unchanged), `graphics_score_bump`, game/shot clock start/stop,
   possession
 - **System** (`system.ts`): mode/display/A-B, render background modes,
-  stagetimer overlay show/hide/toggle/settings, teleprompter (start/stop/toggle,
-  speed and font nudge or set, script load), panic slate on/off/toggle,
+  stagetimer overlay show/hide/toggle/settings, prompter (start/stop/toggle,
+  rewind, jump by pixels, mirror, speed and font nudge or set, script load),
+  panic slate on/off/toggle,
   off-air instance reload, debug status log
 
-## Feedbacks (47)
+## Feedbacks (48)
 
 Connection, mode, A/B instance, slide position (first/last/at-number), deck and
 backup state, offline mode/cache, lower third on-air / specific cue / stacking /
 playlist, still store on-air / specific still / slideshow state + position,
 stagetimer overlay + configured, tunnel active/error/enabled/PIN, panic, show
-lock, render background modes, slides loading / content kind, teleprompter
-enabled/scrolling, graphics lower-third visible, game/shot clock running,
+lock, render background modes, slides loading / content kind, prompter
+enabled/scrolling/script-loaded, graphics lower-third visible, game/shot clock running,
 possession, score leader, watchdog unresponsive, memory pressure, current preset.
 
-## Variables (154)
+## Variables (156)
 
 All GSC-compat names preserved (`current_slide`, `slide_info`, …) plus the full
 PConAir state: slides (index/count/title/urls/notes/offline/cache), lower thirds
 (cue/playlist), still store + slideshow, stagetimer, tunnel, render outputs,
-teleprompter (enabled/scrolling/speed/font), scoreboard (teams, scores, clocks,
+prompter (enabled/scrolling/speed/font/script-loaded/mirrored), scoreboard (teams, scores, clocks,
 possession, fouls, timeouts), graphics lower third (name/title/subtitle/theme),
 watchdog + memory health, background, displays, A/B instance urls/readiness, and
 the live connection transport.
@@ -158,7 +159,7 @@ Ready-made button presets organised into categories:
 - **Lower Thirds**: Take slots, Clear, Stacking, Playlist next/prev
 - **Still Store**: Clear, Slideshow play/pause/stop
 - **Graphics**: Score +1/+2/+3 per team, scoreboard display, game clock start/stop, possession, graphics L3 take/clear
-- **Teleprompter**: Start/stop toggle, speed ±, font ±
+- **Prompter**: Start/stop toggle, rewind to top, speed ±, font ±
 - **System**: Panic toggle, reload off-air instance, health tile
 - **Tunnel / Status**: QR, tunnel status, connection status, stagetimer overlay
 
@@ -167,7 +168,7 @@ Ready-made button presets organised into categories:
 The module talks to PConAir over the cookie-less Companion WebSocket and the
 operator-level action API. Functions that require an **admin session** are
 deliberately not exposed as actions: tunnel start/stop/config, program
-background set + background presets, show lock, app settings, teleprompter/
+background set + background presets, show lock, app settings, prompter/
 stagetimer configuration, media upload/delete, URL preset management, and the
 director window. Use the admin UI for those; their *state* is still readable
 through variables and feedbacks where available.

@@ -32,8 +32,10 @@ export interface FullServerTestOpts {
   packagesRoot?: string | string[];
   graphicsRoot?: string;
   stageTimer?: import('../src/main/routes/index').RouteServices['stageTimer'];
-  getTeleprompterHost?: () => string;
-  isTeleprompterEnabled?: () => boolean;
+  getPrompterHost?: () => string;
+  isPrompterEnabled?: () => boolean;
+  savePrompterSettings?: (patch: { host?: string; enabled?: boolean }) => void;
+  prompterWindow?: import('../src/main/routes/index').RouteServices['prompterWindow'];
 }
 
 export function createFullServer(opts: FullServerTestOpts) {
@@ -85,8 +87,8 @@ export function createFullServer(opts: FullServerTestOpts) {
     playlists: l3Playlists,
     media: mediaLibrary,
     slideshow,
-    getTeleprompterHost: opts.getTeleprompterHost,
-    isTeleprompterEnabled: opts.isTeleprompterEnabled,
+    getPrompterHost: opts.getPrompterHost,
+    isPrompterEnabled: opts.isPrompterEnabled,
   });
 
   const server = createServer({
@@ -111,6 +113,10 @@ export function createFullServer(opts: FullServerTestOpts) {
     packagesRoot: opts.packagesRoot,
     graphicsRoot: opts.graphicsRoot,
     stageTimer: opts.stageTimer,
+    getPrompterHost: opts.getPrompterHost,
+    isPrompterEnabled: opts.isPrompterEnabled,
+    savePrompterSettings: opts.savePrompterSettings,
+    prompterWindow: opts.prompterWindow,
   });
 
   return {

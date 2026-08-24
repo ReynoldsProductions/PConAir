@@ -436,7 +436,7 @@
       <div class="sidebar-label">System</div>
       <div class="nav-item" data-section="monitors">Monitors</div>
       <div class="nav-item" data-section="branding">Branding</div>
-      <div class="nav-item" data-section="teleprompter">Teleprompter</div>
+      <div class="nav-item" data-section="prompter">Prompter</div>
       <div class="nav-item" data-section="director">Director / Offices</div>
       <div class="nav-item" data-section="logs">Logs</div>
       <div class="nav-item" data-section="system">System</div>
@@ -586,7 +586,7 @@ function renderSection() {
     case 'showlock':   renderShowLock(); break;
     case 'monitors':   renderMonitors(); break;
     case 'branding':      renderBranding(); break;
-    case 'teleprompter':  renderTeleprompter(); break;
+    case 'prompter':  renderPrompter(); break;
     case 'director':      renderDirector(); break;
     case 'logs':          renderLogs(); break;
     case 'system':     renderSystem(); break;
@@ -1894,78 +1894,222 @@ async function renderBranding() {
   });
 }
 
-// ── Teleprompter ─────────────────────────────────────────────────────────────
-async function renderTeleprompter() {
+// ── Prompter ─────────────────────────────────────────────────────────────
+// The talent-facing display lives at /prompter on this server: open it on a
+// tablet over the LAN, point OBS at it, or push it fullscreen onto a wired
+// monitor with the display picker below. Everything here drives that page.
+const PROMPTER_WPM = 140;
+
+function prompterReadTime(text) {
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const minutes = words / PROMPTER_WPM;
+  const mm = Math.floor(minutes);
+  const ss = Math.round((minutes - mm) * 60);
+  return words + ' words · about ' + mm + ':' + String(ss).padStart(2, '0') + ' to read aloud';
+}
+
+async function renderPrompter() {
   const c = content();
-  c.innerHTML = '<div class="section-title">Teleprompter</div><div class="card"><div class="card-title">Loading…</div></div>';
-  let cfg, status;
+  c.innerHTML = '<div class="section-title">Prompter</div><div class="card"><div class="card-title">Loading…</div></div>';
+  let status, serverInfo, displaysData;
   try {
-    [cfg, status] = await Promise.all([
-      api('GET', '/api/status').then(s => ({ host: s.teleprompter?.host ?? '', enabled: s.teleprompter?.enabled ?? false })),
-      api('GET', '/api/teleprompter/status').catch(() => ({ connected: false })),
+    [status, serverInfo, displaysData] = await Promise.all([
+      api('GET', '/api/prompter/status'),
+      api('GET', '/api/server-info').catch(() => ({ prompterUrls: [] })),
+      api('GET', '/api/displays').catch(() => ({ displays: [] })),
     ]);
   } catch (e) {
-    c.innerHTML = '<div class="section-title">Teleprompter</div><div class="card"><p class="field-label">Failed to load.</p></div>';
+    c.innerHTML = '<div class="section-title">Prompter</div><div class="card"><p class="field-label">Failed to load.</p></div>';
     return;
   }
-  const connLabel = status.connected ? `<span style="color:#22c55e">● Connected</span> — scrolling: ${status.scrolling ? 'yes' : 'no'}, speed: ${status.speed}, font: ${status.fontSize}px` : '<span style="color:#ef4444">● Not connected</span>';
+
+  const p = status.prompter || {};
+  const urls = (serverInfo && serverInfo.prompterUrls) || [];
+  // Loopback is for this machine's own window and an IPv6 link-local address
+  // is unusable from a tablet, so lead with a routable IPv4 address.
+  const lanUrl =
+    urls.find(u => /^http:\/\/\d+\.\d+\.\d+\.\d+:/.test(u) && u.indexOf('127.0.0.1') === -1)
+    || urls.find(u => u.indexOf('127.0.0.1') === -1)
+    || urls[0]
+    || '/prompter/';
+  const displays = (displaysData && displaysData.displays) || [];
+  const windowState = status.window || { open: false };
+  const windowAvailable = windowState.available !== false;
+  const ext = status.external || { configured: false, enabled: false, connected: false };
+  const extLabel = !ext.configured
+    ? '<span style="color:var(--text-dim)">Not configured</span>'
+    : ext.connected
+      ? '<span style="color:#22c55e">● Reachable</span>'
+      : '<span style="color:#ef4444">● Unreachable</span>';
+
   c.innerHTML = `
-    <div class="section-title">Teleprompter</div>
+    <div class="section-title">Prompter</div>
+
     <div class="card">
-      <div class="card-title">Connection</div>
-      <p style="margin-bottom:12px">${connLabel}</p>
-      <div class="field">
-        <div class="field-label">Service URL</div>
-        <input id="tp-host" type="text" class="input" value="${cfg.host}" placeholder="http://192.168.1.245:8082" style="width:100%;max-width:360px" />
+      <div class="card-title">Talent display</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+        Open this address on the reader's tablet or laptop — no PIN needed on the local network.
+        Add <code>?mirror=x</code> for beam-splitter glass, <code>?font=90</code> or
+        <code>?line=30</code> to tune one display without changing the others.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <input id="tp-url" type="text" class="input" readonly value="${escHtml(lanUrl)}" style="flex:1;min-width:260px" />
+        <button id="tp-copy-url" class="btn">Copy</button>
+        <a class="btn" href="/prompter/" target="_blank" rel="noopener">Preview</a>
       </div>
-      <label class="field" style="display:flex;align-items:center;gap:8px;cursor:pointer">
-        <input id="tp-enabled" type="checkbox" ${cfg.enabled ? 'checked' : ''} />
-        <span class="field-label" style="margin:0">Enable teleprompter proxy</span>
-      </label>
-      <button id="tp-save-cfg" class="btn btn-primary" style="margin-top:12px">Save</button>
+      <div class="field-label">Fullscreen output on this machine</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px">
+        <select id="tp-display" class="input" style="max-width:280px" ${windowAvailable ? '' : 'disabled'}>
+          <option value="">Default display (Admin → Monitors)</option>
+          ${displays.map(d => `<option value="${escHtml(String(d.id))}" ${String(windowState.displayId) === String(d.id) ? 'selected' : ''}>${escHtml(d.name || ('Display ' + d.id))}${d.isPrimary ? ' (primary)' : ''}</option>`).join('')}
+        </select>
+        <button id="tp-window-open" class="btn btn-primary" ${windowAvailable ? '' : 'disabled'}>Open output</button>
+        <button id="tp-window-close" class="btn" ${windowAvailable ? '' : 'disabled'}>Close output</button>
+        <span class="field-label" style="margin:0">${windowAvailable ? (windowState.open ? 'Output is open' : 'Output is closed') : 'Desktop app only'}</span>
+      </div>
     </div>
+
+    <div class="card">
+      <div class="card-title">Script</div>
+      <textarea id="tp-script" class="input" rows="10" style="width:100%;resize:vertical;font-family:monospace;font-size:13px" placeholder="Paste the script here…">${escHtml(p.script || '')}</textarea>
+      <p id="tp-script-meta" class="field-label" style="margin:8px 0 0">${prompterReadTime(p.script || '')}</p>
+      <p class="field-label" style="margin:4px 0 0">Blank lines split paragraphs. Lines in [brackets] are shown dimmed as directions, not copy.</p>
+      <button id="tp-set-script" class="btn btn-primary" style="margin-top:8px">Load script</button>
+    </div>
+
     <div class="card">
       <div class="card-title">Transport</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button id="tp-start" class="btn btn-primary">▶ Start</button>
-        <button id="tp-stop" class="btn">■ Stop</button>
+        <button id="tp-toggle" class="btn btn-primary">${p.scrolling ? '⏸ Pause' : '▶ Start'}</button>
+        <button id="tp-rewind" class="btn">⏮ Top</button>
+        <button id="tp-back" class="btn">↑ Back</button>
+        <button id="tp-forward" class="btn">↓ Forward</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center">
+        <button id="tp-slower" class="btn">Speed −</button>
+        <span id="tp-speed" class="field-label" style="margin:0;min-width:96px">${p.speed} px/sec</span>
+        <button id="tp-faster" class="btn">Speed +</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center">
+        <button id="tp-font-out" class="btn">Font −</button>
+        <span id="tp-font" class="field-label" style="margin:0;min-width:96px">${p.fontSize} px</span>
+        <button id="tp-font-in" class="btn">Font +</button>
       </div>
     </div>
+
     <div class="card">
-      <div class="card-title">Speed</div>
-      <div style="display:flex;gap:8px">
-        <button id="tp-faster" class="btn">Faster +10</button>
-        <button id="tp-slower" class="btn">Slower −10</button>
+      <div class="card-title">Display settings</div>
+      <div class="field">
+        <div class="field-label">Line height</div>
+        <select id="tp-line-height" class="input" style="max-width:200px">
+          ${[1, 1.2, 1.4, 1.6, 2, 2.5].map(v => `<option value="${v}" ${Number(p.lineHeight) === v ? 'selected' : ''}>${v.toFixed(1)}×</option>`).join('')}
+        </select>
       </div>
+      <label class="field" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input id="tp-mirror-x" type="checkbox" style="width:auto" ${p.mirrorX ? 'checked' : ''} />
+        <span class="field-label" style="margin:0">Mirror horizontally (beam-splitter glass)</span>
+      </label>
+      <label class="field" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input id="tp-mirror-y" type="checkbox" style="width:auto" ${p.mirrorY ? 'checked' : ''} />
+        <span class="field-label" style="margin:0">Mirror vertically (ceiling mount)</span>
+      </label>
     </div>
+
     <div class="card">
-      <div class="card-title">Font Size</div>
-      <div style="display:flex;gap:8px">
-        <button id="tp-font-in" class="btn">A+ (larger)</button>
-        <button id="tp-font-out" class="btn">A− (smaller)</button>
+      <div class="card-title">Third-party prompter service (optional)</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+        Leave this empty unless you also run a separate prompter box. When it is on, every command
+        above is mirrored to that service as well; the built-in display keeps working either way.
+      </p>
+      <p style="margin-bottom:12px">${extLabel}</p>
+      <div class="field">
+        <div class="field-label">Service URL</div>
+        <input id="tp-host" type="text" class="input" value="${escHtml(p.host || '')}" placeholder="http://192.168.1.245:8082" style="width:100%;max-width:360px" />
       </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Script</div>
-      <textarea id="tp-script" class="input" rows="8" style="width:100%;resize:vertical;font-family:monospace;font-size:13px" placeholder="Paste script here…"></textarea>
-      <button id="tp-set-script" class="btn btn-primary" style="margin-top:8px">Set Script</button>
+      <label class="field" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input id="tp-enabled" type="checkbox" style="width:auto" ${p.enabled ? 'checked' : ''} />
+        <span class="field-label" style="margin:0">Forward commands to this service</span>
+      </label>
+      <button id="tp-save-cfg" class="btn btn-primary" style="margin-top:12px">Save</button>
     </div>
   `;
-  document.getElementById('tp-save-cfg').addEventListener('click', async () => {
-    await api('POST', '/api/teleprompter/config', { host: document.getElementById('tp-host').value.trim(), enabled: document.getElementById('tp-enabled').checked });
-    showSuccess('Teleprompter settings saved');
-    renderTeleprompter();
+
+  function applyPrompter(body) {
+    if (!body || !body.prompter) return;
+    const next = body.prompter;
+    document.getElementById('tp-speed').textContent = next.speed + ' px/sec';
+    document.getElementById('tp-font').textContent = next.fontSize + ' px';
+    document.getElementById('tp-toggle').textContent = next.scrolling ? '⏸ Pause' : '▶ Start';
+  }
+
+  async function post(path, body) {
+    try {
+      applyPrompter(await api('POST', path, body));
+    } catch (e) { /* showError handled in api() */ }
+  }
+
+  document.getElementById('tp-copy-url').addEventListener('click', async () => {
+    const field = document.getElementById('tp-url');
+    try {
+      await navigator.clipboard.writeText(field.value);
+      showSuccess('Prompter address copied');
+    } catch (e) {
+      // Clipboard access is blocked over plain http on some browsers — fall
+      // back to selecting the text so it can still be copied by hand.
+      field.select();
+    }
   });
-  document.getElementById('tp-start').addEventListener('click', async () => { await api('POST', '/api/teleprompter/start'); renderTeleprompter(); });
-  document.getElementById('tp-stop').addEventListener('click', async () => { await api('POST', '/api/teleprompter/stop'); renderTeleprompter(); });
-  document.getElementById('tp-faster').addEventListener('click', () => api('POST', '/api/teleprompter/scroll', { direction: 'faster' }));
-  document.getElementById('tp-slower').addEventListener('click', () => api('POST', '/api/teleprompter/scroll', { direction: 'slower' }));
-  document.getElementById('tp-font-in').addEventListener('click', () => api('POST', '/api/teleprompter/font-size', { direction: 'in' }));
-  document.getElementById('tp-font-out').addEventListener('click', () => api('POST', '/api/teleprompter/font-size', { direction: 'out' }));
+
+  document.getElementById('tp-window-open').addEventListener('click', async () => {
+    const displayId = document.getElementById('tp-display').value;
+    try {
+      await api('POST', '/api/prompter/window', { open: true, displayId: displayId || null });
+      showSuccess('Prompter output opened');
+      renderPrompter();
+    } catch (e) { /* showError handled in api() */ }
+  });
+  document.getElementById('tp-window-close').addEventListener('click', async () => {
+    try {
+      await api('POST', '/api/prompter/window', { open: false });
+      renderPrompter();
+    } catch (e) { /* showError handled in api() */ }
+  });
+
+  const scriptField = document.getElementById('tp-script');
+  scriptField.addEventListener('input', () => {
+    document.getElementById('tp-script-meta').textContent = prompterReadTime(scriptField.value);
+  });
   document.getElementById('tp-set-script').addEventListener('click', async () => {
-    const text = document.getElementById('tp-script').value;
-    await api('POST', '/api/teleprompter/script', { text });
-    showSuccess('Script updated');
+    await post('/api/prompter/script', { text: scriptField.value });
+    showSuccess('Script loaded — parked at the top');
+  });
+
+  document.getElementById('tp-toggle').addEventListener('click', () => post('/api/prompter/toggle'));
+  document.getElementById('tp-rewind').addEventListener('click', () => post('/api/prompter/rewind'));
+  document.getElementById('tp-back').addEventListener('click', () => post('/api/prompter/position', { delta: -200 }));
+  document.getElementById('tp-forward').addEventListener('click', () => post('/api/prompter/position', { delta: 200 }));
+  document.getElementById('tp-faster').addEventListener('click', () => post('/api/prompter/scroll', { direction: 'faster' }));
+  document.getElementById('tp-slower').addEventListener('click', () => post('/api/prompter/scroll', { direction: 'slower' }));
+  document.getElementById('tp-font-in').addEventListener('click', () => post('/api/prompter/font-size', { direction: 'in' }));
+  document.getElementById('tp-font-out').addEventListener('click', () => post('/api/prompter/font-size', { direction: 'out' }));
+
+  document.getElementById('tp-line-height').addEventListener('change', (ev) =>
+    post('/api/prompter/line-height', { lineHeight: parseFloat(ev.target.value) })
+  );
+  document.getElementById('tp-mirror-x').addEventListener('change', (ev) =>
+    post('/api/prompter/mirror', { x: ev.target.checked })
+  );
+  document.getElementById('tp-mirror-y').addEventListener('change', (ev) =>
+    post('/api/prompter/mirror', { y: ev.target.checked })
+  );
+
+  document.getElementById('tp-save-cfg').addEventListener('click', async () => {
+    await api('POST', '/api/prompter/config', {
+      host: document.getElementById('tp-host').value.trim(),
+      enabled: document.getElementById('tp-enabled').checked,
+    });
+    showSuccess('Prompter service settings saved');
+    renderPrompter();
   });
 }
 

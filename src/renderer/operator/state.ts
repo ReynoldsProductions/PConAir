@@ -1,4 +1,4 @@
-import type { AppState } from '../../shared/types';
+import { makePrompterState, type AppState } from '../../shared/types';
 
 export type StateListener = (state: AppState) => void;
 
@@ -47,7 +47,7 @@ const DEFAULT_STATE: AppState = {
     roomId: null,
     configured: false,
   },
-  teleprompter: { enabled: false, host: '', scrolling: false, speed: 40, fontSize: 72 },
+  prompter: makePrompterState(),
   graphics: { scoreboard: null, lowerThird: null },
 };
 

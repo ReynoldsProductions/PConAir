@@ -1,6 +1,6 @@
 {
   "name": "@pconair/companion-module",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Bitfocus Companion module for PC On Air",
   "main": "dist/index.js",
   "scripts": {

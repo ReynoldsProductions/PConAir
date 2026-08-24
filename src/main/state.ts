@@ -1,5 +1,5 @@
 import type { AppState } from '../shared/types';
-import { makeTeleprompterState } from '../shared/types';
+import { makePrompterState } from '../shared/types';
 
 const INITIAL_STATE: AppState = {
   currentMode: 'idle',
@@ -58,7 +58,7 @@ const INITIAL_STATE: AppState = {
     roomId: null,
     configured: false,
   },
-  teleprompter: makeTeleprompterState(),
+  prompter: makePrompterState(),
   graphics: {
     scoreboard: null,
     lowerThird: null,

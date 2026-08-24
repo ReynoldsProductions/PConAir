@@ -6,7 +6,7 @@ import type { L3PlaylistStore } from './l3/playlist-store';
 import type { MediaLibraryStore } from './media-library/item-store';
 import type { SlideshowEngine } from './media-library/slideshow';
 import type { SlidesWindowManager } from './slides/window-manager';
-import type { Mode, SlideshowTransition, ScoreboardState, LowerThirdState, LowerThirdTheme, LowerThirdAnimationStyle } from '../shared/types';
+import type { Mode, SlideshowTransition, ScoreboardState, LowerThirdState, LowerThirdTheme, LowerThirdAnimationStyle, PrompterState } from '../shared/types';
 import { slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideLoadOp, slideOfflineModeOp } from './services/slide-ops';
 import { urlLoadOp, urlReloadOp, setDisplayTargetOp } from './services/url-ops';
 import { fanOutSlideCommand } from './services/backup-fanout';
@@ -14,6 +14,22 @@ import type { AppSettings } from './app-settings';
 import { l3ClearOp, l3StackingOp, l3TakeOp } from './l3/take-ops';
 import { playlistActivateOp, playlistStepOp } from './l3/playlist-ops';
 import { stillsTakeOp, stillsClearOp } from './media-library/stills-ops';
+import { forwardToExternalPrompter } from './prompter/forward';
+import {
+  start as prompterStart,
+  stop as prompterStop,
+  toggle as prompterToggle,
+  rewind as prompterRewind,
+  nudgePosition as prompterNudgePosition,
+  setSpeed as prompterSetSpeed,
+  nudgeSpeed as prompterNudgeSpeed,
+  setFontSize as prompterSetFontSize,
+  nudgeFontSize as prompterNudgeFontSize,
+  setScript as prompterSetScript,
+  setMirror as prompterSetMirror,
+  SPEED_STEP as PROMPTER_SPEED_STEP,
+  FONT_SIZE_STEP as PROMPTER_FONT_SIZE_STEP,
+} from './prompter/transport';
 
 const LOWER_THIRD_THEMES: LowerThirdTheme[] = [
   'default', 'dark', 'dark_alt',
@@ -78,36 +94,34 @@ export function createActionDispatcher(deps: {
   slideshow?: SlideshowEngine;
   /** Slides window manager — enables notes scroll/zoom actions. */
   windowManager?: SlidesWindowManager;
-  /** Returns the active teleprompter base URL (empty string when not configured). */
-  getTeleprompterHost?: () => string;
-  /** Returns whether teleprompter proxy is enabled. */
-  isTeleprompterEnabled?: () => boolean;
+  /** Returns the active prompter base URL (empty string when not configured). */
+  getPrompterHost?: () => string;
+  /** Returns whether prompter proxy is enabled. */
+  isPrompterEnabled?: () => boolean;
   /** Returns the current backup fan-out settings (primary mode only). */
   getBackupSettings?: () => { operationMode: AppSettings['operationMode']; backupIps: string[]; port: number };
 }) {
-  const { store, presets, cues, playlists, media, slideshow, windowManager, getTeleprompterHost, isTeleprompterEnabled, getBackupSettings } = deps;
+  const { store, presets, cues, playlists, media, slideshow, windowManager, getPrompterHost, isPrompterEnabled, getBackupSettings } = deps;
 
   const reloadTimers = new Map<'A' | 'B', ReturnType<typeof setTimeout>>();
 
-  /** POST a state patch to the teleprompter host and mirror it into the store. */
-  async function teleprompterPatch(patch: Record<string, unknown>): Promise<ActionResult> {
-    const host = getTeleprompterHost?.() ?? '';
-    if (!isTeleprompterEnabled?.() || !host) return { ok: true, body: { skipped: true } };
-    const tp = store.getState().teleprompter;
-    try {
-      await fetch(`${host}/api/state`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-        signal: AbortSignal.timeout(3000),
-      });
-      const stateUpdate: Record<string, unknown> = {};
-      if ('scrolling' in patch) stateUpdate['scrolling'] = patch['scrolling'];
-      if ('speed' in patch) stateUpdate['speed'] = patch['speed'];
-      if ('font_size' in patch) stateUpdate['fontSize'] = patch['font_size'];
-      store.setState({ teleprompter: { ...tp, ...stateUpdate } });
-    } catch { /* fire-and-forget from Companion; log nothing */ }
-    return { ok: true, body: {} };
+  /**
+   * Apply a prompter transport op. The built-in display at `/prompter` follows
+   * store state, so the op always lands locally; a third-party prompter
+   * service, when one is configured, is mirrored best-effort on top.
+   */
+  async function prompterApply(
+    next: PrompterState,
+    forward: Record<string, unknown> | null
+  ): Promise<ActionResult> {
+    store.setState({ prompter: next });
+    const forwarded = forward
+      ? await forwardToExternalPrompter(
+          { host: getPrompterHost?.() ?? '', enabled: isPrompterEnabled?.() ?? false },
+          forward
+        )
+      : 'off';
+    return { ok: true, body: { forwarded } };
   }
 
   function fanOut(endpoint: string, body: Record<string, unknown>): void {
@@ -383,45 +397,76 @@ export function createActionDispatcher(deps: {
         windowManager?.zoomOutNotes();
         return { ok: true, body: {} };
       }
-      case 'teleprompter_start':
-      case 'teleprompter_stop':
-      case 'teleprompter_scroll_faster':
-      case 'teleprompter_scroll_slower':
-      case 'teleprompter_font_size_in':
-      case 'teleprompter_font_size_out': {
-        const tp = store.getState().teleprompter;
-        let patch: Record<string, unknown> = {};
-        if (actionId === 'teleprompter_start') patch = { scrolling: true };
-        else if (actionId === 'teleprompter_stop') patch = { scrolling: false };
-        else if (actionId === 'teleprompter_scroll_faster') patch = { speed: Math.min(200, tp.speed + 10) };
-        else if (actionId === 'teleprompter_scroll_slower') patch = { speed: Math.max(0, tp.speed - 10) };
-        else if (actionId === 'teleprompter_font_size_in') patch = { font_size: Math.min(200, tp.fontSize + 4) };
-        else patch = { font_size: Math.max(24, tp.fontSize - 4) };
-        return teleprompterPatch(patch);
+      case 'prompter_start':
+      case 'prompter_stop':
+      case 'prompter_toggle': {
+        const now = Date.now();
+        const tp = store.getState().prompter;
+        const next =
+          actionId === 'prompter_start' ? prompterStart(tp, now)
+          : actionId === 'prompter_stop' ? prompterStop(tp, now)
+          : prompterToggle(tp, now);
+        return prompterApply(next, { scrolling: next.scrolling });
       }
-      case 'teleprompter_set_speed': {
+      case 'prompter_scroll_faster':
+      case 'prompter_scroll_slower': {
+        const delta = actionId === 'prompter_scroll_faster' ? PROMPTER_SPEED_STEP : -PROMPTER_SPEED_STEP;
+        const next = prompterNudgeSpeed(store.getState().prompter, delta, Date.now());
+        return prompterApply(next, { speed: next.speed });
+      }
+      case 'prompter_font_size_in':
+      case 'prompter_font_size_out': {
+        const delta = actionId === 'prompter_font_size_in' ? PROMPTER_FONT_SIZE_STEP : -PROMPTER_FONT_SIZE_STEP;
+        const next = prompterNudgeFontSize(store.getState().prompter, delta);
+        return prompterApply(next, { font_size: next.fontSize });
+      }
+      case 'prompter_set_speed': {
         const speed = num(p.speed);
         if (speed === undefined) {
           return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'speed must be a number' } };
         }
-        return teleprompterPatch({ speed: Math.min(200, Math.max(0, Math.round(speed))) });
+        const next = prompterSetSpeed(store.getState().prompter, speed, Date.now());
+        return prompterApply(next, { speed: next.speed });
       }
-      case 'teleprompter_set_font_size': {
+      case 'prompter_set_font_size': {
         const fontSize = num(p.font_size) ?? num(p.fontSize);
         if (fontSize === undefined) {
           return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'font_size must be a number' } };
         }
-        return teleprompterPatch({ font_size: Math.min(200, Math.max(24, Math.round(fontSize))) });
+        const next = prompterSetFontSize(store.getState().prompter, fontSize);
+        return prompterApply(next, { font_size: next.fontSize });
       }
-      case 'teleprompter_load_script': {
+      case 'prompter_load_script': {
         const text = str(p.text) ?? str(p.script);
         if (text === undefined) {
           return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'text is required' } };
         }
-        return teleprompterPatch({ script: text });
+        const next = prompterSetScript(store.getState().prompter, text, Date.now());
+        return prompterApply(next, { script: text });
       }
-      case 'teleprompter_toggle': {
-        return teleprompterPatch({ scrolling: !store.getState().teleprompter.scrolling });
+      case 'prompter_rewind': {
+        return prompterApply(prompterRewind(store.getState().prompter, Date.now()), null);
+      }
+      case 'prompter_jump': {
+        const delta = num(p.delta) ?? num(p.px);
+        if (delta === undefined) {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'delta must be a number' } };
+        }
+        return prompterApply(prompterNudgePosition(store.getState().prompter, delta, Date.now()), null);
+      }
+      case 'prompter_mirror': {
+        const axis = str(p.axis) ?? 'x';
+        if (axis !== 'x' && axis !== 'y') {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'axis must be "x" or "y"' } };
+        }
+        const mode = str(p.mode) ?? 'toggle';
+        if (mode !== 'toggle' && mode !== 'on' && mode !== 'off') {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'mode must be "toggle", "on", or "off"' } };
+        }
+        const tp = store.getState().prompter;
+        const currentAxis = axis === 'x' ? tp.mirrorX : tp.mirrorY;
+        const value = mode === 'toggle' ? !currentAxis : mode === 'on';
+        return prompterApply(prompterSetMirror(tp, { [axis]: value }), null);
       }
       case 'panic': {
         const action = str(p.action) ?? 'toggle';

@@ -104,11 +104,13 @@ export const VARIABLE_DEFINITIONS: CompanionVariableDefinition[] = [
   { variableId: 'render_bg_stills', name: 'Stills Render Background Mode' },
   { variableId: 'render_bg_url', name: 'URL Render Background Mode' },
 
-  // ── teleprompter ──
-  { variableId: 'teleprompter_enabled', name: 'Teleprompter Enabled (Yes/No)' },
-  { variableId: 'teleprompter_scrolling', name: 'Teleprompter Scrolling (Yes/No)' },
-  { variableId: 'teleprompter_speed', name: 'Teleprompter Scroll Speed' },
-  { variableId: 'teleprompter_font_size', name: 'Teleprompter Font Size' },
+  // ── prompter ──
+  { variableId: 'prompter_enabled', name: 'Prompter Enabled (Yes/No)' },
+  { variableId: 'prompter_scrolling', name: 'Prompter Scrolling (Yes/No)' },
+  { variableId: 'prompter_speed', name: 'Prompter Scroll Speed' },
+  { variableId: 'prompter_font_size', name: 'Prompter Font Size' },
+  { variableId: 'prompter_script_loaded', name: 'Prompter Script Loaded (Yes/No)' },
+  { variableId: 'prompter_mirrored', name: 'Prompter Mirrored (Yes/No)' },
 
   // ── graphics: scoreboard ──
   { variableId: 'score_team_a_name', name: 'Scoreboard Team A Name' },
@@ -181,7 +183,7 @@ export function stateToVariables(
   const show = ml?.slideshow ?? null
   const tunnel = state.tunnel ?? null
   const ro = state.renderOutputs ?? {}
-  const tp = state.teleprompter ?? null
+  const tp = state.prompter ?? null
   const sb = state.graphics?.scoreboard ?? null
   const gl3 = state.graphics?.lowerThird ?? null
   const wd = state.watchdog ?? null
@@ -278,10 +280,12 @@ export function stateToVariables(
     render_bg_stills: ro.stills?.bg ?? '',
     render_bg_url: ro.url?.bg ?? '',
 
-    teleprompter_enabled: yn(tp?.enabled),
-    teleprompter_scrolling: yn(tp?.scrolling),
-    teleprompter_speed: tp ? String(tp.speed) : '',
-    teleprompter_font_size: tp ? String(tp.fontSize) : '',
+    prompter_enabled: yn(tp?.enabled),
+    prompter_scrolling: yn(tp?.scrolling),
+    prompter_speed: tp ? String(tp.speed) : '',
+    prompter_font_size: tp ? String(tp.fontSize) : '',
+    prompter_script_loaded: yn(Boolean(tp?.script)),
+    prompter_mirrored: yn(Boolean(tp?.mirrorX || tp?.mirrorY)),
 
     score_team_a_name: sb?.teamA ?? '',
     score_team_b_name: sb?.teamB ?? '',

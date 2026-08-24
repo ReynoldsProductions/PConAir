@@ -82,10 +82,12 @@ export interface ServerDeps {
   saveBrandingSettings?: (patch: { customLogoPath?: string | null; customCssPath?: string | null }) => void;
   /** Slides window manager — enables notes scroll/zoom HTTP endpoints; absent in tests. */
   slidesWindowManager?: SlidesWindowManager;
-  /** Teleprompter proxy hooks; absent in tests (no-ops applied). */
-  getTeleprompterHost?: () => string;
-  isTeleprompterEnabled?: () => boolean;
-  saveTeleprompterSettings?: (patch: { host?: string; enabled?: boolean }) => void;
+  /** Prompter proxy hooks; absent in tests (no-ops applied). */
+  getPrompterHost?: () => string;
+  isPrompterEnabled?: () => boolean;
+  savePrompterSettings?: (patch: { host?: string; enabled?: boolean }) => void;
+  /** Fullscreen prompter output window (Electron main only); absent in tests. */
+  prompterWindow?: RouteServices['prompterWindow'];
   /** Returns backup settings for fan-out and GSC status. */
   getBackupSettings?: RouteServices['getBackupSettings'];
   /** Returns all app settings (GET /api/app-settings). */
@@ -258,9 +260,10 @@ export function createServer(deps: ServerDeps) {
     getCustomCssPath: deps.getCustomCssPath ?? (() => null),
     saveBrandingSettings: deps.saveBrandingSettings ?? (() => { /* no-op in tests */ }),
     slidesWindowManager,
-    getTeleprompterHost: deps.getTeleprompterHost ?? (() => ''),
-    isTeleprompterEnabled: deps.isTeleprompterEnabled ?? (() => false),
-    saveTeleprompterSettings: deps.saveTeleprompterSettings ?? (() => { /* no-op in tests */ }),
+    getPrompterHost: deps.getPrompterHost ?? (() => ''),
+    isPrompterEnabled: deps.isPrompterEnabled ?? (() => false),
+    savePrompterSettings: deps.savePrompterSettings ?? (() => { /* no-op in tests */ }),
+    prompterWindow: deps.prompterWindow,
     getBackupSettings: deps.getBackupSettings,
     getAppSettings: deps.getAppSettings,
     saveAppSettingsPatch: deps.saveAppSettingsPatch,
