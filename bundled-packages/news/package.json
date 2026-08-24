@@ -17,7 +17,11 @@
     {
       "id": "all",
       "label": "Ticker + lower thirds (one source)",
-      "file": "render-all.html"
+      "file": "render-all.html",
+      "preset": {
+        "name": "Faire Wire — Ticker + lower thirds",
+        "description": "Both Faire Wire layers in one browser source. Hide each piece from the Faire Wire control panel or Companion."
+      }
     }
   ],
   "stateSchema": {

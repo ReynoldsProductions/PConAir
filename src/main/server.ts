@@ -20,6 +20,7 @@ import { parseCookieHeader } from './cookie-parse';
 import { isClientIpAllowlisted } from './security/ip-allowlist';
 import { createTunnelPinGate } from './security/tunnel-pin';
 import { createPackageHub, type PackageHub } from './packages/state-hub';
+import { ensurePackageRenderPresets } from './packages/render-presets';
 import { createReliabilityStore } from './reliability-store';
 
 export interface ServerDeps {
@@ -209,6 +210,12 @@ export function createServer(deps: ServerDeps) {
   const packageHub: PackageHub | null = deps.packagesRoot
     ? createPackageHub(deps.packagesRoot, { persistPath: deps.packageStatePath })
     : null;
+
+  // Renders that declare a preset get one in the shared preset list, so a whole
+  // scene can be launched by name from admin → URL Presets or remote → URLs.
+  if (packageHub) {
+    ensurePackageRenderPresets({ hub: packageHub, presets, port });
+  }
 
   const routeServices: RouteServices = {
     store,

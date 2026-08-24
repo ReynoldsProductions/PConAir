@@ -1,11 +1,23 @@
 import fs from 'fs';
 import path from 'path';
 
+/**
+ * A URL preset a render asks the app to keep. Use it for renders that are a
+ * whole scene someone would launch by name; layers meant only to be stacked as
+ * browser sources should leave it off. See packages/render-presets.ts.
+ */
+export interface PackageRenderPreset {
+  /** Defaults to "<package name> — <render label>". */
+  name?: string;
+  description?: string;
+}
+
 /** One render page declared by a package. */
 export interface PackageRenderDecl {
   id: string;
   label: string;
   file: string;
+  preset?: PackageRenderPreset;
 }
 
 /** Leaf types allowed in a package stateSchema. */
@@ -140,6 +152,17 @@ export function validateManifest(raw: unknown): { ok: true; manifest: PackageMan
     }
     if (rr.file.includes('..') || path.isAbsolute(String(rr.file))) {
       return { ok: false, error: `render file path '${rr.file}' must be relative to the package` };
+    }
+    if (rr.preset !== undefined) {
+      const preset = rr.preset as Record<string, unknown>;
+      if (typeof preset !== 'object' || preset === null || Array.isArray(preset)) {
+        return { ok: false, error: `render '${rr.id}' preset must be an object` };
+      }
+      for (const key of ['name', 'description'] as const) {
+        if (preset[key] !== undefined && typeof preset[key] !== 'string') {
+          return { ok: false, error: `render '${rr.id}' preset ${key} must be a string` };
+        }
+      }
     }
   }
   if (m.transientFields !== undefined) {
