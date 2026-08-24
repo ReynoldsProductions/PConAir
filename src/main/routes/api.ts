@@ -35,6 +35,8 @@ export interface CreateApiRouterDeps {
   saveAppSettingsPatch?: (patch: Partial<Omit<AppSettings, 'schemaVersion'>>) => AppSettings;
   /** Opens the Director window (Electron main only); absent in tests. */
   openDirectorWindow?: () => void;
+  /** Active profile's Admin -> Monitors display preference; surfaced by GET /api/displays. */
+  getDisplayPreference?: () => string | null;
 }
 
 function instKey(instance: ABInstance): 'instanceA' | 'instanceB' {
@@ -59,6 +61,7 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
     getAppSettings,
     saveAppSettingsPatch,
     openDirectorWindow,
+    getDisplayPreference,
   } = deps;
 
   const router = Router();
@@ -317,7 +320,13 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
   });
 
   router.get('/displays', opGuard, (_req: Request, res: Response) => {
-    res.json({ displays: store.getState().displays });
+    // `defaultDisplayId` lets operator surfaces label their "Default" option
+    // with the monitor it actually resolves to — the preference itself lives
+    // behind an admin-only route.
+    res.json({
+      displays: store.getState().displays,
+      defaultDisplayId: getDisplayPreference?.() ?? null,
+    });
   });
 
   router.post('/mode', opGuard, (req: Request, res: Response) => {

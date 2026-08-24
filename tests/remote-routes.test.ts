@@ -39,6 +39,14 @@ describe('GET /remote', () => {
     }
   });
 
+  it('gives the URLs page a display picker that defaults to the Admin → Monitors setting', async () => {
+    const res = await request(app).get('/remote/').set('Cookie', operatorCookie);
+    expect(res.text).toContain('id="url-display"');
+    expect(res.text).toContain('id="url-display-refresh"');
+    // The blank-valued first option is what "follow the profile default" sends.
+    expect(res.text).toMatch(/<option value="">Default/);
+  });
+
   it('returns sign-in HTML without a session, posting back to /remote/', async () => {
     const res = await request(app).get('/remote/');
     expect(res.status).toBe(200);

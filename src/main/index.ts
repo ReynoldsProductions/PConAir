@@ -163,7 +163,7 @@ async function main() {
     },
   });
 
-  const urlManager = createUrlWindowManager({ store });
+  const urlManager = createUrlWindowManager({ store, getDisplayPreference });
 
   // Talent-facing prompter output — opened on demand from Admin → Prompter,
   // on whichever monitor the confidence display or glass rig is wired to.

@@ -6,6 +6,31 @@ type Ok<T> = { ok: true; body: T };
 
 const URL_PATTERN = /^https?:\/\/.+/;
 
+type DisplayLookup = Err | { ok: true; id: string | null };
+
+/**
+ * Map a caller-supplied display id/name onto a display id.
+ *
+ * An absent or blank selection is not a failed lookup — it is the UI's
+ * "Default (Admin -> Monitors)" option, and resolves to `null` so the window
+ * manager falls back to the profile preference.
+ */
+function lookupDisplay(
+  displays: ReturnType<StateStore['getState']>['displays'],
+  display: string | null | undefined
+): DisplayLookup {
+  if (display === undefined || display === null || display === '') return { ok: true, id: null };
+  const found = displays.find((d) => d.id === display || d.name === display);
+  if (!found) {
+    return {
+      ok: false,
+      status: 404,
+      error: { code: 'DISPLAY_NOT_FOUND', message: `Display '${display}' not found` },
+    };
+  }
+  return { ok: true, id: found.id };
+}
+
 export function urlLoadOp(
   store: StateStore,
   url: string,
@@ -15,24 +40,14 @@ export function urlLoadOp(
     return { ok: false, status: 400, error: { code: 'INVALID_URL', message: 'url must be a valid http or https URL' } };
   }
   const state = store.getState();
-  let resolvedDisplay: string | null | undefined;
-  if (display !== undefined) {
-    const found = state.displays.find((d) => d.id === display || d.name === display);
-    if (!found) {
-      return {
-        ok: false,
-        status: 404,
-        error: { code: 'DISPLAY_NOT_FOUND', message: `Display '${display}' not found` },
-      };
-    }
-    resolvedDisplay = found.id;
-  }
+  const lookup = lookupDisplay(state.displays, display);
+  if (!lookup.ok) return lookup;
   const active = state.abState.activeInstance;
   const instanceKey = active === 'A' ? 'instanceA' : 'instanceB';
   const updatedInstance: InstanceState = {
     ...state.abState[instanceKey],
     url,
-    displayTarget: resolvedDisplay ?? null,
+    displayTarget: lookup.id,
     isLoading: true,
     isReady: false,
   };
@@ -47,10 +62,14 @@ export function urlLoadOp(
   return { ok: true, body: { currentMode: next.currentMode, currentUrl: next.currentUrl, abState: next.abState } };
 }
 
-/** Set `displayTarget` for a URL instance without reloading the page (URL mode only). */
+/**
+ * Set `displayTarget` for a URL instance without reloading the page (URL mode
+ * only). A `null` display clears the override so the instance follows the
+ * Admin -> Monitors default again.
+ */
 export function setDisplayTargetOp(
   store: StateStore,
-  display: string,
+  display: string | null,
   targetInstance?: ABInstance
 ): Err | Ok<{ abState: ReturnType<StateStore['getState']>['abState'] }> {
   const state = store.getState();
@@ -71,16 +90,9 @@ export function setDisplayTargetOp(
       error: { code: 'INVALID_URL', message: `Instance ${active} has no URL loaded` },
     };
   }
-  const found = state.displays.find((d) => d.id === display || d.name === display);
-  if (!found) {
-    return {
-      ok: false,
-      status: 404,
-      error: { code: 'DISPLAY_NOT_FOUND', message: `Display '${display}' not found` },
-    };
-  }
-  const displayId = found.id;
-  const updatedInstance: InstanceState = { ...inst, displayTarget: displayId };
+  const lookup = lookupDisplay(state.displays, display);
+  if (!lookup.ok) return lookup;
+  const updatedInstance: InstanceState = { ...inst, displayTarget: lookup.id };
   store.setState({
     abState: { ...state.abState, [instanceKey]: updatedInstance },
   });

@@ -218,8 +218,12 @@ export function createActionDispatcher(deps: {
         if (!found) {
           return { ok: false, status: 404, error: { code: 'PRESET_NOT_FOUND', message: `Preset '${name}' not found` } };
         }
-        const display = str(p.display) ?? found.displayTarget ?? undefined;
-        const r = urlLoadOp(store, found.url, display ?? undefined);
+        // Precedence: an explicit caller choice, then the preset's own target,
+        // then the Admin -> Monitors default. A blank `display` is the UI's
+        // "Default" option, not a choice — it must not shadow the preset.
+        const explicit = str(p.display);
+        const display = (explicit || undefined) ?? found.displayTarget ?? undefined;
+        const r = urlLoadOp(store, found.url, display);
         if (!r.ok) return { ok: false, status: r.status, error: r.error };
         store.setState({ currentPreset: { id: found.id, name: found.name } });
         const s = store.getState();
@@ -261,10 +265,15 @@ export function createActionDispatcher(deps: {
         return { ok: true, body: { currentMode: mode } };
       }
       case 'set_display': {
-        const display = str(p.display);
-        const instance = str(p.instance);
-        if (!display) {
+        // An explicit null or empty string clears the override so the instance
+        // follows the Admin -> Monitors default; an absent param is still a
+        // caller mistake, not a request for the default.
+        if (p.display === undefined) {
           return { ok: false, status: 400, error: { code: 'MISSING_PARAM', message: 'display is required' } };
+        }
+        const display = p.display === null ? null : str(p.display);
+        if (display === undefined) {
+          return { ok: false, status: 400, error: { code: 'MISSING_PARAM', message: 'display must be a string or null' } };
         }
         const inst = str(p.instance);
         const target = inst === 'A' || inst === 'B' ? inst : undefined;
