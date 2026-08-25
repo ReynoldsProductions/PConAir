@@ -114,11 +114,11 @@ function renderKbdPresetButtons(): void {
   });
 }
 
-/** Ignore checkbox `change` while syncing from server state. */
-let l3StackingUiLock = false;
 let notesPollingInterval: ReturnType<typeof setInterval> | null = null;
-/** Cached cue list for the Lower Third — Live prefill select (name/title lookup only). */
+/** Cached cue list for the Lower Thirds prefill selects (name/title lookup only). */
 let ltCuesCache: api.L3CueListItem[] = [];
+/** Cached logo list for the Lower Thirds logo-picker selects. */
+let ltLogosCache: api.L3LogoAsset[] = [];
 
 async function refreshMediaSelect(): Promise<void> {
   const { items } = await api.mediaLibraryList();
@@ -138,26 +138,7 @@ async function refreshMediaSelect(): Promise<void> {
   if (prev && items.some((x) => x.id === prev)) sel.value = prev;
 }
 
-async function refreshL3CueSelect(): Promise<void> {
-  const { cues } = await api.l3ListCues();
-  const sel = document.getElementById('l3-cue-select') as HTMLSelectElement;
-  const prev = sel.value;
-  sel.replaceChildren();
-  const opt0 = document.createElement('option');
-  opt0.value = '';
-  opt0.textContent = '— Manual entry below —';
-  sel.appendChild(opt0);
-  for (const c of cues) {
-    const o = document.createElement('option');
-    o.value = c.id;
-    o.textContent = `${c.name} — ${c.title}`;
-    sel.appendChild(o);
-  }
-  if (prev && cues.some((x) => x.id === prev)) sel.value = prev;
-}
-
-/** Display pickers on both lower-third pages are filled from the same list. */
-const DISPLAY_SELECT_IDS = ['lt-output-display-select', 'l3-output-display-select'] as const;
+const DISPLAY_SELECT_IDS = ['lt3-output-display-select'] as const;
 
 async function refreshDisplaySelect(): Promise<void> {
   const { displays } = await api.listDisplays();
@@ -179,10 +160,6 @@ async function refreshDisplaySelect(): Promise<void> {
     }
     if (prev && displays.some((x) => x.id === prev)) sel.value = prev;
   }
-  // The Cue Library picker reflects shared state, so show what's actually set.
-  const l3Sel = document.getElementById('l3-output-display-select') as HTMLSelectElement | null;
-  const current = store.getState().l3?.outputDisplayId ?? '';
-  if (l3Sel && current && displays.some((x) => x.id === current)) l3Sel.value = current;
 }
 
 async function refreshGoogleAuth(): Promise<void> {
@@ -203,10 +180,9 @@ async function refreshGoogleAuth(): Promise<void> {
   }
 }
 
-async function refreshLowerThirdCueSelect(): Promise<void> {
-  const { cues } = await api.l3ListCues();
-  ltCuesCache = cues;
-  const sel = document.getElementById('lt-cue-select') as HTMLSelectElement;
+const LT3_SIDES = ['left', 'right'] as const;
+
+function fillCueSelect(sel: HTMLSelectElement, cues: api.L3CueListItem[]): void {
   const prev = sel.value;
   sel.replaceChildren();
   const opt0 = document.createElement('option');
@@ -220,6 +196,362 @@ async function refreshLowerThirdCueSelect(): Promise<void> {
     sel.appendChild(o);
   }
   if (prev && cues.some((x) => x.id === prev)) sel.value = prev;
+}
+
+async function refreshL3CuesCache(): Promise<void> {
+  const { cues } = await api.l3ListCues();
+  ltCuesCache = cues;
+  for (const side of LT3_SIDES) {
+    const sel = document.getElementById(`lt3-${side}-cue-select`) as HTMLSelectElement | null;
+    if (sel) fillCueSelect(sel, cues);
+  }
+}
+
+function fillLogoSelect(sel: HTMLSelectElement, logos: api.L3LogoAsset[]): void {
+  const prev = sel.value;
+  sel.replaceChildren();
+  const opt0 = document.createElement('option');
+  opt0.value = '';
+  opt0.textContent = '— No logo uploaded —';
+  sel.appendChild(opt0);
+  for (const l of logos) {
+    const o = document.createElement('option');
+    o.value = l.id;
+    o.textContent = l.filename;
+    sel.appendChild(o);
+  }
+  if (prev && logos.some((x) => x.id === prev)) sel.value = prev;
+}
+
+async function refreshL3LogosCache(): Promise<void> {
+  const { logos } = await api.l3ListLogos();
+  ltLogosCache = logos;
+  for (const side of LT3_SIDES) {
+    const sel = document.getElementById(`lt3-${side}-logo-select`) as HTMLSelectElement | null;
+    if (sel) fillLogoSelect(sel, logos);
+  }
+}
+
+// ── Lower Thirds tab (left/right independent live-fire panels) ────
+
+const LT3_THEME_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'default', label: 'Default' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'dark_alt', label: 'Dark Alt' },
+  { value: 'bright', label: 'Bright' },
+  { value: 'bright_insider', label: 'Bright — Insider' },
+  { value: 'bright_warm', label: 'Bright — Warm' },
+  { value: 'bright_info', label: 'Bright — Info' },
+  { value: 'palette_olive', label: 'Palette — Olive' },
+  { value: 'palette_teal', label: 'Palette — Teal' },
+  { value: 'palette_terracotta', label: 'Palette — Terracotta' },
+  { value: 'palette_plum', label: 'Palette — Plum' },
+  { value: 'palette_copper', label: 'Palette — Copper' },
+  { value: 'palette_sage', label: 'Palette — Sage' },
+];
+
+const LT3_ANIMATION_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'fade', label: 'Fade / Slide' },
+  { value: 'wipe', label: 'Wipe' },
+  { value: 'grow', label: 'Grow' },
+  { value: 'slide-up', label: 'Slide Up' },
+  { value: 'slide-down', label: 'Slide Down' },
+  { value: 'zoom', label: 'Zoom' },
+  { value: 'flip', label: 'Flip' },
+];
+
+function buildLowerThirdPanelHtml(side: api.LowerThirdSide): string {
+  const label = side === 'left' ? 'Left' : 'Right';
+  const themeOpts = LT3_THEME_OPTIONS.map((o) => `<option value="${o.value}">${o.label}</option>`).join('');
+  const animOpts = LT3_ANIMATION_OPTIONS.map((o) => `<option value="${o.value}">${o.label}</option>`).join('');
+  return `
+    <div class="panel-title">${label} <span id="lt3-${side}-onair" class="field-hint" hidden style="color:#c0392b;font-weight:700;">ON AIR</span></div>
+    <div id="lt3-${side}-active-line" class="field-hint" style="margin-bottom:12px;">Off air</div>
+    <div class="form-group">
+      <label for="lt3-${side}-cue-select">Load from library (optional)</label>
+      <div class="ml-l3-select-wrap">
+        <select id="lt3-${side}-cue-select" class="select-input">
+          <option value="">— Manual entry below —</option>
+        </select>
+        <button type="button" class="btn btn-secondary" id="lt3-${side}-cues-refresh-btn" title="Reload cue list">Refresh</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="lt3-${side}-name-input">Name</label>
+      <input type="text" id="lt3-${side}-name-input" class="input-field" placeholder="Speaker name" autocomplete="off" />
+    </div>
+    <div class="form-group">
+      <label for="lt3-${side}-title-input">Title</label>
+      <input type="text" id="lt3-${side}-title-input" class="input-field" placeholder="Role or second line" autocomplete="off" />
+    </div>
+    <div class="form-group">
+      <label for="lt3-${side}-subtitle-input">Subtitle (optional)</label>
+      <input type="text" id="lt3-${side}-subtitle-input" class="input-field" placeholder="Leave blank for none" autocomplete="off" />
+    </div>
+    <div class="form-group">
+      <label for="lt3-${side}-theme-select">Theme</label>
+      <select id="lt3-${side}-theme-select" class="select-input">${themeOpts}</select>
+    </div>
+    <label class="form-group" style="display:flex;flex-direction:row;align-items:center;gap:8px;cursor:pointer;user-select:none;">
+      <input type="checkbox" id="lt3-${side}-logo-enabled-checkbox" />
+      <span>Show logo</span>
+    </label>
+    <div class="form-group">
+      <label for="lt3-${side}-logo-select">Logo image</label>
+      <select id="lt3-${side}-logo-select" class="select-input">
+        <option value="">— No logo uploaded —</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="lt3-${side}-fade-enabled-checkbox">
+        <input type="checkbox" id="lt3-${side}-fade-enabled-checkbox" checked />
+        Fade in/out
+      </label>
+    </div>
+    <div class="form-group">
+      <label for="lt3-${side}-fade-ms-slider">Fade duration (ms)</label>
+      <input type="range" id="lt3-${side}-fade-ms-slider" min="0" max="5000" step="50" value="550" style="width:100%;margin-bottom:8px;" />
+      <input type="number" id="lt3-${side}-fade-ms-input" class="input-field" min="0" step="50" value="550"
+        title="Slider tops out at 5000ms — type a larger value here for a longer custom fade" />
+    </div>
+    <div class="form-group">
+      <label for="lt3-${side}-animation-style-select">Animation style</label>
+      <select id="lt3-${side}-animation-style-select" class="select-input">${animOpts}</select>
+    </div>
+    <div class="btn-row" style="margin-top:16px;flex-wrap:wrap;">
+      <button type="button" class="btn btn-primary" id="lt3-${side}-apply-btn">Apply</button>
+      <button type="button" class="btn btn-secondary" id="lt3-${side}-hide-btn">Hide</button>
+    </div>
+    <div class="btn-row" style="margin-top:8px;flex-wrap:wrap;">
+      <button type="button" class="btn btn-secondary" id="lt3-${side}-save-btn">Save to library</button>
+      <button type="button" class="btn btn-secondary" id="lt3-${side}-export-btn">Export PNG</button>
+    </div>
+    <p id="lt3-${side}-msg" class="field-hint" style="margin-top:8px;"></p>
+  `;
+}
+
+interface Lt3Fields {
+  cueId?: string;
+  name: string;
+  title: string;
+  subtitle: string;
+  theme: string;
+  logoEnabled: boolean;
+  logoAssetId: string | null;
+  fadeEnabled: boolean;
+  fadeMs: number;
+  animationStyle: string;
+}
+
+function bindLowerThirdSide(side: api.LowerThirdSide): void {
+  const g = (suffix: string) => document.getElementById(`lt3-${side}-${suffix}`);
+
+  g('cues-refresh-btn')!.addEventListener('click', async () => {
+    try {
+      await refreshL3CuesCache();
+    } catch (e) {
+      showError((e as Error).message);
+    }
+  });
+
+  (g('cue-select') as HTMLSelectElement).addEventListener('change', () => {
+    const sel = g('cue-select') as HTMLSelectElement;
+    if (!sel.value) return;
+    const cue = ltCuesCache.find((c) => c.id === sel.value);
+    if (!cue) return;
+    (g('name-input') as HTMLInputElement).value = cue.name;
+    (g('title-input') as HTMLInputElement).value = cue.title;
+    (g('subtitle-input') as HTMLInputElement).value = cue.subtitle ?? '';
+  });
+
+  g('fade-ms-slider')!.addEventListener('input', () => {
+    const slider = g('fade-ms-slider') as HTMLInputElement;
+    (g('fade-ms-input') as HTMLInputElement).value = slider.value;
+  });
+  g('fade-ms-input')!.addEventListener('input', () => {
+    const input = g('fade-ms-input') as HTMLInputElement;
+    const slider = g('fade-ms-slider') as HTMLInputElement;
+    const v = Number(input.value);
+    // Slider visually clamps to its own 0-5000 range; the number field is the
+    // source of truth and keeps whatever custom value the user typed.
+    if (Number.isFinite(v)) slider.value = String(Math.min(5000, Math.max(0, v)));
+  });
+
+  function readFields(): Lt3Fields {
+    return {
+      cueId: (g('cue-select') as HTMLSelectElement).value || undefined,
+      name: (g('name-input') as HTMLInputElement).value.trim(),
+      title: (g('title-input') as HTMLInputElement).value.trim(),
+      subtitle: (g('subtitle-input') as HTMLInputElement).value.trim(),
+      theme: (g('theme-select') as HTMLSelectElement).value,
+      logoEnabled: (g('logo-enabled-checkbox') as HTMLInputElement).checked,
+      logoAssetId: (g('logo-select') as HTMLSelectElement).value || null,
+      fadeEnabled: (g('fade-enabled-checkbox') as HTMLInputElement).checked,
+      fadeMs: Number((g('fade-ms-input') as HTMLInputElement).value),
+      animationStyle: (g('animation-style-select') as HTMLSelectElement).value,
+    };
+  }
+
+  g('apply-btn')!.addEventListener('click', async () => {
+    const f = readFields();
+    if (!f.name) {
+      showError('Enter a name');
+      return;
+    }
+    try {
+      await api.lowerThirdApply({
+        side,
+        ...(f.cueId ? { cueId: f.cueId } : {}),
+        name: f.name,
+        title: f.title,
+        // Always send subtitle explicitly (even '') so the server can tell
+        // "leave blank on purpose" apart from "field wasn't included at all".
+        subtitle: f.subtitle,
+        theme: f.theme,
+        fadeEnabled: f.fadeEnabled,
+        fadeMs: Number.isFinite(f.fadeMs) ? f.fadeMs : undefined,
+        animationStyle: f.animationStyle,
+        logoEnabled: f.logoEnabled,
+        logoAssetId: f.logoEnabled ? (f.logoAssetId ?? undefined) : null,
+      });
+    } catch (e) {
+      showError((e as Error).message);
+    }
+  });
+
+  g('hide-btn')!.addEventListener('click', async () => {
+    try {
+      await api.lowerThirdHide(side);
+    } catch (e) {
+      showError((e as Error).message);
+    }
+  });
+
+  g('save-btn')!.addEventListener('click', async () => {
+    const f = readFields();
+    if (!f.name) {
+      showError('Enter a name');
+      return;
+    }
+    const msgEl = g('msg')!;
+    try {
+      if (f.cueId) {
+        await api.l3UpdateCue(f.cueId, { name: f.name, title: f.title, subtitle: f.subtitle, themeId: f.theme });
+        msgEl.textContent = 'Cue updated in library.';
+      } else {
+        await api.l3CreateCue({ name: f.name, title: f.title, subtitle: f.subtitle, themeId: f.theme });
+        msgEl.textContent = 'Saved as a new cue.';
+      }
+      await refreshL3CuesCache();
+    } catch (e) {
+      msgEl.textContent = (e as Error).message;
+    }
+  });
+
+  g('export-btn')!.addEventListener('click', async () => {
+    const f = readFields();
+    if (!f.name) {
+      showError('Enter a name');
+      return;
+    }
+    const msgEl = g('msg')!;
+    try {
+      await api.l3ExportPng({
+        name: f.name,
+        title: f.title,
+        subtitle: f.subtitle,
+        theme: f.theme,
+        logoAssetId: f.logoEnabled ? f.logoAssetId : null,
+      });
+      msgEl.textContent = 'PNG exported.';
+    } catch (e) {
+      msgEl.textContent = (e as Error).message;
+    }
+  });
+}
+
+function initLowerThirdsTab(): void {
+  for (const side of LT3_SIDES) {
+    const container = document.getElementById(`lt3-panel-${side}`);
+    if (!container) continue;
+    container.innerHTML = buildLowerThirdPanelHtml(side);
+    bindLowerThirdSide(side);
+  }
+}
+
+// ── Manage Lower Thirds tab (CSV import + logo library) ───────────
+
+function formatLogoRow(logo: api.L3LogoAsset): string {
+  return `<div class="item-row" data-id="${logo.id}">
+    <img class="item-thumb" src="/api/l3/logos/${encodeURIComponent(logo.id)}/file" alt="" />
+    <span class="item-name">${logo.filename}</span>
+    <button type="button" class="btn btn-secondary" data-l3-logo-delete="${logo.id}">Delete</button>
+  </div>`;
+}
+
+async function refreshL3LogoList(): Promise<void> {
+  const { logos } = await api.l3ListLogos();
+  ltLogosCache = logos;
+  const list = document.getElementById('l3mgmt-logo-list');
+  if (!list) return;
+  list.innerHTML = logos.length
+    ? logos.map(formatLogoRow).join('')
+    : '<span class="field-hint">No logos uploaded yet.</span>';
+  list.querySelectorAll<HTMLButtonElement>('[data-l3-logo-delete]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.l3LogoDelete;
+      if (!id) return;
+      try {
+        await api.l3DeleteLogo(id);
+        await refreshL3LogoList();
+        await refreshL3LogosCache();
+      } catch (e) {
+        showError((e as Error).message);
+      }
+    });
+  });
+}
+
+function initManageLowerThirdsTab(): void {
+  document.getElementById('l3mgmt-csv-import-btn')!.addEventListener('click', async () => {
+    const input = document.getElementById('l3mgmt-csv-input') as HTMLInputElement;
+    const msg = document.getElementById('l3mgmt-csv-msg')!;
+    const file = input.files?.[0];
+    if (!file) {
+      msg.textContent = 'Choose a CSV file first.';
+      return;
+    }
+    try {
+      const r = await api.l3ImportCsv(file);
+      msg.textContent = `Imported ${r.imported}, skipped ${r.skipped}.${r.warnings.length ? ' See console for details.' : ''}`;
+      if (r.warnings.length) console.warn('CSV import warnings:', r.warnings);
+      input.value = '';
+      await refreshL3CuesCache();
+    } catch (e) {
+      msg.textContent = (e as Error).message;
+    }
+  });
+
+  document.getElementById('l3mgmt-logo-upload-btn')!.addEventListener('click', async () => {
+    const input = document.getElementById('l3mgmt-logo-input') as HTMLInputElement;
+    const msg = document.getElementById('l3mgmt-logo-msg')!;
+    const file = input.files?.[0];
+    if (!file) {
+      msg.textContent = 'Choose an image file first.';
+      return;
+    }
+    try {
+      await api.l3UploadLogo(file);
+      msg.textContent = 'Logo uploaded.';
+      input.value = '';
+      await refreshL3LogoList();
+      await refreshL3LogosCache();
+    } catch (e) {
+      msg.textContent = (e as Error).message;
+    }
+  });
+
+  void refreshL3LogoList().catch(() => { /* no session yet */ });
 }
 
 async function refreshActiveProfile(): Promise<void> {
@@ -410,32 +742,19 @@ function renderState(state: AppState): void {
     urlStatusEl.textContent = '';
   }
 
-  const l3Line = document.getElementById('l3-active-line')!;
-  const l3s = state.l3;
-  if (l3s?.activeCueName != null || l3s?.activeTitle != null) {
-    const parts = [l3s.activeCueName, l3s.activeTitle].filter(
-      (x): x is string => typeof x === 'string' && x.length > 0
-    );
-    l3Line.textContent = parts.length ? `Active: ${parts.join(' — ')}` : 'Active: —';
-  } else {
-    l3Line.textContent = 'Active: —';
-  }
-
-  const ltLine = document.getElementById('lt-active-line');
-  const lowerThird = state.graphics?.lowerThird;
-  if (ltLine) {
-    if (lowerThird?.visible) {
-      const parts = [lowerThird.name, lowerThird.title].filter((x) => Boolean(x));
-      ltLine.textContent = parts.length ? `Active: ${parts.join(' — ')}` : 'Active: —';
+  for (const side of LT3_SIDES) {
+    const line = document.getElementById(`lt3-${side}-active-line`);
+    if (!line) continue;
+    const lt = state.graphics?.lowerThirds?.[side];
+    if (lt?.visible) {
+      const parts = [lt.name, lt.title].filter((x) => Boolean(x));
+      line.textContent = parts.length ? `On air: ${parts.join(' — ')}` : 'On air: —';
     } else {
-      ltLine.textContent = 'Active: —';
+      line.textContent = 'Off air';
     }
+    const badge = document.getElementById(`lt3-${side}-onair`);
+    if (badge) badge.hidden = !lt?.visible;
   }
-
-  const stackCb = document.getElementById('l3-stacking-checkbox') as HTMLInputElement;
-  l3StackingUiLock = true;
-  stackCb.checked = Boolean(l3s?.isStacking);
-  l3StackingUiLock = false;
 
   const mlLine = document.getElementById('ml-active-line')!;
   const ml = state.mediaLibrary;
@@ -558,121 +877,19 @@ function bindEvents(): void {
   });
   on('url-reload-btn', () => api.urlReload());
 
-  document.getElementById('l3-cues-refresh-btn')!.addEventListener('click', async () => {
-    try {
-      await refreshL3CueSelect();
-    } catch (e) {
-      showError((e as Error).message);
-    }
-  });
-
-  on('l3-take-btn', async () => {
-    const autoOutSec = parseFloat((document.getElementById('l3-auto-out-input') as HTMLInputElement).value);
-    const autoOutMs = Number.isFinite(autoOutSec) && autoOutSec > 0 ? Math.round(autoOutSec * 1000) : null;
-    const sel = document.getElementById('l3-cue-select') as HTMLSelectElement;
-    const name = (document.getElementById('l3-name-input') as HTMLInputElement).value.trim();
-    const title = (document.getElementById('l3-title-input') as HTMLInputElement).value.trim();
-    if (sel.value) {
-      // Recall-then-edit: pass whatever was typed alongside the cue as a
-      // per-take override. Blank fields fall back to the cue's stored wording
-      // server-side, and the cue itself is never rewritten.
-      await api.l3Take({
-        cueId: sel.value,
-        name: name || undefined,
-        title: title || undefined,
-        autoOutMs: autoOutMs ?? undefined,
-      });
-      return;
-    }
-    await api.l3Take({ name, title, autoOutMs: autoOutMs ?? undefined });
-  });
-  on('l3-clear-btn', () => api.l3Clear());
-
-  on('lt-open-output-btn', async () => {
-    const sel = document.getElementById('lt-output-display-select') as HTMLSelectElement;
+  on('lt3-open-output-btn', async () => {
+    const sel = document.getElementById('lt3-output-display-select') as HTMLSelectElement;
     const displayId = sel.value;
     const displayLabel = displayId ? sel.options[sel.selectedIndex].textContent : 'primary display';
     const url = `${location.origin}/graphics/lower-third-live/index.html`;
-    const statusEl = document.getElementById('lt-output-status');
+    const statusEl = document.getElementById('lt3-output-status');
     await api.loadUrl(url, displayId || undefined);
     if (statusEl) statusEl.textContent = `Output opened: ${url} → ${displayLabel}`;
   });
 
-  document.getElementById('lt-displays-refresh-btn')!.addEventListener('click', () => {
+  document.getElementById('lt3-displays-refresh-btn')!.addEventListener('click', () => {
     void refreshDisplaySelect().catch((e: Error) => showError(e.message));
   });
-
-  document.getElementById('l3-displays-refresh-btn')!.addEventListener('click', () => {
-    void refreshDisplaySelect().catch((e: Error) => showError(e.message));
-  });
-
-  // Shared state, not a local preference — persist it so the program window
-  // retargets immediately and every other connected client agrees.
-  document.getElementById('l3-output-display-select')!.addEventListener('change', () => {
-    const sel = document.getElementById('l3-output-display-select') as HTMLSelectElement;
-    void api.l3SetOutputDisplay(sel.value || null).catch((e: Error) => showError(e.message));
-  });
-
-  document.getElementById('lt-fade-ms-slider')!.addEventListener('input', () => {
-    const slider = document.getElementById('lt-fade-ms-slider') as HTMLInputElement;
-    (document.getElementById('lt-fade-ms-input') as HTMLInputElement).value = slider.value;
-  });
-
-  document.getElementById('lt-fade-ms-input')!.addEventListener('input', () => {
-    const input = document.getElementById('lt-fade-ms-input') as HTMLInputElement;
-    const slider = document.getElementById('lt-fade-ms-slider') as HTMLInputElement;
-    const v = Number(input.value);
-    // Slider visually clamps to its own 0-5000 range; the number field is the
-    // source of truth and keeps whatever custom value the user typed.
-    if (Number.isFinite(v)) slider.value = String(Math.min(5000, Math.max(0, v)));
-  });
-
-  document.getElementById('lt-cues-refresh-btn')!.addEventListener('click', async () => {
-    try {
-      await refreshLowerThirdCueSelect();
-    } catch (e) {
-      showError((e as Error).message);
-    }
-  });
-
-  document.getElementById('lt-cue-select')!.addEventListener('change', () => {
-    const sel = document.getElementById('lt-cue-select') as HTMLSelectElement;
-    if (!sel.value) return;
-    const cue = ltCuesCache.find((c) => c.id === sel.value);
-    if (!cue) return;
-    (document.getElementById('lt-name-input') as HTMLInputElement).value = cue.name;
-    (document.getElementById('lt-title-input') as HTMLInputElement).value = cue.title;
-    (document.getElementById('lt-subtitle-input') as HTMLInputElement).value = cue.subtitle ?? '';
-  });
-
-  on('lt-apply-btn', async () => {
-    const cueId = (document.getElementById('lt-cue-select') as HTMLSelectElement).value;
-    const name = (document.getElementById('lt-name-input') as HTMLInputElement).value.trim();
-    const title = (document.getElementById('lt-title-input') as HTMLInputElement).value.trim();
-    const subtitle = (document.getElementById('lt-subtitle-input') as HTMLInputElement).value.trim();
-    const theme = (document.getElementById('lt-theme-select') as HTMLSelectElement).value;
-    const fadeEnabled = (document.getElementById('lt-fade-enabled-checkbox') as HTMLInputElement).checked;
-    const fadeMs = Number((document.getElementById('lt-fade-ms-input') as HTMLInputElement).value);
-    const animationStyle = (document.getElementById('lt-animation-style-select') as HTMLSelectElement).value;
-    if (!name) {
-      showError('Enter a name');
-      return;
-    }
-    await api.lowerThirdApply({
-      ...(cueId ? { cueId } : {}),
-      name,
-      title,
-      // Always send subtitle explicitly (even '') so the server can tell
-      // "leave blank on purpose" apart from "field wasn't included at all" —
-      // otherwise clearing this input would never actually clear the output.
-      subtitle,
-      theme,
-      fadeEnabled,
-      fadeMs: Number.isFinite(fadeMs) ? fadeMs : undefined,
-      animationStyle,
-    });
-  });
-  on('lt-hide-btn', () => api.lowerThirdHide());
 
   document.getElementById('ml-refresh-btn')!.addEventListener('click', async () => {
     try {
@@ -733,21 +950,6 @@ function bindEvents(): void {
     });
   });
 
-  (document.getElementById('l3-stacking-checkbox') as HTMLInputElement).addEventListener(
-    'change',
-    async () => {
-      if (l3StackingUiLock) return;
-      const cb = document.getElementById('l3-stacking-checkbox') as HTMLInputElement;
-      try {
-        await api.l3Stacking(cb.checked);
-      } catch (e) {
-        showError((e as Error).message);
-        l3StackingUiLock = true;
-        cb.checked = !cb.checked;
-        l3StackingUiLock = false;
-      }
-    }
-  );
 
   // A/B instance buttons and [data-mode] buttons are now Slate `Button`s in
   // the Live Control React tree (see handleSwitchAB/handleSetMode above) —
@@ -774,8 +976,13 @@ function bindEvents(): void {
       }
       // Displays change when monitors are plugged/unplugged, and the boot fetch
       // 401s before login — so re-pull the list whenever the tab is opened.
-      if (target === 'lower-third-live' || target === 'l3') {
+      if (target === 'lower-third-live') {
         void refreshDisplaySelect().catch(() => {});
+        void refreshL3CuesCache().catch(() => {});
+        void refreshL3LogosCache().catch(() => {});
+      }
+      if (target === 'l3') {
+        void refreshL3LogoList().catch(() => {});
       }
     });
   });
@@ -792,8 +999,10 @@ renderReactRoots(store.getState());
 store.subscribe(renderState);
 bindEvents();
 renderKbdPresetButtons();
-void refreshL3CueSelect().catch(() => { /* no session yet */ });
-void refreshLowerThirdCueSelect().catch(() => { /* no session yet */ });
+initLowerThirdsTab();
+initManageLowerThirdsTab();
+void refreshL3CuesCache().catch(() => { /* no session yet */ });
+void refreshL3LogosCache().catch(() => { /* no session yet */ });
 void refreshMediaSelect().catch(() => { /* no session yet */ });
 void refreshActiveProfile().catch(() => { /* public endpoint */ });
 void refreshGoogleAuth().catch(() => { /* non-critical */ });

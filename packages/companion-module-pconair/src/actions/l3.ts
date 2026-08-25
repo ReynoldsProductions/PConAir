@@ -1,5 +1,5 @@
 import type { CompanionActionDefinition } from '@companion-module/base'
-import { type ActionDeps, parsed, parsedNum, parsedOpt, parsedChoice, simpleDispatch } from './helpers.js'
+import { type ActionDeps, parsed, parsedNum, parsedOpt, parsedChoice } from './helpers.js'
 
 /** Must match LowerThirdTheme in src/shared/types.ts. */
 const LOWER_THIRD_THEMES = [
@@ -16,47 +16,21 @@ export function buildL3Actions(deps: ActionDeps): Record<string, CompanionAction
   const { dispatch } = deps
 
   return {
-    l3_take: {
-      name: 'Take Lower Third Cue',
-      options: [
-        { type: 'textinput', id: 'cue_id', label: 'Cue ID (blank = inline name/title)', default: '', useVariables: true },
-        { type: 'textinput', id: 'name', label: 'Name (inline take)', default: '', useVariables: true },
-        { type: 'textinput', id: 'title', label: 'Title (inline take)', default: '', useVariables: true },
-        { type: 'textinput', id: 'theme', label: 'Theme (optional)', default: '', useVariables: true },
-      ],
-      callback: async (event, context) => {
-        const params: Record<string, unknown> = {}
-        const cueId = await parsedOpt(context, event, 'cue_id')
-        const name = await parsedOpt(context, event, 'name')
-        const title = await parsedOpt(context, event, 'title')
-        const theme = await parsedOpt(context, event, 'theme')
-        if (cueId) params['cue_id'] = cueId
-        if (name) params['name'] = name
-        if (title) params['title'] = title
-        if (theme) params['theme'] = theme
-        await dispatch('l3_take', params)
-      },
-    },
-    l3_clear: simpleDispatch(deps, 'Clear Lower Third', 'l3_clear'),
-    l3_next: simpleDispatch(deps, 'L3 Playlist Next', 'l3_next'),
-    l3_prev: simpleDispatch(deps, 'L3 Playlist Previous', 'l3_prev'),
-    l3_activate_playlist: {
-      name: 'Activate L3 Playlist',
-      options: [
-        { type: 'textinput', id: 'playlist', label: 'Playlist ID or Name', default: '', useVariables: true, required: true },
-      ],
-      callback: async (event, context) =>
-        dispatch('l3_activate_playlist', { playlist: await parsed(context, event, 'playlist') }),
-    },
-    l3_stacking_on: simpleDispatch(deps, 'Enable Lower Third Stacking', 'l3_stacking_on'),
-    l3_stacking_off: simpleDispatch(deps, 'Disable Lower Third Stacking', 'l3_stacking_off'),
-    l3_toggle_stacking: simpleDispatch(deps, 'Toggle Lower Third Stacking', 'l3_toggle_stacking'),
-
-    // ════ Graphics lower-third overlay (render/graphics path) ════
+    // ════ Graphics lower-third overlay (render/graphics path) — left/right independent ════
     lower_third_apply: {
       name: 'Graphics: Apply Lower Third',
-      description: 'Shows the graphics lower-third overlay (cue prefill or inline text)',
+      description: 'Shows the graphics lower-third overlay on the given side (cue prefill or inline text)',
       options: [
+        {
+          type: 'dropdown',
+          id: 'side',
+          label: 'Side',
+          default: 'left',
+          choices: [
+            { id: 'left', label: 'Left' },
+            { id: 'right', label: 'Right' },
+          ],
+        },
         { type: 'textinput', id: 'cue_id', label: 'Cue ID (optional prefill)', default: '', useVariables: true },
         { type: 'textinput', id: 'name', label: 'Name Line', default: '', useVariables: true },
         { type: 'textinput', id: 'title', label: 'Title Line', default: '', useVariables: true },
@@ -106,9 +80,22 @@ export function buildL3Actions(deps: ActionDeps): Record<string, CompanionAction
           ],
         },
         { type: 'textinput', id: 'fade_ms', label: 'Transition Duration ms (blank = keep)', default: '', useVariables: true },
+        {
+          type: 'dropdown',
+          id: 'logo_mode',
+          label: 'Logo',
+          default: 'keep',
+          choices: [
+            { id: 'keep', label: 'Keep Current' },
+            { id: 'show', label: 'Show (uses Logo Asset ID)' },
+            { id: 'hide', label: 'Hide' },
+          ],
+        },
+        { type: 'textinput', id: 'logo_asset_id', label: 'Logo Asset ID (when Show)', default: '', useVariables: true },
       ],
       callback: async (event, context) => {
         const params: Record<string, unknown> = {}
+        params['side'] = event.options['side'] === 'right' ? 'right' : 'left'
         const cueId = await parsedOpt(context, event, 'cue_id')
         const name = await parsedOpt(context, event, 'name')
         const title = await parsedOpt(context, event, 'title')
@@ -132,9 +119,33 @@ export function buildL3Actions(deps: ActionDeps): Record<string, CompanionAction
         const fadeMsRaw = (await parsed(context, event, 'fade_ms')).trim()
         if (fadeMsRaw !== '') params['fadeMs'] = await parsedNum(context, event, 'fade_ms', 550)
 
+        const logoMode = String(event.options['logo_mode'] ?? 'keep')
+        if (logoMode === 'show') {
+          params['logoEnabled'] = true
+          params['logoAssetId'] = await parsed(context, event, 'logo_asset_id')
+        } else if (logoMode === 'hide') {
+          params['logoEnabled'] = false
+        }
+        // 'keep': omit both — the dispatcher falls back to whatever is currently applied
+
         await dispatch('lower_third_apply', params)
       },
     },
-    lower_third_hide: simpleDispatch(deps, 'Graphics: Hide Lower Third', 'lower_third_hide'),
+    lower_third_hide: {
+      name: 'Graphics: Hide Lower Third',
+      options: [
+        {
+          type: 'dropdown',
+          id: 'side',
+          label: 'Side',
+          default: 'left',
+          choices: [
+            { id: 'left', label: 'Left' },
+            { id: 'right', label: 'Right' },
+          ],
+        },
+      ],
+      callback: async (event) => dispatch('lower_third_hide', { side: event.options['side'] === 'right' ? 'right' : 'left' }),
+    },
   }
 }

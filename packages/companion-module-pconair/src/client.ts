@@ -34,16 +34,6 @@ export interface PcoState {
   currentUrl: string | null
   currentPreset: { id: string; name: string } | null
   slides: SlidesStateLike | null
-  l3: {
-    activeCueId: string | null
-    activeCueName: string | null
-    activeTitle: string | null
-    activeTheme: string | null
-    isStacking: boolean
-    currentPlaylistId: string | null
-    playlistPosition: number | null
-    playlistLength: number | null
-  } | null
   mediaLibrary: {
     activeItemId: string | null
     activeItemName: string | null
@@ -98,13 +88,27 @@ export interface PcoState {
       timeoutsA: number
       timeoutsB: number
     } | null
-    lowerThird: {
-      visible: boolean
-      name: string
-      title: string
-      subtitle: string | null
-      theme: string
-      animationStyle: string
+    lowerThirds: {
+      left: {
+        visible: boolean
+        name: string
+        title: string
+        subtitle: string | null
+        theme: string
+        animationStyle: string
+        logoEnabled: boolean
+        logoAssetId: string | null
+      } | null
+      right: {
+        visible: boolean
+        name: string
+        title: string
+        subtitle: string | null
+        theme: string
+        animationStyle: string
+        logoEnabled: boolean
+        logoAssetId: string | null
+      } | null
     } | null
   } | null
   watchdog: {

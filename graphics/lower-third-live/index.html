@@ -4,17 +4,14 @@
 <meta charset="UTF-8">
 <title>Lower Third — Live</title>
 <!--
-  Live, WebSocket-driven lower third for external hardware/software keying.
+  Live, WebSocket-driven lower thirds for external hardware/software keying.
 
   - State comes exclusively from the `?graphics=1` WS channel (see the script
-    at the bottom): it reads `msg.payload.graphics.lowerThird`, which is the
-    `LowerThirdState` shape produced by the `lower_third_apply` /
-    `lower_third_hide` actions in src/main/action-dispatch.ts.
-  - This is a NEW, separate system from the legacy `l3`-tab / cue-store /
-    PNG-export lower-third pipeline elsewhere in this codebase. The cue store
-    is only ever read here (via lower_third_apply's optional cueId prefill on
-    the server side) — this page itself never touches cues, state.l3, or the
-    PNG-export path. Do not confuse the two "lower third" systems.
+    at the bottom): it reads `msg.payload.graphics.lowerThirds.left` and
+    `.right`, the `LowerThirdState | null` shapes produced by the
+    `lower_third_apply` / `lower_third_hide` actions (side param) in
+    src/main/action-dispatch.ts. Left and right are fully independent — either,
+    both, or neither can be on air at once.
   - Unlike graphics/news/index.html and graphics/scoreboard-basketball, this
     template renders on a fully opaque solid black background: it is meant
     for external keyers (not in-browser camera compositing), so it must never
@@ -33,36 +30,43 @@
     font-family:var(--font-sans);-webkit-font-smoothing:antialiased;}
   /* Backdrop comes from Admin -> Background (AppState.background); the #000
      default is what shows until the first state message lands. */
-  #stage{position:absolute;inset:0;background:var(--backdrop,#000);}
+  #stage{position:absolute;inset:0;background:var(--backdrop,#000);perspective:1200px;}
 
   /* ── lower third — geometry lifted from graphics/news/index.html's .l3 rules, ──
      ── generalized to read colors from per-theme CSS custom properties ── */
-  /* panel 861x169, accent 5x104 @x24, name 52 / title 32, left margin 96 */
+  /* panel 861x169 max, accent 5x104 @x24, name 52 / title 32, margin 96 */
   /* --l3-ms: entrance duration, set inline from LowerThirdState.fadeMs (exit runs at ~0.55x that). */
-  .l3{position:absolute;left:96px;bottom:96px;
-    width:861px;min-height:169px;background:var(--panel-fill);
+  .l3{position:absolute;bottom:96px;
+    width:max-content;min-width:400px;max-width:861px;min-height:169px;background:var(--panel-fill);
     border:1px solid var(--panel-border);border-radius:4px;display:flex;align-items:center;
     box-shadow:0 4px 24px rgba(0,0,0,.4);
     --l3-ms:550ms;
-    transform:translateX(-960px);opacity:0;
+    transform:translateX(var(--off));opacity:0;
     transition:transform calc(var(--l3-ms) * 1ms) cubic-bezier(.2,.7,.2,1),
                opacity calc(var(--l3-ms) * .91ms) ease-out;}
   .l3.in{transform:none;opacity:1;}
   /* exit: shorter, ease-in reverse of the enter transition */
   .l3.out{transition:transform calc(var(--l3-ms) * .36ms) cubic-bezier(.4,0,1,1),
                      opacity calc(var(--l3-ms) * .33ms) ease-in;
-    transform:translateX(-960px);opacity:0;}
+    transform:translateX(var(--off));opacity:0;}
 
-  /* style-wipe: clip-reveal from the left instead of sliding in */
+  .l3[data-side="left"]{left:96px;--off:-960px;}
+  .l3[data-side="right"]{right:96px;--off:960px;flex-direction:row-reverse;}
+  .l3[data-side="right"] .text{text-align:right;}
+
+  /* style-wipe: clip-reveal, from the panel's own leading edge per side */
   .l3.style-wipe{transform:none;clip-path:inset(0 100% 0 0);
     transition:clip-path calc(var(--l3-ms) * 1ms) cubic-bezier(.2,.7,.2,1),
                opacity calc(var(--l3-ms) * .91ms) ease-out;}
   .l3.style-wipe.in{clip-path:inset(0 0 0 0);opacity:1;}
   .l3.style-wipe.out{transition:clip-path calc(var(--l3-ms) * .36ms) cubic-bezier(.4,0,1,1),
-                                opacity calc(var(--l3-ms) * .33ms) ease-in;
+                     opacity calc(var(--l3-ms) * .33ms) ease-in;
     clip-path:inset(0 100% 0 0);opacity:0;}
+  .l3[data-side="right"].style-wipe{clip-path:inset(0 0 0 100%);}
+  .l3[data-side="right"].style-wipe.in{clip-path:inset(0 0 0 0);}
+  .l3[data-side="right"].style-wipe.out{clip-path:inset(0 0 0 100%);}
 
-  /* style-grow: scale up from the accent edge instead of sliding in */
+  /* style-grow: scale up from the panel's own leading edge */
   .l3.style-grow{transform:scaleX(.05);transform-origin:left center;opacity:0;
     transition:transform calc(var(--l3-ms) * 1ms) cubic-bezier(.2,.7,.2,1),
                opacity calc(var(--l3-ms) * .91ms) ease-out;}
@@ -70,8 +74,9 @@
   .l3.style-grow.out{transition:transform calc(var(--l3-ms) * .36ms) cubic-bezier(.4,0,1,1),
                                 opacity calc(var(--l3-ms) * .33ms) ease-in;
     transform:scaleX(.05);opacity:0;}
+  .l3[data-side="right"].style-grow{transform-origin:right center;}
 
-  /* style-slide-up: rises in from below instead of sliding from the left */
+  /* style-slide-up: rises in from below instead of sliding from the side */
   .l3.style-slide-up{transform:translateY(220px);opacity:0;
     transition:transform calc(var(--l3-ms) * 1ms) cubic-bezier(.2,.7,.2,1),
                opacity calc(var(--l3-ms) * .91ms) ease-out;}
@@ -89,7 +94,7 @@
                                       opacity calc(var(--l3-ms) * .33ms) ease-in;
     transform:translateY(-220px);opacity:0;}
 
-  /* style-zoom: uniform scale from center, unlike style-grow's left-edge scaleX */
+  /* style-zoom: uniform scale from center, unlike style-grow's edge scaleX */
   .l3.style-zoom{transform:scale(.6);transform-origin:center center;opacity:0;
     transition:transform calc(var(--l3-ms) * 1ms) cubic-bezier(.2,.7,.2,1),
                opacity calc(var(--l3-ms) * .91ms) ease-out;}
@@ -98,8 +103,7 @@
                                 opacity calc(var(--l3-ms) * .33ms) ease-in;
     transform:scale(.6);opacity:0;}
 
-  /* style-flip: 3D rotation in from the left edge */
-  #stage{perspective:1200px;}
+  /* style-flip: 3D rotation in from the panel's own leading edge */
   .l3.style-flip{transform:rotateY(-85deg);transform-origin:left center;opacity:0;
     transition:transform calc(var(--l3-ms) * 1ms) cubic-bezier(.2,.7,.2,1),
                opacity calc(var(--l3-ms) * .91ms) ease-out;}
@@ -107,9 +111,13 @@
   .l3.style-flip.out{transition:transform calc(var(--l3-ms) * .36ms) cubic-bezier(.4,0,1,1),
                                 opacity calc(var(--l3-ms) * .33ms) ease-in;
     transform:rotateY(-85deg);opacity:0;}
+  .l3[data-side="right"].style-flip{transform-origin:right center;transform:rotateY(85deg);}
+  .l3[data-side="right"].style-flip.out{transform:rotateY(85deg);}
 
   /* fade disabled: no transition at all, in/out flip instantly */
   .l3.no-fade{transition:none !important;}
+  .l3 .logo{height:96px;max-width:220px;object-fit:contain;flex:none;margin:0 0 0 24px;}
+  .l3[data-side="right"] .logo{margin:0 24px 0 0;}
   .l3 .accent{width:5px;height:104px;background:var(--accent);margin:0 16px 0 24px;flex:none;}
   .l3 .text{padding:16px 0;}
   .l3 .name{font-family:var(--font-sans);font-weight:600;font-size:52px;line-height:1;color:var(--name-color);}
@@ -117,10 +125,12 @@
   .l3 .subtitle{font-size:23px;font-weight:400;color:var(--title-color);opacity:.72;
     margin-top:10px;line-height:1;}
   .l3 .subtitle:empty{display:none;margin:0;}
+  .l3 .logo[hidden]{display:none;}
 
   /* ── per-theme color tokens, transcribed verbatim from FaireL3s style*.json ── */
   /* (graphics/lower-third-live/_theme-colors.css.snippet) */
-  body[data-theme="default"]{
+  body[data-theme-left="default"] .l3[data-side="left"],
+  body[data-theme-right="default"] .l3[data-side="right"]{
     --panel-fill: rgba(251,248,246,0.92);
     --panel-border: rgb(223,224,225);
     --accent: rgb(181,169,152);
@@ -128,7 +138,8 @@
     --title-color: rgb(117,117,117);
   }
 
-  body[data-theme="dark"]{
+  body[data-theme-left="dark"] .l3[data-side="left"],
+  body[data-theme-right="dark"] .l3[data-side="right"]{
     --panel-fill: rgba(51,51,51,1.0);
     --panel-border: rgb(88,85,80);
     --accent: rgb(181,169,152);
@@ -136,7 +147,8 @@
     --title-color: rgb(224,224,224);
   }
 
-  body[data-theme="dark_alt"]{
+  body[data-theme-left="dark_alt"] .l3[data-side="left"],
+  body[data-theme-right="dark_alt"] .l3[data-side="right"]{
     --panel-fill: rgba(0,0,0,1.0);
     --panel-border: rgb(51,51,51);
     --accent: rgb(181,169,152);
@@ -144,7 +156,8 @@
     --title-color: rgb(200,200,200);
   }
 
-  body[data-theme="bright"]{
+  body[data-theme-left="bright"] .l3[data-side="left"],
+  body[data-theme-right="bright"] .l3[data-side="right"]{
     --panel-fill: rgba(221,227,208,1.0);
     --panel-border: rgb(145,167,147);
     --accent: rgb(73,105,76);
@@ -152,7 +165,8 @@
     --title-color: rgb(62,64,35);
   }
 
-  body[data-theme="bright_info"]{
+  body[data-theme-left="bright_info"] .l3[data-side="left"],
+  body[data-theme-right="bright_info"] .l3[data-side="right"]{
     --panel-fill: rgba(226,231,240,1.0);
     --panel-border: rgb(122,120,133);
     --accent: rgb(27,40,52);
@@ -160,7 +174,8 @@
     --title-color: rgb(122,120,133);
   }
 
-  body[data-theme="bright_insider"]{
+  body[data-theme-left="bright_insider"] .l3[data-side="left"],
+  body[data-theme-right="bright_insider"] .l3[data-side="right"]{
     --panel-fill: rgba(242,245,245,1.0);
     --panel-border: rgb(54,103,106);
     --accent: rgb(21,69,72);
@@ -168,7 +183,8 @@
     --title-color: rgb(54,103,106);
   }
 
-  body[data-theme="bright_warm"]{
+  body[data-theme-left="bright_warm"] .l3[data-side="left"],
+  body[data-theme-right="bright_warm"] .l3[data-side="right"]{
     --panel-fill: rgba(246,239,219,1.0);
     --panel-border: rgb(209,185,133);
     --accent: rgb(144,124,58);
@@ -176,7 +192,8 @@
     --title-color: rgb(144,124,58);
   }
 
-  body[data-theme="palette_copper"]{
+  body[data-theme-left="palette_copper"] .l3[data-side="left"],
+  body[data-theme-right="palette_copper"] .l3[data-side="right"]{
     --panel-fill: rgba(250,242,232,1.0);
     --panel-border: rgb(200,170,145);
     --accent: rgb(175,105,65);
@@ -184,7 +201,8 @@
     --title-color: rgb(140,95,65);
   }
 
-  body[data-theme="palette_olive"]{
+  body[data-theme-left="palette_olive"] .l3[data-side="left"],
+  body[data-theme-right="palette_olive"] .l3[data-side="right"]{
     --panel-fill: rgba(235,225,195,1.0);
     --panel-border: rgb(160,155,125);
     --accent: rgb(118,115,70);
@@ -192,7 +210,8 @@
     --title-color: rgb(118,115,70);
   }
 
-  body[data-theme="palette_plum"]{
+  body[data-theme-left="palette_plum"] .l3[data-side="left"],
+  body[data-theme-right="palette_plum"] .l3[data-side="right"]{
     --panel-fill: rgba(242,238,248,1.0);
     --panel-border: rgb(175,165,195);
     --accent: rgb(95,80,130);
@@ -200,7 +219,8 @@
     --title-color: rgb(115,100,140);
   }
 
-  body[data-theme="palette_sage"]{
+  body[data-theme-left="palette_sage"] .l3[data-side="left"],
+  body[data-theme-right="palette_sage"] .l3[data-side="right"]{
     --panel-fill: rgba(232,238,232,1.0);
     --panel-border: rgb(140,165,150);
     --accent: rgb(75,100,88);
@@ -208,7 +228,8 @@
     --title-color: rgb(85,110,95);
   }
 
-  body[data-theme="palette_teal"]{
+  body[data-theme-left="palette_teal"] .l3[data-side="left"],
+  body[data-theme-right="palette_teal"] .l3[data-side="right"]{
     --panel-fill: rgba(228,238,238,1.0);
     --panel-border: rgb(100,155,160);
     --accent: rgb(35,95,105);
@@ -216,7 +237,8 @@
     --title-color: rgb(55,115,120);
   }
 
-  body[data-theme="palette_terracotta"]{
+  body[data-theme-left="palette_terracotta"] .l3[data-side="left"],
+  body[data-theme-right="palette_terracotta"] .l3[data-side="right"]{
     --panel-fill: rgba(248,238,232,1.0);
     --panel-border: rgb(195,165,155);
     --accent: rgb(165,95,85);
@@ -225,14 +247,24 @@
   }
 </style>
 </head>
-<body id="stage-body" data-theme="default">
+<body id="stage-body" data-theme-left="default" data-theme-right="default">
 <div id="stage">
-  <div class="l3" id="l3">
+  <div class="l3" data-side="left" id="l3-left">
+    <img class="logo" id="logo-left" hidden alt="" />
     <div class="accent"></div>
     <div class="text">
-      <div class="name" id="lt-name"></div>
-      <div class="title" id="lt-title"></div>
-      <div class="subtitle" id="lt-subtitle" style="display:none"></div>
+      <div class="name" id="name-left"></div>
+      <div class="title" id="title-left"></div>
+      <div class="subtitle" id="subtitle-left" style="display:none"></div>
+    </div>
+  </div>
+  <div class="l3" data-side="right" id="l3-right">
+    <img class="logo" id="logo-right" hidden alt="" />
+    <div class="accent"></div>
+    <div class="text">
+      <div class="name" id="name-right"></div>
+      <div class="title" id="title-right"></div>
+      <div class="subtitle" id="subtitle-right" style="display:none"></div>
     </div>
   </div>
 </div>
@@ -241,14 +273,12 @@
   // ── WebSocket live state — driven by lower_third_apply/lower_third_hide ──
   // Structurally modeled on graphics/scoreboard-basketball/index.html's WS
   // handling (same reconnect-with-2s-backoff, same state/state_patch shapes),
-  // but reads msg.payload.graphics.lowerThird instead of .scoreboard.
+  // but reads msg.payload.graphics.lowerThirds.left / .right instead of a
+  // single .scoreboard. Left and right are independent cards, each driven by
+  // its own makeCard() closure (pattern lifted from
+  // bundled-packages/news/render-l3.html's per-side makeCard()).
   (function(){
     var wsUrl = 'ws://' + location.hostname + ':' + (location.port || '8080') + '/ws?graphics=1';
-
-    function setTxt(id, text) {
-      var el = document.getElementById(id);
-      if (el) el.textContent = text || '';
-    }
 
     var STYLE_CLASS_BY_ANIMATION = {
       wipe: 'style-wipe',
@@ -260,55 +290,67 @@
     };
     var STYLE_CLASSES = Object.keys(STYLE_CLASS_BY_ANIMATION).map(function (k) { return STYLE_CLASS_BY_ANIMATION[k]; });
 
-    function applyAnimationVars(el, lt) {
-      el.classList.toggle('no-fade', lt.fadeEnabled === false);
-      el.style.setProperty('--l3-ms', String(lt.fadeMs != null ? lt.fadeMs : 550));
-      STYLE_CLASSES.forEach(function (c) { el.classList.remove(c); });
-      var cls = STYLE_CLASS_BY_ANIMATION[lt.animationStyle];
-      if (cls) el.classList.add(cls);
-    }
+    function makeCard(side) {
+      var el = document.getElementById('l3-' + side);
+      var nameEl = document.getElementById('name-' + side);
+      var titleEl = document.getElementById('title-' + side);
+      var subEl = document.getElementById('subtitle-' + side);
+      var logoEl = document.getElementById('logo-' + side);
+      var lastLt = null;
 
-    function triggerEnter(el, lt) {
-      applyAnimationVars(el, lt);
-      // Force a reflow so re-adding "in" after "out" reliably re-triggers the
-      // CSS transition even if the browser would otherwise coalesce the two
-      // class mutations into a single style recalculation.
-      el.classList.remove('out');
-      el.classList.remove('in');
-      void el.offsetWidth; // reflow
-      el.classList.add('in');
-    }
-
-    function triggerExit(el, lt) {
-      if (lt) applyAnimationVars(el, lt);
-      el.classList.remove('in');
-      void el.offsetWidth; // reflow
-      el.classList.add('out');
-    }
-
-    var lastLt = null;
-
-    function apply(lt) {
-      var el = document.getElementById('l3');
-      if (!lt || !lt.visible) {
-        if (el) triggerExit(el, lt || lastLt);
-        lastLt = lt || lastLt;
-        return;
-      }
-      lastLt = lt;
-
-      document.body.dataset.theme = lt.theme || 'default';
-      setTxt('lt-name', lt.name);
-      setTxt('lt-title', lt.title);
-
-      var subEl = document.getElementById('lt-subtitle');
-      if (subEl) {
-        subEl.textContent = lt.subtitle || '';
-        subEl.style.display = lt.subtitle ? '' : 'none';
+      function applyAnimationVars(lt) {
+        el.classList.toggle('no-fade', lt.fadeEnabled === false);
+        el.style.setProperty('--l3-ms', String(lt.fadeMs != null ? lt.fadeMs : 550));
+        STYLE_CLASSES.forEach(function (c) { el.classList.remove(c); });
+        var cls = STYLE_CLASS_BY_ANIMATION[lt.animationStyle];
+        if (cls) el.classList.add(cls);
       }
 
-      if (el) triggerEnter(el, lt);
+      function triggerEnter(lt) {
+        applyAnimationVars(lt);
+        el.classList.remove('out');
+        el.classList.remove('in');
+        void el.offsetWidth; // reflow — forces the re-triggered transition
+        el.classList.add('in');
+      }
+
+      function triggerExit(lt) {
+        if (lt) applyAnimationVars(lt);
+        el.classList.remove('in');
+        void el.offsetWidth;
+        el.classList.add('out');
+      }
+
+      return {
+        apply: function (lt) {
+          if (!lt || !lt.visible) {
+            triggerExit(lt || lastLt);
+            lastLt = lt || lastLt;
+            return;
+          }
+          lastLt = lt;
+
+          document.body.setAttribute('data-theme-' + side, lt.theme || 'default');
+          nameEl.textContent = lt.name || '';
+          titleEl.textContent = lt.title || '';
+          subEl.textContent = lt.subtitle || '';
+          subEl.style.display = lt.subtitle ? '' : 'none';
+
+          if (lt.logoEnabled && lt.logoAssetId) {
+            var src = '/api/l3/logos/' + encodeURIComponent(lt.logoAssetId) + '/file';
+            if (logoEl.getAttribute('src') !== src) logoEl.setAttribute('src', src);
+            logoEl.hidden = false;
+          } else {
+            logoEl.hidden = true;
+          }
+
+          triggerEnter(lt);
+        },
+      };
     }
+
+    var left = makeCard('left');
+    var right = makeCard('right');
 
     // Admin -> Background is the single authority for this page's backdrop.
     // 'transparent' keys straight through for an external switcher.
@@ -318,6 +360,12 @@
       document.documentElement.style.setProperty('--backdrop', fill);
     }
 
+    function apply(lowerThirds) {
+      var lts = lowerThirds || {};
+      left.apply(lts.left);
+      right.apply(lts.right);
+    }
+
     function connect() {
       var ws = new WebSocket(wsUrl);
       ws.onmessage = function(e) {
@@ -325,10 +373,10 @@
           var msg = JSON.parse(e.data);
           if (msg.type === 'state' && msg.payload) {
             applyBackdrop(msg.payload.background);
-            apply(msg.payload.graphics && msg.payload.graphics.lowerThird);
+            apply(msg.payload.graphics && msg.payload.graphics.lowerThirds);
           } else if (msg.type === 'state_patch' && msg.payload) {
             if (msg.payload.background) applyBackdrop(msg.payload.background);
-            if (msg.payload.graphics) apply(msg.payload.graphics.lowerThird);
+            if (msg.payload.graphics) apply(msg.payload.graphics.lowerThirds);
           }
         } catch (err) {}
       };

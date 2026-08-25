@@ -30,7 +30,13 @@ function renderPageHtml(type: RenderContentType): string {
   .fade-layer { position: absolute; inset: 0; opacity: 0; transition: opacity 0.5s ease; }
   .fade-layer.visible { opacity: 1; }
   .fade-layer.cut { transition: none; }
-  #l3-style {}
+  /* Layout is pinned here (not left to the loaded theme stylesheet, which only
+     styles one full-width .lower-third bar) so left/right never collide —
+     !important guards against a theme CSS file also declaring position/left/right. */
+  .lower-third.l3-side-left { position: absolute !important; left: 96px !important; right: auto !important; bottom: 96px !important; width: auto !important; max-width: 820px; }
+  .lower-third.l3-side-right { position: absolute !important; right: 96px !important; left: auto !important; bottom: 96px !important; width: auto !important; max-width: 820px; text-align: right; }
+  .lower-third .logo { height: 80px; max-width: 200px; object-fit: contain; display: block; margin-bottom: 8px; }
+  .lower-third.l3-side-right .logo { margin-left: auto; }
   #url-banner { position: absolute; left: 40px; bottom: 40px; font-family: system-ui, sans-serif; font-size: 28px; color: #fff; background: rgba(0,0,0,0.6); padding: 12px 20px; border-radius: 8px; }
 </style>
 </head>
@@ -60,8 +66,6 @@ function renderPageHtml(type: RenderContentType): string {
 
   var stage = document.getElementById('stage');
   var lastKey = null;
-  var currentL3El = null;
-  var l3Clearing = false;
 
   function renderStills() {
     var m = state.mediaLibrary;
@@ -124,68 +128,87 @@ function renderPageHtml(type: RenderContentType): string {
     }
   }
 
-  var themeCssLoaded = null;
-  function renderL3() {
-    var l3 = state.l3;
-    var key = 'l3:' + (l3 ? (l3.activeCueId || '') + ':' + (l3.activeCueName || '') + ':' + (l3.activeTheme || '') : '');
-    if (key === lastKey) return;
+  // Two independent cards (left/right) — mirrors graphics/lower-third-live's
+  // model. This page stays fully transparent (unlike lower-third-live's solid
+  // black), for OBS/vMix browser-source compositing over camera.
+  var l3ThemeCssLoaded = { left: null, right: null };
+  var l3Els = { left: null, right: null };
+  var l3Clearing = { left: false, right: false };
 
-    if (!l3 || !l3.activeCueName) {
-      // CLEAR path — animate out then remove
-      if (currentL3El && !l3Clearing) {
-        l3Clearing = true;
-        lastKey = key;
-        currentL3El.classList.add('l3-exiting');
-        var elToRemove = currentL3El;
+  function renderL3Side(side, lt) {
+    var elIdPrefix = 'l3-' + side + '-';
+    if (!lt || !lt.visible) {
+      if (l3Els[side] && !l3Clearing[side]) {
+        l3Clearing[side] = true;
+        l3Els[side].classList.add('l3-exiting');
+        var elToRemove = l3Els[side];
         setTimeout(function () {
           if (elToRemove.parentNode) elToRemove.parentNode.removeChild(elToRemove);
-          currentL3El = null;
-          l3Clearing = false;
+          l3Els[side] = null;
+          l3Clearing[side] = false;
         }, 500);
       }
       return;
     }
 
-    // TAKE path
-    lastKey = key;
-    var theme = l3.activeTheme || 'default';
-    if (themeCssLoaded !== theme) {
-      var old = document.getElementById('l3-theme-css');
+    var theme = lt.theme || 'default';
+    if (l3ThemeCssLoaded[side] !== theme) {
+      var old = document.getElementById(elIdPrefix + 'theme-css');
       if (old) old.remove();
       var link = document.createElement('link');
-      link.id = 'l3-theme-css';
+      link.id = elIdPrefix + 'theme-css';
       link.rel = 'stylesheet';
       link.href = '/api/l3/themes/' + encodeURIComponent(theme) + '/css';
       document.head.appendChild(link);
-      themeCssLoaded = theme;
+      l3ThemeCssLoaded[side] = theme;
     }
 
-    // Remove old element immediately (new cue replaces old)
-    if (currentL3El && currentL3El.parentNode) {
-      currentL3El.parentNode.removeChild(currentL3El);
+    if (l3Els[side] && l3Els[side].parentNode) {
+      l3Els[side].parentNode.removeChild(l3Els[side]);
     }
-    l3Clearing = false;
+    l3Clearing[side] = false;
 
-    var lt = document.createElement('div');
-    lt.className = 'lower-third l3-entering';
+    var card = document.createElement('div');
+    card.className = 'lower-third l3-entering l3-side-' + side;
+    if (lt.logoEnabled && lt.logoAssetId) {
+      var logo = document.createElement('img');
+      logo.className = 'logo';
+      logo.src = '/api/l3/logos/' + encodeURIComponent(lt.logoAssetId) + '/file';
+      card.appendChild(logo);
+    }
     var name = document.createElement('p');
     name.className = 'name';
-    name.textContent = l3.activeCueName;
-    lt.appendChild(name);
-    if (l3.activeTitle) {
+    name.textContent = lt.name;
+    card.appendChild(name);
+    if (lt.title) {
       var title = document.createElement('p');
       title.className = 'title';
-      title.textContent = l3.activeTitle;
-      lt.appendChild(title);
+      title.textContent = lt.title;
+      card.appendChild(title);
     }
-    stage.appendChild(lt);
-    currentL3El = lt;
+    if (lt.subtitle) {
+      var subtitle = document.createElement('p');
+      subtitle.className = 'subtitle';
+      subtitle.textContent = lt.subtitle;
+      card.appendChild(subtitle);
+    }
+    stage.appendChild(card);
+    l3Els[side] = card;
 
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
-        if (lt.parentNode) lt.classList.remove('l3-entering');
+        if (card.parentNode) card.classList.remove('l3-entering');
       });
     });
+  }
+
+  function renderL3() {
+    var lts = (state.graphics && state.graphics.lowerThirds) || {};
+    var key = 'l3:left:' + JSON.stringify(lts.left) + ':right:' + JSON.stringify(lts.right);
+    if (key === lastKey) return;
+    lastKey = key;
+    renderL3Side('left', lts.left);
+    renderL3Side('right', lts.right);
   }
 
   function renderSlides() {

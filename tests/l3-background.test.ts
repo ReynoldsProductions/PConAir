@@ -3,67 +3,11 @@ import request from 'supertest';
 import type { Express } from 'express';
 import { createStateStore } from '../src/main/state';
 import { createFullServer } from './_test-server';
-import { buildL3ProgramMarkup } from '../src/main/l3/window-manager';
 
-// Admin → Background wrote AppState.background, but nothing anywhere read it:
-// each output surface hardcoded its own backdrop, so whether a take came out
-// over black or over nothing depended purely on which operator page took it.
-// The Background page is now the authority for PConAir's own output windows.
-//
-// Stacking needs no special case here: the whole stack renders into ONE window
-// with a single backdrop painted behind it, so the upper cards are inherently
-// transparent and both the card below and the background show through.
-
-const SOLID = { presetId: null, presetName: null, type: 'solid' as const, value: '#1133ff' };
-const LUMA = { presetId: null, presetName: null, type: 'luma' as const, value: '#000000' };
-const TRANSPARENT = { presetId: null, presetName: null, type: 'transparent' as const, value: '#000000' };
-
-describe('buildL3ProgramMarkup — background', () => {
-  it('is transparent when no background is configured', () => {
-    const html = buildL3ProgramMarkup([{ name: 'A', title: 'B' }], null, null);
-    expect(html).toContain('background:transparent');
-  });
-
-  it('is transparent for the transparent type, whatever the value says', () => {
-    const html = buildL3ProgramMarkup([{ name: 'A', title: 'B' }], null, TRANSPARENT);
-    expect(html).toContain('background:transparent');
-    expect(html).not.toContain('#000000;');
-  });
-
-  it('paints a solid background colour', () => {
-    const html = buildL3ProgramMarkup([{ name: 'A', title: 'B' }], null, SOLID);
-    expect(html).toContain('#1133ff');
-  });
-
-  it('paints a luma background colour', () => {
-    const html = buildL3ProgramMarkup([{ name: 'A', title: 'B' }], null, LUMA);
-    expect(html).toContain('#000000');
-  });
-
-  it('paints exactly one backdrop behind a stack of three', () => {
-    const stack = [
-      { name: 'One', title: 'First' },
-      { name: 'Two', title: 'Second' },
-      { name: 'Three', title: 'Third' },
-    ];
-    const html = buildL3ProgramMarkup(stack, null, SOLID);
-    // One backdrop, not one per card — upper layers stay see-through.
-    expect(html.match(/#1133ff/g)?.length).toBe(1);
-    expect(html).toContain('One');
-    expect(html).toContain('Two');
-    expect(html).toContain('Three');
-  });
-
-  it('never gives an individual cue card its own opaque fill', () => {
-    const html = buildL3ProgramMarkup(
-      [{ name: 'One', title: 'First' }, { name: 'Two', title: 'Second' }],
-      null,
-      SOLID
-    );
-    const cueRule = html.slice(html.indexOf('.cue{'), html.indexOf('}', html.indexOf('.cue{')));
-    expect(cueRule).not.toContain('background');
-  });
-});
+// Admin → Background wrote AppState.background — this covers the config
+// endpoint itself. Consumption (graphics/lower-third-live's own backdrop
+// handling) is exercised in tests/websocket.test.ts and is browser-side, not
+// server-renderable, so it isn't unit-tested here.
 
 describe('POST /api/background — transparent type', () => {
   let app: Express;

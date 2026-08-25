@@ -135,7 +135,6 @@
     }
     #mode-badge.slides { background: #1a3a5c; color: var(--accent); }
     #mode-badge.url    { background: #1a3a2a; color: var(--green); }
-    #mode-badge.l3     { background: #3a2a1a; color: var(--orange); }
     #mode-badge.media-library { background: var(--badge-media-bg); color: var(--badge-media-fg); }
 
     /* ── Layout ── */
@@ -558,7 +557,7 @@ function updateTopBar() {
   badge.textContent = mode.toUpperCase().replace('-', ' ');
   badge.className = '';
   badge.id = 'mode-badge';
-  if (['slides','url','l3','media-library'].includes(mode)) badge.classList.add(mode);
+  if (['slides','url','media-library'].includes(mode)) badge.classList.add(mode);
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────

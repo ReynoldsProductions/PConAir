@@ -10,10 +10,10 @@ export async function apiGet<T>(path: string): Promise<T> {
   return data as T;
 }
 
-export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+export async function apiPost<T>(path: string, body?: unknown, method: 'POST' | 'PUT' = 'POST'): Promise<T> {
   const res = await fetch(path, {
     ...fetchDefaults,
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
@@ -57,18 +57,10 @@ export const urlReload = (instance?: 'A' | 'B') =>
 
 export const l3ListCues = () => apiGet<{ cues: L3CueListItem[] }>('/api/l3/cues');
 
-export const l3Take = (body: { cueId?: string; name?: string; title?: string; autoOutMs?: number }) =>
-  apiPost<unknown>('/api/l3/take', body);
-
-export const l3Clear = () => apiPost<unknown>('/api/l3/clear');
-
-export const l3SetOutputDisplay = (displayId: string | null) =>
-  apiPost<unknown>('/api/l3/output-display', { displayId });
-
-export const l3Stacking = (enabled: boolean) =>
-  apiPost<unknown>('/api/l3/stacking', { enabled });
+export type LowerThirdSide = 'left' | 'right';
 
 export const lowerThirdApply = (body: {
+  side: LowerThirdSide;
   cueId?: string;
   name?: string;
   title?: string;
@@ -77,10 +69,89 @@ export const lowerThirdApply = (body: {
   fadeEnabled?: boolean;
   fadeMs?: number;
   animationStyle?: string;
+  logoEnabled?: boolean;
+  logoAssetId?: string | null;
 }) => apiPost<unknown>('/api/action', { action_id: 'lower_third_apply', params: body });
 
-export const lowerThirdHide = () =>
-  apiPost<unknown>('/api/action', { action_id: 'lower_third_hide', params: {} });
+export const lowerThirdHide = (side: LowerThirdSide) =>
+  apiPost<unknown>('/api/action', { action_id: 'lower_third_hide', params: { side } });
+
+export const l3CreateCue = (body: { name: string; title?: string; subtitle?: string; themeId?: string }) =>
+  apiPost<{ id: string }>('/api/l3/cues', body);
+
+export const l3UpdateCue = (
+  cueId: string,
+  body: { name?: string; title?: string; subtitle?: string; themeId?: string }
+) => apiPost<unknown>(`/api/l3/cues/${encodeURIComponent(cueId)}`, body, 'PUT');
+
+async function apiPostFormData<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(path, { credentials: 'include', method: 'POST', body: form });
+  const data = (await res.json()) as T | { error: { code: string; message: string } };
+  if (!res.ok) {
+    const msg = (data as { error: { message: string } }).error?.message ?? `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return data as T;
+}
+
+export const l3ImportCsv = (file: File) => {
+  const form = new FormData();
+  form.append('csvFile', file);
+  return apiPostFormData<{ imported: number; skipped: number; warnings: string[] }>('/api/l3/cues/import', form);
+};
+
+export interface L3LogoAsset {
+  id: string;
+  filename: string;
+  format: string;
+  uploadedAt: number;
+}
+
+export const l3ListLogos = () => apiGet<{ logos: L3LogoAsset[] }>('/api/l3/logos');
+
+export const l3UploadLogo = (file: File) => {
+  const form = new FormData();
+  form.append('logoFile', file);
+  return apiPostFormData<L3LogoAsset>('/api/l3/logos', form);
+};
+
+export const l3DeleteLogo = async (id: string): Promise<void> => {
+  const res = await fetch(`/api/l3/logos/${encodeURIComponent(id)}`, { credentials: 'include', method: 'DELETE' });
+  if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
+};
+
+/** Ad-hoc PNG export of whatever is currently composed — triggers a browser download. */
+export async function l3ExportPng(body: {
+  name: string;
+  title?: string;
+  subtitle?: string;
+  theme?: string;
+  logoAssetId?: string | null;
+}): Promise<void> {
+  const res = await fetch('/api/l3/export', {
+    credentials: 'include',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const data = (await res.json()) as { error?: { message?: string } };
+      if (data.error?.message) msg = data.error.message;
+    } catch { /* body wasn't JSON */ }
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${(body.name || 'lower-third').replace(/[^\w\s-]/g, '_')}.png`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 export interface MediaLibraryListItem {
   id: string;

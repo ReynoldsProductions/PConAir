@@ -132,7 +132,6 @@ describe('Media Library API', () => {
 
     const st = await request(app).get('/api/status').set('Cookie', operatorCookie);
     expect(st.body.currentMode).toBe('media-library');
-    expect(st.body.l3).toBeNull();
     expect(st.body.mediaLibrary?.activeItemId).toBe(id);
   });
 

@@ -1,7 +1,7 @@
 import type { CompanionActionDefinition } from '@companion-module/base'
 import { type ActionDeps, makeGscAction, parsed, parsedNum, parsedChoice, simpleDispatch } from './helpers.js'
 
-const MODES = ['slides', 'url', 'l3', 'media-library', 'idle'] as const
+const MODES = ['slides', 'url', 'media-library', 'idle'] as const
 const RENDER_CONTENT = ['slides', 'l3', 'stills', 'url'] as const
 const RENDER_BG = ['transparent', 'black', 'white', 'chroma', 'opaque'] as const
 const STAGETIMER_POSITIONS = ['bottom-left', 'bottom-right', 'top-left', 'top-right'] as const
@@ -32,7 +32,6 @@ export function buildSystemActions(deps: ActionDeps): Record<string, CompanionAc
           choices: [
             { id: 'slides', label: 'Slides' },
             { id: 'url', label: 'URL' },
-            { id: 'l3', label: 'Lower Thirds' },
             { id: 'media-library', label: 'Still Store' },
             { id: 'idle', label: 'Idle' },
           ],
@@ -231,7 +230,7 @@ export function buildSystemActions(deps: ActionDeps): Record<string, CompanionAc
         const app = getApp()
         log(
           'info',
-          `mode=${app.currentMode ?? 'idle'} slide=${app.slides ? app.slides.slideIndex + 1 : '-'} l3=${app.l3?.activeCueName ?? '-'} still=${app.mediaLibrary?.activeItemName ?? '-'}`
+          `mode=${app.currentMode ?? 'idle'} slide=${app.slides ? app.slides.slideIndex + 1 : '-'} l3L=${app.graphics?.lowerThirds?.left?.name ?? '-'} l3R=${app.graphics?.lowerThirds?.right?.name ?? '-'} still=${app.mediaLibrary?.activeItemName ?? '-'}`
         )
       },
     },

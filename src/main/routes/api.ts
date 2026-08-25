@@ -9,7 +9,7 @@ import type { AppSettings, DirectorOffice } from '../app-settings';
 import { requireOperator, requireAdmin } from './middleware';
 import { gscStatusFields } from '../services/gsc-status';
 
-const VALID_MODES: Mode[] = ['slides', 'url', 'l3', 'media-library', 'idle'];
+const VALID_MODES: Mode[] = ['slides', 'url', 'media-library', 'idle'];
 
 export interface CreateApiRouterDeps {
   store: StateStore;
@@ -339,7 +339,6 @@ export function createApiRouter(deps: CreateApiRouterDeps): Router {
     }
     const nextMode = mode as Mode;
     const patch: Partial<AppState> = { currentMode: nextMode };
-    if (nextMode !== 'l3') patch.l3 = null;
     if (nextMode !== 'media-library') patch.mediaLibrary = null;
     store.setState(patch);
     res.json({ currentMode: nextMode });

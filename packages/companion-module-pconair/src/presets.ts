@@ -134,15 +134,6 @@ export function buildPresets(): Record<string, CompanionPresetDefinition> {
       steps: [{ down: [{ actionId: 'set_mode', options: { mode: 'url' } }], up: [] }],
     },
 
-    mode_l3: {
-      type: 'button',
-      category: 'Mode',
-      name: 'Mode – Lower Third',
-      style: { text: 'L3', size: '18', color: white, bgcolor: gray },
-      feedbacks: [{ feedbackId: 'is_mode', options: { mode: 'l3' }, style: { bgcolor: cyan } }],
-      steps: [{ down: [{ actionId: 'set_mode', options: { mode: 'l3' } }], up: [] }],
-    },
-
     mode_idle: {
       type: 'button',
       category: 'Mode',
@@ -150,62 +141,6 @@ export function buildPresets(): Record<string, CompanionPresetDefinition> {
       style: { text: 'IDLE', size: '18', color: white, bgcolor: gray },
       feedbacks: [{ feedbackId: 'is_mode', options: { mode: 'idle' }, style: { bgcolor: cyan } }],
       steps: [{ down: [{ actionId: 'set_mode', options: { mode: 'idle' } }], up: [] }],
-    },
-
-    // 7.5 Lower thirds
-    l3_take_1: {
-      type: 'button',
-      category: 'Lower Thirds',
-      name: 'Take Lower Third (Slot 1)',
-      style: { text: 'Speaker 1', size: '14', color: white, bgcolor: gray },
-      feedbacks: [{ feedbackId: 'l3_has_active_cue', options: {}, style: { bgcolor: purple } }],
-      steps: [
-        {
-          down: [{ actionId: 'l3_take', options: { cue_id: '', name: '', title: '', theme: '' } }],
-          up: [],
-        },
-      ],
-    },
-
-    l3_take_2: {
-      type: 'button',
-      category: 'Lower Thirds',
-      name: 'Take Lower Third (Slot 2)',
-      style: { text: 'Speaker 2', size: '14', color: white, bgcolor: gray },
-      feedbacks: [{ feedbackId: 'l3_has_active_cue', options: {}, style: { bgcolor: purple } }],
-      steps: [
-        {
-          down: [{ actionId: 'l3_take', options: { cue_id: '', name: '', title: '', theme: '' } }],
-          up: [],
-        },
-      ],
-    },
-
-    l3_clear: {
-      type: 'button',
-      category: 'Lower Thirds',
-      name: 'Clear Lower Third',
-      style: { text: 'Clear L3', size: '14', color: white, bgcolor: red },
-      feedbacks: [],
-      steps: [{ down: [{ actionId: 'l3_clear', options: {} }], up: [] }],
-    },
-
-    stacking_on: {
-      type: 'button',
-      category: 'Lower Thirds',
-      name: 'Stacking On',
-      style: { text: 'Stacking\nON', size: '14', color: white, bgcolor: gray },
-      feedbacks: [{ feedbackId: 'l3_stacking_active', options: {}, style: { bgcolor: orange } }],
-      steps: [{ down: [{ actionId: 'l3_stacking_on', options: {} }], up: [] }],
-    },
-
-    stacking_off: {
-      type: 'button',
-      category: 'Lower Thirds',
-      name: 'Stacking Off',
-      style: { text: 'Stacking\nOFF', size: '14', color: white, bgcolor: orange },
-      feedbacks: [{ feedbackId: 'l3_stacking_active', options: {}, style: { bgcolor: gray } }],
-      steps: [{ down: [{ actionId: 'l3_stacking_off', options: {} }], up: [] }],
     },
 
     // 7.6 Status
@@ -229,23 +164,6 @@ export function buildPresets(): Record<string, CompanionPresetDefinition> {
       steps: [{ down: [], up: [] }],
     },
 
-    // 7.7 L3 playlists
-    l3_playlist_next: {
-      type: 'button',
-      category: 'Lower Thirds',
-      name: 'Playlist Next',
-      style: { text: 'L3 ›\n$(pconair:l3_playlist_position)/$(pconair:l3_playlist_length)', size: '14', color: white, bgcolor: blue },
-      feedbacks: [{ feedbackId: 'l3_on_air', options: {}, style: { bgcolor: combineRgb(0, 180, 0) } }],
-      steps: [{ down: [{ actionId: 'l3_next', options: {} }], up: [] }],
-    },
-    l3_playlist_prev: {
-      type: 'button',
-      category: 'Lower Thirds',
-      name: 'Playlist Previous',
-      style: { text: '‹ L3', size: '14', color: white, bgcolor: blue },
-      feedbacks: [{ feedbackId: 'l3_on_air', options: {}, style: { bgcolor: combineRgb(0, 180, 0) } }],
-      steps: [{ down: [{ actionId: 'l3_prev', options: {} }], up: [] }],
-    },
 
     // 7.8 Still store
     stills_clear: {
@@ -451,22 +369,23 @@ export function buildPresets(): Record<string, CompanionPresetDefinition> {
       steps: [{ down: [{ actionId: 'graphics_possession_set', options: { possession: 'b' } }], up: [] }],
     },
 
-    // 7.14 Graphics: lower third overlay
-    gfx_l3_apply: {
+    // 7.14 Graphics: lower thirds (left/right independent)
+    gfx_l3_left_apply: {
       type: 'button',
       category: 'Graphics',
-      name: 'Apply Graphics Lower Third',
-      style: { text: 'GFX L3\nTake', size: '14', color: white, bgcolor: gray },
-      feedbacks: [{ feedbackId: 'gfx_lower_third_visible', options: {}, style: { bgcolor: combineRgb(0, 180, 0) } }],
+      name: 'Apply Graphics Lower Third (Left)',
+      style: { text: 'GFX L3\nLeft Take', size: '14', color: white, bgcolor: gray },
+      feedbacks: [{ feedbackId: 'gfx_lower_third_visible', options: { side: 'left' }, style: { bgcolor: combineRgb(0, 180, 0) } }],
       steps: [
         {
           down: [
             {
               actionId: 'lower_third_apply',
               options: {
-                cue_id: '', name: '', title: '',
+                side: 'left', cue_id: '', name: '', title: '',
                 subtitle_mode: 'keep', subtitle: '',
                 theme: 'keep', animation: 'keep', fade_enabled: 'keep', fade_ms: '',
+                logo_mode: 'keep', logo_asset_id: '',
               },
             },
           ],
@@ -474,13 +393,44 @@ export function buildPresets(): Record<string, CompanionPresetDefinition> {
         },
       ],
     },
-    gfx_l3_hide: {
+    gfx_l3_left_hide: {
       type: 'button',
       category: 'Graphics',
-      name: 'Hide Graphics Lower Third',
-      style: { text: 'GFX L3\nClear', size: '14', color: white, bgcolor: red },
+      name: 'Hide Graphics Lower Third (Left)',
+      style: { text: 'GFX L3\nLeft Clear', size: '14', color: white, bgcolor: red },
       feedbacks: [],
-      steps: [{ down: [{ actionId: 'lower_third_hide', options: {} }], up: [] }],
+      steps: [{ down: [{ actionId: 'lower_third_hide', options: { side: 'left' } }], up: [] }],
+    },
+    gfx_l3_right_apply: {
+      type: 'button',
+      category: 'Graphics',
+      name: 'Apply Graphics Lower Third (Right)',
+      style: { text: 'GFX L3\nRight Take', size: '14', color: white, bgcolor: gray },
+      feedbacks: [{ feedbackId: 'gfx_lower_third_visible', options: { side: 'right' }, style: { bgcolor: combineRgb(0, 180, 0) } }],
+      steps: [
+        {
+          down: [
+            {
+              actionId: 'lower_third_apply',
+              options: {
+                side: 'right', cue_id: '', name: '', title: '',
+                subtitle_mode: 'keep', subtitle: '',
+                theme: 'keep', animation: 'keep', fade_enabled: 'keep', fade_ms: '',
+                logo_mode: 'keep', logo_asset_id: '',
+              },
+            },
+          ],
+          up: [],
+        },
+      ],
+    },
+    gfx_l3_right_hide: {
+      type: 'button',
+      category: 'Graphics',
+      name: 'Hide Graphics Lower Third (Right)',
+      style: { text: 'GFX L3\nRight Clear', size: '14', color: white, bgcolor: red },
+      feedbacks: [],
+      steps: [{ down: [{ actionId: 'lower_third_hide', options: { side: 'right' } }], up: [] }],
     },
 
     // 7.15 Prompter

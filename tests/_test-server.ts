@@ -4,8 +4,8 @@ import path from 'path';
 import { randomUUID } from 'crypto';
 import { createServer } from '../src/main/server';
 import { createL3CueStore } from '../src/main/l3/cue-store';
-import { createL3PlaylistStore } from '../src/main/l3/playlist-store';
 import { createL3ThemeStore } from '../src/main/l3/theme-store';
+import { createL3LogoStore } from '../src/main/l3/logo-store';
 import { createActionDispatcher } from '../src/main/action-dispatch';
 import { createMediaLibraryStore } from '../src/main/media-library/item-store';
 import { createSlideshowEngine } from '../src/main/media-library/slideshow';
@@ -65,10 +65,9 @@ export function createFullServer(opts: FullServerTestOpts) {
   const presets = createPresetsStore(chain);
   presets.replaceAll(boot.profile.urlPresets);
   const l3Cues = createL3CueStore(chain);
-  const l3Playlists = createL3PlaylistStore(l3Cues, chain);
 
   const persistPath = profileRuntimeStatePath(boot.paths, boot.activeId);
-  markRuntimeFlush = wireRuntimePersistence(persistPath, { presets, cues: l3Cues, playlists: l3Playlists }).markDirty;
+  markRuntimeFlush = wireRuntimePersistence(persistPath, { presets, cues: l3Cues }).markDirty;
 
   const mlRoot = opts.mediaLibraryRoot ?? path.join(userData, 'media-library');
   if (!opts.mediaLibraryRoot) fs.mkdirSync(mlRoot, { recursive: true });
@@ -77,6 +76,7 @@ export function createFullServer(opts: FullServerTestOpts) {
   const l3FilesRoot = path.join(userData, 'still-store');
   fs.mkdirSync(l3FilesRoot, { recursive: true });
   const l3ThemeStore = createL3ThemeStore({ l3FilesRoot });
+  const l3Logos = createL3LogoStore({ l3FilesRoot });
 
   const slideshow = createSlideshowEngine({ store: opts.store, media: mediaLibrary });
   const dispatchAction = createActionDispatcher({
@@ -84,7 +84,7 @@ export function createFullServer(opts: FullServerTestOpts) {
     auth,
     presets,
     cues: l3Cues,
-    playlists: l3Playlists,
+    logos: l3Logos,
     media: mediaLibrary,
     slideshow,
     getPrompterHost: opts.getPrompterHost,
@@ -96,8 +96,8 @@ export function createFullServer(opts: FullServerTestOpts) {
     auth,
     presets,
     l3Cues,
-    l3Playlists,
     l3ThemeStore,
+    l3Logos,
     l3FilesRoot,
     mediaLibrary,
     slideshow,
@@ -123,8 +123,8 @@ export function createFullServer(opts: FullServerTestOpts) {
     ...server,
     presets,
     l3Cues,
-    l3Playlists,
     l3ThemeStore,
+    l3Logos,
     l3FilesRoot,
     auth,
     mediaLibrary,

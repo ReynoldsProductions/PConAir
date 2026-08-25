@@ -221,57 +221,6 @@ export function buildFeedbacks(getApp: GetAppState, isConnected: () => boolean):
       showInvert: true,
     },
 
-    // ── lower thirds ──
-    l3_on_air: {
-      type: 'boolean',
-      name: 'Lower Third On Air',
-      description: 'Active when any lower third cue is live',
-      defaultStyle: { bgcolor: green, color: white },
-      options: [],
-      callback: () => Boolean(getApp().l3?.activeCueId),
-      showInvert: true,
-    },
-    l3_cue_live: {
-      type: 'boolean',
-      name: 'Specific L3 Cue is Live',
-      description: 'Active when the configured cue (ID or name) is on air',
-      defaultStyle: { bgcolor: purple, color: white },
-      options: [
-        { type: 'textinput', id: 'cue', label: 'Cue ID or Name', default: '', useVariables: true },
-      ],
-      callback: async (feedback, context) => {
-        const l3 = getApp().l3
-        const cue = await context.parseVariablesInString(String(feedback.options['cue'] ?? ''))
-        return cue.length > 0 && (l3?.activeCueId === cue || l3?.activeCueName === cue)
-      },
-      showInvert: true,
-    },
-    l3_stacking_active: {
-      type: 'boolean',
-      name: 'Lower Third Stacking On',
-      description: 'Active when lower third stacking mode is enabled',
-      defaultStyle: { bgcolor: orange, color: white },
-      options: [],
-      callback: () => getApp().l3?.isStacking === true,
-    },
-    l3_has_active_cue: {
-      type: 'boolean',
-      name: 'Has Active Lower Third Cue',
-      description: 'Active when any lower third cue is currently on-air',
-      defaultStyle: { bgcolor: purple, color: white },
-      options: [],
-      callback: () => Boolean(getApp().l3?.activeCueId),
-    },
-    l3_playlist_active: {
-      type: 'boolean',
-      name: 'L3 Playlist Active',
-      description: 'Active when a lower-third playlist is selected',
-      defaultStyle: { bgcolor: teal, color: white },
-      options: [],
-      callback: () => Boolean(getApp().l3?.currentPlaylistId),
-      showInvert: true,
-    },
-
     // ── still store ──
     stills_on_air: {
       type: 'boolean',
@@ -490,14 +439,28 @@ export function buildFeedbacks(getApp: GetAppState, isConnected: () => boolean):
       showInvert: true,
     },
 
-    // ── graphics: lower third overlay ──
+    // ── graphics: lower thirds (left/right are independent) ──
     gfx_lower_third_visible: {
       type: 'boolean',
       name: 'Graphics Lower Third Visible',
-      description: 'Active while the graphics lower-third overlay is on screen',
+      description: 'Active while the given side\'s lower third is on screen',
       defaultStyle: { bgcolor: green, color: white },
-      options: [],
-      callback: () => getApp().graphics?.lowerThird?.visible === true,
+      options: [
+        {
+          type: 'dropdown',
+          id: 'side',
+          label: 'Side',
+          default: 'left',
+          choices: [
+            { id: 'left', label: 'Left' },
+            { id: 'right', label: 'Right' },
+          ],
+        },
+      ],
+      callback: (feedback) => {
+        const side = feedback.options['side'] === 'right' ? 'right' : 'left'
+        return getApp().graphics?.lowerThirds?.[side]?.visible === true
+      },
       showInvert: true,
     },
 
