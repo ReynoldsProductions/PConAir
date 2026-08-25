@@ -5,47 +5,57 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Faire Wire — control</title>
 <style>
-  /* self-hosted so the panel looks the same offline (ships at graphics/_fonts/) */
-  @font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url('/graphics/_fonts/inter-latin-400.woff2') format('woff2');}
-  @font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:swap;src:url('/graphics/_fonts/inter-latin-600.woff2') format('woff2');}
-</style>
-<style>
+  /* Tokens match the admin/operator light theme (src/renderer/admin/index.html
+     :root) so this panel reads as part of the same app, not a separate
+     broadcast-branded tool. Faire's own tan/red only appear on the actual
+     video output (render-ticker.html, render-l3.html) — never in this chrome. */
   :root{
-    --ink:#333333; --sub:#757575; --cream:#fbf8f6; --tan:#b5a998;
-    --border:#dfe0e1; --live:#921100; --bg:#1a1816; --panel:#2b2622;
+    --bg:#ffffff; --surface:#fbf8f6; --surface-2:#f3f0ed; --input-bg:#ffffff;
+    --border:#dfe0e1; --border-hover:#c4c6c8; --text:#333333; --text-dim:#757575;
+    --accent:#1a6dd4; --accent-hover:#155ab0; --accent-tint:rgba(26,109,212,0.10);
+    --green:#2f7d34; --red:#b3261e; --danger-tint:rgba(179,38,30,0.10);
+    --btn-hover-bg:#f0eeec; --btn-active-bg:#e6e3e0; --btn-hover-border:#b9bbbd;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:var(--bg);color:var(--cream);font-family:'Inter',sans-serif;min-height:100dvh;
+  body{background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;min-height:100dvh;
     padding:16px;display:flex;flex-direction:column;gap:14px;max-width:820px;margin:0 auto;}
   .header{display:flex;align-items:center;justify-content:space-between;}
-  h1{font-weight:600;font-size:20px;letter-spacing:.14em;text-transform:uppercase;color:var(--tan);}
-  .pill{font-size:10px;font-weight:700;letter-spacing:.12em;padding:4px 10px;border-radius:20px;}
-  .pill.live{background:#1a3a1a;color:#6ecf6e;}
-  .pill.offline{background:#3a1a1a;color:#cf6e6e;}
-  .section{background:var(--panel);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px;}
-  .lbl{font-size:10px;letter-spacing:.2em;color:var(--tan);font-weight:700;text-transform:uppercase;}
+  h1{font-weight:600;font-size:18px;color:var(--text);}
+  .pill{font-size:10px;font-weight:700;letter-spacing:.06em;padding:3px 9px;border-radius:20px;text-transform:uppercase;}
+  .pill.live{background:rgba(47,125,52,0.12);color:var(--green);}
+  .pill.offline{background:rgba(179,38,30,0.12);color:var(--red);}
+  .section{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:16px;
+    display:flex;flex-direction:column;gap:10px;}
+  .lbl{font-size:11px;letter-spacing:.08em;color:var(--text-dim);font-weight:700;text-transform:uppercase;}
   .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-  button{border:none;border-radius:6px;cursor:pointer;font-family:'Inter',sans-serif;font-weight:600;
-    font-size:13px;letter-spacing:.08em;color:var(--cream);background:#3a3632;
-    padding:13px 18px;touch-action:manipulation;}
-  button:active{opacity:.7;}
-  button.take{background:#2d6a2d;}
-  button.clear{background:var(--live);}
-  button.toggled{outline:2px solid var(--tan);}
-  input,textarea,select{background:var(--bg);border:1px solid #585550;border-radius:6px;color:var(--cream);
-    font-family:'Inter',sans-serif;font-size:14px;padding:10px;width:100%;}
-  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--tan);}
+  button{border:1px solid var(--border);border-radius:5px;cursor:pointer;font-family:inherit;font-weight:500;
+    font-size:13px;color:var(--text);background:var(--surface);
+    padding:11px 16px;touch-action:manipulation;transition:background .1s,border-color .1s;}
+  button:hover{background:var(--btn-hover-bg);border-color:var(--btn-hover-border);}
+  button:active{background:var(--btn-active-bg);}
+  button.take{background:var(--accent);border-color:var(--accent);color:#fff;}
+  button.take:hover{background:var(--accent-hover);border-color:var(--accent-hover);}
+  button.clear{background:transparent;border-color:var(--red);color:var(--red);}
+  button.clear:hover{background:var(--danger-tint);}
+  /* outline rather than background/border, so this reads clearly whether it's
+     layered on the plain, .take, or .clear button variant */
+  button.toggled{outline:2px solid var(--accent);outline-offset:-1px;}
+  input,textarea,select{background:var(--input-bg);border:1px solid var(--border);border-radius:5px;color:var(--text);
+    font-family:inherit;font-size:14px;padding:10px;width:100%;}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);}
+  input[type="color"]{padding:2px 4px;height:38px;cursor:pointer;}
   textarea{resize:vertical;min-height:150px;line-height:1.5;}
-  .hint{font-size:11px;color:#8a8378;line-height:1.4;}
+  .hint{font-size:11px;color:var(--text-dim);line-height:1.4;}
   /* the two lower thirds sit side by side, mirroring what is on air */
   .l3grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
   @media (max-width:560px){ .l3grid{grid-template-columns:1fr;} }
-  .onair{font-size:9px;font-weight:700;letter-spacing:.14em;padding:3px 7px;border-radius:4px;
-    background:#3a3632;color:#8a8378;}
-  .onair.hot{background:var(--live);color:#fff;}
+  .onair{font-size:9px;font-weight:700;letter-spacing:.08em;padding:3px 7px;border-radius:3px;
+    background:var(--surface-2);color:var(--text-dim);text-transform:uppercase;}
+  .onair.hot{background:rgba(47,125,52,0.15);color:var(--green);}
   .cardhead{display:flex;align-items:center;justify-content:space-between;}
-  .check{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;}
-  .check input{width:auto;accent-color:var(--tan);width:18px;height:18px;}
+  .check{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text);}
+  .check input{width:auto;accent-color:var(--accent);width:18px;height:18px;}
 </style>
 </head>
 <body>
@@ -163,6 +173,28 @@
     art reads narrow — the bar is only 96px high, so a wide mark carries much better. Use
     the % to tune without re-exporting.
   </div>
+  <div class="row">
+    <label class="hint" style="flex:1">Typeface
+      <select id="brandFont">
+        <option value="inter">Inter (default)</option>
+        <option value="chakra">Chakra Petch</option>
+        <option value="lora">Lora (serif)</option>
+        <option value="saira_condensed">Saira Condensed</option>
+        <option value="mono">Share Tech Mono</option>
+      </select>
+    </label>
+    <label class="hint" style="flex:1">Brand accent colour
+      <div class="row" style="gap:6px;margin-top:4px">
+        <input id="brandAccent" type="color" style="width:44px;padding:2px;flex:none">
+        <button data-act="accentReset" style="flex:1">RESET</button>
+      </div>
+    </label>
+  </div>
+  <div class="hint">
+    Typeface applies everywhere in Faire Wire; the accent colour replaces the tan trim
+    on the ticker bug and headline lead-ins, and the lower-third accent bar, on top of
+    whichever theme is picked above. RESET goes back to the default tan.
+  </div>
   <div class="hint">
     Sources to add. Either take the two separately and stack the lower thirds over
     the ticker:<br>
@@ -171,6 +203,47 @@
     <code>/packages/news/render/all</code><br>
     Same controls either way — CLEAR TICKER and the lower-third CLEARs hide each
     piece on its own.
+  </div>
+</div>
+
+<div class="section">
+  <div class="cardhead">
+    <div class="lbl">Time / live bug</div>
+    <span class="onair" id="onairTb">OFF</span>
+  </div>
+  <div class="row">
+    <button class="take" data-act="tbToggle" id="bTbToggle" style="flex:1">SHOW BUG</button>
+    <label class="check"><input type="checkbox" id="tbLive"> LIVE indicator</label>
+  </div>
+  <div class="row">
+    <label class="hint" style="flex:2">Timezone
+      <select id="tbTimezone">
+        <option value="America/New_York">Eastern — New York</option>
+        <option value="America/Chicago">Central — Chicago</option>
+        <option value="America/Denver">Mountain — Denver</option>
+        <option value="America/Los_Angeles">Pacific — Los Angeles</option>
+        <option value="America/Anchorage">Alaska — Anchorage</option>
+        <option value="Pacific/Honolulu">Hawaii — Honolulu</option>
+        <option value="UTC">UTC</option>
+        <option value="Europe/London">London</option>
+        <option value="Europe/Paris">Paris / Berlin</option>
+        <option value="Asia/Tokyo">Tokyo</option>
+        <option value="Asia/Shanghai">Shanghai / Singapore</option>
+        <option value="Asia/Kolkata">India</option>
+        <option value="Australia/Sydney">Sydney</option>
+      </select>
+    </label>
+    <label class="hint" style="flex:1">Format
+      <select id="tbFormat">
+        <option value="12h">12-hour</option>
+        <option value="24h">24-hour</option>
+      </select>
+    </label>
+  </div>
+  <div class="hint">
+    Sits top right on the ticker render (and the all-in-one). Turn LIVE indicator off
+    without hiding the clock for a re-air; turn SHOW BUG off entirely when this is
+    overlaid on tape.
   </div>
 </div>
 
@@ -228,6 +301,21 @@
     if (document.activeElement !== g('logoAsset')) g('logoAsset').value = state.logoAsset || '';
     syncInput('autoClearSeconds', state.autoClearSeconds);
     syncInput('logoScale', state.logoScale);
+
+    const brand = state.brand || {};
+    if (document.activeElement !== g('brandFont')) g('brandFont').value = brand.font || 'inter';
+    if (document.activeElement !== g('brandAccent')) g('brandAccent').value = brand.accent || '#b5a998';
+
+    const tb = state.timeBug || {};
+    badge('onairTb', tb.visible);
+    g('bTbToggle').classList.toggle('toggled', !!tb.visible);
+    if (document.activeElement !== g('tbLive')) g('tbLive').checked = tb.liveVisible !== false;
+    if (document.activeElement !== g('tbTimezone')) g('tbTimezone').value = tb.timezone || 'America/New_York';
+    if (document.activeElement !== g('tbFormat')) g('tbFormat').value = tb.format || '12h';
+  }
+
+  function timeBugPatch(overrides) {
+    return { timeBug: { ...(state.timeBug || {}), ...overrides } };
   }
 
   // `visible` is TAKE/CLEAR. Patches are shallow-merged server-side, so a nested
@@ -266,6 +354,8 @@
         break;
       }
       case 'tickerClear': patch({ tickerVisible: false }); break;
+      case 'tbToggle': patch(timeBugPatch({ visible: !(state.timeBug && state.timeBug.visible) })); break;
+      case 'accentReset': patch({ brand: { ...(state.brand || {}), accent: '' } }); break;
     }
   });
 
@@ -311,6 +401,13 @@
   g('theme').addEventListener('change', () => patch({ theme: g('theme').value }));
   g('logo').addEventListener('change', () => patch({ logo: g('logo').value }));
   g('autoClear').addEventListener('change', () => patch({ autoClear: g('autoClear').checked }));
+
+  g('brandFont').addEventListener('change', () => patch({ brand: { ...(state.brand || {}), font: g('brandFont').value } }));
+  g('brandAccent').addEventListener('change', () => patch({ brand: { ...(state.brand || {}), accent: g('brandAccent').value } }));
+
+  g('tbLive').addEventListener('change', () => patch(timeBugPatch({ liveVisible: g('tbLive').checked })));
+  g('tbTimezone').addEventListener('change', () => patch(timeBugPatch({ timezone: g('tbTimezone').value })));
+  g('tbFormat').addEventListener('change', () => patch(timeBugPatch({ format: g('tbFormat').value })));
 
   // Commit the numeric fields on blur/Enter rather than per keystroke, so typing
   // "12" doesn't briefly apply a 1-second auto-clear.
