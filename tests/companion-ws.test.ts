@@ -122,10 +122,11 @@ describe('cookie-less Companion WebSocket (?companion=1)', () => {
   it('dispatches actions without a session or PIN', async () => {
     const { ws, nextMessage } = await connect();
     await nextMessage((m) => m.type === 'state');
-    ws.send(JSON.stringify({ type: 'action', action_id: 'l3_take', params: { name: 'Jane', title: 'Host' } }));
+    ws.send(JSON.stringify({ type: 'action', action_id: 'lower_third_apply', params: { side: 'left', name: 'Jane', title: 'Host' } }));
     const result = await nextMessage((m) => m.type === 'action_result');
-    expect((result.payload as Record<string, unknown>).currentMode).toBe('l3');
-    expect(store.getState().l3?.activeCueName).toBe('Jane');
+    const graphics = (result.payload as { graphics?: { lowerThirds?: { left?: { name?: string } } } }).graphics;
+    expect(graphics?.lowerThirds?.left?.name).toBe('Jane');
+    expect(store.getState().graphics.lowerThirds.left?.name).toBe('Jane');
     ws.close();
   });
 

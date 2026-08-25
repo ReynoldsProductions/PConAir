@@ -20,8 +20,6 @@ export const VARIABLE_DEFINITIONS: CompanionVariableDefinition[] = [
   { variableId: 'slide_index', name: 'Current Slide Number (1-based)' },
   { variableId: 'slide_count', name: 'Total Slide Count' },
   { variableId: 'deck_title', name: 'Slide Deck Title' },
-  { variableId: 'l3_active_cue', name: 'Active Lower Third Cue' },
-  { variableId: 'l3_stacking', name: 'Lower Third Stacking (on/off)' },
   { variableId: 'ab_active_instance', name: 'Active A/B Instance' },
 
   // ── GSC compat (names must match companion-module-gslide-opener exactly) ──
@@ -62,15 +60,6 @@ export const VARIABLE_DEFINITIONS: CompanionVariableDefinition[] = [
   { variableId: 'offline_mode', name: 'Offline Mode (Yes/No)' },
   { variableId: 'cache_warmed', name: 'Offline Cache Warmed (Yes/No)' },
   { variableId: 'speaker_notes', name: 'Current Speaker Notes Text' },
-
-  // ── lower thirds v2 ──
-  { variableId: 'l3_on_air', name: 'Lower Third On Air (Yes/No)' },
-  { variableId: 'l3_active_cue_id', name: 'Active Lower Third Cue ID' },
-  { variableId: 'l3_active_title', name: 'Active Lower Third Title Line' },
-  { variableId: 'l3_active_theme', name: 'Active Lower Third Theme' },
-  { variableId: 'l3_playlist_id', name: 'Active L3 Playlist ID' },
-  { variableId: 'l3_playlist_position', name: 'L3 Playlist Position (1-based)' },
-  { variableId: 'l3_playlist_length', name: 'L3 Playlist Length' },
 
   // ── still store ──
   { variableId: 'stills_on_air', name: 'Still On Air (Yes/No)' },
@@ -129,12 +118,18 @@ export const VARIABLE_DEFINITIONS: CompanionVariableDefinition[] = [
   { variableId: 'timeouts_b', name: 'Scoreboard Team B Timeouts' },
 
   // ── graphics: lower third overlay ──
-  { variableId: 'gfx_l3_visible', name: 'Graphics Lower Third Visible (Yes/No)' },
-  { variableId: 'gfx_l3_name', name: 'Graphics Lower Third Name Line' },
-  { variableId: 'gfx_l3_title', name: 'Graphics Lower Third Title Line' },
-  { variableId: 'gfx_l3_subtitle', name: 'Graphics Lower Third Subtitle Line' },
-  { variableId: 'gfx_l3_theme', name: 'Graphics Lower Third Theme' },
-  { variableId: 'gfx_l3_animation', name: 'Graphics Lower Third Animation Style' },
+  { variableId: 'gfx_l3_left_visible', name: 'Graphics Lower Third (Left) Visible (Yes/No)' },
+  { variableId: 'gfx_l3_left_name', name: 'Graphics Lower Third (Left) Name Line' },
+  { variableId: 'gfx_l3_left_title', name: 'Graphics Lower Third (Left) Title Line' },
+  { variableId: 'gfx_l3_left_subtitle', name: 'Graphics Lower Third (Left) Subtitle Line' },
+  { variableId: 'gfx_l3_left_theme', name: 'Graphics Lower Third (Left) Theme' },
+  { variableId: 'gfx_l3_left_animation', name: 'Graphics Lower Third (Left) Animation Style' },
+  { variableId: 'gfx_l3_right_visible', name: 'Graphics Lower Third (Right) Visible (Yes/No)' },
+  { variableId: 'gfx_l3_right_name', name: 'Graphics Lower Third (Right) Name Line' },
+  { variableId: 'gfx_l3_right_title', name: 'Graphics Lower Third (Right) Title Line' },
+  { variableId: 'gfx_l3_right_subtitle', name: 'Graphics Lower Third (Right) Subtitle Line' },
+  { variableId: 'gfx_l3_right_theme', name: 'Graphics Lower Third (Right) Theme' },
+  { variableId: 'gfx_l3_right_animation', name: 'Graphics Lower Third (Right) Animation Style' },
 
   // ── watchdog / health ──
   { variableId: 'watchdog_unresponsive', name: 'Program Unresponsive (Yes/No)' },
@@ -178,14 +173,14 @@ export function stateToVariables(
   // GSC semantics: 1-based slide numbers, null → blank.
   const currentSlide = ready ? slides.slideIndex + 1 : null
   const totalSlides = ready ? slides.slideCount : null
-  const l3 = state.l3 ?? null
   const ml = state.mediaLibrary ?? null
   const show = ml?.slideshow ?? null
   const tunnel = state.tunnel ?? null
   const ro = state.renderOutputs ?? {}
   const tp = state.prompter ?? null
   const sb = state.graphics?.scoreboard ?? null
-  const gl3 = state.graphics?.lowerThird ?? null
+  const gl3Left = state.graphics?.lowerThirds?.left ?? null
+  const gl3Right = state.graphics?.lowerThirds?.right ?? null
   const wd = state.watchdog ?? null
   const bg = state.background ?? null
   const displays = state.displays ?? null
@@ -202,8 +197,6 @@ export function stateToVariables(
     slide_index: currentSlide !== null ? String(currentSlide) : '',
     slide_count: totalSlides !== null ? String(totalSlides) : '',
     deck_title: slides?.deckTitle ?? '',
-    l3_active_cue: l3?.activeCueName ?? '',
-    l3_stacking: l3?.isStacking ? 'on' : 'off',
     ab_active_instance: state.abState?.activeInstance ?? 'A',
 
     presentation_open: slides !== null ? 'Yes' : 'No',
@@ -243,14 +236,6 @@ export function stateToVariables(
     offline_mode: yn(slides?.offlineMode),
     cache_warmed: yn(slides?.cacheWarmed),
     speaker_notes: slides?.notes ?? '',
-
-    l3_on_air: yn(Boolean(l3?.activeCueId)),
-    l3_active_cue_id: l3?.activeCueId ?? '',
-    l3_active_title: l3?.activeTitle ?? '',
-    l3_active_theme: l3?.activeTheme ?? '',
-    l3_playlist_id: l3?.currentPlaylistId ?? '',
-    l3_playlist_position: l3?.playlistPosition != null ? String(l3.playlistPosition) : '',
-    l3_playlist_length: l3?.playlistLength != null ? String(l3.playlistLength) : '',
 
     stills_on_air: yn(Boolean(ml?.activeItemId)),
     still_active_id: ml?.activeItemId ?? '',
@@ -302,12 +287,18 @@ export function stateToVariables(
     timeouts_a: sb ? String(sb.timeoutsA) : '',
     timeouts_b: sb ? String(sb.timeoutsB) : '',
 
-    gfx_l3_visible: yn(gl3?.visible),
-    gfx_l3_name: gl3?.name ?? '',
-    gfx_l3_title: gl3?.title ?? '',
-    gfx_l3_subtitle: gl3?.subtitle ?? '',
-    gfx_l3_theme: gl3?.theme ?? '',
-    gfx_l3_animation: gl3?.animationStyle ?? '',
+    gfx_l3_left_visible: yn(gl3Left?.visible),
+    gfx_l3_left_name: gl3Left?.name ?? '',
+    gfx_l3_left_title: gl3Left?.title ?? '',
+    gfx_l3_left_subtitle: gl3Left?.subtitle ?? '',
+    gfx_l3_left_theme: gl3Left?.theme ?? '',
+    gfx_l3_left_animation: gl3Left?.animationStyle ?? '',
+    gfx_l3_right_visible: yn(gl3Right?.visible),
+    gfx_l3_right_name: gl3Right?.name ?? '',
+    gfx_l3_right_title: gl3Right?.title ?? '',
+    gfx_l3_right_subtitle: gl3Right?.subtitle ?? '',
+    gfx_l3_right_theme: gl3Right?.theme ?? '',
+    gfx_l3_right_animation: gl3Right?.animationStyle ?? '',
 
     watchdog_unresponsive: yn(wd?.programUnresponsive),
     watchdog_unresponsive_secs: wd ? String(wd.programUnresponsiveSecs) : '',

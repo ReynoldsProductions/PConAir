@@ -44,7 +44,7 @@ describe('lower_third_apply action', () => {
       });
 
     expect(res.status).toBe(200);
-    const lt = store.getState().graphics.lowerThird!;
+    const lt = store.getState().graphics.lowerThirds.left!;
     expect(lt.visible).toBe(true);
     expect(lt.name).toBe('Jane Smith');
     expect(lt.title).toBe('Chief Executive Officer');
@@ -52,7 +52,7 @@ describe('lower_third_apply action', () => {
     expect(lt.theme).toBe('dark');
     expect(lt.sourceCueId).toBeNull();
 
-    expect(res.body.graphics.lowerThird).toMatchObject({
+    expect(res.body.graphics.lowerThirds.left).toMatchObject({
       visible: true,
       name: 'Jane Smith',
       title: 'Chief Executive Officer',
@@ -71,7 +71,7 @@ describe('lower_third_apply action', () => {
       .send({ action_id: 'lower_third_apply', params: { name: 'Solo Name' } });
 
     expect(res.status).toBe(200);
-    const lt = store.getState().graphics.lowerThird!;
+    const lt = store.getState().graphics.lowerThirds.left!;
     expect(lt.visible).toBe(true);
     expect(lt.name).toBe('Solo Name');
     expect(lt.title).toBe('');
@@ -95,11 +95,11 @@ describe('lower_third_apply action', () => {
       });
 
     expect(res.status).toBe(200);
-    const lt = store.getState().graphics.lowerThird!;
+    const lt = store.getState().graphics.lowerThirds.left!;
     expect(lt.fadeEnabled).toBe(false);
     expect(lt.fadeMs).toBe(900);
     expect(lt.animationStyle).toBe('wipe');
-    expect(res.body.graphics.lowerThird).toMatchObject({
+    expect(res.body.graphics.lowerThirds.left).toMatchObject({
       fadeEnabled: false,
       fadeMs: 900,
       animationStyle: 'wipe',
@@ -116,7 +116,7 @@ describe('lower_third_apply action', () => {
       .send({ action_id: 'lower_third_apply', params: { name: 'Someone', fadeMs: 12000 } });
 
     expect(res.status).toBe(200);
-    expect(store.getState().graphics.lowerThird!.fadeMs).toBe(12000);
+    expect(store.getState().graphics.lowerThirds.left!.fadeMs).toBe(12000);
   });
 
   it('clamps fadeMs to the server-side 0-60000 ceiling', async () => {
@@ -129,7 +129,7 @@ describe('lower_third_apply action', () => {
       .send({ action_id: 'lower_third_apply', params: { name: 'Someone', fadeMs: 999999 } });
 
     expect(res.status).toBe(200);
-    expect(store.getState().graphics.lowerThird!.fadeMs).toBe(60000);
+    expect(store.getState().graphics.lowerThirds.left!.fadeMs).toBe(60000);
   });
 
   it('falls back to default animationStyle for an invalid style string', async () => {
@@ -142,7 +142,7 @@ describe('lower_third_apply action', () => {
       .send({ action_id: 'lower_third_apply', params: { name: 'Someone', animationStyle: 'not-a-style' } });
 
     expect(res.status).toBe(200);
-    expect(store.getState().graphics.lowerThird!.animationStyle).toBe('fade');
+    expect(store.getState().graphics.lowerThirds.left!.animationStyle).toBe('fade');
   });
 
   it.each(['slide-up', 'slide-down', 'zoom', 'flip'])('accepts the %s animation style', async (style) => {
@@ -155,7 +155,7 @@ describe('lower_third_apply action', () => {
       .send({ action_id: 'lower_third_apply', params: { name: 'Someone', animationStyle: style } });
 
     expect(res.status).toBe(200);
-    expect(store.getState().graphics.lowerThird!.animationStyle).toBe(style);
+    expect(store.getState().graphics.lowerThirds.left!.animationStyle).toBe(style);
   });
 
   it('preserves fade settings from a previous apply when a later call omits them', async () => {
@@ -176,7 +176,7 @@ describe('lower_third_apply action', () => {
       .send({ action_id: 'lower_third_apply', params: { name: 'Someone Else' } });
 
     expect(res.status).toBe(200);
-    const lt = store.getState().graphics.lowerThird!;
+    const lt = store.getState().graphics.lowerThirds.left!;
     expect(lt.fadeEnabled).toBe(false);
     expect(lt.fadeMs).toBe(1200);
     expect(lt.animationStyle).toBe('grow');
@@ -203,7 +203,7 @@ describe('lower_third_apply action', () => {
       .send({ action_id: 'lower_third_apply', params: { cueId } });
 
     expect(res.status).toBe(200);
-    const lt = store.getState().graphics.lowerThird!;
+    const lt = store.getState().graphics.lowerThirds.left!;
     expect(lt.name).toBe('Cue Name');
     expect(lt.title).toBe('Cue Title');
     expect(lt.subtitle).toBe('Cue Subtitle');
@@ -242,7 +242,7 @@ describe('lower_third_apply action', () => {
       .send({ action_id: 'lower_third_apply', params: { name: 'Someone', theme: 'not-a-real-theme' } });
 
     expect(res.status).toBe(200);
-    expect(store.getState().graphics.lowerThird!.theme).toBe('default');
+    expect(store.getState().graphics.lowerThirds.left!.theme).toBe('default');
   });
 
   it('falls back to the previously-set theme when a later call sends a garbage theme', async () => {
@@ -260,7 +260,7 @@ describe('lower_third_apply action', () => {
       .send({ action_id: 'lower_third_apply', params: { name: 'Someone', theme: 'still-not-real' } });
 
     expect(res.status).toBe(200);
-    expect(store.getState().graphics.lowerThird!.theme).toBe('dark');
+    expect(store.getState().graphics.lowerThirds.left!.theme).toBe('dark');
   });
 
   it('returns 400 INVALID_MODE for missing name', async () => {
@@ -317,7 +317,7 @@ describe('lower_third_hide action', () => {
       .send({ action_id: 'lower_third_hide', params: {} });
 
     expect(res.status).toBe(200);
-    const lt = store.getState().graphics.lowerThird!;
+    const lt = store.getState().graphics.lowerThirds.left!;
     expect(lt.visible).toBe(false);
     expect(lt.name).toBe('Jane Smith');
     expect(lt.title).toBe('CEO');
@@ -335,8 +335,8 @@ describe('lower_third_hide action', () => {
       .send({ action_id: 'lower_third_hide', params: {} });
 
     expect(res.status).toBe(200);
-    expect(res.body.graphics.lowerThird).toBeNull();
-    expect(store.getState().graphics.lowerThird).toBeNull();
+    expect(res.body.graphics.lowerThirds.left).toBeNull();
+    expect(store.getState().graphics.lowerThirds.left).toBeNull();
   });
 
   it('returns 401 without auth', async () => {

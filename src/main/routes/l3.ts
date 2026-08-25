@@ -2,16 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { L3CueStore } from '../l3/cue-store';
-import type { L3PlaylistStore } from '../l3/playlist-store';
 import type { L3ThemeStore } from '../l3/theme-store';
-import type { L3State } from '../../shared/types';
+import type { L3LogoStore } from '../l3/logo-store';
 import { requireOperator, requireAdmin } from './middleware';
-import { l3ClearOp, l3SetOutputDisplayOp, l3StackingOp, l3TakeOp } from '../l3/take-ops';
-import { emptyL3, ensureL3 } from '../l3/state-defaults';
-import { playlistActivateOp, playlistStepOp } from '../l3/playlist-ops';
 import { sniffImageMime } from '../media-library/image-meta';
 
 const MIME_TO_EXT: Record<string, string> = {
@@ -20,6 +15,14 @@ const MIME_TO_EXT: Record<string, string> = {
   'image/gif': 'gif',
   'image/webp': 'webp',
   'image/svg+xml': 'svg',
+};
+
+const EXT_TO_MIME: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
 };
 
 const CSV_SAMPLE = `name,title,theme,subtitle
@@ -81,13 +84,19 @@ const upload = multer({
 });
 
 export function createL3Router(
-  store: StateStore,
   auth: AuthManager,
   cues: L3CueStore,
-  playlists: L3PlaylistStore,
   themes: L3ThemeStore,
+  logos: L3LogoStore,
   l3FilesRoot: string,
   renderManualCue?: (cue: import('../l3/cue-store').L3Cue) => Promise<Buffer>,
+  renderAdHocCard?: (input: {
+    name: string;
+    title?: string | null;
+    subtitle?: string | null;
+    theme?: string | null;
+    logoDataUrl?: string | null;
+  }) => Promise<Buffer>,
 ): Router {
   const router = Router();
   const opGuard = requireOperator(auth);
@@ -396,14 +405,7 @@ export function createL3Router(
     if (cue.sourceType === 'image' && cue.originalImagePath) {
       const absPath = path.join(l3FilesRoot, cue.originalImagePath);
       const ext = cue.originalImageFormat ?? 'png';
-      const mimeMap: Record<string, string> = {
-        png: 'image/png',
-        jpg: 'image/jpeg',
-        gif: 'image/gif',
-        webp: 'image/webp',
-        svg: 'image/svg+xml',
-      };
-      const mime = mimeMap[ext] ?? 'application/octet-stream';
+      const mime = EXT_TO_MIME[ext] ?? 'application/octet-stream';
       res.setHeader('Content-Type', mime);
       const safeName = cue.name.replace(/[^\w\s-]/g, '_');
       const encodedName = encodeURIComponent(cue.name);
@@ -446,55 +448,104 @@ export function createL3Router(
     });
   });
 
-  // ── Original cue/playlist CRUD routes ──────────────────────────────────────
-
-  router.post('/take', opGuard, (req: Request, res: Response) => {
-    const { cueId, name, title, theme, autoOutMs } = req.body as {
-      cueId?: string;
+  // Ad-hoc export — whatever is currently typed on the live Lower Thirds tab,
+  // not necessarily saved as a cue yet.
+  router.post('/export', opGuard, async (req: Request, res: Response) => {
+    if (!renderAdHocCard) {
+      res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'PNG rendering not available in this build' } });
+      return;
+    }
+    const { name, title, subtitle, theme, logoAssetId } = req.body as {
       name?: string;
       title?: string;
+      subtitle?: string;
       theme?: string;
-      autoOutMs?: number | null;
+      logoAssetId?: string;
     };
-    void theme;
-    const r = l3TakeOp(store, cues, { cueId, name, title, theme, autoOutMs });
-    if (!r.ok) {
-      res.status(r.status).json({ error: r.error });
+    if (!name || !name.trim()) {
+      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'name is required' } });
       return;
     }
-    res.json(r.body);
+
+    let logoDataUrl: string | null = null;
+    if (logoAssetId) {
+      const logo = logos.findById(logoAssetId);
+      if (logo) {
+        try {
+          const buf = fs.readFileSync(path.join(l3FilesRoot, logo.relativePath));
+          logoDataUrl = `data:${EXT_TO_MIME[logo.format] ?? 'application/octet-stream'};base64,${buf.toString('base64')}`;
+        } catch {
+          // Missing/unreadable logo file — export without it rather than failing the whole request.
+        }
+      }
+    }
+
+    try {
+      const pngBuffer = await renderAdHocCard({ name, title, subtitle, theme, logoDataUrl });
+      res.setHeader('Content-Type', 'image/png');
+      const safeName = name.replace(/[^\w\s-]/g, '_');
+      const encodedName = encodeURIComponent(name);
+      res.setHeader('Content-Disposition', `attachment; filename="${safeName}.png"; filename*=UTF-8''${encodedName}.png`);
+      res.send(pngBuffer);
+    } catch {
+      if (!res.headersSent) {
+        res.status(500).json({ error: { code: 'RENDER_ERROR', message: 'Failed to render PNG' } });
+      }
+    }
   });
 
-  router.post('/clear', opGuard, (_req: Request, res: Response) => {
-    const r = l3ClearOp(store);
-    res.json(r.body);
+  // ── Logo asset library ──────────────────────────────────────────────────────
+
+  router.get('/logos', opGuard, (_req: Request, res: Response) => {
+    res.json({ logos: logos.list() });
   });
 
-  router.post('/output-display', opGuard, (req: Request, res: Response) => {
-    const { displayId } = req.body as { displayId?: unknown };
-    if (displayId !== null && typeof displayId !== 'string') {
-      res.status(400).json({
-        error: { code: 'INVALID_MODE', message: 'displayId must be a string or null' },
-      });
+  router.post(
+    '/logos',
+    adminGuard,
+    upload.single('logoFile'),
+    (req: Request, res: Response) => {
+      const file = req.file;
+      if (!file) {
+        res.status(400).json({ error: { code: 'MISSING_FILE', message: 'logoFile is required' } });
+        return;
+      }
+      const mime = sniffImageMime(file.buffer);
+      const ext = mime ? MIME_TO_EXT[mime] : undefined;
+      if (!mime || !ext) {
+        res.status(400).json({ error: { code: 'UNSUPPORTED_TYPE', message: 'Unsupported image format' } });
+        return;
+      }
+      const asset = logos.create({ filename: file.originalname, format: ext, buffer: file.buffer });
+      res.status(201).json(asset);
+    }
+  );
+
+  // Unauthenticated: consumed by /graphics render pages (no cookies on LAN).
+  router.get('/logos/:id/file', (req: Request, res: Response) => {
+    const logo = logos.findById(req.params.id);
+    if (!logo) {
+      res.status(404).type('text/plain').send('Logo not found');
       return;
     }
-    const r = l3SetOutputDisplayOp(store, displayId === '' ? null : displayId);
-    res.json(r.body);
+    res.setHeader('Content-Type', EXT_TO_MIME[logo.format] ?? 'application/octet-stream');
+    res.sendFile(path.join(l3FilesRoot, logo.relativePath), (err) => {
+      if (err && !res.headersSent) {
+        res.status(500).json({ error: { code: 'READ_ERROR', message: 'Failed to read file' } });
+      }
+    });
   });
 
-  router.post('/stacking', opGuard, (req: Request, res: Response) => {
-    const { enabled } = req.body as { enabled?: unknown };
-    if (typeof enabled !== 'boolean') {
-      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'enabled must be a boolean' } });
+  router.delete('/logos/:id', adminGuard, (req: Request, res: Response) => {
+    if (!logos.findById(req.params.id)) {
+      res.status(404).json({ error: { code: 'LOGO_NOT_FOUND', message: `Logo '${req.params.id}' not found` } });
       return;
     }
-    const r = l3StackingOp(store, enabled);
-    if (!r.ok) {
-      res.status(r.status).json({ error: r.error });
-      return;
-    }
-    res.json(r.body);
+    logos.remove(req.params.id);
+    res.status(204).end();
   });
+
+  // ── Cue CRUD ─────────────────────────────────────────────────────────────────
 
   router.get('/cues', opGuard, (_req: Request, res: Response) => {
     res.json({ cues: cues.list() });
@@ -568,121 +619,8 @@ export function createL3Router(
       return;
     }
     cues.remove(cueId);
-    const st = store.getState();
-    if (st.l3?.activeCueId === cueId) {
-      store.setState({
-        l3: st.l3
-          ? { ...st.l3, activeCueId: null, activeCueName: null, activeTitle: null }
-          : emptyL3(),
-      });
-    }
     res.status(204).end();
   });
-
-  router.get('/playlists', opGuard, (_req: Request, res: Response) => {
-    res.json({ playlists: playlists.list() });
-  });
-
-  router.post('/playlists', adminGuard, (req: Request, res: Response) => {
-    const { name, cueIds } = req.body as { name?: string; cueIds?: unknown };
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'name is required' } });
-      return;
-    }
-    if (!Array.isArray(cueIds)) {
-      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'cueIds must be an array' } });
-      return;
-    }
-    const ids = cueIds.map((x) => String(x));
-    const created = playlists.create({ name: name.trim(), cueIds: ids });
-    if (!created.ok) {
-      res.status(404).json({
-        error: { code: 'CUE_NOT_FOUND', message: `Cue '${created.missingCueId}' not found` },
-      });
-      return;
-    }
-    res.status(201).json(created.playlist);
-  });
-
-  router.get('/playlists/:id', opGuard, (req: Request, res: Response) => {
-    const p = playlists.findById(req.params.id);
-    if (!p) {
-      res.status(404).json({ error: { code: 'PRESET_NOT_FOUND', message: `Playlist '${req.params.id}' not found` } });
-      return;
-    }
-    res.json(p);
-  });
-
-  router.put('/playlists/:id', adminGuard, (req: Request, res: Response) => {
-    const { name, cueIds } = req.body as { name?: string; cueIds?: unknown };
-    const patch: { name?: string; cueIds?: string[] } = {};
-    if (name !== undefined) {
-      if (typeof name !== 'string' || !name.trim()) {
-        res.status(400).json({ error: { code: 'INVALID_MODE', message: 'name must be a non-empty string' } });
-        return;
-      }
-      patch.name = name.trim();
-    }
-    if (cueIds !== undefined) {
-      if (!Array.isArray(cueIds)) {
-        res.status(400).json({ error: { code: 'INVALID_MODE', message: 'cueIds must be an array' } });
-        return;
-      }
-      patch.cueIds = cueIds.map((x) => String(x));
-    }
-    const updated = playlists.update(req.params.id, patch);
-    if (!updated.ok) {
-      if (updated.reason === 'not_found') {
-        res.status(404).json({ error: { code: 'PRESET_NOT_FOUND', message: `Playlist '${req.params.id}' not found` } });
-        return;
-      }
-      res.status(404).json({
-        error: { code: 'CUE_NOT_FOUND', message: `Cue '${updated.missingCueId}' not found` },
-      });
-      return;
-    }
-    res.json(updated.playlist);
-  });
-
-  router.delete('/playlists/:id', adminGuard, (req: Request, res: Response) => {
-    const id = req.params.id;
-    if (!playlists.findById(id)) {
-      res.status(404).json({ error: { code: 'PRESET_NOT_FOUND', message: `Playlist '${id}' not found` } });
-      return;
-    }
-    playlists.remove(id);
-    const st = store.getState();
-    if (st.l3?.currentPlaylistId === id) {
-      store.setState({
-        l3: st.l3
-          ? { ...st.l3, currentPlaylistId: null, playlistPosition: null, playlistLength: null }
-          : emptyL3(),
-      });
-    }
-    res.status(204).end();
-  });
-
-  router.post('/playlists/:id/activate', adminGuard, (req: Request, res: Response) => {
-    const r = playlistActivateOp(store, playlists, req.params.id);
-    if (!r.ok) {
-      res.status(r.status).json({ error: r.error });
-      return;
-    }
-    res.json({ l3: { currentPlaylistId: store.getState().l3?.currentPlaylistId ?? null } });
-  });
-
-  // Step through the active playlist (wraps around). Takes the cue at the new position.
-  function playlistStep(res: Response, direction: 1 | -1): void {
-    const r = playlistStepOp(store, playlists, cues, direction);
-    if (!r.ok) {
-      res.status(r.status).json({ error: r.error });
-      return;
-    }
-    res.json(r.body);
-  }
-
-  router.post('/playlists/next', opGuard, (_req: Request, res: Response) => playlistStep(res, 1));
-  router.post('/playlists/prev', opGuard, (_req: Request, res: Response) => playlistStep(res, -1));
 
   return router;
 }

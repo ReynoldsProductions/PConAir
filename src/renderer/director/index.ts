@@ -27,10 +27,11 @@ function badgeLabel(status: DirectorOfficeSnapshot['status']): string {
 
 function activeLowerThirdSummary(state: unknown): string {
   const graphics = (state as AppState | null)?.graphics;
-  const lt = graphics?.lowerThird;
-  if (!lt || !lt.visible) return '<span class="none">No active lower-third</span>';
-  const parts = [lt.name, lt.title].filter((p) => Boolean(p && p.trim()));
-  return parts.length > 0 ? parts.join(' — ') : '<span class="none">No active lower-third</span>';
+  const sides = [graphics?.lowerThirds?.left, graphics?.lowerThirds?.right]
+    .filter((lt): lt is NonNullable<typeof lt> => Boolean(lt?.visible))
+    .map((lt) => [lt.name, lt.title].filter((p) => Boolean(p && p.trim())).join(' — '))
+    .filter((s) => s.length > 0);
+  return sides.length > 0 ? sides.join(' · ') : '<span class="none">No active lower-third</span>';
 }
 
 function panelId(officeId: string): string {

@@ -112,7 +112,6 @@ export function slideLoadOp(
   const prev = store.getState().slides;
   store.setState({
     currentMode: 'slides',
-    l3: null,
     mediaLibrary: null,
     slides: makeSlidesState({
       deckId,

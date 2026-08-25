@@ -2,17 +2,15 @@ import type { StateStore } from './state';
 import type { AuthManager } from './auth';
 import type { PresetsStore } from './presets';
 import type { L3CueStore } from './l3/cue-store';
-import type { L3PlaylistStore } from './l3/playlist-store';
+import type { L3LogoStore } from './l3/logo-store';
 import type { MediaLibraryStore } from './media-library/item-store';
 import type { SlideshowEngine } from './media-library/slideshow';
 import type { SlidesWindowManager } from './slides/window-manager';
-import type { Mode, SlideshowTransition, ScoreboardState, LowerThirdState, LowerThirdTheme, LowerThirdAnimationStyle, PrompterState } from '../shared/types';
+import type { Mode, SlideshowTransition, ScoreboardState, LowerThirdState, LowerThirdsState, LowerThirdTheme, LowerThirdAnimationStyle, PrompterState } from '../shared/types';
 import { slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideLoadOp, slideOfflineModeOp } from './services/slide-ops';
 import { urlLoadOp, urlReloadOp, setDisplayTargetOp } from './services/url-ops';
 import { fanOutSlideCommand } from './services/backup-fanout';
 import type { AppSettings } from './app-settings';
-import { l3ClearOp, l3StackingOp, l3TakeOp } from './l3/take-ops';
-import { playlistActivateOp, playlistStepOp } from './l3/playlist-ops';
 import { stillsTakeOp, stillsClearOp } from './media-library/stills-ops';
 import { forwardToExternalPrompter } from './prompter/forward';
 import {
@@ -86,8 +84,8 @@ export function createActionDispatcher(deps: {
   auth: AuthManager;
   presets: PresetsStore;
   cues: L3CueStore;
-  /** L3 playlist store — enables l3_next / l3_prev / l3_activate_playlist. */
-  playlists?: L3PlaylistStore;
+  /** L3 logo asset store — enables the logoAssetId param on lower_third_apply. */
+  logos?: L3LogoStore;
   /** Media library — enables stills_take / stills_clear / slideshow actions. */
   media?: MediaLibraryStore;
   /** Slideshow engine — must be the same instance the media-library router uses. */
@@ -101,7 +99,7 @@ export function createActionDispatcher(deps: {
   /** Returns the current backup fan-out settings (primary mode only). */
   getBackupSettings?: () => { operationMode: AppSettings['operationMode']; backupIps: string[]; port: number };
 }) {
-  const { store, presets, cues, playlists, media, slideshow, windowManager, getPrompterHost, isPrompterEnabled, getBackupSettings } = deps;
+  const { store, presets, cues, logos, media, slideshow, windowManager, getPrompterHost, isPrompterEnabled, getBackupSettings } = deps;
 
   const reloadTimers = new Map<'A' | 'B', ReturnType<typeof setTimeout>>();
 
@@ -257,7 +255,7 @@ export function createActionDispatcher(deps: {
       }
       case 'set_mode': {
         const mode = str(p.mode) as Mode | undefined;
-        const allowed: Mode[] = ['slides', 'url', 'l3', 'media-library', 'idle'];
+        const allowed: Mode[] = ['slides', 'url', 'media-library', 'idle'];
         if (!mode || !allowed.includes(mode)) {
           return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: `mode must be one of: ${allowed.join(', ')}` } };
         }
@@ -278,45 +276,6 @@ export function createActionDispatcher(deps: {
         const inst = str(p.instance);
         const target = inst === 'A' || inst === 'B' ? inst : undefined;
         const r = setDisplayTargetOp(store, display, target);
-        return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
-      }
-      case 'l3_take': {
-        const cueId = str(p.cue_id) ?? str(p.cueId);
-        const name = str(p.name);
-        const title = str(p.title);
-        const theme = str(p.theme);
-        const r = l3TakeOp(store, cues, { cueId, name, title, theme });
-        return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
-      }
-      case 'l3_clear': {
-        const r = l3ClearOp(store);
-        return { ok: true, body: r.body };
-      }
-      case 'l3_stacking_on': {
-        const r = l3StackingOp(store, true);
-        return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
-      }
-      case 'l3_stacking_off': {
-        const r = l3StackingOp(store, false);
-        return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
-      }
-      case 'l3_toggle_stacking': {
-        const r = l3StackingOp(store, !(store.getState().l3?.isStacking ?? false));
-        return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
-      }
-      case 'l3_next':
-      case 'l3_prev': {
-        if (!playlists) return unavailable('Playlist stepping');
-        const r = playlistStepOp(store, playlists, cues, actionId === 'l3_next' ? 1 : -1);
-        return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
-      }
-      case 'l3_activate_playlist': {
-        if (!playlists) return unavailable('Playlist activation');
-        const idOrName = str(p.playlist) ?? str(p.playlist_id);
-        if (!idOrName) {
-          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'playlist (id or name) is required' } };
-        }
-        const r = playlistActivateOp(store, playlists, idOrName);
         return r.ok ? { ok: true, body: r.body } : { ok: false, status: r.status, error: r.error };
       }
       case 'stills_take': {
@@ -565,14 +524,17 @@ export function createActionDispatcher(deps: {
         return { ok: true, body: { graphics: { scoreboard } } };
       }
       case 'lower_third_apply': {
-        const existing = store.getState().graphics?.lowerThird ?? null;
+        const sideRaw = str(p.side);
+        const side: 'left' | 'right' = sideRaw === 'right' ? 'right' : 'left';
+        const lowerThirds: LowerThirdsState = store.getState().graphics?.lowerThirds ?? { left: null, right: null };
+        const existing = lowerThirds[side];
         const cueId = str(p.cue_id) ?? str(p.cueId);
         let name = str(p.name);
         let title = str(p.title);
         let subtitle = str(p.subtitle);
 
         if (cueId) {
-          const cue = cues.findById(cueId); // read-only — never writes back to the cue store, state.l3, or currentMode
+          const cue = cues.findById(cueId); // read-only — never writes back to the cue store
           if (!cue) {
             return { ok: false, status: 404, error: { code: 'CUE_NOT_FOUND', message: `Cue '${cueId}' not found` } };
           }
@@ -606,7 +568,13 @@ export function createActionDispatcher(deps: {
           ? Math.min(LOWER_THIRD_FADE_MS_MAX, Math.max(LOWER_THIRD_FADE_MS_MIN, Math.round(fadeMsRaw)))
           : (existing?.fadeMs ?? LOWER_THIRD_DEFAULT_FADE_MS);
 
-        const lowerThird: LowerThirdState = {
+        const logoEnabled = bool(p.logoEnabled) ?? bool(p.logo_enabled) ?? existing?.logoEnabled ?? false;
+        const logoAssetIdRaw = str(p.logoAssetId) ?? str(p.logo_asset_id);
+        const logoAssetId = logoAssetIdRaw !== undefined
+          ? (logos?.findById(logoAssetIdRaw) ? logoAssetIdRaw : null)
+          : (existing?.logoAssetId ?? null);
+
+        const next: LowerThirdState = {
           visible: true,
           name: name.trim(),
           title: (title ?? existing?.title ?? '').trim(),
@@ -619,18 +587,24 @@ export function createActionDispatcher(deps: {
           fadeEnabled,
           fadeMs,
           animationStyle,
+          logoEnabled,
+          logoAssetId,
         };
-        store.setState({ graphics: { ...store.getState().graphics, lowerThird } });
-        return { ok: true, body: { graphics: { lowerThird } } };
+        const nextLowerThirds: LowerThirdsState = { ...lowerThirds, [side]: next };
+        store.setState({ graphics: { ...store.getState().graphics, lowerThirds: nextLowerThirds } });
+        return { ok: true, body: { graphics: { lowerThirds: nextLowerThirds } } };
       }
       case 'lower_third_hide': {
-        const existing = store.getState().graphics?.lowerThird ?? null;
+        const sideRaw = str(p.side);
+        const side: 'left' | 'right' = sideRaw === 'right' ? 'right' : 'left';
+        const lowerThirds: LowerThirdsState = store.getState().graphics?.lowerThirds ?? { left: null, right: null };
+        const existing = lowerThirds[side];
         if (!existing) {
-          return { ok: true, body: { graphics: { lowerThird: null } } };
+          return { ok: true, body: { graphics: { lowerThirds } } };
         }
-        const lowerThird: LowerThirdState = { ...existing, visible: false };
-        store.setState({ graphics: { ...store.getState().graphics, lowerThird } });
-        return { ok: true, body: { graphics: { lowerThird } } };
+        const nextLowerThirds: LowerThirdsState = { ...lowerThirds, [side]: { ...existing, visible: false } };
+        store.setState({ graphics: { ...store.getState().graphics, lowerThirds: nextLowerThirds } });
+        return { ok: true, body: { graphics: { lowerThirds: nextLowerThirds } } };
       }
       default:
         return {

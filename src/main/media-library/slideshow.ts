@@ -36,7 +36,6 @@ export function createSlideshowEngine(deps: { store: StateStore; media: MediaLib
     const item = itemId ? media.findById(itemId) : null;
     store.setState({
       currentMode: 'media-library',
-      l3: null,
       mediaLibrary: {
         activeItemId: item?.id ?? null,
         activeItemName: item?.displayName ?? null,

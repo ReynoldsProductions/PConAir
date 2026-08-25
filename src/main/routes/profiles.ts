@@ -4,7 +4,6 @@ import path from 'path';
 import type { AuthManager } from '../auth';
 import type { PresetsStore } from '../presets';
 import type { L3CueStore } from '../l3/cue-store';
-import type { L3PlaylistStore } from '../l3/playlist-store';
 import type { MediaLibraryStore } from '../media-library/item-store';
 import type { ProfilePaths } from '../profiles/paths';
 import type { ShowProfile } from '../profiles/types';
@@ -35,7 +34,6 @@ export interface ProfilesRouterDeps {
   auth: AuthManager;
   presets: PresetsStore;
   l3Cues: L3CueStore;
-  l3Playlists: L3PlaylistStore;
   mediaLibrary: MediaLibraryStore;
   store: StateStore;
   onProfileActivate?: () => void;
@@ -250,7 +248,6 @@ export function createProfilesRouter(d: ProfilesRouterDeps): Router {
       paths: d.paths,
       presets: d.presets,
       cues: d.l3Cues,
-      playlists: d.l3Playlists,
       activeProfileId: d.getActiveProfileId(),
     });
     if (!r.ok) {

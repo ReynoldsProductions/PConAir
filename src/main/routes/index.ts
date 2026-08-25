@@ -28,8 +28,8 @@ import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { PresetsStore } from '../presets';
 import type { L3CueStore } from '../l3/cue-store';
-import type { L3PlaylistStore } from '../l3/playlist-store';
 import type { L3ThemeStore } from '../l3/theme-store';
+import type { L3LogoStore } from '../l3/logo-store';
 import type { MediaLibraryStore } from '../media-library/item-store';
 import type { SlideshowEngine } from '../media-library/slideshow';
 import type { ActionDispatcher } from '../action-dispatch';
@@ -43,8 +43,8 @@ export interface RouteServices {
   auth: AuthManager;
   presets: PresetsStore;
   l3Cues: L3CueStore;
-  l3Playlists: L3PlaylistStore;
   l3ThemeStore: L3ThemeStore;
+  l3Logos: L3LogoStore;
   l3FilesRoot: string;
   graphicsRoot?: string;
   /**
@@ -76,6 +76,14 @@ export interface RouteServices {
   getSlidesNotes: () => Promise<string | null>;
   getProfileName: () => string;
   renderManualCue?: (cue: L3Cue) => Promise<Buffer>;
+  /** Ad-hoc "export whatever is currently typed" render, for the live Lower Thirds tab. */
+  renderAdHocCard?: (input: {
+    name: string;
+    title?: string | null;
+    subtitle?: string | null;
+    theme?: string | null;
+    logoDataUrl?: string | null;
+  }) => Promise<Buffer>;
   /** Tunnel control hooks (Electron main); absent in tests. */
   startTunnel?: () => void;
   stopTunnel?: () => void;
@@ -224,7 +232,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   app.use(createStageTimerRouter({ store: s.store, auth: s.auth, getBackupSettings: s.getBackupSettings, ...s.stageTimer }));
   app.use('/api/url', createUrlRouter(s.store, s.auth));
   app.use('/api/presets', createPresetsRouter(s.store, s.auth, s.presets));
-  app.use('/api/l3', createL3Router(s.store, s.auth, s.l3Cues, s.l3Playlists, s.l3ThemeStore, s.l3FilesRoot, s.renderManualCue));
+  app.use('/api/l3', createL3Router(s.auth, s.l3Cues, s.l3ThemeStore, s.l3Logos, s.l3FilesRoot, s.renderManualCue, s.renderAdHocCard));
   app.use('/api/media-library', createMediaLibraryRouter(s.store, s.auth, s.mediaLibrary, s.slideshow));
   app.use('/api/background', createBackgroundRouter({
     store: s.store,
@@ -241,7 +249,6 @@ export function mountRoutes(app: Express, s: RouteServices): void {
       auth: s.auth,
       presets: s.presets,
       l3Cues: s.l3Cues,
-      l3Playlists: s.l3Playlists,
       mediaLibrary: s.mediaLibrary,
       store: s.store,
       onProfileActivate: s.onProfileActivate,

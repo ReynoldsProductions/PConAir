@@ -19,14 +19,13 @@ import { createSlidesWindowManager } from './slides/window-manager';
 import { createUrlWindowManager } from './url/window-manager';
 import { createPrompterWindowManager } from './prompter/window-manager';
 import { createL3CueStore } from './l3/cue-store';
-import { createL3PlaylistStore } from './l3/playlist-store';
 import { createL3ThemeStore } from './l3/theme-store';
-import { createL3WindowManager } from './l3/window-manager';
+import { createL3LogoStore } from './l3/logo-store';
 import { createMediaLibraryStore } from './media-library/item-store';
 import { createMediaLibraryWindowManager } from './media-library/window-manager';
 import { createSlideshowEngine } from './media-library/slideshow';
 import { createActionDispatcher } from './action-dispatch';
-import { renderCueToPng } from './l3/cue-renderer';
+import { renderCueToPng, renderLowerThirdCardToPng } from './l3/cue-renderer';
 import { wireRuntimePersistence } from './runtime-persistence';
 import { snapshotDisplays } from './displays';
 import { bootstrapProfiles, parseProfileCliArg, getActiveMarker, loadProfile, syncActiveProfileUrlPresets, clearIpAllowlistForActiveProfile } from './profiles/bootstrap';
@@ -121,15 +120,15 @@ async function main() {
   const presets = createPresetsStore(chain);
   presets.replaceAll(boot.profile.urlPresets);
   const l3Cues = createL3CueStore(chain);
-  const l3Playlists = createL3PlaylistStore(l3Cues, chain);
   const persistPath = profileRuntimeStatePath(boot.paths, boot.activeId);
-  markRuntimeFlush = wireRuntimePersistence(persistPath, { presets, cues: l3Cues, playlists: l3Playlists }).markDirty;
+  markRuntimeFlush = wireRuntimePersistence(persistPath, { presets, cues: l3Cues }).markDirty;
 
   const mediaLibraryRoot = path.join(app.getPath('userData'), 'media-library');
   const mediaLibrary = createMediaLibraryStore({ rootDir: mediaLibraryRoot });
 
   const l3FilesRoot = path.join(userData, 'still-store');
   const l3ThemeStore = createL3ThemeStore({ l3FilesRoot });
+  const l3Logos = createL3LogoStore({ l3FilesRoot });
 
   const slideshow = createSlideshowEngine({ store, media: mediaLibrary });
 
@@ -151,7 +150,7 @@ async function main() {
     auth,
     presets,
     cues: l3Cues,
-    playlists: l3Playlists,
+    logos: l3Logos,
     media: mediaLibrary,
     slideshow,
     windowManager: slidesManager,
@@ -169,9 +168,6 @@ async function main() {
   // on whichever monitor the confidence display or glass rig is wired to.
   const prompterManager = createPrompterWindowManager({ getPort: () => port, getDisplayPreference });
   urlManager.initialize();
-
-  const l3Manager = createL3WindowManager({ store, themes: l3ThemeStore, cues: l3Cues, getDisplayPreference });
-  l3Manager.initialize();
 
   const mediaLibraryManager = createMediaLibraryWindowManager({ store, media: mediaLibrary, getDisplayPreference });
   mediaLibraryManager.initialize();
@@ -220,8 +216,8 @@ async function main() {
     auth,
     presets,
     l3Cues,
-    l3Playlists,
     l3ThemeStore,
+    l3Logos,
     l3FilesRoot,
     mediaLibrary,
     slideshow,
@@ -275,7 +271,8 @@ async function main() {
       app.exit(0);
     },
     trustForwardedFor: cli.trustForwardedFor,
-    renderManualCue: (cue) => renderCueToPng(cue, l3ThemeStore.getThemeCss(cue.theme)),
+    renderManualCue: (cue) => renderCueToPng(cue, `http://127.0.0.1:${port}`),
+    renderAdHocCard: (input) => renderLowerThirdCardToPng({ ...input, fontsOrigin: `http://127.0.0.1:${port}` }),
     getCustomLogoPath: () => loadAppSettings(settingsFile).customLogoPath,
     getCustomCssPath: () => loadAppSettings(settingsFile).customCssPath,
     saveBrandingSettings: (patch) => {

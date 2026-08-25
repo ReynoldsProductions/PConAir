@@ -7,7 +7,6 @@ const DEFAULT_STATE: AppState = {
   currentPreset: null,
   currentUrl: null,
   slides: null,
-  l3: null,
   mediaLibrary: null,
   background: { presetId: null, presetName: null, type: 'luma', value: '#000000' },
   displays: [],
@@ -48,7 +47,7 @@ const DEFAULT_STATE: AppState = {
     configured: false,
   },
   prompter: makePrompterState(),
-  graphics: { scoreboard: null, lowerThird: null },
+  graphics: { scoreboard: null, lowerThirds: { left: null, right: null } },
 };
 
 export function createClientStore() {

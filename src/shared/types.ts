@@ -1,7 +1,7 @@
 // AppState — the single source of truth for all runtime state.
 // Matches specs/02-api-state-contract.md §1.1
 
-export type Mode = 'slides' | 'url' | 'l3' | 'media-library' | 'idle';
+export type Mode = 'slides' | 'url' | 'media-library' | 'idle';
 export type ABInstance = 'A' | 'B';
 /**
  * Backdrop behind PConAir's own output windows.
@@ -65,26 +65,6 @@ export function makeSlidesState(
   };
 }
 
-export interface L3State {
-  activeCueId: string | null;
-  activeCueName: string | null;
-  /** Secondary line (e.g. job title); mirrors cue.title or inline take. */
-  activeTitle: string | null;
-  /** Theme name of the live cue — render pages fetch its CSS. */
-  activeTheme: string | null;
-  isStacking: boolean;
-  /**
-   * Display id the L3 program window targets, chosen by the operator on the
-   * Cue Library page. null = fall back to the profile-wide preference from
-   * Admin → Monitors. Survives takes and clears.
-   */
-  outputDisplayId: string | null;
-  currentPlaylistId: string | null;
-  /** 1-based position of the active cue within the active playlist (null when none). */
-  playlistPosition: number | null;
-  /** Cue count of the active playlist (null when none). */
-  playlistLength: number | null;
-}
 
 export type SlideshowTransition = 'cut' | 'fade';
 
@@ -311,7 +291,7 @@ export interface LowerThirdState {
   title: string;
   subtitle: string | null;
   theme: LowerThirdTheme;
-  /** Traceability only — which L3 cue (if any) this was prefilled from. Never used to mutate the cue store or L3State. */
+  /** Traceability only — which L3 cue (if any) this was prefilled from. Never used to mutate the cue store. */
   sourceCueId: string | null;
   /** When false, the lower third cuts in/out instantly with no transition. */
   fadeEnabled: boolean;
@@ -319,11 +299,21 @@ export interface LowerThirdState {
   fadeMs: number;
   /** Entrance/exit transition style, applied when fadeEnabled is true. */
   animationStyle: LowerThirdAnimationStyle;
+  /** Whether the logo chip (logoAssetId) is shown alongside the text. */
+  logoEnabled: boolean;
+  /** Id of an uploaded logo from the shared L3 logo library, or null. */
+  logoAssetId: string | null;
+}
+
+/** Independent left/right lower thirds — either, both, or neither can be on air at once. */
+export interface LowerThirdsState {
+  left: LowerThirdState | null;
+  right: LowerThirdState | null;
 }
 
 export interface GraphicsState {
   scoreboard: ScoreboardState | null;
-  lowerThird: LowerThirdState | null;
+  lowerThirds: LowerThirdsState;
 }
 
 export interface AppState {
@@ -331,7 +321,6 @@ export interface AppState {
   currentPreset: Preset | null;
   currentUrl: string | null;
   slides: SlidesState | null;
-  l3: L3State | null;
   mediaLibrary: MediaLibraryState | null;
   background: BackgroundState;
   displays: Display[];

@@ -27,7 +27,6 @@ export function stillsTakeOp(
   }
   store.setState({
     currentMode: 'media-library',
-    l3: null,
     mediaLibrary: {
       activeItemId: item.id,
       activeItemName: item.displayName,

@@ -3,7 +3,7 @@ import request from 'supertest';
 import type { Express } from 'express';
 import { createStateStore } from '../src/main/state';
 import { createFullServer } from './_test-server';
-import { renderCueHtml } from '../src/main/l3/cue-renderer';
+import { renderLowerThirdCardHtml } from '../src/main/l3/cue-renderer';
 
 /** Minimal valid 1×1 PNG */
 const PNG_1PX = Buffer.from(
@@ -375,44 +375,26 @@ describe('L3 cue export — manual type', () => {
     expect(res.body.error.code).toBe('NOT_IMPLEMENTED');
   });
 
-  it('renderCueHtml returns valid HTML with cue fields', () => {
-    const cue = {
-      id: 'test-id',
+  it('renderLowerThirdCardHtml returns valid HTML with the given fields', () => {
+    const html = renderLowerThirdCardHtml({
       name: 'Jane Doe',
       title: 'Chief Executive Officer',
-      subtitle: null,
       theme: 'default',
-      sourceType: 'manual' as const,
-      originalImagePath: null,
-      originalImageFormat: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    const css = '.lower-third { background: rgba(0,0,0,0.8); }';
-    const html = renderCueHtml(cue, css);
+    });
 
     expect(html).toContain('<html');
     expect(html).toContain('Jane Doe');
     expect(html).toContain('Chief Executive Officer');
-    expect(html).toContain(css);
     expect(html).toContain('class="name"');
     expect(html).toContain('class="title"');
   });
 
-  it('renderCueHtml escapes HTML special characters in name and title', () => {
-    const cue = {
-      id: 'test-escape',
+  it('renderLowerThirdCardHtml escapes HTML special characters in name and title', () => {
+    const html = renderLowerThirdCardHtml({
       name: '<script>alert(1)</script>',
       title: '&amp;',
-      subtitle: null,
       theme: 'default',
-      sourceType: 'manual' as const,
-      originalImagePath: null,
-      originalImageFormat: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    const html = renderCueHtml(cue, '');
+    });
 
     // Raw script tag must not appear
     expect(html).not.toContain('<script>');

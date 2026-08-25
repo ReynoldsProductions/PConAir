@@ -54,7 +54,6 @@ export function urlLoadOp(
   store.setState({
     currentMode: 'url',
     currentUrl: url,
-    l3: null,
     mediaLibrary: null,
     abState: { ...state.abState, [instanceKey]: updatedInstance },
   });

@@ -17,7 +17,6 @@ const MODE_TAG_VARIANT: Record<Mode, 'neutral' | 'success' | 'warning' | 'critic
   idle: 'neutral',
   slides: 'info',
   url: 'success',
-  l3: 'warning',
   'media-library': 'strong',
 };
 
@@ -25,7 +24,6 @@ const MODE_BUTTONS: Array<{ mode: Mode; label: string }> = [
   { mode: 'idle', label: 'Idle' },
   { mode: 'slides', label: 'Slides' },
   { mode: 'url', label: 'URL' },
-  { mode: 'l3', label: 'Lower Thirds' },
   { mode: 'media-library', label: 'Media Library' },
 ];
 

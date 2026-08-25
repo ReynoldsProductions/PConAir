@@ -808,6 +808,15 @@ input[type="radio"] {
 
 .url-status-line { font-size: 12px; color: var(--text-subdued); line-height: 1.45; min-height: 1.2em; }
 
+.lt3-columns { display: flex; gap: 16px; align-items: flex-start; }
+.lt3-columns .panel { flex: 1; min-width: 0; }
+@media (max-width: 900px) { .lt3-columns { flex-direction: column; } }
+
+.item-list { display: flex; flex-direction: column; gap: 8px; }
+.item-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; }
+.item-row .item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.item-row img.item-thumb { height: 28px; max-width: 80px; object-fit: contain; flex: none; }
+
 [data-theme="dark"] {
   --bg: #1a1a1a;
   --surface-2: #242424;
@@ -852,7 +861,7 @@ input[type="radio"] {
           <div class="nav-group-label">Show Control</div>
           <a href="#" class="nav-item" data-target="url">URL Mode</a>
           <a href="#" class="nav-item" data-target="lower-third-live">Lower Thirds</a>
-          <a href="#" class="nav-item" data-target="l3">L3 Cue Library</a>
+          <a href="#" class="nav-item" data-target="l3">Manage Lower Thirds</a>
           <a href="#" class="nav-item" data-target="media">Media Library</a>
         </div>
         <div class="nav-group">
@@ -948,48 +957,30 @@ input[type="radio"] {
         </section>
 
         <section data-tab="l3" hidden>
-          <h1 class="page-title">Lower Thirds — Cue Library</h1>
-          <p class="field-hint" style="margin-top:-16px;margin-bottom:16px;">Recalls saved cues to the <strong>lower-third-left / -right / -duo</strong> graphics — the same output the mobile remote and Companion drive. Pick a cue, and optionally retype the name or title to override its wording for this take only. Separate output from the Lower Thirds tab.</p>
+          <h1 class="page-title">Manage Lower Thirds</h1>
+          <p class="field-hint" style="margin-top:-16px;margin-bottom:16px;">Bulk tools for the cue library the Lower Thirds tab pulls from. Individual cue/theme create-edit-delete lives in Admin → L3 Cues / L3 Themes; this page is for CSV import and the shared logo library.</p>
           <div class="panel">
-            <div id="l3-active-line" class="field-hint" style="margin-bottom:12px;">Active: —</div>
+            <div class="panel-title">Import cues from CSV</div>
+            <p class="field-hint" style="margin-bottom:12px;">Columns: <code>name,title,theme,subtitle</code>. <a href="/api/l3/cues/csv-sample" target="_blank" rel="noopener">Download a sample</a>.</p>
             <div class="form-group">
-              <label for="l3-output-display-select">Display target</label>
-              <div class="ml-l3-select-wrap">
-                <select id="l3-output-display-select" class="select-input">
-                  <option value="">Primary display (default)</option>
-                </select>
-                <button type="button" class="btn btn-secondary" id="l3-displays-refresh-btn" title="Reload display list">Refresh</button>
-              </div>
+              <input type="file" id="l3mgmt-csv-input" accept=".csv,text/csv" />
             </div>
+            <div class="btn-row">
+              <button type="button" class="btn btn-primary" id="l3mgmt-csv-import-btn">Import CSV</button>
+            </div>
+            <p id="l3mgmt-csv-msg" class="field-hint" style="margin-top:8px;"></p>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Logo library</div>
+            <p class="field-hint" style="margin-bottom:12px;">Upload logo images here, then enable the logo chip and pick one on either side of the Lower Thirds tab.</p>
             <div class="form-group">
-              <label for="l3-cue-select">Cue from library</label>
-              <div class="ml-l3-select-wrap">
-                <select id="l3-cue-select" class="select-input">
-                  <option value="">— Manual entry below —</option>
-                </select>
-                <button type="button" class="btn btn-secondary" id="l3-cues-refresh-btn" title="Reload cue list">Refresh</button>
-              </div>
+              <input type="file" id="l3mgmt-logo-input" accept="image/*" />
             </div>
-            <div class="form-group">
-              <label for="l3-name-input">Name (blank = use the cue’s)</label>
-              <input type="text" id="l3-name-input" class="input-field" placeholder="Speaker name" autocomplete="off" />
+            <div class="btn-row">
+              <button type="button" class="btn btn-primary" id="l3mgmt-logo-upload-btn">Upload Logo</button>
             </div>
-            <div class="form-group">
-              <label for="l3-title-input">Title (blank = use the cue’s)</label>
-              <input type="text" id="l3-title-input" class="input-field" placeholder="Role or second line" autocomplete="off" />
-            </div>
-            <label class="form-group" style="display:flex;flex-direction:row;align-items:center;gap:8px;cursor:pointer;user-select:none;margin-bottom:0;">
-              <input type="checkbox" id="l3-stacking-checkbox" />
-              <span>Stack with active</span>
-            </label>
-            <div class="form-group" style="margin-top:8px;">
-              <label for="l3-auto-out-input">Auto-out (sec, 0 = manual)</label>
-              <input type="number" id="l3-auto-out-input" class="input-field" placeholder="0" min="0" step="1" value="0" style="width:100px;" />
-            </div>
-            <div class="btn-row" style="margin-top:16px;">
-              <button type="button" class="btn btn-primary" id="l3-take-btn">Take</button>
-              <button type="button" class="btn btn-secondary" id="l3-clear-btn">Clear</button>
-            </div>
+            <p id="l3mgmt-logo-msg" class="field-hint" style="margin:8px 0;"></p>
+            <div id="l3mgmt-logo-list" class="item-list"></div>
           </div>
         </section>
 
@@ -997,89 +988,22 @@ input[type="radio"] {
           <h1 class="page-title">Lower Thirds</h1>
           <div class="panel">
             <div class="panel-title">Step 1 — Open the output display</div>
-            <p class="field-hint" style="margin-bottom:16px;">Apply/Hide below only update the live graphic's data — they don't by themselves show anything. Click this once per show (or after switching modes/displays) to point a URL-mode output window at the live graphic. Solid black background, safe to key over.</p>
+            <p class="field-hint" style="margin-bottom:16px;">Apply/Hide below only update the live graphic's data — they don't by themselves show anything. Click this once per show (or after switching modes/displays) to point a URL-mode output window at the live graphic. Solid black background, safe to key over. Left and right lower thirds share this one output.</p>
             <div class="form-group">
-              <label for="lt-output-display-select">Display target</label>
+              <label for="lt3-output-display-select">Display target</label>
               <div class="ml-l3-select-wrap">
-                <select id="lt-output-display-select" class="select-input">
+                <select id="lt3-output-display-select" class="select-input">
                   <option value="">Primary display (default)</option>
                 </select>
-                <button type="button" class="btn btn-secondary" id="lt-displays-refresh-btn" title="Reload display list">Refresh</button>
+                <button type="button" class="btn btn-secondary" id="lt3-displays-refresh-btn" title="Reload display list">Refresh</button>
               </div>
             </div>
-            <button type="button" class="btn btn-primary" id="lt-open-output-btn">Open Output Display</button>
-            <p id="lt-output-status" class="url-status-line field-hint" style="margin-top:8px;"></p>
+            <button type="button" class="btn btn-primary" id="lt3-open-output-btn">Open Output Display</button>
+            <p id="lt3-output-status" class="url-status-line field-hint" style="margin-top:8px;"></p>
           </div>
-          <div class="panel">
-            <div class="panel-title">Step 2 — Apply / Hide</div>
-            <div id="lt-active-line" class="field-hint" style="margin-bottom:12px;">Active: —</div>
-            <div class="form-group">
-              <label for="lt-cue-select">Prefill from cue (optional)</label>
-              <div class="ml-l3-select-wrap">
-                <select id="lt-cue-select" class="select-input">
-                  <option value="">— Manual entry below —</option>
-                </select>
-                <button type="button" class="btn btn-secondary" id="lt-cues-refresh-btn" title="Reload cue list">Refresh</button>
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="lt-name-input">Name</label>
-              <input type="text" id="lt-name-input" class="input-field" placeholder="Speaker name" autocomplete="off" />
-            </div>
-            <div class="form-group">
-              <label for="lt-title-input">Title</label>
-              <input type="text" id="lt-title-input" class="input-field" placeholder="Role or second line" autocomplete="off" />
-            </div>
-            <div class="form-group">
-              <label for="lt-subtitle-input">Subtitle (optional, small third line)</label>
-              <input type="text" id="lt-subtitle-input" class="input-field" placeholder="Leave blank for none" autocomplete="off" />
-            </div>
-            <div class="form-group">
-              <label for="lt-theme-select">Theme</label>
-              <select id="lt-theme-select" class="select-input">
-                <option value="default">Default</option>
-                <option value="dark">Dark</option>
-                <option value="dark_alt">Dark Alt</option>
-                <option value="bright">Bright</option>
-                <option value="bright_insider">Bright — Insider</option>
-                <option value="bright_warm">Bright — Warm</option>
-                <option value="bright_info">Bright — Info</option>
-                <option value="palette_olive">Palette — Olive</option>
-                <option value="palette_teal">Palette — Teal</option>
-                <option value="palette_terracotta">Palette — Terracotta</option>
-                <option value="palette_plum">Palette — Plum</option>
-                <option value="palette_copper">Palette — Copper</option>
-                <option value="palette_sage">Palette — Sage</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="lt-fade-enabled-checkbox">
-                <input type="checkbox" id="lt-fade-enabled-checkbox" checked />
-                Fade in/out
-              </label>
-            </div>
-            <div class="form-group">
-              <label for="lt-fade-ms-slider">Fade duration (ms)</label>
-              <input type="range" id="lt-fade-ms-slider" min="0" max="5000" step="50" value="550" style="width:100%;margin-bottom:8px;" />
-              <input type="number" id="lt-fade-ms-input" class="input-field" min="0" step="50" value="550"
-                title="Slider tops out at 5000ms — type a larger value here for a longer custom fade" />
-            </div>
-            <div class="form-group">
-              <label for="lt-animation-style-select">Animation style</label>
-              <select id="lt-animation-style-select" class="select-input">
-                <option value="fade">Fade / Slide</option>
-                <option value="wipe">Wipe</option>
-                <option value="grow">Grow</option>
-                <option value="slide-up">Slide Up</option>
-                <option value="slide-down">Slide Down</option>
-                <option value="zoom">Zoom</option>
-                <option value="flip">Flip</option>
-              </select>
-            </div>
-            <div class="btn-row" style="margin-top:16px;">
-              <button type="button" class="btn btn-primary" id="lt-apply-btn">Apply</button>
-              <button type="button" class="btn btn-secondary" id="lt-hide-btn">Hide</button>
-            </div>
+          <div class="lt3-columns">
+            <div class="panel" id="lt3-panel-left"></div>
+            <div class="panel" id="lt3-panel-right"></div>
           </div>
         </section>
 

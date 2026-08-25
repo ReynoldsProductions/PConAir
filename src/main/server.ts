@@ -6,8 +6,8 @@ import type { StateStore } from './state';
 import type { AuthManager } from './auth';
 import type { PresetsStore } from './presets';
 import type { L3CueStore } from './l3/cue-store';
-import type { L3PlaylistStore } from './l3/playlist-store';
 import type { L3ThemeStore } from './l3/theme-store';
+import type { L3LogoStore } from './l3/logo-store';
 import type { MediaLibraryStore } from './media-library/item-store';
 import type { SlideshowEngine } from './media-library/slideshow';
 import type { ActionDispatcher } from './action-dispatch';
@@ -28,8 +28,8 @@ export interface ServerDeps {
   auth: AuthManager;
   presets: PresetsStore;
   l3Cues: L3CueStore;
-  l3Playlists: L3PlaylistStore;
   l3ThemeStore: L3ThemeStore;
+  l3Logos: L3LogoStore;
   l3FilesRoot: string;
   mediaLibrary: MediaLibraryStore;
   /** Shared slideshow engine (same instance the action dispatcher uses). */
@@ -45,6 +45,14 @@ export interface ServerDeps {
   trustForwardedFor?: boolean;
   /** When omitted, manual-cue export returns 501 (e.g. in tests without Electron). */
   renderManualCue?: (cue: import('./l3/cue-store').L3Cue) => Promise<Buffer>;
+  /** Ad-hoc "export whatever is currently typed" render, for the live Lower Thirds tab. */
+  renderAdHocCard?: (input: {
+    name: string;
+    title?: string | null;
+    subtitle?: string | null;
+    theme?: string | null;
+    logoDataUrl?: string | null;
+  }) => Promise<Buffer>;
   /** Tunnel PIN gate: bcrypt hash getter; null/omitted = tunnel access not PIN-gated. */
   getTunnelPinHash?: () => string | null;
   /** Tunnel/QR control hooks (Electron main); absent in tests. */
@@ -148,8 +156,8 @@ export function createServer(deps: ServerDeps) {
     auth,
     presets,
     l3Cues,
-    l3Playlists,
     l3ThemeStore,
+    l3Logos,
     l3FilesRoot,
     graphicsRoot,
     vendorRoot,
@@ -164,6 +172,7 @@ export function createServer(deps: ServerDeps) {
     onProfileActivate,
     trustForwardedFor = false,
     renderManualCue: renderManualCueDep,
+    renderAdHocCard: renderAdHocCardDep,
     slidesWindowManager,
   } = deps;
 
@@ -224,8 +233,8 @@ export function createServer(deps: ServerDeps) {
     auth,
     presets,
     l3Cues,
-    l3Playlists,
     l3ThemeStore,
+    l3Logos,
     l3FilesRoot,
     graphicsRoot,
     vendorRoot,
@@ -247,6 +256,7 @@ export function createServer(deps: ServerDeps) {
     getSlidesNotes: getSlidesNotesDep ?? (async () => null),
     getProfileName: getProfileNameDep ?? (() => ''),
     renderManualCue: renderManualCueDep,
+    renderAdHocCard: renderAdHocCardDep,
     startTunnel: deps.startTunnel,
     stopTunnel: deps.stopTunnel,
     saveTunnelSettings: deps.saveTunnelSettings,

@@ -6,7 +6,6 @@ import type { L3Cue } from '../l3/cue-store';
 import type { MediaLibraryStore } from '../media-library/item-store';
 import type { PresetsStore } from '../presets';
 import type { L3CueStore } from '../l3/cue-store';
-import type { L3PlaylistStore } from '../l3/playlist-store';
 import type { ProfilePaths } from './paths';
 import type { ShowProfile } from './types';
 import {
@@ -262,7 +261,6 @@ export function confirmProfileImport(opts: {
   paths: ProfilePaths;
   presets: PresetsStore;
   cues: L3CueStore;
-  playlists: L3PlaylistStore;
   activeProfileId: string;
 }):
   | { ok: true; profileId: string; profileName: string; message: string; actionTaken: string; restartRequired: boolean }
@@ -327,7 +325,6 @@ export function confirmProfileImport(opts: {
   }
   if (stillItems.length > 0) {
     opts.cues.replaceAll(stillItemsToCues(stillItems));
-    opts.playlists.replaceAll([]);
   }
 
   return {

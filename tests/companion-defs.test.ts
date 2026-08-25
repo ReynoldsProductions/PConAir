@@ -90,16 +90,11 @@ describe('companion module definitions', () => {
       expect(h.dispatched[0].params).toEqual({ item_ids: [], interval_sec: 7, transition: 'cut' });
     });
 
-    it('l3_take parses variables in the name field', async () => {
-      await run(actions, 'l3_take', { cue_id: '', name: '$(test:name)', title: '', theme: '' });
-      expect(h.dispatched[0].params).toEqual({ name: 'Alice' });
-    });
-
     it('allowCustom dropdown values are validated with fallback (set_mode)', async () => {
       await run(actions, 'set_mode', { mode: 'nonsense' });
       expect(h.dispatched[0].params).toEqual({ mode: 'slides' });
-      await run(actions, 'set_mode', { mode: 'l3' });
-      expect(h.dispatched[1].params).toEqual({ mode: 'l3' });
+      await run(actions, 'set_mode', { mode: 'url' });
+      expect(h.dispatched[1].params).toEqual({ mode: 'url' });
     });
   });
 
@@ -137,22 +132,22 @@ describe('companion module definitions', () => {
         subtitle: 'CEO', theme: 'keep', animation: 'keep', fade_enabled: 'keep', fade_ms: '',
       };
       await run(actions, 'lower_third_apply', { ...base, subtitle_mode: 'keep' });
-      expect(h.dispatched[0].params).toEqual({ name: 'Tom' });
+      expect(h.dispatched[0].params).toEqual({ side: 'left', name: 'Tom' });
 
       await run(actions, 'lower_third_apply', { ...base, subtitle_mode: 'set' });
-      expect(h.dispatched[1].params).toEqual({ name: 'Tom', subtitle: 'CEO' });
+      expect(h.dispatched[1].params).toEqual({ side: 'left', name: 'Tom', subtitle: 'CEO' });
 
       await run(actions, 'lower_third_apply', { ...base, subtitle_mode: 'clear' });
-      expect(h.dispatched[2].params).toEqual({ name: 'Tom', subtitle: '' });
+      expect(h.dispatched[2].params).toEqual({ side: 'left', name: 'Tom', subtitle: '' });
     });
 
     it('lower_third_apply passes theme/animation/fade when not keep', async () => {
       await run(actions, 'lower_third_apply', {
-        cue_id: '', name: 'Tom', title: '', subtitle_mode: 'keep', subtitle: '',
+        side: 'right', cue_id: '', name: 'Tom', title: '', subtitle_mode: 'keep', subtitle: '',
         theme: 'dark', animation: 'wipe', fade_enabled: 'false', fade_ms: '250',
       });
       expect(h.dispatched[0].params).toEqual({
-        name: 'Tom', theme: 'dark', animationStyle: 'wipe', fadeEnabled: false, fadeMs: 250,
+        side: 'right', name: 'Tom', theme: 'dark', animationStyle: 'wipe', fadeEnabled: false, fadeMs: 250,
       });
     });
   });
@@ -208,19 +203,9 @@ describe('companion module definitions', () => {
       expect(await cb({ options: { slide_number: '3' } } as never, fakeContext)).toBe(false);
     });
 
-    it('l3_cue_live parses variables against id and name', async () => {
-      const feedbacks = buildFeedbacks(
-        () => ({ l3: { activeCueId: 'x1', activeCueName: 'Alice' } as never }),
-        () => true
-      );
-      const cb = feedbacks['l3_cue_live'].callback as (f: never, c: never) => Promise<boolean>;
-      expect(await cb({ options: { cue: '$(test:name)' } } as never, fakeContext)).toBe(true);
-      expect(await cb({ options: { cue: 'Bob' } } as never, fakeContext)).toBe(false);
-    });
-
     it('score_leader_is picks the leading team or tied', () => {
       const feedbacks = buildFeedbacks(
-        () => ({ graphics: { scoreboard: { scoreA: 10, scoreB: 8 } as never, lowerThird: null } }),
+        () => ({ graphics: { scoreboard: { scoreA: 10, scoreB: 8 } as never, lowerThirds: { left: null, right: null } } }),
         () => true
       );
       const cb = feedbacks['score_leader_is'].callback as (f: never) => boolean;
@@ -233,7 +218,7 @@ describe('companion module definitions', () => {
         () => ({
           prompter: { enabled: true, scrolling: true, speed: 40, fontSize: 72 },
           watchdog: { programUnresponsive: true, programUnresponsiveSecs: 5, memoryPressure: false, memoryPressurePct: 40 },
-          graphics: { scoreboard: null, lowerThird: { visible: true } as never },
+          graphics: { scoreboard: null, lowerThirds: { left: { visible: true } as never, right: null } },
           tunnel: { enabled: true, status: 'active', url: null, pinRequired: true, lastError: null },
         }),
         () => true
@@ -273,7 +258,10 @@ describe('companion module definitions', () => {
               gameClock: '05:00', gameClockRunning: true, shotClock: 24, shotClockRunning: false,
               possession: 'a', foulsA: 2, foulsB: 4, timeoutsA: 5, timeoutsB: 6,
             },
-            lowerThird: { visible: true, name: 'Tom', title: 'CEO', subtitle: null, theme: 'dark', animationStyle: 'fade' },
+            lowerThirds: {
+              left: { visible: true, name: 'Tom', title: 'CEO', subtitle: null, theme: 'dark', animationStyle: 'fade', logoEnabled: false, logoAssetId: null },
+              right: null,
+            },
           },
           watchdog: { programUnresponsive: false, programUnresponsiveSecs: 0, memoryPressure: true, memoryPressurePct: 91 },
           displays: [
@@ -291,7 +279,7 @@ describe('companion module definitions', () => {
       expect(values['prompter_speed']).toBe('55');
       expect(values['score_a']).toBe('3');
       expect(values['possession']).toBe('a');
-      expect(values['gfx_l3_name']).toBe('Tom');
+      expect(values['gfx_l3_left_name']).toBe('Tom');
       expect(values['memory_pct']).toBe('91');
       expect(values['display_count']).toBe('2');
       expect(values['display_primary_name']).toBe('Main');

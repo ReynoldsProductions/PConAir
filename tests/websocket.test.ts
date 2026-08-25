@@ -333,7 +333,7 @@ describe('Graphics viewer WebSocket (?graphics=1)', () => {
     });
 
     // mutate state — should broadcast to all clients including graphics viewer
-    store.setState({ graphics: { scoreboard: { teamA: 'BOS', teamB: 'LAL', scoreA: 10, scoreB: 8, quarter: 'Q2', gameClock: '5:00', gameClockRunning: true, shotClock: 24, shotClockRunning: true, possession: 'a', foulsA: 2, foulsB: 3, timeoutsA: 5, timeoutsB: 6 }, lowerThird: null } });
+    store.setState({ graphics: { scoreboard: { teamA: 'BOS', teamB: 'LAL', scoreA: 10, scoreB: 8, quarter: 'Q2', gameClock: '5:00', gameClockRunning: true, shotClock: 24, shotClockRunning: true, possession: 'a', foulsA: 2, foulsB: 3, timeoutsA: 5, timeoutsB: 6 }, lowerThirds: { left: null, right: null } } });
 
     const patch = await patchPromise;
     expect(patch.type).toBe('state_patch');
@@ -375,12 +375,12 @@ describe('Graphics viewer WebSocket (?graphics=1)', () => {
     await request(srv.app)
       .post('/api/action')
       .set('Cookie', opCookie)
-      .send({ action_id: 'lower_third_apply', params: { name: 'Jane Smith', title: 'CEO', theme: 'dark' } });
+      .send({ action_id: 'lower_third_apply', params: { side: 'left', name: 'Jane Smith', title: 'CEO', theme: 'dark' } });
 
     const patch = await patchPromise;
     expect(patch.type).toBe('state_patch');
-    const payload = (patch as { type: 'state_patch'; payload: { graphics?: { lowerThird?: Record<string, unknown> } } }).payload;
-    expect(payload.graphics?.lowerThird).toMatchObject({
+    const payload = (patch as { type: 'state_patch'; payload: { graphics?: { lowerThirds?: { left?: Record<string, unknown> } } } }).payload;
+    expect(payload.graphics?.lowerThirds?.left).toMatchObject({
       visible: true,
       name: 'Jane Smith',
       title: 'CEO',

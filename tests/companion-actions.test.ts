@@ -35,61 +35,6 @@ describe('action dispatcher — phase 9 Companion actions', () => {
 
   afterEach(() => srv.close());
 
-  describe('L3 playlists', () => {
-    let cueIds: string[];
-
-    beforeEach(() => {
-      cueIds = ['Alice', 'Bob', 'Carol'].map(
-        (name) => srv.l3Cues.create({ name, title: `${name} Title`, theme: 'default', subtitle: null }).id
-      );
-      const created = srv.l3Playlists.create({ name: 'Show Open', cueIds });
-      expect(created.ok).toBe(true);
-    });
-
-    it('l3_activate_playlist accepts a playlist name and seeds length', async () => {
-      const res = await act('l3_activate_playlist', { playlist: 'Show Open' });
-      expect(res.status).toBe(200);
-      const l3 = store.getState().l3;
-      expect(l3?.currentPlaylistId).toBeTruthy();
-      expect(l3?.playlistLength).toBe(3);
-      expect(l3?.playlistPosition).toBeNull();
-    });
-
-    it('l3_next / l3_prev step with wrap and update playlistPosition in state', async () => {
-      await act('l3_activate_playlist', { playlist: 'Show Open' });
-
-      let res = await act('l3_next');
-      expect(res.status).toBe(200);
-      expect(res.body.playlistPosition).toBe(1);
-      expect(store.getState().l3?.activeCueName).toBe('Alice');
-      expect(store.getState().l3?.playlistPosition).toBe(1);
-      expect(store.getState().l3?.playlistLength).toBe(3);
-
-      res = await act('l3_next');
-      expect(store.getState().l3?.activeCueName).toBe('Bob');
-      expect(store.getState().l3?.playlistPosition).toBe(2);
-
-      // prev wraps backwards from position 2 → 1, then 1 → 3
-      await act('l3_prev');
-      expect(store.getState().l3?.playlistPosition).toBe(1);
-      await act('l3_prev');
-      expect(store.getState().l3?.activeCueName).toBe('Carol');
-      expect(store.getState().l3?.playlistPosition).toBe(3);
-    });
-
-    it('l3_next without an active playlist fails honestly', async () => {
-      const res = await act('l3_next');
-      expect(res.status).toBe(400);
-      expect(res.body.error.code).toBe('PRESET_NOT_FOUND');
-    });
-
-    it('l3_toggle_stacking flips the stacking flag', async () => {
-      await act('l3_toggle_stacking');
-      expect(store.getState().l3?.isStacking).toBe(true);
-      await act('l3_toggle_stacking');
-      expect(store.getState().l3?.isStacking).toBe(false);
-    });
-  });
 
   describe('still store', () => {
     let itemId: string;
