@@ -104,6 +104,9 @@
       </div>
     </div>
   </div>
+  <div class="row">
+    <button class="red" data-act="scoreReset" style="flex:1">RESET SCORE</button>
+  </div>
 </div>
 
 <div class="section">
@@ -153,9 +156,22 @@
   <div class="grid2">
     <div class="row">
       <button data-act="netbug" id="bNetbug" style="flex:1">NETWORK BUG</button>
-      <button data-act="ticker" id="bTicker" style="flex:1">TICKER</button>
+      <button data-act="live" id="bLive" style="flex:1">LIVE</button>
     </div>
     <input id="venue" placeholder="Venue (TD Garden)">
+  </div>
+  <div class="row">
+    <input id="logoFile" type="file" accept="image/png,image/jpeg,image/gif,image/svg+xml,image/webp" style="flex:1">
+    <button data-act="logoUpload" style="flex:0">UPLOAD LOGO</button>
+    <button class="red" data-act="logoClear" style="flex:0">USE TEXT LOGO</button>
+  </div>
+  <div class="small" id="logoStatus"></div>
+  <div class="lbl">Ticker</div>
+  <input id="tickerLabel" placeholder="Tag (AROUND THE LEAGUE)">
+  <textarea id="tickerMessages" rows="5" placeholder="One headline per line" style="width:100%;font-family:var(--sans);font-size:14px;padding:10px;background:var(--bg);border:1px solid var(--line);border-radius:6px;color:var(--ink);resize:vertical;"></textarea>
+  <div class="row">
+    <button class="amber" data-act="tickerSet" style="flex:1">UPDATE TICKER</button>
+    <button data-act="ticker" id="bTicker" style="flex:1">TICKER ON/OFF</button>
   </div>
 </div>
 
@@ -211,7 +227,9 @@
     g('bBonusA').classList.toggle('toggled', !!state.bonusA);
     g('bBonusB').classList.toggle('toggled', !!state.bonusB);
     g('bNetbug').classList.toggle('toggled', !!state.netBugVisible);
-    g('bTicker').classList.toggle('toggled', !!state.tickerVisible);
+    g('bLive').classList.toggle('toggled', state.liveVisible !== false);
+    const ticker = state.ticker || {};
+    g('bTicker').classList.toggle('toggled', !!ticker.visible);
     g('bClockStart').classList.toggle('toggled', state.clockEndsAt > 0);
     g('bShotStart').classList.toggle('toggled', state.shotEndsAt > 0);
     document.querySelectorAll('[data-qtr]').forEach((b) => {
@@ -221,6 +239,11 @@
     syncInput('pcName', pc.name); syncInput('pcNumber', pc.number);
     syncInput('pcInfo', pc.info); syncInput('pcFg', pc.fg);
     syncInput('pcPts', pc.pts); syncInput('pcReb', pc.reb); syncInput('pcAst', pc.ast);
+    syncInput('tickerLabel', ticker.label);
+    syncInput('tickerMessages', (ticker.messages || []).join('\n'));
+    g('logoStatus').textContent = state.logoAsset
+      ? 'Current logo: ' + state.logoAsset
+      : 'Current logo: text badge (COURTVISION)';
   }
 
   setInterval(() => {
@@ -261,7 +284,23 @@
         else patch({ shotClock: +arg });
         break;
       case 'netbug': patch({ netBugVisible: !state.netBugVisible }); break;
-      case 'ticker': patch({ tickerVisible: !state.tickerVisible }); break;
+      case 'live': patch({ liveVisible: !(state.liveVisible !== false) }); break;
+      case 'ticker': patch({ ticker: { ...(state.ticker || {}), visible: !(state.ticker && state.ticker.visible) } }); break;
+      case 'tickerSet':
+        patch({
+          ticker: {
+            ...(state.ticker || {}),
+            label: g('tickerLabel').value,
+            messages: g('tickerMessages').value.split('\n').map((l) => l.trim()).filter(Boolean),
+            visible: true,
+          },
+        });
+        break;
+      case 'scoreReset':
+        if (confirm('Reset both scores to 0?')) patch({ scoreA: 0, scoreB: 0 });
+        break;
+      case 'logoUpload': uploadLogo(); break;
+      case 'logoClear': patch({ logoAsset: '' }); break;
       case 'pcShow':
       case 'pcHide':
         patch({
@@ -280,6 +319,22 @@
     g(id).addEventListener('change', () => patch({ [id]: g(id).value.toUpperCase() }));
   });
   g('venue').addEventListener('change', () => patch({ venue: g('venue').value }));
+
+  async function uploadLogo() {
+    const file = g('logoFile').files[0];
+    if (!file) { alert('Choose an image file first.'); return; }
+    const body = new FormData();
+    body.append('file', file);
+    try {
+      const res = await fetch('/api/packages/hoops/assets', { method: 'POST', body });
+      if (!res.ok) throw new Error('Upload failed');
+      const { filename } = await res.json();
+      patch({ logoAsset: filename });
+      g('logoFile').value = '';
+    } catch (err) {
+      alert('Logo upload failed: ' + err.message);
+    }
+  }
 </script>
 </body>
 </html>

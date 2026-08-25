@@ -24,6 +24,8 @@
     "timeoutsA": "number",
     "timeoutsB": "number",
     "netBugVisible": "boolean",
+    "liveVisible": "boolean",
+    "logoAsset": "string",
     "venue": "string",
     "playerCard": {
       "visible": "boolean",
@@ -57,6 +59,8 @@
     "timeoutsA": 5,
     "timeoutsB": 4,
     "netBugVisible": true,
+    "liveVisible": true,
+    "logoAsset": "",
     "venue": "TD Garden",
     "playerCard": {
       "visible": false,
@@ -585,6 +589,16 @@
       ]
     },
     {
+      "id": "toggle_live",
+      "label": "Toggle LIVE indicator",
+      "ops": [
+        {
+          "op": "toggle",
+          "field": "liveVisible"
+        }
+      ]
+    },
+    {
       "id": "toggle_ticker",
       "label": "Toggle ticker",
       "ops": [
@@ -669,6 +683,11 @@
       "id": "netbug_visible",
       "label": "Network bug visible",
       "field": "netBugVisible"
+    },
+    {
+      "id": "live_visible",
+      "label": "LIVE indicator visible",
+      "field": "liveVisible"
     },
     {
       "id": "ticker_visible",

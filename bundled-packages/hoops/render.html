@@ -23,8 +23,10 @@
     filter:drop-shadow(0 4px 14px rgba(0,0,0,.5));}
   .netbug .logo{font-family:var(--cond);font-weight:800;font-size:30px;letter-spacing:.04em;color:#fff;
     background:linear-gradient(135deg,var(--amber),#ff7a00);padding:4px 14px;border-radius:6px;color:#15130a;}
+  .netbug .logo-img{display:block;height:38px;width:auto;}
   .netbug .info{font-family:var(--sans);font-weight:600;font-size:15px;letter-spacing:.14em;text-transform:uppercase;color:#e7eef5;text-shadow:0 2px 8px rgba(0,0,0,.6);}
   .netbug .info .live{color:var(--live);}
+  .netbug .info .hidden{display:none;}
 
   /* ── SCOREBUG (bottom center) ── */
   .bug{position:absolute;left:50%;bottom:74px;transform:translateX(-50%);
@@ -108,7 +110,11 @@
 </head>
 <body>
 <div id="stage">
-  <div class="netbug" id="netbug"><span class="logo">COURTVISION</span><span class="info"><span class="live">● LIVE</span> · <span id="venue">TD Garden</span></span></div>
+  <div class="netbug" id="netbug">
+    <span class="logo" id="logoText">COURTVISION</span>
+    <img class="logo-img" id="logoImg" alt="" style="display:none">
+    <span class="info"><span class="live" id="liveTag">● LIVE</span><span id="liveSep"> · </span><span id="venue">TD Garden</span></span>
+  </div>
 
   <div class="bug">
     <div class="team a" id="teamA">
@@ -174,6 +180,27 @@
     return ot > 1 ? 'OT' + ot : 'OT';
   }
 
+  // `logoAsset` names a file uploaded to this package's assets (control page →
+  // Bug & ticker → Upload); empty means the built-in COURTVISION text badge.
+  let currentLogo = null;
+  function applyLogo(asset) {
+    const name = typeof asset === 'string' ? asset : '';
+    if (name === currentLogo) return;
+    currentLogo = name;
+
+    const text = g('logoText');
+    const img = g('logoImg');
+    if (!name) {
+      img.style.display = 'none';
+      img.removeAttribute('src');
+      text.style.display = '';
+      return;
+    }
+    img.onload = () => { text.style.display = 'none'; img.style.display = ''; };
+    img.onerror = () => { img.style.display = 'none'; text.style.display = ''; currentLogo = null; };
+    img.src = '/packages/hoops/assets/' + encodeURIComponent(name);
+  }
+
   function rebuildTicker(items, tag) {
     g('tickerTag').textContent = tag || '';
     const track = g('track');
@@ -209,6 +236,10 @@
     pips(g('tosB'), +s.timeoutsB || 0);
     g('netbug').style.display = s.netBugVisible ? '' : 'none';
     g('venue').textContent = s.venue || '';
+    const liveOn = s.liveVisible !== false;
+    g('liveTag').classList.toggle('hidden', !liveOn);
+    g('liveSep').classList.toggle('hidden', !liveOn);
+    applyLogo(s.logoAsset);
 
     const pc = s.playerCard || {};
     g('card').classList.toggle('in', !!pc.visible);
@@ -254,7 +285,8 @@
     g('clock').textContent = fmtGame(gameMs);
     const shotS = state.shotEndsAt > 0 ? Math.max(0, (state.shotEndsAt - now) / 1000) : +state.shotClock || 0;
     g('shotv').textContent = shotS <= 5 ? shotS.toFixed(1) : Math.ceil(shotS);
-    g('shot').classList.toggle('danger', shotS <= 5);
+    g('shot').classList.toggle('danger', shotS <= 5 && shotS > 0);
+    g('shot').style.display = shotS <= 0 ? 'none' : '';
   }
 
   (function loop() {
