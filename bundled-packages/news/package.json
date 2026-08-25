@@ -27,6 +27,10 @@
   "stateSchema": {
     "theme": "string",
     "logo": "string",
+    "brand": {
+      "font": "string",
+      "accent": "string"
+    },
     "l3Left": {
       "visible": "boolean",
       "name": "string",
@@ -45,11 +49,21 @@
     "logoScale": "number",
     "autoClear": "boolean",
     "autoClearSeconds": "number",
-    "logoAsset": "string"
+    "logoAsset": "string",
+    "timeBug": {
+      "visible": "boolean",
+      "liveVisible": "boolean",
+      "timezone": "string",
+      "format": "string"
+    }
   },
   "initialState": {
     "theme": "default",
     "logo": "tan",
+    "brand": {
+      "font": "inter",
+      "accent": ""
+    },
     "l3Left": {
       "visible": false,
       "name": "Jane Smith",
@@ -94,7 +108,13 @@
     "logoScale": 100,
     "autoClear": false,
     "autoClearSeconds": 8,
-    "logoAsset": ""
+    "logoAsset": "",
+    "timeBug": {
+      "visible": false,
+      "liveVisible": true,
+      "timezone": "America/New_York",
+      "format": "12h"
+    }
   },
   "companionActions": [
     {
@@ -292,6 +312,26 @@
           "field": "autoClear"
         }
       ]
+    },
+    {
+      "id": "news_toggle_time_bug",
+      "label": "Toggle time/live bug",
+      "ops": [
+        {
+          "op": "toggle",
+          "field": "timeBug.visible"
+        }
+      ]
+    },
+    {
+      "id": "news_toggle_time_bug_live",
+      "label": "Toggle LIVE indicator on time bug",
+      "ops": [
+        {
+          "op": "toggle",
+          "field": "timeBug.liveVisible"
+        }
+      ]
     }
   ],
   "companionFeedbacks": [
@@ -314,6 +354,16 @@
       "id": "autoclear_on",
       "label": "Auto-clear enabled",
       "field": "autoClear"
+    },
+    {
+      "id": "time_bug_visible",
+      "label": "Time bug visible",
+      "field": "timeBug.visible"
+    },
+    {
+      "id": "time_bug_live",
+      "label": "Time bug LIVE indicator on",
+      "field": "timeBug.liveVisible"
     }
   ],
   "companionVariables": [

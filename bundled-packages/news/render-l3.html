@@ -18,9 +18,18 @@
 -->
 <style>
   /* self-hosted, so a lost connection cannot silently change the typeface
-     mid-broadcast (these ship with the app at graphics/_fonts/) */
+     mid-broadcast (these ship with the app at graphics/_fonts/). All of the
+     brand-font choices are declared up front — the render then just flips
+     --font-sans, so a font change from the control page needs no reload. */
   @font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:block;src:url('/graphics/_fonts/inter-latin-400.woff2') format('woff2');}
   @font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:block;src:url('/graphics/_fonts/inter-latin-600.woff2') format('woff2');}
+  @font-face{font-family:'Chakra Petch';font-style:normal;font-weight:400;font-display:block;src:url('/graphics/_fonts/chakra-petch-latin-400.woff2') format('woff2');}
+  @font-face{font-family:'Chakra Petch';font-style:normal;font-weight:600;font-display:block;src:url('/graphics/_fonts/chakra-petch-latin-600.woff2') format('woff2');}
+  @font-face{font-family:'Lora';font-style:normal;font-weight:400;font-display:block;src:url('/graphics/_fonts/lora-latin-400.woff2') format('woff2');}
+  @font-face{font-family:'Lora';font-style:normal;font-weight:600;font-display:block;src:url('/graphics/_fonts/lora-latin-600.woff2') format('woff2');}
+  @font-face{font-family:'Saira Condensed';font-style:normal;font-weight:500;font-display:block;src:url('/graphics/_fonts/saira-condensed-latin-500.woff2') format('woff2');}
+  @font-face{font-family:'Saira Condensed';font-style:normal;font-weight:600;font-display:block;src:url('/graphics/_fonts/saira-condensed-latin-600.woff2') format('woff2');}
+  @font-face{font-family:'Share Tech Mono';font-style:normal;font-weight:400;font-display:block;src:url('/graphics/_fonts/share-tech-mono-latin-400.woff2') format('woff2');}
 </style>
 <style>
   :root{
@@ -158,6 +167,25 @@
 <script src="/packages/news/assets/state.js"></script>
 <script>
   var NAME_MIN = 34;
+  var FONT_FAMILIES = {
+    inter: "'Inter',-apple-system,sans-serif",
+    chakra: "'Chakra Petch',sans-serif",
+    lora: "'Lora',Georgia,serif",
+    saira_condensed: "'Saira Condensed',sans-serif",
+    mono: "'Share Tech Mono',monospace",
+  };
+
+  // ── brand (font + accent) ───────────────────────────────────────────────
+  // `--accent` is also set per-theme (see the [data-theme] rules above), and
+  // those rules target `body` directly — setting the override on `body` too
+  // is what lets it win over whichever theme is picked, rather than the
+  // inherited value losing to the theme's own declaration on the same element.
+  function applyBrand(brand) {
+    var b = brand || {};
+    document.documentElement.style.setProperty('--font-sans', FONT_FAMILIES[b.font] || FONT_FAMILIES.inter);
+    if (b.accent) document.body.style.setProperty('--accent', b.accent);
+    else document.body.style.removeProperty('--accent');
+  }
 
   function makeCard(id) {
     var el = document.getElementById(id);
@@ -261,6 +289,7 @@
 
   function applyState(s) {
     document.body.dataset.theme = s.theme || 'default';
+    applyBrand(s.brand);
     syncAutoClear('l3Left', s.l3Left, s);
     syncAutoClear('l3Right', s.l3Right, s);
     last = { l3Left: s.l3Left, l3Right: s.l3Right };
