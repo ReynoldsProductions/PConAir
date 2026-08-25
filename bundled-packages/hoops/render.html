@@ -10,7 +10,7 @@
   :root{
     --bg:#0c0f14; --bg2:#141a22; --panel:#1b232e; --ink:#eef3f7; --sub:#90a0b2;
     --line:rgba(255,255,255,.10); --amber:#ffb515; --red:#ff2e3e; --live:#ff2e3e;
-    --a:#007A33; --b:#552583; --bgold:#FDB927;
+    --a:#007A33; --b:#552583;
     --cond:'Saira Condensed',sans-serif; --sans:'Saira',sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -39,8 +39,11 @@
   .team.a .tab{left:0;background:var(--a);} .team.b .tab{right:0;background:var(--b);}
   .team .logo{width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;
     font-weight:800;font-size:26px;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.5);}
-  .team.a .logo{background:radial-gradient(circle at 35% 30%,#0b9c44,#005f28);}
-  .team.b .logo{background:radial-gradient(circle at 35% 30%,#6c33a8,#3d1a5e);border:2px solid var(--bgold);}
+  /* Gradient + ring are derived from the single --a/--b team color (set from
+     control-page pickers), so any color works instead of only the two hues
+     this was originally tuned for. */
+  .team.a .logo{background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--a) 65%,white 20%),color-mix(in srgb,var(--a) 80%,black 25%));}
+  .team.b .logo{background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--b) 65%,white 20%),color-mix(in srgb,var(--b) 80%,black 25%));border:2px solid color-mix(in srgb,var(--b) 55%,white 45%);}
   .team .abbr{font-weight:700;font-size:30px;letter-spacing:.04em;color:#fff;}
   .team .score{font-weight:800;font-size:62px;line-height:.9;color:#fff;min-width:84px;text-align:center;
     font-variant-numeric:tabular-nums;text-shadow:0 3px 10px rgba(0,0,0,.5);}
@@ -61,17 +64,34 @@
   .center .qtr{color:#fff;background:var(--red);padding:1px 9px;border-radius:4px;letter-spacing:.08em;}
   .center .bonus{color:#0c0f14;background:var(--amber);padding:1px 7px;border-radius:3px;font-weight:700;}
 
-  /* shot clock — mounted above center */
-  .shot{position:absolute;top:-34px;left:50%;transform:translateX(-50%);
-    width:78px;height:64px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  /* shot clock — small top-right badge, clear of the game clock in the center
+     module (it used to float above center and overlap it) */
+  .shot{position:absolute;top:30px;right:42px;
+    width:58px;height:48px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;
     background:linear-gradient(180deg,#241a02,#181203);border:2px solid var(--amber);
-    box-shadow:0 8px 22px rgba(0,0,0,.6),0 0 18px rgba(255,181,21,.35);}
-  .shot .v{font-weight:800;font-size:40px;line-height:.9;color:var(--amber);font-variant-numeric:tabular-nums;text-shadow:0 0 12px rgba(255,181,21,.6);}
-  .shot .l{font-family:var(--sans);font-weight:700;font-size:9px;letter-spacing:.18em;color:#caa24a;margin-top:1px;}
-  .shot.danger{border-color:var(--red);box-shadow:0 8px 22px rgba(0,0,0,.6),0 0 22px rgba(255,46,62,.6);animation:shotpulse .7s ease-in-out infinite;}
+    box-shadow:0 6px 16px rgba(0,0,0,.6),0 0 12px rgba(255,181,21,.3);filter:drop-shadow(0 4px 14px rgba(0,0,0,.4));}
+  .shot .v{font-weight:800;font-size:26px;line-height:.9;color:var(--amber);font-variant-numeric:tabular-nums;text-shadow:0 0 10px rgba(255,181,21,.6);}
+  .shot .l{font-family:var(--sans);font-weight:700;font-size:7px;letter-spacing:.14em;color:#caa24a;margin-top:1px;}
+  .shot.danger{border-color:var(--red);box-shadow:0 6px 16px rgba(0,0,0,.6),0 0 16px rgba(255,46,62,.6);animation:shotpulse .7s ease-in-out infinite;}
   .shot.danger .v{color:var(--red);text-shadow:0 0 14px rgba(255,46,62,.8);}
   .shot.danger .l{color:#e0808a;}
   @keyframes shotpulse{0%,100%{opacity:1;} 50%{opacity:.45;}}
+
+  /* compact corner scorebug — alt layout, sits under the shot clock */
+  .corner-bug{position:absolute;top:86px;right:42px;width:220px;border-radius:10px;overflow:hidden;
+    background:linear-gradient(180deg,var(--bg2),var(--bg));border:1px solid var(--line);
+    box-shadow:0 14px 34px rgba(0,0,0,.55);font-family:var(--cond);display:none;}
+  .corner-bug.show{display:block;}
+  .corner-bug .row{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;}
+  .corner-bug .row+.row{border-top:1px solid var(--line);}
+  .corner-bug .row.a{border-left:4px solid var(--a);}
+  .corner-bug .row.b{border-left:4px solid var(--b);}
+  .corner-bug .abbr{font-weight:700;font-size:20px;letter-spacing:.04em;color:#fff;}
+  .corner-bug .score{font-weight:800;font-size:28px;color:#fff;font-variant-numeric:tabular-nums;}
+  .corner-bug .meta{display:flex;align-items:center;justify-content:center;gap:10px;padding:6px 10px;
+    background:#0a0d12;font-family:var(--sans);font-weight:600;font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--sub);}
+  .corner-bug .meta .clock{color:#fff;font-family:var(--cond);font-weight:700;font-variant-numeric:tabular-nums;}
 
   /* timeouts row under teams */
   .tos{position:absolute;bottom:-22px;display:flex;gap:5px;}
@@ -85,7 +105,7 @@
     box-shadow:0 18px 50px rgba(0,0,0,.55);transform:translateX(-440px);
     transition:transform .6s cubic-bezier(.2,.7,.2,1);}
   .card.in{transform:none;}
-  .card .hd{display:flex;align-items:center;gap:14px;padding:12px 16px;background:linear-gradient(90deg,var(--a),rgba(0,122,51,0));}
+  .card .hd{display:flex;align-items:center;gap:14px;padding:12px 16px;background:linear-gradient(90deg,var(--a),transparent);}
   .card .num{font-family:var(--cond);font-weight:800;font-size:38px;color:#fff;line-height:1;}
   .card .who .nm{font-family:var(--cond);font-weight:700;font-size:26px;color:#fff;line-height:1;}
   .card .who .pos{font-family:var(--sans);font-weight:600;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#bfe9cf;margin-top:3px;}
@@ -116,7 +136,7 @@
     <span class="info"><span class="live" id="liveTag">● LIVE</span><span id="liveSep"> · </span><span id="venue">TD Garden</span></span>
   </div>
 
-  <div class="bug">
+  <div class="bug" id="bug">
     <div class="team a" id="teamA">
       <span class="tab"></span>
       <span class="logo" id="logoA">B</span>
@@ -127,7 +147,6 @@
     </div>
 
     <div class="center">
-      <div class="shot" id="shot"><span class="v" id="shotv">24</span><span class="l">SHOT</span></div>
       <div class="clock" id="clock">12:00</div>
       <div class="meta"><span class="bonus" id="bonusA" style="display:none">BONUS</span><span class="qtr" id="qtr">Q1</span><span class="bonus" id="bonusB" style="display:none">BONUS</span></div>
     </div>
@@ -140,6 +159,14 @@
       <span class="poss"></span>
       <span class="tos" id="tosB"></span>
     </div>
+  </div>
+
+  <div class="shot" id="shot"><span class="v" id="shotv">24</span><span class="l">SHOT</span></div>
+
+  <div class="corner-bug" id="cornerBug">
+    <div class="row a"><span class="abbr" id="cbAbbrA">BOS</span><span class="score" id="cbScoreA">0</span></div>
+    <div class="row b"><span class="abbr" id="cbAbbrB">LAL</span><span class="score" id="cbScoreB">0</span></div>
+    <div class="meta"><span id="cbQtr">Q1</span><span class="clock" id="cbClock">12:00</span></div>
   </div>
 
   <div class="card" id="card">
@@ -181,7 +208,7 @@
   }
 
   // `logoAsset` names a file uploaded to this package's assets (control page →
-  // Bug & ticker → Upload); empty means the built-in COURTVISION text badge.
+  // Bug & ticker → Upload); empty means the editable `logoText` badge instead.
   let currentLogo = null;
   function applyLogo(asset) {
     const name = typeof asset === 'string' ? asset : '';
@@ -234,12 +261,30 @@
     g('bonusB').style.display = s.bonusB ? '' : 'none';
     pips(g('tosA'), +s.timeoutsA || 0);
     pips(g('tosB'), +s.timeoutsB || 0);
+
+    // Compact alt layout: a small corner scorebug instead of the big bottom
+    // bar. Kept in sync regardless of which is on screen — cheap, and avoids
+    // a stale readout the instant the operator switches layouts.
+    const compact = s.layout === 'compact';
+    g('bug').style.display = compact ? 'none' : '';
+    g('cornerBug').classList.toggle('show', compact);
+    g('cbAbbrA').textContent = s.teamA;
+    g('cbAbbrB').textContent = s.teamB;
+    g('cbScoreA').textContent = s.scoreA;
+    g('cbScoreB').textContent = s.scoreB;
+    g('cbQtr').textContent = qtrLabel(+s.quarter || 1);
+
     g('netbug').style.display = s.netBugVisible ? '' : 'none';
     g('venue').textContent = s.venue || '';
     const liveOn = s.liveVisible !== false;
     g('liveTag').classList.toggle('hidden', !liveOn);
     g('liveSep').classList.toggle('hidden', !liveOn);
+    g('logoText').textContent = s.logoText || 'COURTVISION';
     applyLogo(s.logoAsset);
+
+    const root = document.documentElement.style;
+    root.setProperty('--a', s.colorA || '#007A33');
+    root.setProperty('--b', s.colorB || '#552583');
 
     const pc = s.playerCard || {};
     g('card').classList.toggle('in', !!pc.visible);
@@ -252,13 +297,18 @@
     g('pfg').textContent = pc.fg || '';
 
     g('ticker').style.display = (s.ticker && s.ticker.visible) ? '' : 'none';
-    const tSpeed = (s.ticker && +s.ticker.speed) || 80;
-    g('track').style.setProperty('--crawl-dur', (30 * 80 / tSpeed).toFixed(1) + 's');
     const key = JSON.stringify([s.ticker && s.ticker.messages, s.ticker && s.ticker.label]);
     if (key !== tickerKey) {
       tickerKey = key;
       rebuildTicker(s.ticker && s.ticker.messages, s.ticker && s.ticker.label);
     }
+    // Speed is pixels/second, not a fixed loop duration — otherwise a long
+    // headline list crawls across the same distance in the same time as a
+    // short one, i.e. gets faster the more text there is.
+    const tSpeed = Math.max(10, (s.ticker && +s.ticker.speed) || 80);
+    const singleWidth = g('track').scrollWidth / 2;
+    const duration = singleWidth > 0 ? singleWidth / tSpeed : 20;
+    g('track').style.setProperty('--crawl-dur', Math.max(3, duration).toFixed(2) + 's');
     tickClocks();
   }
 
@@ -281,8 +331,9 @@
   function tickClocks() {
     if (!state) return;
     const now = Date.now();
-    const gameMs = (state.clock && state.clock.deadline > 0) ? Math.max(0, state.clock.deadline - now) : parseClock(state.clock && state.clock.value);
+    const gameMs = state.clockEndsAt > 0 ? Math.max(0, state.clockEndsAt - now) : parseClock(state.clock);
     g('clock').textContent = fmtGame(gameMs);
+    g('cbClock').textContent = fmtGame(gameMs);
     const shotS = state.shotEndsAt > 0 ? Math.max(0, (state.shotEndsAt - now) / 1000) : +state.shotClock || 0;
     g('shotv').textContent = shotS <= 5 ? shotS.toFixed(1) : Math.ceil(shotS);
     g('shot').classList.toggle('danger', shotS <= 5 && shotS > 0);
