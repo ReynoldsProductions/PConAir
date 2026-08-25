@@ -26,6 +26,10 @@
     "netBugVisible": "boolean",
     "liveVisible": "boolean",
     "logoAsset": "string",
+    "logoText": "string",
+    "colorA": "string",
+    "colorB": "string",
+    "layout": "string",
     "venue": "string",
     "playerCard": {
       "visible": "boolean",
@@ -61,6 +65,10 @@
     "netBugVisible": true,
     "liveVisible": true,
     "logoAsset": "",
+    "logoText": "COURTVISION",
+    "colorA": "#007A33",
+    "colorB": "#552583",
+    "layout": "classic",
     "venue": "TD Garden",
     "playerCard": {
       "visible": false,
@@ -579,6 +587,69 @@
       ]
     },
     {
+      "id": "set_team_color_home",
+      "label": "Set home team color",
+      "options": [
+        {
+          "id": "color",
+          "label": "Color (hex)",
+          "type": "textinput",
+          "default": "#007A33"
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "colorA",
+          "value": {
+            "option": "color"
+          }
+        }
+      ]
+    },
+    {
+      "id": "set_team_color_away",
+      "label": "Set away team color",
+      "options": [
+        {
+          "id": "color",
+          "label": "Color (hex)",
+          "type": "textinput",
+          "default": "#552583"
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "colorB",
+          "value": {
+            "option": "color"
+          }
+        }
+      ]
+    },
+    {
+      "id": "set_logo_text",
+      "label": "Set logo text",
+      "options": [
+        {
+          "id": "text",
+          "label": "Logo text",
+          "type": "textinput",
+          "default": "COURTVISION"
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "logoText",
+          "value": {
+            "option": "text"
+          }
+        }
+      ]
+    },
+    {
       "id": "toggle_netbug",
       "label": "Toggle network bug",
       "ops": [
@@ -605,6 +676,37 @@
         {
           "op": "toggle",
           "field": "ticker.visible"
+        }
+      ]
+    },
+    {
+      "id": "set_layout",
+      "label": "Set scorebug layout",
+      "options": [
+        {
+          "id": "layout",
+          "label": "Layout",
+          "type": "dropdown",
+          "default": "classic",
+          "choices": [
+            {
+              "id": "classic",
+              "label": "Classic (bottom bar)"
+            },
+            {
+              "id": "compact",
+              "label": "Compact (top-right corner)"
+            }
+          ]
+        }
+      ],
+      "ops": [
+        {
+          "op": "set",
+          "field": "layout",
+          "value": {
+            "option": "layout"
+          }
         }
       ]
     }
@@ -666,6 +768,32 @@
           "default": 1,
           "min": 1,
           "max": 4
+        }
+      ]
+    },
+    {
+      "id": "layout_is",
+      "label": "Layout is",
+      "field": "layout",
+      "equals": {
+        "option": "layout"
+      },
+      "options": [
+        {
+          "id": "layout",
+          "label": "Layout",
+          "type": "dropdown",
+          "default": "classic",
+          "choices": [
+            {
+              "id": "classic",
+              "label": "Classic (bottom bar)"
+            },
+            {
+              "id": "compact",
+              "label": "Compact (top-right corner)"
+            }
+          ]
         }
       ]
     },

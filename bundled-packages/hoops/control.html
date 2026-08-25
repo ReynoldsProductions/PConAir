@@ -61,10 +61,21 @@
 </div>
 
 <div class="section">
+  <div class="lbl">Layout</div>
+  <div class="row">
+    <button data-layout="classic" id="bLayoutClassic" style="flex:1">CLASSIC (bottom bar)</button>
+    <button data-layout="compact" id="bLayoutCompact" style="flex:1">COMPACT (top-right)</button>
+  </div>
+</div>
+
+<div class="section">
   <div class="lbl">Score</div>
   <div class="teams">
     <div class="team-box">
-      <input id="teamA" maxlength="4" placeholder="HOME">
+      <div class="row">
+        <input id="teamA" maxlength="4" placeholder="HOME" style="flex:1;min-width:0">
+        <input id="colorA" type="color" value="#007A33" style="width:40px;padding:2px;flex:0 0 40px">
+      </div>
       <div class="score" id="dScoreA">0</div>
       <div class="bumps">
         <button data-bump="A:-1">−1</button>
@@ -84,7 +95,10 @@
       </div>
     </div>
     <div class="team-box">
-      <input id="teamB" maxlength="4" placeholder="AWAY">
+      <div class="row">
+        <input id="teamB" maxlength="4" placeholder="AWAY" style="flex:1;min-width:0">
+        <input id="colorB" type="color" value="#552583" style="width:40px;padding:2px;flex:0 0 40px">
+      </div>
       <div class="score" id="dScoreB">0</div>
       <div class="bumps">
         <button data-bump="B:-1">−1</button>
@@ -160,6 +174,7 @@
     </div>
     <input id="venue" placeholder="Venue (TD Garden)">
   </div>
+  <input id="logoTextInput" placeholder="Logo text (COURTVISION)" maxlength="40">
   <div class="row">
     <input id="logoFile" type="file" accept="image/png,image/jpeg,image/gif,image/svg+xml,image/webp" style="flex:1">
     <button data-act="logoUpload" style="flex:0">UPLOAD LOGO</button>
@@ -173,6 +188,12 @@
     <button class="amber" data-act="tickerSet" style="flex:1">UPDATE TICKER</button>
     <button data-act="ticker" id="bTicker" style="flex:1">TICKER ON/OFF</button>
   </div>
+  <div class="row">
+    <span class="small" style="flex:0 0 40px">Speed</span>
+    <input id="tickerSpeed" type="range" min="20" max="260" step="5" style="flex:1;accent-color:var(--amber)">
+    <span class="small" id="tickerSpeedVal" style="min-width:3ch;text-align:right;color:var(--ink)">80</span>
+  </div>
+  <div class="small">Crawl speed in pixels/second — it now stays constant regardless of how many headlines are loaded, so the ticker no longer speeds up with more text. Drag to adjust live.</div>
 </div>
 
 <script src="/packages/hoops/assets/state.js"></script>
@@ -222,12 +243,18 @@
     syncInput('teamA', state.teamA);
     syncInput('teamB', state.teamB);
     syncInput('venue', state.venue);
+    if (document.activeElement !== g('colorA')) g('colorA').value = state.colorA || '#007A33';
+    if (document.activeElement !== g('colorB')) g('colorB').value = state.colorB || '#552583';
+    syncInput('logoTextInput', state.logoText);
     g('bPossA').classList.toggle('toggled', state.possession === 'a');
     g('bPossB').classList.toggle('toggled', state.possession === 'b');
     g('bBonusA').classList.toggle('toggled', !!state.bonusA);
     g('bBonusB').classList.toggle('toggled', !!state.bonusB);
     g('bNetbug').classList.toggle('toggled', !!state.netBugVisible);
     g('bLive').classList.toggle('toggled', state.liveVisible !== false);
+    const layout = state.layout || 'classic';
+    g('bLayoutClassic').classList.toggle('toggled', layout === 'classic');
+    g('bLayoutCompact').classList.toggle('toggled', layout === 'compact');
     const ticker = state.ticker || {};
     g('bTicker').classList.toggle('toggled', !!ticker.visible);
     g('bClockStart').classList.toggle('toggled', state.clockEndsAt > 0);
@@ -241,6 +268,9 @@
     syncInput('pcPts', pc.pts); syncInput('pcReb', pc.reb); syncInput('pcAst', pc.ast);
     syncInput('tickerLabel', ticker.label);
     syncInput('tickerMessages', (ticker.messages || []).join('\n'));
+    const tSpeed = +ticker.speed || 80;
+    if (document.activeElement !== g('tickerSpeed')) g('tickerSpeed').value = tSpeed;
+    g('tickerSpeedVal').textContent = tSpeed;
     g('logoStatus').textContent = state.logoAsset
       ? 'Current logo: ' + state.logoAsset
       : 'Current logo: text badge (COURTVISION)';
@@ -264,6 +294,7 @@
       return;
     }
     if (btn.dataset.qtr) { patch({ quarter: +btn.dataset.qtr }); return; }
+    if (btn.dataset.layout) { patch({ layout: btn.dataset.layout }); return; }
 
     const [act, arg] = (btn.dataset.act || '').split(':');
     switch (act) {
@@ -319,6 +350,29 @@
     g(id).addEventListener('change', () => patch({ [id]: g(id).value.toUpperCase() }));
   });
   g('venue').addEventListener('change', () => patch({ venue: g('venue').value }));
+  g('logoTextInput').addEventListener('change', () => patch({ logoText: g('logoTextInput').value }));
+
+  // Dragging the native color picker fires 'input' continuously — debounce
+  // the patch, same as the ticker speed slider, so it stays live without
+  // flooding the server with a request per drag tick.
+  let colorDebounce = null;
+  ['colorA', 'colorB'].forEach((id) => {
+    g(id).addEventListener('input', () => {
+      clearTimeout(colorDebounce);
+      colorDebounce = setTimeout(() => patch({ [id]: g(id).value }), 100);
+    });
+  });
+
+  // Live-adjustable while on air: reflect the drag immediately, but debounce
+  // the patch so dragging doesn't flood the server with a request per pixel.
+  let speedDebounce = null;
+  g('tickerSpeed').addEventListener('input', () => {
+    g('tickerSpeedVal').textContent = g('tickerSpeed').value;
+    clearTimeout(speedDebounce);
+    speedDebounce = setTimeout(() => {
+      patch({ ticker: { ...(state.ticker || {}), speed: +g('tickerSpeed').value } });
+    }, 100);
+  });
 
   async function uploadLogo() {
     const file = g('logoFile').files[0];
