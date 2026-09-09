@@ -8,7 +8,9 @@
 # worktree comes up without plan_approved.md and specs/.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Always resolve to the MAIN checkout, even when this script is invoked from
+# inside a worktree - otherwise git worktree add would nest worktrees.
+ROOT="$(dirname "$(git -C "$(dirname "$0")" rev-parse --path-format=absolute --git-common-dir)")"
 WAVE="${1:?usage: run-wave.sh <wave-number> [base-ref]}"
 BASE="${2:-${GFX_BASE:-main}}"
 
@@ -25,7 +27,12 @@ echo "wave $WAVE - ${#SPECS[@]} spec(s), base=$BASE"
 for entry in "${SPECS[@]}"; do
   N="${entry%%:*}"
   MODEL="${entry##*:}"
-  SPEC_FILE="$(ls "$ROOT/specs/$N-"*.md)"
+  # Resolve the spec from the BASE ref, not the working tree: the main checkout
+  # may not carry these specs yet.
+  SPEC_FILE="$(git -C "$ROOT" ls-tree --name-only "$BASE" specs/ | grep -E "^specs/$N-" || true)"
+  if [ -z "$SPEC_FILE" ]; then
+    echo "spec $N not found in $BASE" >&2; exit 1
+  fi
   SLUG="$(basename "$SPEC_FILE" .md | cut -d- -f2-)"
   BRANCH="feat/graphics-$N-$SLUG"
   WT="$ROOT/.claude/worktrees/gfx-$N"
