@@ -1,7 +1,9 @@
 import { Router, Request, Response } from 'express';
+import { requireOperator } from './middleware';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
+import type { AuthManager } from '../auth';
 import type { PackageHub } from '../packages/state-hub';
 
 /**
@@ -18,7 +20,7 @@ const ALLOWED_ASSET_MIME: Record<string, string> = {
   'image/webp': '.webp',
 };
 
-export function createPackagesRouter(hub: PackageHub): Router {
+export function createPackagesRouter(hub: PackageHub, auth?: AuthManager): Router {
   const router = Router();
 
   const assetUpload = multer({
@@ -204,6 +206,34 @@ export function createPackagesRouter(hub: PackageHub): Router {
     // Assets are confined to the package's assets/ subdirectory.
     sendPackageFile(res, path.join(pkg.dir, 'assets'), relStr);
   });
+
+
+  // Spec 21: diagnostics endpoint for operator troubleshooting
+  if (auth) {
+    const opGuard = requireOperator(auth);
+    router.get('/api/diagnostics', opGuard, (_req: Request, res: Response) => {
+      const pkgjson = require('../../package.json');
+      const mem = process.memoryUsage();
+      const packages = hub.list().map(pkg => ({
+        id: pkg.manifest.id,
+        version: pkg.manifest.version,
+        renders: pkg.manifest.renders.map(r => r.id),
+        hasControl: pkg.controlFile !== null,
+      }));
+      res.json({
+        version: pkgjson.version,
+        uptimeSeconds: Math.floor(process.uptime()),
+        platform: process.platform + ' ' + require('os').release(),
+        memoryMB: {
+          rss: Math.round(mem.rss / 1024 / 1024),
+          heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+        },
+        packages,
+        presence: null,
+      });
+    });
+  }
+
 
   return router;
 }

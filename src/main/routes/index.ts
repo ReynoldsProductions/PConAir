@@ -231,7 +231,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   app.use('/api', createGscCompatRouter(s.store));
   app.use(createRenderRouter(s.store, s.auth));
   if (s.packageHub) {
-    app.use(createPackagesRouter(s.packageHub));
+    app.use(createPackagesRouter(s.packageHub, s.auth));
   }
   app.use(
     createTunnelRouter({
