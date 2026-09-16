@@ -57,13 +57,21 @@ window.PConAir = (function () {
     var attempt = 0; /* index into BACKOFF for the NEXT retry */
     var stateSubs = [];
     var connSubs = [];
+    var transportSubs = [];
+    /* Whether a transport frame (one where this renderId has a _transport
+       entry) has been applied yet — gates the once-per-page-load late-join
+       correction below (spec 15 section 3.6). */
+    var sawTransportFrame = false;
 
     var client = {
       state: null,
       connected: false,
+      transport: null,
       patch: patch,
       on: on,
       onConnection: onConnection,
+      onTransport: onTransport,
+      verb: verb,
       close: close,
     };
 
@@ -90,6 +98,87 @@ window.PConAir = (function () {
       for (var i = 0; i < stateSubs.length; i++) {
         try { stateSubs[i](s); } catch (e) { /* as above */ }
       }
+      applyTransportFrame(s);
+    }
+
+    /* Drives <html data-phase data-step> and --pc-phase-ms from this page's
+       renderId slice of state._transport, and emits to onTransport()
+       subscribers. A render with no _transport entry for this renderId is
+       not transport-managed (or has not been dispatched yet): client.transport
+       is null and the attributes are removed rather than left stale. */
+    function applyTransportFrame(s) {
+      var map = s && s._transport;
+      var t = (map && renderId && typeof map === 'object') ? map[renderId] : null;
+      var html = document.documentElement;
+
+      if (t) {
+        var isLateJoin = !sawTransportFrame && (Date.now() - t.phaseStartedAt > 120);
+        sawTransportFrame = true;
+        if (isLateJoin && html.setAttribute) {
+          /* Suppress CSS transitions for one frame so a browser source that
+             opened mid-show snaps straight to the correct state instead of
+             animating in from idle. */
+          html.setAttribute('data-phase-jump', '');
+          void html.offsetHeight; /* force reflow */
+          html.removeAttribute('data-phase-jump');
+        }
+        html.setAttribute('data-phase', t.phase);
+        html.setAttribute('data-step', String(t.step));
+        if (html.style && html.style.setProperty) {
+          html.style.setProperty('--pc-phase-ms', String(t.phaseMs));
+        }
+      } else {
+        html.removeAttribute('data-phase');
+        html.removeAttribute('data-step');
+        if (html.style && html.style.removeProperty) {
+          html.style.removeProperty('--pc-phase-ms');
+        }
+      }
+
+      client.transport = t || null;
+      for (var i = 0; i < transportSubs.length; i++) {
+        try { transportSubs[i](client.transport); } catch (e) { /* a bad subscriber must not stop the rest */ }
+      }
+    }
+
+    function onTransport(fn) {
+      transportSubs.push(fn);
+      if (client.state) {
+        try { fn(client.transport); } catch (e) { /* ignore */ }
+      }
+      return function () {
+        var i = transportSubs.indexOf(fn);
+        if (i >= 0) transportSubs.splice(i, 1);
+      };
+    }
+
+    /* POST a transport verb ('play'|'next'|'stop'|'clear') for this page's
+       renderId. Resolves to the parsed response body, same contract as
+       patch(). */
+    function verb(name) {
+      var url =
+        '/api/packages/' + encodeURIComponent(packageId) +
+        '/transport/' + encodeURIComponent(renderId || '') +
+        '/' + encodeURIComponent(name);
+      return window
+        .fetch(url, { method: 'POST' })
+        .then(function (res) {
+          return res.text().then(function (text) {
+            var body = null;
+            try { body = text ? JSON.parse(text) : null; } catch (e) { body = null; }
+            if (!res.ok) {
+              var msg =
+                (body && body.error && body.error.message) ||
+                (body && body.message) ||
+                'verb failed with status ' + res.status;
+              var err = new Error(msg);
+              err.status = res.status;
+              err.body = body;
+              throw err;
+            }
+            return body;
+          });
+        });
     }
 
     function open() {
