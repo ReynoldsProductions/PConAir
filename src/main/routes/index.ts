@@ -106,6 +106,10 @@ export interface RouteServices {
   stageTimer?: Omit<StageTimerRouterDeps, 'store' | 'auth'>;
   /** Graphics packages hub; null when the packages system is disabled. */
   packageHub: PackageHub | null;
+  /** Per-package data source overrides (spec 20); null when packages are disabled. */
+  dataOverrides: import('../packages/data-overrides').DataOverridesStore | null;
+  /** Data source poller (spec 20); null when packages are disabled. */
+  dataSourcePoller: import('../packages/data-sources').DataSourcePoller | null;
   /** Google Slides auth hooks (Electron main only). */
   openGoogleAuthWindow?: SlidesRouterDeps['openGoogleAuthWindow'];
   getGoogleAuthState?: SlidesRouterDeps['getGoogleAuthState'];
@@ -231,7 +235,14 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   app.use('/api', createGscCompatRouter(s.store));
   app.use(createRenderRouter(s.store, s.auth));
   if (s.packageHub) {
-    app.use(createPackagesRouter(s.packageHub));
+    app.use(
+      createPackagesRouter({
+        hub: s.packageHub,
+        auth: s.auth,
+        dataOverrides: s.dataOverrides,
+        dataSourcePoller: s.dataSourcePoller,
+      })
+    );
   }
   app.use(
     createTunnelRouter({

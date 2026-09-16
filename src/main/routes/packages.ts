@@ -3,6 +3,10 @@ import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
 import type { PackageHub } from '../packages/state-hub';
+import type { AuthManager } from '../auth';
+import type { DataOverridesStore } from '../packages/data-overrides';
+import type { DataSourcePoller } from '../packages/data-sources';
+import { requireOperator, requireAdmin } from './middleware';
 
 /**
  * Packages API + render/control/asset serving.
@@ -18,8 +22,19 @@ const ALLOWED_ASSET_MIME: Record<string, string> = {
   'image/webp': '.webp',
 };
 
-export function createPackagesRouter(hub: PackageHub): Router {
+export interface PackagesRouterDeps {
+  hub: PackageHub;
+  auth: AuthManager;
+  /** Spec 20 — null when the packages system as a whole is disabled. */
+  dataOverrides: DataOverridesStore | null;
+  dataSourcePoller: DataSourcePoller | null;
+}
+
+export function createPackagesRouter(deps: PackagesRouterDeps): Router {
+  const { hub, auth, dataOverrides, dataSourcePoller } = deps;
   const router = Router();
+  const opGuard = requireOperator(auth);
+  const adminGuard = requireAdmin(auth);
 
   const assetUpload = multer({
     storage: multer.diskStorage({
@@ -112,6 +127,9 @@ export function createPackagesRouter(hub: PackageHub): Router {
 
   router.post('/api/packages/rescan', (_req: Request, res: Response) => {
     hub.rescan();
+    // Manifests may have changed which data sources exist, or their URLs/poll
+    // intervals — rebuild the poller's timers to match.
+    dataSourcePoller?.reload();
     res.json({ count: hub.list().length, errors: hub.errors() });
   });
 
@@ -203,6 +221,90 @@ export function createPackagesRouter(hub: PackageHub): Router {
     const relStr = String((req.params as unknown as Record<string, string>)[0] ?? '');
     // Assets are confined to the package's assets/ subdirectory.
     sendPackageFile(res, path.join(pkg.dir, 'assets'), relStr);
+  });
+
+  // ── Data sources (spec 20) ──────────────────────────────────────────────
+  // Declaration (manifest) + operator/admin override + last result, merged.
+  // See src/main/packages/data-sources.ts for the poller and safety guard.
+
+  function findDataSource(packageId: string, sourceId: string) {
+    const pkg = hub.find(packageId);
+    const source = pkg?.manifest.dataSources?.find((s) => s.id === sourceId);
+    return { pkg, source };
+  }
+
+  router.get('/api/packages/:id/data', opGuard, (req: Request, res: Response) => {
+    const pkg = hub.find(req.params.id);
+    if (!pkg) {
+      res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: `Package '${req.params.id}' not found` } });
+      return;
+    }
+    if (!dataSourcePoller) {
+      res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'Data sources are not available' } });
+      return;
+    }
+    res.json({ sources: dataSourcePoller.buildViews(pkg.manifest.id) });
+  });
+
+  router.put('/api/packages/:id/data/:sourceId', adminGuard, (req: Request, res: Response) => {
+    const { pkg, source } = findDataSource(req.params.id, req.params.sourceId);
+    if (!pkg) {
+      res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: `Package '${req.params.id}' not found` } });
+      return;
+    }
+    if (!source) {
+      res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: `Data source '${req.params.sourceId}' not found` } });
+      return;
+    }
+    if (!dataOverrides || !dataSourcePoller) {
+      res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'Data sources are not available' } });
+      return;
+    }
+    const body = req.body as { url?: unknown; pollSeconds?: unknown; enabled?: unknown };
+    const patch: { url?: string; pollSeconds?: number; enabled?: boolean } = {};
+    if (body.url !== undefined) {
+      if (typeof body.url !== 'string') {
+        res.status(400).json({ error: { code: 'INVALID_MODE', message: 'url must be a string' } });
+        return;
+      }
+      patch.url = body.url;
+    }
+    if (body.pollSeconds !== undefined) {
+      if (typeof body.pollSeconds !== 'number' || !Number.isInteger(body.pollSeconds) || body.pollSeconds <= 0) {
+        res.status(400).json({ error: { code: 'INVALID_MODE', message: 'pollSeconds must be a positive integer' } });
+        return;
+      }
+      patch.pollSeconds = body.pollSeconds;
+    }
+    if (body.enabled !== undefined) {
+      if (typeof body.enabled !== 'boolean') {
+        res.status(400).json({ error: { code: 'INVALID_MODE', message: 'enabled must be a boolean' } });
+        return;
+      }
+      patch.enabled = body.enabled;
+    }
+    dataOverrides.set(pkg.manifest.id, source.id, patch);
+    dataSourcePoller.reload();
+    const view = dataSourcePoller.buildViews(pkg.manifest.id).find((v) => v.id === source.id);
+    res.json({ source: view });
+  });
+
+  router.post('/api/packages/:id/data/:sourceId/refresh', opGuard, async (req: Request, res: Response) => {
+    const { pkg, source } = findDataSource(req.params.id, req.params.sourceId);
+    if (!pkg) {
+      res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: `Package '${req.params.id}' not found` } });
+      return;
+    }
+    if (!source) {
+      res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: `Data source '${req.params.sourceId}' not found` } });
+      return;
+    }
+    if (!dataSourcePoller) {
+      res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'Data sources are not available' } });
+      return;
+    }
+    const result = await dataSourcePoller.refresh(pkg.manifest.id, source.id);
+    res.json({ result });
   });
 
   return router;

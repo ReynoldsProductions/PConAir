@@ -30,6 +30,12 @@ export interface FullServerTestOpts {
   stopTunnel?: () => void;
   saveTunnelSettings?: (patch: Record<string, unknown>) => void;
   packagesRoot?: string | string[];
+  /**
+   * Fetch stub for the data source poller (spec 20). Defaults to a stub that
+   * always rejects, so a test that forgets to pass one gets a loud, obvious
+   * failure instead of a silent real network call.
+   */
+  dataSourceFetchImpl?: typeof fetch;
   graphicsRoot?: string;
   runtimeRoot?: string;
   stageTimer?: import('../src/main/routes/index').RouteServices['stageTimer'];
@@ -112,6 +118,16 @@ export function createFullServer(opts: FullServerTestOpts) {
     stopTunnel: opts.stopTunnel,
     saveTunnelSettings: opts.saveTunnelSettings,
     packagesRoot: opts.packagesRoot,
+    // Never let a test hit the real network through the data source poller —
+    // see the ServerDeps doc comment on dataSourceFetchImpl.
+    dataSourceFetchImpl:
+      opts.dataSourceFetchImpl ??
+      (async () => {
+        throw new Error(
+          'dataSourceFetchImpl was not stubbed for this test — a data source poll would otherwise hit the real network. ' +
+            'Pass dataSourceFetchImpl to createFullServer().'
+        );
+      }),
     graphicsRoot: opts.graphicsRoot,
     // Default on: every package page depends on the runtime being served.
     runtimeRoot: opts.runtimeRoot ?? path.join(process.cwd(), 'src', 'runtime'),

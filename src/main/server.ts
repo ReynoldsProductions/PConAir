@@ -1,6 +1,7 @@
 import express from 'express';
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
+import path from 'path';
 import { mountRoutes, type RouteServices } from './routes/index';
 import type { StateStore } from './state';
 import type { AuthManager } from './auth';
@@ -22,6 +23,8 @@ import { createTunnelPinGate } from './security/tunnel-pin';
 import { createPackageHub, type PackageHub } from './packages/state-hub';
 import { ensurePackageRenderPresets } from './packages/render-presets';
 import { createReliabilityStore } from './reliability-store';
+import { createDataSourcePoller, type DataSourcePoller } from './packages/data-sources';
+import { createDataOverridesStore, type DataOverridesStore } from './packages/data-overrides';
 
 export interface ServerDeps {
   store: StateStore;
@@ -75,6 +78,13 @@ export interface ServerDeps {
    * package state purely in-memory.
    */
   packageStatePath?: string;
+  /**
+   * Injected fetch for the data source poller (spec 20). Tests MUST supply a
+   * stub here — the poller otherwise defaults to Node's global `fetch`, which
+   * would make a real outbound request for any package declaring a data
+   * source with a real URL.
+   */
+  dataSourceFetchImpl?: typeof fetch;
   /** Serves static graphics templates at /graphics; omit to disable. */
   graphicsRoot?: string;
   runtimeRoot?: string;
@@ -230,6 +240,35 @@ export function createServer(deps: ServerDeps) {
     ensurePackageRenderPresets({ hub: packageHub, presets, port });
   }
 
+  /**
+   * Spec 20 — normalized data sources. Overrides persist next to package
+   * state (same userData dir); omitted (as most tests do) keeps them
+   * in-memory only. The allowed-hosts list for the SSRF guard reuses the
+   * active profile's security preferences, same source as the IP allowlist.
+   */
+  function getDataSourceAllowedHosts(): string[] {
+    const id = getActiveProfileId();
+    const p = loadProfile(profilePaths, id);
+    return p?.appPreferences.dataSourceAllowedHosts ?? [];
+  }
+
+  const dataOverridesPath = deps.packageStatePath
+    ? path.join(path.dirname(deps.packageStatePath), 'package-data-overrides.json')
+    : undefined;
+  const dataOverrides: DataOverridesStore | null = packageHub ? createDataOverridesStore(dataOverridesPath) : null;
+  const dataSourcePoller: DataSourcePoller | null = packageHub
+    ? createDataSourcePoller({
+        hub: packageHub,
+        getPackages: () => packageHub.list(),
+        getOverrides: () => dataOverrides!.get(),
+        getAllowedHosts: getDataSourceAllowedHosts,
+        fetchImpl: deps.dataSourceFetchImpl,
+      })
+    : null;
+  if (dataSourcePoller) {
+    dataSourcePoller.reload();
+  }
+
   const routeServices: RouteServices = {
     store,
     auth,
@@ -267,6 +306,8 @@ export function createServer(deps: ServerDeps) {
     hideQrOverlay: deps.hideQrOverlay,
     stageTimer: deps.stageTimer,
     packageHub,
+    dataOverrides,
+    dataSourcePoller,
     openGoogleAuthWindow: deps.openGoogleAuthWindow,
     getGoogleAuthState: deps.getGoogleAuthState,
     getCustomLogoPath: deps.getCustomLogoPath ?? (() => null),
@@ -590,6 +631,7 @@ export function createServer(deps: ServerDeps) {
   }
 
   function close(): Promise<void> {
+    dataSourcePoller?.dispose();
     return new Promise((resolve, reject) => {
       wss.clients.forEach((client) => client.terminate());
       wss.close(() => {

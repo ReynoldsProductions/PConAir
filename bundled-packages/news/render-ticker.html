@@ -156,13 +156,56 @@
   }
 
   // Rebuilding restarts the crawl, so only do it when the copy actually changed.
-  let tickerKey = '';
   function rebuild(items) {
     const track = g('track');
     track.textContent = '';
     track.appendChild(buildRun(items));
     track.appendChild(buildRun(items)); // two runs → the -50% keyframe loops seamlessly
   }
+
+  // ── headline source (spec 20) ───────────────────────────────────────────
+  // `_data.headlines` is a normalized data source result (see
+  // src/main/packages/data-sources.ts); it is present only once the package
+  // has actually polled a configured feed. Absent, disabled, or never-fetched
+  // all fall back to the manually-typed `tickerItems` — a package must not go
+  // dark because a feed is unconfigured. A fetch error keeps whatever rows
+  // were last good (handled server-side); this just decides which source of
+  // truth to read from at all.
+  function resolveItems(s) {
+    const source = s._data && s._data.headlines;
+    if (source && source.enabled !== false && Array.isArray(source.rows) && source.rows.length > 0) {
+      return source.rows.map(function (row) { return row.title || ''; }).filter(Boolean);
+    }
+    return Array.isArray(s.tickerItems) ? s.tickerItems.filter(Boolean) : [];
+  }
+
+  // New copy must join the crawl at the loop seam, never mid-scroll: the
+  // currently-running pass keeps going, and the swap happens on the next
+  // `animationiteration` of the infinite crawl keyframe.
+  let displayedItems = [];
+  let pendingItems = null;
+  function setItems(items) {
+    const changed = JSON.stringify(items) !== JSON.stringify(displayedItems);
+    if (!changed) {
+      pendingItems = null;
+      return;
+    }
+    if (displayedItems.length === 0) {
+      // Nothing on screen yet — no seam to respect, so apply immediately.
+      displayedItems = items;
+      pendingItems = null;
+      rebuild(items);
+    } else {
+      pendingItems = items;
+    }
+  }
+  g('track').addEventListener('animationiteration', function () {
+    if (pendingItems) {
+      displayedItems = pendingItems;
+      pendingItems = null;
+      rebuild(displayedItems);
+    }
+  });
 
   // ── logo ─────────────────────────────────────────────────────────────────
   // `logoAsset` names a file uploaded to this package's assets (admin → Packages
@@ -235,7 +278,7 @@
   }
 
   function applyState(s) {
-    const items = Array.isArray(s.tickerItems) ? s.tickerItems.filter(Boolean) : [];
+    const items = resolveItems(s);
 
     applyBrand(s.brand);
     applyLogo(s.logoAsset);
@@ -257,11 +300,7 @@
       document.documentElement.style.setProperty('--crawl', secs + 's');
     }
 
-    const key = JSON.stringify(items);
-    if (key !== tickerKey) {
-      tickerKey = key;
-      rebuild(items);
-    }
+    setItems(items);
 
     g('ticker').classList.toggle('in', s.tickerVisible !== false && items.length > 0);
   }

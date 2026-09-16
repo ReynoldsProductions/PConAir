@@ -37,6 +37,7 @@ function defaultAppPreferences(): AppPreferences {
     ipAllowlistEnabled: false,
     adminLockOnShow: false,
     operatorUiScale: 1.0,
+    dataSourceAllowedHosts: [],
   };
 }
 
@@ -226,6 +227,9 @@ export function loadProfile(paths: ProfilePaths, id: string): ShowProfile | null
       ...p.appPreferences,
       ipAllowlist: p.appPreferences.ipAllowlist ?? null,
       ipAllowlistEnabled: p.appPreferences.ipAllowlistEnabled ?? false,
+      dataSourceAllowedHosts: Array.isArray(p.appPreferences.dataSourceAllowedHosts)
+        ? p.appPreferences.dataSourceAllowedHosts
+        : [],
     },
   };
 }
