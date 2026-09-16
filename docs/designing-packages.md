@@ -181,13 +181,65 @@ The returned client:
 | `patch(partial)` | Shallow-merge write. Resolves to the **parsed response body**, rejects with the server's error message |
 | `connected` | Whether this page's own socket is up |
 | `onConnection(fn)` | Subscribe to connection edges. Returns an unsubscribe |
+| `presence` | `PackagePresence \| null` — live counts of who else is connected to this package (see below). `null` before the first frame |
+| `onPresence(fn)` | Subscribe to presence changes. Fires immediately if presence is already known. Returns an unsubscribe |
 | `close()` | Disconnect and stop reconnecting |
 
 Also on `window.PConAir`: `param(key, fallback)` reads the page query string,
-and `isDebug()` reports `?debug=1`.
+`isDebug()` reports `?debug=1`, and `presenceIndicator(el, client, opts)` is a
+drop-in LED (see below).
 
 A `window.PConAirPackage.connect(id, cb)` shim remains for packages written
 against the old API, but new packages should not use it.
+
+### Output presence
+
+An operator can press a button and have nothing happen for four different
+reasons: nothing changed server-side, the state changed but no render page is
+open, the render page is open but pointed at the wrong host, or the graphic
+is up and the display routing is wrong. Presence answers the second
+question — "is anything actually listening" — as a live, per-render count.
+
+**`delivered` on `POST /api/packages/:id/state`.** Every response carries a
+`delivered` count: the number of render pages (never control pages) currently
+subscribed to that package.
+
+> **`delivered: 0` means the call succeeded and nothing was listening. It is
+> not an error and must not be reported as one.** A control page should show
+> this as "no output connected", not as a failure toast.
+
+A control page never counts as an output itself — `window.PConAir.connect`
+already sends `?control=1` rather than `?render=1` for `role: 'control'`, so
+this is automatic as long as you pass the right `role`.
+
+**Drop in the indicator** rather than hand-rolling one:
+
+```html
+<div id="presence"></div>
+<script>
+  const client = window.PConAir.connect('my-package', { role: 'control' });
+  window.PConAir.presenceIndicator(document.getElementById('presence'), client);
+  // Or, to report on just one render when your package has several:
+  // window.PConAir.presenceIndicator(el, client, { renderId: 'scoreboard' });
+</script>
+```
+
+It renders "no output connected" / "1 output" / "N outputs" into the element
+and sets `data-presence="none"|"ok"` for styling — `pconair.css` supplies a
+red/green dot via `--pc-danger` / `--pc-ok`. Call `.destroy()` on the returned
+handle if you ever remove the element without closing the whole client.
+
+**Presence endpoints** (operator auth required):
+
+| Route | Response |
+|---|---|
+| `GET /api/packages/:id/presence` | `{ renders, byRender, controls }` for one package |
+| `GET /api/presence` | `{ packages: Record<packageId, PackagePresence>, clients: PresenceEntry[] }` — every package, plus the raw connected-client list (sorted by connect time), for a diagnostics view |
+
+Presence changes are pushed over the same WebSocket you already have open —
+a `{type:'presence', namespace, presence}` frame lands on every socket
+subscribed to that namespace the moment another one joins or leaves. Nothing
+needs to poll for it.
 
 ### Clock display
 

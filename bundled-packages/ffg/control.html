@@ -149,7 +149,10 @@
 
 <div class="header">
   <h1>Faire Fulfillment Games</h1>
-  <div class="status-pill offline" id="status-pill">CONNECTING…</div>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <div id="presence" data-presence="none"></div>
+    <div class="status-pill offline" id="status-pill">CONNECTING…</div>
+  </div>
 </div>
 
 <div class="tabs">
@@ -241,6 +244,7 @@
   let teamsKey = '';
 
   const client = window.PConAir.connect('ffg', { role: 'control' });
+  window.PConAir.presenceIndicator(g('presence'), client);
   client.on((s) => {
     state = s;
     g('status-pill').className = 'status-pill live';

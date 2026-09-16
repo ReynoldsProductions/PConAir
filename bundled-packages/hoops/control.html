@@ -57,7 +57,10 @@
 
 <div class="header">
   <h1>COURTVISION CONTROL</h1>
-  <div class="pill offline" id="pill">CONNECTING…</div>
+  <div class="row">
+    <div id="presence" data-presence="none"></div>
+    <div class="pill offline" id="pill">CONNECTING…</div>
+  </div>
 </div>
 
 <div class="section">
@@ -202,6 +205,7 @@
   let state = null;
 
   const client = window.PConAir.connect('hoops', { role: 'control' });
+  window.PConAir.presenceIndicator(g('presence'), client);
   client.on((s) => {
     state = s;
     g('pill').className = 'pill live';

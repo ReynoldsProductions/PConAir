@@ -385,3 +385,25 @@ describe('presence frames pushed over the namespace WS (T7)', () => {
     }
   });
 });
+
+describe('bundled control pages show a presence indicator (T10)', () => {
+  const PINS = { operatorPin: 'test1234', adminPin: 'adminpass8' };
+  const bundledRoot = path.join(__dirname, '..', 'bundled-packages');
+
+  it('hoops, news and ffg control pages each render one [data-presence] element wired via presenceIndicator', async () => {
+    const store = createStateStore();
+    const server = createFullServer({ store, ...PINS, port: 0, packagesRoot: bundledRoot });
+    await server.listen();
+    try {
+      for (const id of ['hoops', 'news', 'ffg']) {
+        const res = await request(server.app).get(`/packages/${id}/control`);
+        expect(res.status).toBe(200);
+        const matches = res.text.match(/data-presence=/g) ?? [];
+        expect(matches.length, `${id}/control.html should have exactly one presence indicator element`).toBe(1);
+        expect(res.text).toContain('PConAir.presenceIndicator(');
+      }
+    } finally {
+      await server.close();
+    }
+  });
+});
