@@ -391,6 +391,10 @@ export interface FitWarning {
   text: string;
   naturalWidth: number;
   maxWidth: number;
+  /** The floor ratio (data-fit-min) that was applied when this fired. Lets a
+      control-page warning read exactly like the render-side window.PConAir.warn()
+      message (spec 22 s3.3's example: '... (min scale 0.62)'). */
+  min: number;
 }
 
 // ---- WebSocket message types ----

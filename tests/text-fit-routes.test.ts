@@ -29,14 +29,14 @@ describe('POST /api/packages/:id/warnings (spec 22 T9)', () => {
     const srv = makeServer();
     const post = await request(srv.app)
       .post('/api/packages/news/warnings')
-      .send({ renderId: 'l3', warnings: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }] });
+      .send({ renderId: 'l3', warnings: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620, min: 0.5 }] });
     expect(post.status).toBe(200);
 
     const cookie = await operatorCookie(srv.app);
     const get = await request(srv.app).get('/api/packages/news/warnings').set('Cookie', cookie);
     expect(get.status).toBe(200);
     expect(get.body.warnings).toEqual({
-      l3: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }],
+      l3: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620, min: 0.5 }],
     });
   });
 
@@ -142,7 +142,7 @@ describe('warnings push frame + disconnect-clearing (spec 22 T10)', () => {
 
       const res = await request(srv.app)
         .post('/api/packages/news/warnings')
-        .send({ renderId: 'l3', warnings: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }] });
+        .send({ renderId: 'l3', warnings: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620, min: 0.5 }] });
       expect(res.status).toBe(200);
 
       await new Promise((r) => setTimeout(r, 150));
@@ -152,7 +152,7 @@ describe('warnings push frame + disconnect-clearing (spec 22 T10)', () => {
       expect(frame, 'no warnings frame arrived').toBeTruthy();
       expect(frame!.namespace).toBe('package:news');
       expect(frame!.renderId).toBe('l3');
-      expect(frame!.warnings).toEqual([{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }]);
+      expect(frame!.warnings).toEqual([{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620, min: 0.5 }]);
 
       ws.close();
     } finally {
@@ -168,7 +168,7 @@ describe('warnings push frame + disconnect-clearing (spec 22 T10)', () => {
 
       await request(srv.app)
         .post('/api/packages/news/warnings')
-        .send({ renderId: 'l3', warnings: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }] });
+        .send({ renderId: 'l3', warnings: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620, min: 0.5 }] });
 
       await new Promise((r) => setTimeout(r, 150));
       expect(frames.slice(before).some((f) => f.type === 'warnings')).toBe(false);
@@ -189,7 +189,7 @@ describe('warnings push frame + disconnect-clearing (spec 22 T10)', () => {
 
       await request(srv.app)
         .post('/api/packages/news/warnings')
-        .send({ renderId: 'l3', warnings: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }] });
+        .send({ renderId: 'l3', warnings: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620, min: 0.5 }] });
       await new Promise((r) => setTimeout(r, 150));
 
       const before = frames.length;
@@ -222,7 +222,7 @@ describe('warnings push frame + disconnect-clearing (spec 22 T10)', () => {
 
       await request(srv.app)
         .post('/api/packages/news/warnings')
-        .send({ renderId: 'l3', warnings: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }] });
+        .send({ renderId: 'l3', warnings: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620, min: 0.5 }] });
       await new Promise((r) => setTimeout(r, 150));
 
       renderA.close();
@@ -232,7 +232,7 @@ describe('warnings push frame + disconnect-clearing (spec 22 T10)', () => {
         'set-cookie'
       ]![0];
       const check = await request(srv.app).get('/api/packages/news/warnings').set('Cookie', cookie);
-      expect(check.body.warnings.l3).toEqual([{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }]);
+      expect(check.body.warnings.l3).toEqual([{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620, min: 0.5 }]);
 
       renderB.close();
     } finally {

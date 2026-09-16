@@ -120,7 +120,7 @@
 
   function reportWarnings(warnings) {
     var stripped = warnings.map(function (w) {
-      return { field: w.field, text: w.text, naturalWidth: w.naturalWidth, maxWidth: w.maxWidth };
+      return { field: w.field, text: w.text, naturalWidth: w.naturalWidth, maxWidth: w.maxWidth, min: w.min };
     });
     var serialized = JSON.stringify(stripped);
     if (serialized === lastWarnings) return;

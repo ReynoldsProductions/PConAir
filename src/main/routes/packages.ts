@@ -488,14 +488,15 @@ export function createPackagesRouter(deps: PackagesRouterDeps): Router {
         typeof w.field !== 'string' ||
         typeof w.text !== 'string' ||
         typeof w.naturalWidth !== 'number' ||
-        typeof w.maxWidth !== 'number'
+        typeof w.maxWidth !== 'number' ||
+        typeof w.min !== 'number'
       ) {
         res.status(400).json({
-          error: { code: 'INVALID_MODE', message: 'each warning needs field, text, naturalWidth, maxWidth' },
+          error: { code: 'INVALID_MODE', message: 'each warning needs field, text, naturalWidth, maxWidth, min' },
         });
         return;
       }
-      warnings.push({ field: w.field, text: w.text, naturalWidth: w.naturalWidth, maxWidth: w.maxWidth });
+      warnings.push({ field: w.field, text: w.text, naturalWidth: w.naturalWidth, maxWidth: w.maxWidth, min: w.min });
     }
     warningsStore.set(pkg.manifest.id, body.renderId, warnings);
     res.json({ ok: true });
