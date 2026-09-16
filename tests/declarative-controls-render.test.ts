@@ -1750,3 +1750,92 @@ describe('Acceptance — an operator restyles a live render from the panel, no r
     expect(document.documentElement.style.getPropertyValue('--pc-corner')).toBe('4');
   });
 });
+
+describe('the generated shell path — controlPanel fetching its own controls', () => {
+  it('fetches GET /api/packages/:id/controls and renders what comes back', async () => {
+    fetchHandler = (url) => {
+      if (url === '/api/packages/widget/controls') {
+        return Promise.resolve(
+          jsonResponse({
+            id: 'widget',
+            name: 'Widget From Server',
+            renders: [{ id: 'main', label: 'Main', transport: null }],
+            controls: SCHEMA_CONTROLS,
+          })
+        );
+      }
+      return Promise.resolve(jsonResponse({ state: {}, delivered: 1 }));
+    };
+    const PConAir = loadRuntime();
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    // This is exactly the call the server-generated shell makes: id and name
+    // only, no controls inline.
+    const handle = PConAir.controlPanel(el, { packageId: 'widget', name: 'Widget' });
+    await handle.ready;
+    last().fireOpen();
+    pushState(BASIC_STATE);
+
+    expect(fetchCalls[0].url).toBe('/api/packages/widget/controls');
+    expect((el.querySelector('.pc-panel-title') as HTMLElement).textContent).toBe('Widget From Server');
+    expect(el.querySelectorAll('.pc-field')).toHaveLength(4);
+    expect(inputFor(el, 'home.name').value).toBe('Lions');
+  });
+
+  it('explains a 401 instead of rendering an empty panel', async () => {
+    fetchHandler = () => Promise.resolve(jsonResponse({ error: { message: 'nope' } }, 401));
+    const PConAir = loadRuntime();
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    const handle = PConAir.controlPanel(el, { packageId: 'widget', name: 'Widget' });
+    await handle.ready.catch(() => {});
+    const err = el.querySelector('.pc-panel-load-error') as HTMLElement;
+    expect(err).not.toBeNull();
+    expect(err.textContent).toMatch(/sign in as an operator/i);
+    expect(err.getAttribute('role')).toBe('alert');
+  });
+
+  it('explains a 404 the same way', async () => {
+    fetchHandler = () => Promise.resolve(jsonResponse({ error: { message: 'none' } }, 404));
+    const PConAir = loadRuntime();
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    const handle = PConAir.controlPanel(el, { packageId: 'widget', name: 'Widget' });
+    await handle.ready.catch(() => {});
+    expect((el.querySelector('.pc-panel-load-error') as HTMLElement).textContent).toMatch(/no controls/i);
+  });
+
+  it('throws a message naming the missing script when the renderer is absent', () => {
+    // pconair.js alone, WITHOUT pconair-controls.js — what happens if someone
+    // forgets the second <script> in a hand-written control.html.
+    delete (window as unknown as Record<string, unknown>).PConAir;
+    new Function(RUNTIME_SRC)();
+    const PConAir = (window as unknown as { PConAir: any }).PConAir;
+    expect(() => PConAir.controlPanel(document.createElement('div'), { packageId: 'w' })).toThrow(
+      /pconair-controls\.js/
+    );
+  });
+
+  it('shows the spec 16 presence indicator in its header', () => {
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const presence = el.querySelector('.pc-panel-presence') as HTMLElement;
+    expect(presence).not.toBeNull();
+    // Before any presence frame: no output connected.
+    expect(presence.getAttribute('data-presence')).toBe('none');
+    expect(presence.textContent).toMatch(/no output connected/i);
+
+    last().fireMessage({
+      type: 'presence',
+      namespace: 'package:widget',
+      presence: { renders: 2, byRender: { main: 2 }, controls: 1 },
+    });
+    expect(presence.getAttribute('data-presence')).toBe('ok');
+    expect(presence.textContent).toBe('2 outputs');
+  });
+
+  it('rejects a call with no element or no packageId, rather than half-building', () => {
+    const { PConAir } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    expect(() => PConAir.controlPanel(null, { packageId: 'w' })).toThrow(/el is required/);
+    expect(() => PConAir.controlPanel(document.createElement('div'), {})).toThrow(/packageId is required/);
+  });
+});
