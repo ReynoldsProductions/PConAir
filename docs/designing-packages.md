@@ -560,6 +560,53 @@ client.patch({ clock: { ...currentState.clock, running: true, deadline: Date.now
 client.patch({ 'clock.running': true }); // ← this doesn't work
 ```
 
+### Live preview
+
+An operator driving a graphic from a control page usually can't see the
+render itself — it's on a second display, in OBS, or on a switcher output
+down the hall. `window.PConAir.preview` drops in a genuinely live, correctly
+scaled preview so the control page shows what the audience actually sees,
+not a guess:
+
+```html
+<div id="preview"></div>
+<script>
+  const preview = window.PConAir.preview(document.getElementById('preview'), {
+    packageId: 'my-package',
+    renderId: 'main', // which render (from your manifest) to show
+    width: 480,        // CSS px; height is derived at 16:9
+  });
+</script>
+```
+
+It mounts an `<iframe>` pointed at the render's own page
+(`?scale=contain&bg=<backdrop>&preview=1`) and scales the **frame element**,
+never the page inside it — the framed graphic always lays out at exactly
+1920×1080, so nothing reflows or rewraps versus the real, full-size render.
+There is no separate capture/screenshot path: the iframe runs the identical
+render page code, over the identical WebSocket, so whatever you change in
+the control page appears in the preview at the same instant it appears on
+air.
+
+**A preview never counts as an output.** The `preview=1` param it adds is
+stripped from presence and `delivered` server-side — opening a preview must
+never make "is anything actually listening" lie. This is automatic; you
+don't need to do anything extra to get it.
+
+`preview(el, opts)` returns:
+
+| Method | Meaning |
+|---|---|
+| `setRender(renderId)` | Swap which render the preview shows (e.g. from a `<select>`), keeping the current backdrop. |
+| `setBackdrop(name)` | `'checker'` (default, shows transparency), `'black'`, `'white'`, or `'green'`. Persisted per-viewer in `localStorage`, so it survives a control-page reload. |
+| `reload()` | Reload just the framed page — for recovering a render that's wedged on bad state, without losing the operator's place on the control page. |
+| `destroy()` | Tear down the preview (DOM, presence subscription, socket) if you remove it without reloading the whole page. |
+
+If your package has more than one render, wire a selector to `setRender`
+rather than mounting several previews side by side — see
+`bundled-packages/news/control.html` for a working example with three
+renders.
+
 ---
 
 ## Companion integration
@@ -732,6 +779,7 @@ If your package implements any of these common functions, use these exact IDs. T
 - [ ] Write your first render HTML (1920×1080, transparent body, `<html data-render-id="...">`, loads `/packages/_runtime/pconair.js`, calls `window.PConAir.connect(id, { role: 'render' })`)
 - [ ] Set `stateSchema` and `initialState` for the state you need
 - [ ] Write `control.html` with buttons that call `client.patch()`
+- [ ] Drop in `window.PConAir.preview(el, { packageId, renderId })` so the control page shows what's actually on air
 - [ ] Add `companionActions` for anything Companion should be able to trigger
 - [ ] Hit **Rescan** in `/remote/packages`
 - [ ] Load the render URL (`/packages/my-package/render`) as an OBS Browser Source
