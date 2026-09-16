@@ -216,12 +216,77 @@ describe('T2 — field path resolution against stateSchema', () => {
   });
 });
 
+describe('T3 — leaf type agreement', () => {
+  const SCHEMA = { num: 'number', str: 'string', bool: 'boolean', arr: [] };
+
+  function check(field: Record<string, unknown>): string {
+    const m = manifest({ groups: [{ id: 'g', label: 'G', fields: [field] }] });
+    m.stateSchema = SCHEMA;
+    const res = validateManifest(m);
+    return res.ok ? '' : res.error;
+  }
+
+  it('each of the seven value-bearing types validates against its correct leaf type', () => {
+    expect(check({ type: 'text', field: 'str', label: 'T' })).toBe('');
+    expect(check({ type: 'number', field: 'num', label: 'N' })).toBe('');
+    expect(check({ type: 'slider', field: 'num', label: 'S', min: 0, max: 1 })).toBe('');
+    expect(check({ type: 'toggle', field: 'bool', label: 'B' })).toBe('');
+    expect(check({ type: 'color', field: 'str', label: 'C' })).toBe('');
+    expect(check({ type: 'select', field: 'str', label: 'Sel', choices: [{ id: 'a', label: 'A' }] })).toBe('');
+    expect(check({ type: 'asset', field: 'str', label: 'A' })).toBe('');
+  });
+
+  it("rejects type: 'text' on a number leaf, naming the group, field, path and both types", () => {
+    const message = check({ type: 'text', field: 'num', label: 'Headline' });
+    expect(message).toMatch(/group 'g'/);
+    expect(message).toMatch(/field 'Headline'/);
+    expect(message).toMatch(/'num'/);
+    expect(message).toMatch(/text.*string/);
+    expect(message).toMatch(/number/);
+  });
+
+  it('rejects every other mismatched pairing', () => {
+    expect(check({ type: 'number', field: 'str', label: 'N' })).toMatch(/expects a number leaf/);
+    expect(check({ type: 'slider', field: 'bool', label: 'S', min: 0, max: 1 })).toMatch(/expects a number leaf/);
+    expect(check({ type: 'toggle', field: 'str', label: 'B' })).toMatch(/expects a boolean leaf/);
+    expect(check({ type: 'color', field: 'num', label: 'C' })).toMatch(/expects a string leaf/);
+    expect(check({ type: 'asset', field: 'bool', label: 'A' })).toMatch(/expects a string leaf/);
+    expect(check({ type: 'select', field: 'bool', label: 'Sel', choices: [{ id: 'a', label: 'A' }] })).toMatch(
+      /expects a string leaf/
+    );
+  });
+
+  it('an untyped array element is exempt from the leaf-type check', () => {
+    expect(check({ type: 'text', field: 'arr.0', label: 'T' })).toBe('');
+    expect(check({ type: 'toggle', field: 'arr.2', label: 'B' })).toBe('');
+  });
+
+  it("a `list` text field requires an array leaf, and a plain text field forbids one", () => {
+    expect(check({ type: 'text', field: 'arr', label: 'Lines', list: true })).toBe('');
+    expect(check({ type: 'text', field: 'str', label: 'Lines', list: true })).toMatch(
+      /list requires an array leaf/
+    );
+    expect(check({ type: 'text', field: 'arr', label: 'Lines' })).toMatch(/expects a string leaf/);
+  });
+
+  it('a select on a number leaf is allowed when every choice id is a number', () => {
+    // PkgCompanionOption's `dropdown` already allows numeric ids, so the panel
+    // follows suit rather than making an author learn a second rule.
+    expect(check({ type: 'select', field: 'num', label: 'Sel', choices: [{ id: 1, label: 'One' }] })).toBe('');
+    expect(check({ type: 'select', field: 'num', label: 'Sel', choices: [{ id: 'a', label: 'A' }] })).toMatch(
+      /every choice id must be a number/
+    );
+  });
+});
+
 describe('T2 — resolveSchemaPath directly', () => {
   it('reports the resolved leaf type', () => {
     expect(resolveSchemaPath({ home: { score: 'number' } }, 'home.score')).toEqual({ ok: true, leaf: 'number' });
     expect(resolveSchemaPath({ name: 'string' }, 'name')).toEqual({ ok: true, leaf: 'string' });
+    // Inside an array: element type is unknowable from `[]`.
     expect(resolveSchemaPath({ rows: [] }, 'rows.3.value')).toEqual({ ok: true, leaf: 'unknown' });
-    expect(resolveSchemaPath({ rows: [] }, 'rows')).toEqual({ ok: true, leaf: 'unknown' });
+    // The array itself.
+    expect(resolveSchemaPath({ rows: [] }, 'rows')).toEqual({ ok: true, leaf: 'array' });
   });
 
   it('reports a reason on failure', () => {

@@ -138,9 +138,74 @@ function validateField(raw: unknown, index: number, groupId: string, ctx: Contro
   if (typeof raw.field === 'string') {
     const resolved = resolveSchemaPath(ctx.stateSchema, raw.field);
     if (!resolved.ok) return `${at}: path '${raw.field}' ${resolved.reason}`;
+    const mismatch = checkLeafType(raw, resolved.leaf, at);
+    if (mismatch) return mismatch;
   }
 
   return null;
+}
+
+/** Which stateSchema leaf each value-bearing field type reads and writes. */
+export const LEAF_FOR_FIELD_TYPE: Readonly<Record<string, PackageSchemaLeaf>> = {
+  text: 'string',
+  number: 'number',
+  slider: 'number',
+  toggle: 'boolean',
+  color: 'string',
+  select: 'string',
+  asset: 'string',
+};
+
+/**
+ * Leaf type must match the field type (spec 18 §3.7). Two documented
+ * departures from the spec's flat table, both additive:
+ *
+ *  - `text` with `list: true` binds an ARRAY leaf (one item per line), and
+ *    without it forbids one. See TextField's doc comment.
+ *  - `select` may sit on a `number` leaf when every choice id is a number,
+ *    matching PkgCompanionOption's `dropdown`, which already allows numeric
+ *    ids. A string leaf still requires string-or-number ids, since the panel
+ *    stringifies on the way out.
+ */
+function checkLeafType(raw: Record<string, unknown>, leaf: ResolvedLeaf, at: string): string | null {
+  const type = raw.type as string;
+  const want = LEAF_FOR_FIELD_TYPE[type];
+  if (!want) return null; // transport/data/action/static carry no `field`
+  const path = String(raw.field);
+
+  // A `list` text field is the one type that WANTS an array.
+  if (type === 'text' && raw.list === true) {
+    if (leaf === 'array') return null;
+    return `${at}: list requires an array leaf, but path '${path}' is ${describeLeaf(leaf)}`;
+  }
+
+  // An untyped array element (`scores.0`) carries no type information, so
+  // there is nothing for the field type to disagree with.
+  if (leaf === 'unknown') return null;
+
+  if (leaf === 'array') {
+    return `${at}: ${type} expects a ${want} leaf, but path '${path}' is an array — use type 'text' with list: true`;
+  }
+
+  // PkgCompanionOption's `dropdown` already allows numeric option ids, so a
+  // select over a number leaf is accepted rather than making an author learn
+  // a second rule — provided every choice id really is a number.
+  if (type === 'select' && leaf === 'number') {
+    const choices = Array.isArray(raw.choices) ? raw.choices : [];
+    const allNumeric = choices.every((c) => isPlainObject(c) && typeof c.id === 'number');
+    return allNumeric ? null : `${at}: select on a number leaf — every choice id must be a number`;
+  }
+
+  if (leaf !== want) {
+    return `${at}: ${type} expects a ${want} leaf, but path '${path}' is a ${leaf}`;
+  }
+  return null;
+}
+
+function describeLeaf(leaf: ResolvedLeaf): string {
+  if (leaf === 'array') return 'an array';
+  if (leaf === 'unknown') return 'an untyped array element';
+  return `a ${leaf}`;
 }
 
 /** Per-type required/optional members. Path resolution is layered on in T2-T4. */
@@ -320,22 +385,24 @@ export function isValidColorValue(v: unknown): boolean {
 // ── Schema path resolution ───────────────────────────────────────────────
 // Layered in by T2-T4.
 
-/** What a dotted path resolves to. 'unknown' = under an array leaf. */
-export type ResolvedLeaf = PackageSchemaLeaf | 'unknown';
+/**
+ * What a dotted path resolves to.
+ *   'array'   — the path IS an array leaf (`ticker.messages`)
+ *   'unknown' — the path points INSIDE an array (`scores.0`), whose element
+ *               type a manifest's `[]` says nothing about
+ */
+export type ResolvedLeaf = PackageSchemaLeaf | 'array' | 'unknown';
 
 export type PathResolution = { ok: true; leaf: ResolvedLeaf } | { ok: false; reason: string };
 
-/**
- * Resolve a dotted state path against a stateSchema. Array leaves swallow the
- * rest of the path and resolve to 'unknown', because a manifest's `[]` says
- * nothing about element types — `scores.0` is valid, and untyped.
- */
+/** Resolve a dotted state path against a stateSchema. */
 export function resolveSchemaPath(schema: PackageSchema | undefined, dotted: string): PathResolution {
   if (!schema) return { ok: false, reason: 'the manifest declares no stateSchema' };
   const parts = dotted.split('.');
   if (parts.some((p) => p.length === 0)) return { ok: false, reason: 'malformed path' };
   let cur: unknown = schema;
   for (let i = 0; i < parts.length; i++) {
+    // An array leaf swallows the rest of the path: `scores.0`, `rows.3.value`.
     if (Array.isArray(cur)) return { ok: true, leaf: 'unknown' };
     if (typeof cur === 'string') {
       return { ok: false, reason: `'${parts.slice(0, i).join('.')}' is a ${cur}, not an object` };
@@ -346,7 +413,7 @@ export function resolveSchemaPath(schema: PackageSchema | undefined, dotted: str
     }
     cur = (cur as Record<string, unknown>)[parts[i]];
   }
-  if (Array.isArray(cur)) return { ok: true, leaf: 'unknown' };
+  if (Array.isArray(cur)) return { ok: true, leaf: 'array' };
   if (cur === 'string' || cur === 'number' || cur === 'boolean') return { ok: true, leaf: cur };
   return { ok: false, reason: 'resolves to an object, not a value' };
 }
