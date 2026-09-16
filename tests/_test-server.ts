@@ -31,6 +31,7 @@ export interface FullServerTestOpts {
   saveTunnelSettings?: (patch: Record<string, unknown>) => void;
   packagesRoot?: string | string[];
   graphicsRoot?: string;
+  runtimeRoot?: string;
   stageTimer?: import('../src/main/routes/index').RouteServices['stageTimer'];
   getPrompterHost?: () => string;
   isPrompterEnabled?: () => boolean;
@@ -112,6 +113,8 @@ export function createFullServer(opts: FullServerTestOpts) {
     saveTunnelSettings: opts.saveTunnelSettings,
     packagesRoot: opts.packagesRoot,
     graphicsRoot: opts.graphicsRoot,
+    // Default on: every package page depends on the runtime being served.
+    runtimeRoot: opts.runtimeRoot ?? path.join(process.cwd(), 'src', 'runtime'),
     stageTimer: opts.stageTimer,
     getPrompterHost: opts.getPrompterHost,
     isPrompterEnabled: opts.isPrompterEnabled,

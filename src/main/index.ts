@@ -258,6 +258,11 @@ async function main() {
     graphicsRoot: app.isPackaged
       ? path.join(process.resourcesPath, 'graphics')
       : path.join(app.getAppPath(), 'graphics'),
+    // Shared package runtime. Shipped as its own extraResource (see
+    // forge.config.ts) because packaged builds don't carry the raw src/ tree.
+    runtimeRoot: app.isPackaged
+      ? path.join(process.resourcesPath, 'runtime')
+      : path.join(app.getAppPath(), 'src/runtime'),
     // Packaged builds ship the raw `src/` tree nowhere — the vendored
     // React/Slate bundle must be copied in as its own extraResource (see
     // forge.config.ts) and located via resourcesPath, same as graphicsRoot.

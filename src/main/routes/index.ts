@@ -48,6 +48,13 @@ export interface RouteServices {
   l3FilesRoot: string;
   graphicsRoot?: string;
   /**
+   * Serves the shared package runtime (src/runtime) at /packages/_runtime.
+   * Every package render and control page loads it instead of shipping its own
+   * copy of state.js. Resolved via app.isPackaged/resourcesPath in Electron
+   * main, exactly like `graphicsRoot` above.
+   */
+  runtimeRoot?: string;
+  /**
    * Serves the vendored React + Slate design-system bundle at /vendor.
    * Omit to fall back to `VENDOR_ROOT_CANDIDATES`' self-resolving guess (works
    * for `electron-forge start` and vitest, but NOT for a packaged app — the
@@ -168,6 +175,15 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   // Built-in graphics templates — served statically (public, no auth). See specs/13.
   if (s.graphicsRoot) {
     app.use('/graphics', express.static(s.graphicsRoot));
+  }
+
+  // Shared package runtime — public, no auth, same trust level as /graphics.
+  // Mounted ahead of the packages router so `_runtime` can never be shadowed
+  // by a package id (validateManifest rejects a leading underscore anyway).
+  // fallthrough:false so a missing file 404s here rather than leaking into the
+  // package routes below.
+  if (s.runtimeRoot) {
+    app.use('/packages/_runtime', express.static(s.runtimeRoot, { index: false, fallthrough: false }));
   }
   app.use(
     '/auth',

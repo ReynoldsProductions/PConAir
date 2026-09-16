@@ -77,6 +77,7 @@ export interface ServerDeps {
   packageStatePath?: string;
   /** Serves static graphics templates at /graphics; omit to disable. */
   graphicsRoot?: string;
+  runtimeRoot?: string;
   /** Serves the vendored React + Slate bundle at /vendor; omit to fall back to routes/index.ts's self-resolving guess (breaks in a packaged app — see RouteServices.vendorRoot). */
   vendorRoot?: string;
   /** Google Slides auth hooks (Electron main only). */
@@ -160,6 +161,7 @@ export function createServer(deps: ServerDeps) {
     l3Logos,
     l3FilesRoot,
     graphicsRoot,
+    runtimeRoot,
     vendorRoot,
     mediaLibrary,
     dispatchAction,
@@ -237,6 +239,7 @@ export function createServer(deps: ServerDeps) {
     l3Logos,
     l3FilesRoot,
     graphicsRoot,
+    runtimeRoot,
     vendorRoot,
     mediaLibrary,
     slideshow: deps.slideshow,
