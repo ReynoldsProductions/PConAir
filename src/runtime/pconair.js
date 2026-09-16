@@ -350,12 +350,176 @@ window.PConAir = (function () {
     };
   }
 
+  var PREVIEW_BACKDROPS = ['checker', 'black', 'white', 'green'];
+  var PREVIEW_BACKDROP_KEY = 'pconair.preview.backdrop';
+
+  function readStoredBackdrop() {
+    try {
+      var v = window.localStorage.getItem(PREVIEW_BACKDROP_KEY);
+      return v && indexOfStr(PREVIEW_BACKDROPS, v) >= 0 ? v : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeStoredBackdrop(name) {
+    try {
+      window.localStorage.setItem(PREVIEW_BACKDROP_KEY, name);
+    } catch (e) { /* per-viewer convenience only — a throwing store is not fatal */ }
+  }
+
+  function indexOfStr(arr, v) {
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i] === v) return i;
+    }
+    return -1;
+  }
+
+  /* Live preview of one render, mounted into `el` (spec 17). The iframe loads
+     the render's own page with ?scale=contain&bg=<backdrop>&preview=1 — no
+     second scaling path, no canvas capture, genuinely the same render pages
+     an output uses. See specs/17-control-preview.md §3.1-3.3. */
+  function preview(el, opts) {
+    opts = opts || {};
+    var packageId = opts.packageId;
+    var curRenderId = opts.renderId;
+    var width = opts.width || 480;
+    var height = Math.round((width * 9) / 16);
+    var curBackdrop = opts.backdrop || readStoredBackdrop() || 'checker';
+    var bust = 0;
+
+    var root = document.createElement('div');
+    root.className = 'pc-preview';
+    root.setAttribute('data-backdrop', curBackdrop);
+
+    var viewport = document.createElement('div');
+    viewport.className = 'pc-preview-viewport';
+    viewport.style.width = width + 'px';
+    viewport.style.height = height + 'px';
+
+    var iframe = document.createElement('iframe');
+    iframe.className = 'pc-preview-frame';
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+    iframe.title = 'Preview';
+    iframe.style.width = '1920px';
+    iframe.style.height = '1080px';
+    iframe.style.transformOrigin = 'top left';
+    iframe.style.transform = 'scale(' + width / 1920 + ')';
+
+    function frameSrc() {
+      var src =
+        '/packages/' + encodeURIComponent(packageId) +
+        '/render/' + encodeURIComponent(curRenderId) +
+        '?scale=contain&bg=' + encodeURIComponent(curBackdrop) + '&preview=1';
+      if (bust) src += '&_=' + bust;
+      return src;
+    }
+
+    function updateSrc() {
+      iframe.src = frameSrc();
+    }
+    updateSrc();
+    viewport.appendChild(iframe);
+
+    var bar = document.createElement('div');
+    bar.className = 'pc-preview-bar';
+
+    var presenceEl = document.createElement('span');
+    presenceEl.className = 'pc-preview-presence';
+    bar.appendChild(presenceEl);
+
+    var backdropsWrap = document.createElement('div');
+    backdropsWrap.className = 'pc-preview-backdrops';
+
+    var backdropButtons = [];
+    function updateBackdropButtons() {
+      for (var i = 0; i < backdropButtons.length; i++) {
+        var btn = backdropButtons[i];
+        var active = btn.getAttribute('data-backdrop-option') === curBackdrop;
+        if (btn.classList) btn.classList.toggle('pc-preview-backdrop-active', active);
+      }
+    }
+
+    (function buildBackdropButtons() {
+      for (var i = 0; i < PREVIEW_BACKDROPS.length; i++) {
+        var name = PREVIEW_BACKDROPS[i];
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pc-preview-backdrop-btn';
+        btn.setAttribute('data-backdrop-option', name);
+        btn.title = name;
+        btn.addEventListener('click', (function (n) {
+          return function () { setBackdrop(n); };
+        })(name));
+        backdropButtons.push(btn);
+        backdropsWrap.appendChild(btn);
+      }
+    })();
+    bar.appendChild(backdropsWrap);
+
+    var reloadBtn = document.createElement('button');
+    reloadBtn.type = 'button';
+    reloadBtn.className = 'pc-preview-reload';
+    reloadBtn.title = 'Reload preview';
+    reloadBtn.textContent = '↻';
+    reloadBtn.addEventListener('click', function () { reload(); });
+    bar.appendChild(reloadBtn);
+
+    root.appendChild(viewport);
+    root.appendChild(bar);
+    el.appendChild(root);
+
+    /* A lightweight control-role connection, used only to read presence for
+       the previewed render — never a render subscription, so it never adds
+       to the count it exists to display (spec 16 semantics apply as-is). */
+    var client = connect(packageId, { role: 'control' });
+    var presenceHandle = presenceIndicator(presenceEl, client, { renderId: curRenderId });
+
+    updateBackdropButtons();
+
+    function setRender(renderId) {
+      curRenderId = renderId;
+      updateSrc();
+      /* Re-narrow the presence indicator to the newly previewed render. */
+      presenceHandle.destroy();
+      presenceHandle = presenceIndicator(presenceEl, client, { renderId: curRenderId });
+    }
+
+    function setBackdrop(name) {
+      if (indexOfStr(PREVIEW_BACKDROPS, name) < 0) return;
+      curBackdrop = name;
+      root.setAttribute('data-backdrop', name);
+      updateSrc();
+      updateBackdropButtons();
+      writeStoredBackdrop(name);
+    }
+
+    function reload() {
+      bust = Date.now();
+      updateSrc();
+    }
+
+    function destroy() {
+      presenceHandle.destroy();
+      client.close();
+      if (root.parentNode) root.parentNode.removeChild(root);
+    }
+
+    return {
+      setRender: setRender,
+      setBackdrop: setBackdrop,
+      reload: reload,
+      destroy: destroy,
+    };
+  }
+
   return {
     version: '1',
     connect: connect,
     param: param,
     isDebug: isDebug,
     presenceIndicator: presenceIndicator,
+    preview: preview,
     _diagSource: _diagSource,
     _diagSources: diagSources,
     warn: warn,
