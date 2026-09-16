@@ -54,3 +54,46 @@
   background-size: 12px 12px;
   background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
 }
+
+/* Debug overlay — spec 21. Fixed panel, top-left, only visible with ?debug=1. */
+.pc-debug {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2147483647;
+  background: rgba(var(--pc-bg-rgb, 20, 22, 26), 0.9);
+  color: var(--pc-fg);
+  font: 12px/1.4 ui-monospace, monospace;
+  max-width: 380px;
+  max-height: 420px;
+  overflow: auto;
+  pointer-events: none;
+  padding: 12px;
+  gap: var(--pc-gap);
+}
+
+.pc-debug-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pc-debug-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pc-debug-label {
+  flex: 0 0 auto;
+  font-weight: bold;
+}
+
+.pc-debug-value {
+  flex: 1 1 auto;
+  text-align: right;
+  color: var(--pc-accent);
+}

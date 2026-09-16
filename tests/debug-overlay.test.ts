@@ -196,3 +196,45 @@ describe('T3 — Backgrounds', () => {
     expect(elem.style.backgroundColor).toBe('');
   });
 });
+
+describe('T4 — Overlay renders registered samplers only', () => {
+  it('with no samplers, overlay shows package, render, socket, fps, viewport', () => {
+    window.history.replaceState({}, '', '/packages/p/render/main?debug=1');
+    const PConAir = loadRuntime();
+    loadDebugModule();
+    const overlay = document.querySelector('.pc-debug');
+    expect(overlay).toBeTruthy();
+    const text = (overlay as HTMLElement)?.textContent || '';
+    expect(text).toContain('package');
+    expect(text).toContain('render');
+    expect(text).toContain('socket');
+    expect(text).toContain('fps');
+    expect(text).toContain('viewport');
+  });
+
+  it('register a fake transport sampler and assert its row appears', () => {
+    window.history.replaceState({}, '', '/packages/p/render/main?debug=1');
+    const PConAir = loadRuntime();
+    // Register a fake sampler
+    PConAir._diagSource('transport', function() {
+      return { phase: 'play', step: 1, n: 10, remaining: 5000 };
+    });
+    loadDebugModule();
+    const overlay = document.querySelector('.pc-debug');
+    const text = (overlay as HTMLElement)?.textContent || '';
+    expect(text).toContain('transport');
+    expect(text).toContain('play');
+  });
+
+  it('without ?debug=1, no overlay is shown even if samplers are registered', () => {
+    window.history.replaceState({}, '', '/packages/p/render/main');
+    const PConAir = loadRuntime();
+    // Register a sampler
+    PConAir._diagSource('transport', function() {
+      return { phase: 'play' };
+    });
+    loadDebugModule();
+    const overlay = document.querySelector('.pc-debug');
+    expect(overlay).toBeFalsy();
+  });
+});

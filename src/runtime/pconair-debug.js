@@ -6,6 +6,7 @@ window.PConAir = (function (Base) {
 
   var param = Base.param;
   var isDebug = Base.isDebug;
+  var diagSources = Base._diagSources;
   
   /* Setup: create wrapper for scaling and background. */
   function setupStage() {
@@ -58,7 +59,72 @@ window.PConAir = (function (Base) {
     window.addEventListener('resize', updateScale);
   }
   
+  /* Debug overlay — shows sampled diagnostics at 4 Hz. */
+  function setupDebugOverlay() {
+    if (!isDebug()) {
+      return;
+    }
+    
+    /* Create the overlay container */
+    var overlay = document.createElement('div');
+    overlay.className = 'pc-debug';
+    document.body.appendChild(overlay);
+    
+    /* Create the content area */
+    var content = document.createElement('div');
+    content.className = 'pc-debug-content';
+    overlay.appendChild(content);
+    
+    /* Sample at 4 Hz */
+    var lastSample = {};
+    function sample() {
+      var rows = [];
+      
+      /* Always include these base rows */
+      rows.push({ label: 'package', value: 'p' });
+      rows.push({ label: 'render', value: 'main' });
+      
+      /* Socket status */
+      var connected = Base.connect && Base.connect._client ? Base.connect._client.connected : false;
+      rows.push({ label: 'socket', value: connected ? 'connected' : 'disconnected' });
+      
+      /* Add sampled values from registered sources */
+      for (var name in diagSources) {
+        if (diagSources.hasOwnProperty(name)) {
+          try {
+            var value = diagSources[name]();
+            if (value) {
+              var valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+              rows.push({ label: name, value: valueStr });
+            }
+          } catch (e) { /* ignore */ }
+        }
+      }
+      
+      /* FPS (stub for now) */
+      rows.push({ label: 'fps', value: '60' });
+      
+      /* Viewport */
+      rows.push({ label: 'viewport', value: window.innerWidth + '×' + window.innerHeight });
+      
+      /* Render the rows */
+      content.innerHTML = '';
+      for (var i = 0; i < rows.length; i++) {
+        var row = rows[i];
+        var div = document.createElement('div');
+        div.className = 'pc-debug-row';
+        div.innerHTML = '<span class="pc-debug-label">' + row.label + '</span> <span class="pc-debug-value">' + row.value + '</span>';
+        content.appendChild(div);
+      }
+    }
+    
+    /* Sample on interval */
+    setInterval(sample, 250); /* 4 Hz = 250ms */
+    sample(); /* Initial sample */
+  }
+  
   setupStage();
+  setupDebugOverlay();
   
   return Base;
 })(window.PConAir);
