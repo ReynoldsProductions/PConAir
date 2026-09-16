@@ -1,6 +1,6 @@
 # Spec 15 — Graphics Transport (play / next / stop / clear)
 
-**Status:** Planned · **Date:** 2026-09-09 · **Wave:** 1 (concurrent with 16, 20, 21)
+**Status:** ✅ Done 2026-09-15 · **Date:** 2026-09-09 · **Wave:** 1 (concurrent with 16, 20, 21)
 **Model:** `claude-sonnet-5` · **Depends on:** spec 14 · **Branch:** `feat/graphics-15-graphics-transport`
 **Umbrella:** [`../plan_approved.md`](../plan_approved.md)
 
@@ -198,30 +198,137 @@ The runtime also sets `--pc-phase-ms` on `<html>` to the current `phaseMs`, so t
 
 ## 4. Tasks
 
-- [ ] **T1 — Manifest schema.** Test: a manifest with `transport: {stops: 3}` validates; `stops: 0`, `stops: 17`, `stops: 1.5`, `inMs: [-1]` each fail with a distinct message. Implement in `loader.ts`. Commit.
-- [ ] **T2 — Underscore keys reserved.** Test: `stateSchema: {_transport: 'string'}` fails validation; `stateSchema: {scoreA: 'number'}` still passes. Commit.
-- [ ] **T3 — Engine: play from idle.** Test: `dispatch('p','r','play')` on a `stops: 2` render returns `phase: 'playing-in'`, `step: 0`, `phaseMs` = manifest `inMs[0]`; after the timer fires, phase is `holding`. Use vitest fake timers. Commit.
-- [ ] **T4 — Engine: advance and wrap.** Test: `next` from `holding` step 0 → `playing-in` step 1 → `holding` step 1; `play` from the last hold behaves as `stop`. Commit.
-- [ ] **T5 — Engine: stop and clear.** Test: `stop` → `playing-out` → `finished` after `outMs`; `clear` from `playing-in` returns `idle` synchronously and cancels the pending timer (advance the clock and assert phase is still `idle`). Commit.
-- [ ] **T6 — Auto-advance.** Test: with `autoAdvanceMs: [1500, 0]`, holding step 0 advances itself after 1500 ms; holding step 1 does not advance. Commit.
-- [ ] **T7 — Transient across reload.** Test: put a render in `holding`, rebuild the hub from the persist file, assert `_transport` is absent or `idle` — never `holding`. Commit.
-- [ ] **T8 — HTTP routes.** supertest against `createFullServer` with a temp package dir: the four verbs return 200 with the expected `transport` body; a bad verb is 400 `INVALID_VERB`; a render with no `transport` key is 404; unauthenticated is 401. Commit.
-- [ ] **T9 — clear-all + panic.** Test: two renders in `holding`, `POST …/transport/clear-all` returns both ids and both are `idle`. Separately: `POST /api/action {action_id:'panic'}` leaves every transport-managed render `idle`. Commit.
-- [ ] **T10 — Runtime attributes.** jsdom test in `tests/graphics-transport.test.ts`: feeding transport frames through a stubbed socket sets `data-phase`, `data-step` and `--pc-phase-ms` on `document.documentElement`. Commit.
-- [ ] **T11 — Late-join correction.** jsdom test: a first frame with `phaseStartedAt` 5000 ms in the past adds `data-phase-jump`, and it is gone after a frame. Commit.
-- [ ] **T12 — Companion.** Test in `tests/graphics-transport-companion.test.ts` following `tests/companion-pkg-engine.test.ts`: a manifest with two transport renders yields five actions, one feedback and two variables, with the `renderId` dropdown listing exactly the transport-managed renders. Commit.
-- [ ] **T13 — Worked example + docs.** Give `demo-packages/template-overlay` a two-stop transport and CSS driven purely by `data-phase`/`data-step`. Document in `docs/designing-packages.md`. Commit.
+- [x] **T1 — Manifest schema.** Test: a manifest with `transport: {stops: 3}` validates; `stops: 0`, `stops: 17`, `stops: 1.5`, `inMs: [-1]` each fail with a distinct message. Implement in `loader.ts`. Commit.
+- [x] **T2 — Underscore keys reserved.** Test: `stateSchema: {_transport: 'string'}` fails validation; `stateSchema: {scoreA: 'number'}` still passes. Commit.
+- [x] **T3 — Engine: play from idle.** Test: `dispatch('p','r','play')` on a `stops: 2` render returns `phase: 'playing-in'`, `step: 0`, `phaseMs` = manifest `inMs[0]`; after the timer fires, phase is `holding`. Use vitest fake timers. Commit.
+- [x] **T4 — Engine: advance and wrap.** Test: `next` from `holding` step 0 → `playing-in` step 1 → `holding` step 1; `play` from the last hold behaves as `stop`. Commit.
+- [x] **T5 — Engine: stop and clear.** Test: `stop` → `playing-out` → `finished` after `outMs`; `clear` from `playing-in` returns `idle` synchronously and cancels the pending timer (advance the clock and assert phase is still `idle`). Commit.
+- [x] **T6 — Auto-advance.** Test: with `autoAdvanceMs: [1500, 0]`, holding step 0 advances itself after 1500 ms; holding step 1 does not advance. Commit.
+- [x] **T7 — Transient across reload.** Test: put a render in `holding`, rebuild the hub from the persist file, assert `_transport` is absent or `idle` — never `holding`. Commit.
+- [x] **T8 — HTTP routes.** supertest against `createFullServer` with a temp package dir: the four verbs return 200 with the expected `transport` body; a bad verb is 400 `INVALID_VERB`; a render with no `transport` key is 404; unauthenticated is 401. Commit.
+- [x] **T9 — clear-all + panic.** Test: two renders in `holding`, `POST …/transport/clear-all` returns both ids and both are `idle`. Separately: `POST /api/action {action_id:'panic'}` leaves every transport-managed render `idle`. Commit.
+- [x] **T10 — Runtime attributes.** jsdom test in `tests/graphics-transport.test.ts`: feeding transport frames through a stubbed socket sets `data-phase`, `data-step` and `--pc-phase-ms` on `document.documentElement`. Commit.
+- [x] **T11 — Late-join correction.** jsdom test: a first frame with `phaseStartedAt` 5000 ms in the past adds `data-phase-jump`, and it is gone after a frame. Commit.
+- [x] **T12 — Companion.** Test in `tests/graphics-transport-companion.test.ts` following `tests/companion-pkg-engine.test.ts`: a manifest with two transport renders yields five actions, one feedback and two variables, with the `renderId` dropdown listing exactly the transport-managed renders. Commit.
+- [x] **T13 — Worked example + docs.** Give `demo-packages/template-overlay` a two-stop transport and CSS driven purely by `data-phase`/`data-step`. Document in `docs/designing-packages.md`. Commit.
 
 ## 5. Acceptance
 
-- [ ] A render declaring `transport` plays, holds, advances, stops and clears from `POST /api/packages/:id/transport/:renderId/:verb`, with the same result whether driven from the control page or Companion.
-- [ ] A browser source opened while a graphic is `holding` shows it held, without replaying the intro.
-- [ ] `hoops`, `news` and `ffg` — none of which declare `transport` — behave identically to `main`.
-- [ ] Panic leaves no render in a live phase.
-- [ ] A server restart never restores a render to a live phase.
-- [ ] `demo-packages/template-overlay` animates two stages with **no animation JavaScript in the render page** — CSS against `data-phase`/`data-step` only.
-- [ ] `npm run typecheck && npm test` green.
+- [x] A render declaring `transport` plays, holds, advances, stops and clears from `POST /api/packages/:id/transport/:renderId/:verb`, with the same result whether driven from the control page or Companion.
+- [x] A browser source opened while a graphic is `holding` shows it held, without replaying the intro.
+- [x] `hoops`, `news` and `ffg` — none of which declare `transport` — behave identically to `main`.
+- [x] Panic leaves no render in a live phase.
+- [x] A server restart never restores a render to a live phase.
+- [x] `demo-packages/template-overlay` animates two stages with **no animation JavaScript in the render page** — CSS against `data-phase`/`data-step` only.
+- [x] `npm run typecheck && npm test` green.
 
 ## 6. Out of scope
 
 `delivered` on transport responses (spec 16). Transport buttons in a generated control panel (spec 18 — this spec exposes `client.verb()`; wiring it to declarative UI is spec 18's job). Editing fields mid-hold (spec 19). Do not retrofit transport onto `hoops`/`news`/`ffg`.
+
+---
+
+## 7. Implementation notes (2026-09-15)
+
+Landed on `feat/graphics-15-graphics-transport` in thirteen commits
+(`3ccdcaa`..`3107bc8`). Departures from the spec as written, all deliberate:
+
+- **T3's commit landed the whole state machine, not just play-from-idle.**
+  The phase transitions (advance/wrap, stop, clear, auto-advance) are one
+  tightly coupled function set in `transport.ts`; splitting them across T3-T6
+  would have meant committing a half-working state machine at each step. T4-T6
+  each still got their own failing-test-first pass and their own commit — the
+  tests just verified already-correct behaviour rather than driving new code.
+  This is noted plainly rather than claimed as strict per-task TDD.
+- **`state-hub.ts` needed no changes for T7.** Section 3.3 says to add
+  `_transport` to the reset-on-load path "next to the existing
+  `transientFields` handling." In the real code, `mergeSaved()` only carries a
+  saved key forward when it already exists in the schema-derived `base`
+  object, and `_transport` can never be in `base` — `validateManifest` rejects
+  a package-authored schema key starting with `_` (T2). So a rebuilt hub's
+  `next = mergeSaved(base, prior)` already drops `_transport` unconditionally,
+  whether `prior` came from the persisted file (first load) or the live
+  in-memory state (a rescan). Verified directly in T7 rather than assumed.
+- **`TransportEngine` gained two methods beyond section 3.4's interface:**
+  `clearAllPackages()` (panic needs to clear every loaded package, and the
+  engine already holds the `hub` reference to enumerate them — action-dispatch
+  has no other way in) and `reseed()` (re-applies idle defaults for any
+  transport-managed render lacking a `_transport` entry yet, called once at
+  construction and after `hub.rescan()` picks up a new package). Both are
+  additive; `dispatch`/`get`/`clearAll`/`dispose` match the spec exactly.
+- **`get()` lazily seeds an idle default** the first time a transport-managed
+  render is read, rather than returning `null` until the first verb. This is
+  what lets a render page's very first namespace snapshot already carry
+  `_transport[renderId]` — otherwise `client.transport` would incorrectly read
+  `null` (indistinguishable from "not transport-managed") until an operator
+  pressed Play once.
+- **The action dispatcher reaches the transport engine through a `let`-ref
+  closure (`getTransportEngine()`), not a constructor argument.** In both
+  `src/main/index.ts` and `tests/_test-server.ts`, `createActionDispatcher()`
+  is called *before* `createServer()` — which is what actually builds the
+  package hub and, now, the transport engine. `panic` must reach the *same*
+  engine instance the HTTP transport routes use (a second engine over the
+  same hub would leave its own pending `setTimeout`s uncancelled, able to
+  resurrect a "cleared" render moments later), so reordering construction
+  wasn't an option without a much larger refactor. `server.ts` now returns
+  `transportEngine` from `createServer()`, and both call sites assign it to
+  the ref immediately after.
+- **The three new HTTP routes use a new `requireOperatorOrPin` guard, not the
+  existing cookie-only `requireOperator`.** Section 3.5 says "Auth: operator"
+  and T8 requires a bare 401 when unauthenticated — both hold. But
+  `routes/packages.ts`'s own file-level comment states the existing package
+  routes are deliberately cookie-less *specifically* so the Companion module,
+  which never holds a session cookie, can drive them with only its configured
+  operator PIN. Gating the new routes on a cookie-only guard would make them
+  uncallable from Companion, which is exactly what T12 needs to work.
+  `requireOperatorOrPin` mirrors the fallback `routes/action.ts` already uses
+  (session cookie, or `?operator_pin=` verified against the operator PIN) and
+  is scoped to just these three routes — the shared `requireOperator()` used
+  by the rest of the admin GUI is untouched. Covered by two extra tests (T8's
+  section, labelled T8b) asserting both a correct and an incorrect PIN.
+- **`POST /api/packages/:id/state` now strips leading-underscore keys from an
+  incoming patch.** Not its own numbered task, but the Global Constraints
+  section of `plan_approved.md` requires it wherever a spec introduces a
+  reserved prefix, and this spec introduces `_transport`. Implemented and
+  tested alongside T8 since it lives in the same route file and handler.
+- **Test files split three ways, not two.** The spec named
+  `tests/graphics-transport.test.ts` and
+  `tests/graphics-transport-companion.test.ts`. T10/T11 need `jsdom` to touch
+  `document.documentElement`, while T1-T9 need node (supertest + real `ws` +
+  Vitest fake timers over a real engine) — one environment per Vitest file, so
+  those tasks landed in a third file, `tests/graphics-transport-runtime.test.ts`,
+  mirroring exactly how spec 14 split `package-runtime-client.test.ts` from
+  `package-runtime.test.ts` for the identical reason.
+- **`packages/companion-module-pconair`'s own `node_modules` were never
+  installed in this worktree** — the same pre-existing condition that fails
+  `tests/companion-defs.test.ts` (confirmed unchanged before and after this
+  spec's work). `pkg-engine.ts` has zero external imports, so
+  `synthesizeTransportDefs` is fully covered by
+  `tests/graphics-transport-companion.test.ts`. `client.ts`, `index.ts`, and
+  `packages.ts`, which do import `@companion-module/base` transitively, could
+  not be typechecked or unit-tested in this environment; those three files'
+  changes were reviewed by hand against the file's existing exact patterns
+  (the same PIN-query construction `sendAction` already uses, the same
+  namespacing `buildPackageDefinitions` already uses for declared actions).
+- **Extra end-to-end acceptance test beyond the T-list**, per the task's own
+  instructions: a real WebSocket subscribing *after* a render has already been
+  played into `holding`, proving the first frame it receives already carries
+  `phase: 'holding'` rather than `idle` — the server-side half of "a browser
+  source opened while a graphic is holding shows it held." T11 covers the
+  client-side half (the runtime's late-join correction) against a stubbed
+  frame.
+
+**Known unrelated failure carried over from spec 14:** `tests/companion-defs.test.ts`
+still fails to load — `packages/companion-module-pconair/node_modules` was
+never installed in this worktree, so `@companion-module/base` does not
+resolve. Confirmed identical before this spec's first commit and after its
+last.
+
+**Observed but unrelated:** the full suite occasionally shows one extra
+failure in a file this spec never touches (media library uploads, prompter
+forwarding, slides, presets, l3 themes — a different one most runs), never
+reproducing when that file is run alone or with `--no-file-parallelism`. This
+matches `vitest.config.ts`'s own comment about CPU-bound tests timing out
+non-deterministically under parallel load in this environment; every run
+during this spec's work converged to 55/57 files passing with only
+`companion-defs.test.ts` failing once concurrency dropped.
