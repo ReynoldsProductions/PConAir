@@ -4,89 +4,353 @@
   "version": "1.0.0",
   "description": "Standalone countdown timer — fullscreen or composited. Copy this folder and change the id to customize.",
   "renders": [
-    { "id": "timer", "label": "Timer", "file": "renders/timer.html" }
+    {
+      "id": "timer",
+      "label": "Timer",
+      "file": "renders/timer.html"
+    }
   ],
   "stateSchema": {
     "clock": {
       "deadline": "number",
       "value": "number",
       "running": "boolean",
-      "format": "string"
+      "format": "string",
+      "duration": "number"
     },
     "label": "string",
-    "visible": "boolean"
+    "visible": "boolean",
+    "style": {
+      "accent": "string",
+      "ink": "string",
+      "panelOpacity": "number",
+      "corner": "number",
+      "font": "string"
+    }
   },
   "initialState": {
     "clock": {
       "deadline": 0,
       "value": 300,
       "running": false,
-      "format": "mm:ss"
+      "format": "mm:ss",
+      "duration": 300
     },
     "label": "BREAK",
-    "visible": true
+    "visible": true,
+    "style": {
+      "accent": "#b5a998",
+      "ink": "#f2f0f0",
+      "panelOpacity": 1,
+      "corner": 0,
+      "font": "mono"
+    }
   },
   "companionActions": [
     {
       "id": "clock_start",
       "label": "Start timer",
       "ops": [
-        { "op": "countdown_start", "deadlineField": "clock.deadline", "valueField": "clock.value" },
-        { "op": "set", "field": "clock.running", "value": true }
+        {
+          "op": "countdown_start",
+          "deadlineField": "clock.deadline",
+          "valueField": "clock.value"
+        },
+        {
+          "op": "set",
+          "field": "clock.running",
+          "value": true
+        }
       ]
     },
     {
       "id": "clock_stop",
       "label": "Stop timer",
       "ops": [
-        { "op": "countdown_stop", "deadlineField": "clock.deadline", "valueField": "clock.value" },
-        { "op": "set", "field": "clock.running", "value": false }
+        {
+          "op": "countdown_stop",
+          "deadlineField": "clock.deadline",
+          "valueField": "clock.value"
+        },
+        {
+          "op": "set",
+          "field": "clock.running",
+          "value": false
+        }
       ]
     },
     {
       "id": "clock_reset",
       "label": "Reset timer",
       "options": [
-        { "id": "seconds", "label": "Seconds", "type": "number", "default": 300 }
+        {
+          "id": "seconds",
+          "label": "Seconds",
+          "type": "number",
+          "default": 300
+        }
       ],
       "ops": [
-        { "op": "countdown_reset", "deadlineField": "clock.deadline", "valueField": "clock.value", "seconds": { "option": "seconds" } },
-        { "op": "set", "field": "clock.running", "value": false }
+        {
+          "op": "countdown_reset",
+          "deadlineField": "clock.deadline",
+          "valueField": "clock.value",
+          "seconds": {
+            "option": "seconds"
+          }
+        },
+        {
+          "op": "set",
+          "field": "clock.running",
+          "value": false
+        }
       ]
     },
     {
       "id": "set_label",
       "label": "Set label",
       "options": [
-        { "id": "label", "label": "Label text", "type": "textinput", "default": "" }
+        {
+          "id": "label",
+          "label": "Label text",
+          "type": "textinput",
+          "default": ""
+        }
       ],
       "ops": [
-        { "op": "set", "field": "label", "value": { "option": "label" } }
+        {
+          "op": "set",
+          "field": "label",
+          "value": {
+            "option": "label"
+          }
+        }
       ]
     },
     {
       "id": "show",
       "label": "Show timer",
-      "ops": [ { "op": "set", "field": "visible", "value": true } ]
+      "ops": [
+        {
+          "op": "set",
+          "field": "visible",
+          "value": true
+        }
+      ]
     },
     {
       "id": "hide",
       "label": "Hide timer",
-      "ops": [ { "op": "set", "field": "visible", "value": false } ]
+      "ops": [
+        {
+          "op": "set",
+          "field": "visible",
+          "value": false
+        }
+      ]
     },
     {
       "id": "toggle",
       "label": "Toggle timer visibility",
-      "ops": [ { "op": "toggle", "field": "visible" } ]
+      "ops": [
+        {
+          "op": "toggle",
+          "field": "visible"
+        }
+      ]
     }
   ],
   "companionFeedbacks": [
-    { "id": "running",  "label": "Timer is running", "field": "clock.running" },
-    { "id": "visible",  "label": "Timer is visible", "field": "visible" }
+    {
+      "id": "running",
+      "label": "Timer is running",
+      "field": "clock.running"
+    },
+    {
+      "id": "visible",
+      "label": "Timer is visible",
+      "field": "visible"
+    }
   ],
   "companionVariables": [
-    { "id": "clock_display", "label": "Clock display", "type": "countdown",
-      "deadlineField": "clock.deadline", "valueField": "clock.value", "format": "mm:ss" },
-    { "id": "label", "label": "Timer label", "field": "label" }
-  ]
+    {
+      "id": "clock_display",
+      "label": "Clock display",
+      "type": "countdown",
+      "deadlineField": "clock.deadline",
+      "valueField": "clock.value",
+      "format": "mm:ss"
+    },
+    {
+      "id": "label",
+      "label": "Timer label",
+      "field": "label"
+    }
+  ],
+  "controls": {
+    "groups": [
+      {
+        "id": "clock",
+        "label": "Clock",
+        "fields": [
+          {
+            "type": "number",
+            "field": "clock.duration",
+            "label": "Duration (seconds)",
+            "min": 0,
+            "max": 35999,
+            "step": 5,
+            "bump": [
+              10,
+              60,
+              300
+            ],
+            "help": "Used by Start when the clock is stopped, and by Reset."
+          },
+          {
+            "type": "action",
+            "label": "Start",
+            "span": "third",
+            "countdown": {
+              "deadlineField": "clock.deadline",
+              "valueField": "clock.value",
+              "runningField": "clock.running",
+              "verb": "start",
+              "secondsField": "clock.duration"
+            }
+          },
+          {
+            "type": "action",
+            "label": "Stop",
+            "span": "third",
+            "countdown": {
+              "deadlineField": "clock.deadline",
+              "valueField": "clock.value",
+              "runningField": "clock.running",
+              "verb": "stop"
+            }
+          },
+          {
+            "type": "action",
+            "label": "Reset",
+            "span": "third",
+            "variant": "danger",
+            "countdown": {
+              "deadlineField": "clock.deadline",
+              "valueField": "clock.value",
+              "runningField": "clock.running",
+              "verb": "reset",
+              "secondsField": "clock.duration"
+            }
+          },
+          {
+            "type": "select",
+            "field": "clock.format",
+            "label": "Clock format",
+            "span": "half",
+            "choices": [
+              {
+                "id": "mm:ss",
+                "label": "MM:SS"
+              },
+              {
+                "id": "seconds",
+                "label": "Seconds"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "content",
+        "label": "Content",
+        "fields": [
+          {
+            "type": "text",
+            "field": "label",
+            "label": "Label",
+            "placeholder": "BREAK",
+            "maxLength": 40,
+            "help": "Shown above the clock. Leave empty to hide it."
+          },
+          {
+            "type": "toggle",
+            "field": "visible",
+            "label": "On air"
+          }
+        ]
+      },
+      {
+        "id": "look",
+        "label": "Look",
+        "collapsed": true,
+        "fields": [
+          {
+            "type": "static",
+            "label": "Live restyling",
+            "text": "These drive CSS custom properties on the render via client.applyStyle() — the graphic restyles as you change them, with no reload."
+          },
+          {
+            "type": "color",
+            "field": "style.accent",
+            "label": "Accent",
+            "span": "half",
+            "swatches": [
+              "#b5a998",
+              "#c8a24a",
+              "#3dd68c",
+              "#e5484d",
+              "#ffffff"
+            ]
+          },
+          {
+            "type": "color",
+            "field": "style.ink",
+            "label": "Clock colour",
+            "span": "half",
+            "swatches": [
+              "#f2f0f0",
+              "#ffffff",
+              "#b5a998"
+            ]
+          },
+          {
+            "type": "slider",
+            "field": "style.panelOpacity",
+            "label": "Backdrop opacity",
+            "min": 0,
+            "max": 1,
+            "step": 0.05,
+            "span": "half"
+          },
+          {
+            "type": "slider",
+            "field": "style.corner",
+            "label": "Corner radius",
+            "min": 0,
+            "max": 64,
+            "step": 2,
+            "unit": "px",
+            "span": "half"
+          },
+          {
+            "type": "select",
+            "field": "style.font",
+            "label": "Clock typeface",
+            "span": "half",
+            "choices": [
+              {
+                "id": "mono",
+                "label": "Monospace"
+              },
+              {
+                "id": "sans",
+                "label": "Sans"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
 }

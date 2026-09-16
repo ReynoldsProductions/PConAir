@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { validateControls } from './controls-validate';
 
 /**
  * A URL preset a render asks the app to keep. Use it for renders that are a
@@ -143,6 +144,12 @@ export interface PackageManifest {
   companionDerived?: PkgCompanionDerived[];
   /** Polled, normalized data feeds — see data-sources.ts. */
   dataSources?: PackageDataSource[];
+  /**
+   * Declarative operator panel — see the "Declarative controls" block below
+   * and src/runtime/pconair-controls.js. A package with `controls` and no
+   * control.html gets a generated panel; one with control.html keeps it.
+   */
+  controls?: PackageControls;
 }
 
 // ── Data sources (spec 20) ───────────────────────────────────────────────
@@ -174,6 +181,194 @@ export interface PackageDataSource {
   pollSeconds?: number;
   /** Applied in array order. */
   transforms?: DataTransform[];
+}
+
+// ── Declarative controls (spec 18) ───────────────────────────────────────
+//
+// A package declares WHAT an operator may change; the shared runtime decides
+// HOW it is drawn (src/runtime/pconair-controls.js). A manifest with `controls`
+// and no control.html gets a generated operator panel for free — see
+// GET /packages/:id/control in src/main/routes/packages.ts.
+//
+// Field `type` names deliberately echo PkgCompanionOption's vocabulary above
+// where they overlap, so a package author learns one type system, not two.
+// Validation lives in ./controls-validate.ts to keep this file readable.
+
+/** Layout hint. The panel decides the actual widths. */
+export type ControlSpan = 'full' | 'half' | 'third';
+
+/** Every field type the panel can draw. */
+export type ControlFieldType =
+  | 'text'
+  | 'number'
+  | 'toggle'
+  | 'select'
+  | 'color'
+  | 'slider'
+  | 'asset'
+  | 'transport'
+  | 'data'
+  | 'action'
+  | 'static';
+
+export interface FieldBase {
+  /**
+   * Dotted path into the package's state, e.g. "home.score". Required for
+   * value-bearing fields (text/number/toggle/select/color/slider/asset),
+   * absent for transport/data/action/static. Array indices are supported
+   * ("scores.0"), the same dotted-path convention Companion field paths use.
+   */
+  field?: string;
+  label: string;
+  /** Operator-facing hint rendered under the input. */
+  help?: string;
+  /**
+   * Show only when another field's value matches — e.g. "logo position"
+   * appearing only once "show logo" is on. Re-evaluated on every state frame.
+   */
+  showIf?: { field: string; equals: string | number | boolean };
+  /** Width hint. Default 'full'. */
+  span?: ControlSpan;
+}
+
+export interface TextField extends FieldBase {
+  type: 'text';
+  multiline?: boolean;
+  maxLength?: number;
+  placeholder?: string;
+  /**
+   * Bind a textarea to an ARRAY-of-strings leaf, one item per line (blank
+   * lines dropped). Implies `multiline`. Not in spec 18 §3.2's original union
+   * — added because template-overlay's `ticker.messages` is an array leaf and
+   * the acceptance criterion is a complete panel with zero hand-written HTML.
+   * See §7 of the spec.
+   */
+  list?: boolean;
+}
+
+export interface NumberField extends FieldBase {
+  type: 'number';
+  min?: number;
+  max?: number;
+  step?: number;
+  /** Renders -/+ buttons beside the input, one pair per magnitude. */
+  bump?: number[];
+}
+
+export interface ToggleField extends FieldBase {
+  type: 'toggle';
+}
+
+export interface SelectField extends FieldBase {
+  type: 'select';
+  choices: Array<{ id: string | number; label: string }>;
+}
+
+export interface ColorField extends FieldBase {
+  type: 'color';
+  /** Also offered as one-click swatches. Each must pass isValidColorValue(). */
+  swatches?: string[];
+}
+
+export interface SliderField extends FieldBase {
+  type: 'slider';
+  min: number;
+  max: number;
+  step?: number;
+  /** Suffix for the value readout, e.g. "px" or "%". Display only. */
+  unit?: string;
+}
+
+export interface AssetField extends FieldBase {
+  type: 'asset';
+  accept?: 'image' | 'video' | 'any';
+}
+
+export interface TransportField extends FieldBase {
+  type: 'transport';
+  /** Must name a render that declares `transport` (spec 15). */
+  renderId: string;
+  field?: never;
+}
+
+export interface DataField extends FieldBase {
+  type: 'data';
+  /** Must name a declared dataSource (spec 20). */
+  sourceId: string;
+  field?: never;
+}
+
+/**
+ * A deadline-based countdown verb — the one thing a static `patch` provably
+ * cannot express, because starting a clock needs `Date.now()`.
+ *
+ * Semantics are lifted verbatim from `PkgCompanionOp`'s
+ * countdown_start/stop/reset above, so an author who has written the Companion
+ * half of a timer already knows this. Not in spec 18 §3.2's original union —
+ * added because §3.8 requires `demo-packages/template-timer` to ship with NO
+ * control.html, and a countdown is the entire point of that package. See §7 of
+ * the spec.
+ */
+export interface ControlCountdown {
+  verb: 'start' | 'stop' | 'reset';
+  /** Dotted path to the epoch-ms deadline. Must be a number leaf. */
+  deadlineField: string;
+  /** Dotted path to the seconds remaining. Must be a number leaf. */
+  valueField: string;
+  /** Optional boolean leaf kept in step with the clock. */
+  runningField?: string;
+  /**
+   * `start`: seconds to run when the clock is not already running.
+   * `reset`: seconds to restore.
+   * A literal; `secondsField` reads it from state instead.
+   */
+  seconds?: number;
+  /** Number leaf to read `seconds` from — e.g. an operator-set duration. */
+  secondsField?: string;
+}
+
+export interface ActionField extends FieldBase {
+  type: 'action';
+  /** Patch merged on click. Every dotted path in it must resolve. */
+  patch?: Record<string, unknown>;
+  /** Deadline-based clock verb. Mutually exclusive with `patch`. */
+  countdown?: ControlCountdown;
+  confirm?: string;
+  variant?: 'default' | 'danger';
+}
+
+export interface StaticField extends FieldBase {
+  type: 'static';
+  text: string;
+  field?: never;
+}
+
+export type ControlField =
+  | TextField
+  | NumberField
+  | ToggleField
+  | SelectField
+  | ColorField
+  | SliderField
+  | AssetField
+  | TransportField
+  | DataField
+  | ActionField
+  | StaticField;
+
+export interface ControlGroup {
+  id: string;
+  label: string;
+  /** Collapsed on first load. The operator's choice then persists per viewer. */
+  collapsed?: boolean;
+  /** Narrows this group to one render's panel. Absent = always shown. */
+  renderId?: string;
+  fields: ControlField[];
+}
+
+export interface PackageControls {
+  /** Ordered. Rendered as titled sections. */
+  groups: ControlGroup[];
 }
 
 export interface LoadedPackage {
@@ -285,6 +480,16 @@ export function validateManifest(raw: unknown): { ok: true; manifest: PackageMan
       const err = validateDataSource(raw, seenIds);
       if (err) return { ok: false, error: err };
     }
+  }
+  if (m.controls !== undefined) {
+    // Runs last: it cross-references stateSchema paths, render transports and
+    // data source ids, all of which are validated above.
+    const err = validateControls(m.controls, {
+      stateSchema: m.stateSchema as PackageSchema | undefined,
+      renders: m.renders as PackageRenderDecl[],
+      dataSources: m.dataSources as PackageDataSource[] | undefined,
+    });
+    if (err) return { ok: false, error: err };
   }
   return { ok: true, manifest: raw as PackageManifest };
 }

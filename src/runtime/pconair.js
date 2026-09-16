@@ -45,6 +45,136 @@ window.PConAir = (function () {
     diagSources[name] = fn;
   }
 
+  /* ── Dotted paths (spec 18 §3.5) ──────────────────────────────────────
+     One implementation of the convention Companion field paths, transient
+     fields and now control fields all share. Array indices work because a
+     numeric key indexes an array in JS anyway: getPath(s, 'scores.0'). */
+  function getPath(obj, dotted) {
+    if (obj === null || obj === undefined) return undefined;
+    var parts = String(dotted).split('.');
+    var cur = obj;
+    for (var i = 0; i < parts.length; i++) {
+      if (cur === null || cur === undefined) return undefined;
+      cur = cur[parts[i]];
+    }
+    return cur;
+  }
+
+  /* Copy-on-write set along a dotted path. Returns a new value for `base`. */
+  function setPathIn(base, parts, value) {
+    if (parts.length === 0) return value;
+    var key = parts[0];
+    var rest = parts.slice(1);
+    var next;
+    if (/^\d+$/.test(key)) {
+      next = Object.prototype.toString.call(base) === '[object Array]' ? base.slice() : [];
+      next[Number(key)] = setPathIn(next[Number(key)], rest, value);
+      return next;
+    }
+    next = {};
+    if (base && typeof base === 'object' && Object.prototype.toString.call(base) !== '[object Array]') {
+      for (var k in base) {
+        if (Object.prototype.hasOwnProperty.call(base, k)) next[k] = base[k];
+      }
+    }
+    next[key] = setPathIn(next[key], rest, value);
+    return next;
+  }
+
+  /* Build a patch for POST /api/packages/:id/state, which SHALLOW-merges at
+     the top level. So a change to "home.score" has to carry `home`'s other
+     keys with it or they are dropped — read them out of `state`. */
+  function buildPatch(state, dotted, value) {
+    var parts = String(dotted).split('.');
+    var patch = {};
+    var top = parts[0];
+    patch[top] = parts.length === 1 ? value : setPathIn(state ? state[top] : undefined, parts.slice(1), value);
+    return patch;
+  }
+
+  /* Several dotted paths in one patch, siblings preserved throughout. Used by
+     spec 18's `action` fields, whose declared patch may touch more than one
+     path under the same top-level key. */
+  function buildPatchMulti(state, entries) {
+    var patch = {};
+    for (var i = 0; i < entries.length; i++) {
+      var parts = String(entries[i].path).split('.');
+      var top = parts[0];
+      var base = Object.prototype.hasOwnProperty.call(patch, top) ? patch[top] : (state ? state[top] : undefined);
+      patch[top] =
+        parts.length === 1 ? entries[i].value : setPathIn(base, parts.slice(1), entries[i].value);
+    }
+    return patch;
+  }
+
+  /* ── CSS value safety (spec 18 §3.3) ─────────────────────────────────
+     A control's value reaches a CSS custom property on a live render's
+     <html style="...">. Anything that can terminate a declaration or open a
+     function call is refused, so a value cannot become a CSS injection into
+     every connected output. Mirrors isSafeStyleValue/isValidColorValue in
+     src/main/packages/controls-validate.ts, which enforces the same rules
+     server-side before a value ever enters state. Both halves exist on
+     purpose: the server is the gate, this is the last line of defence. */
+  var UNSAFE_STYLE_FRAGMENTS = [';', '}', '{', '/*', '*/', 'url(', '\\'];
+
+  var NAMED_COLORS = [
+    'transparent', 'currentcolor', 'black', 'white', 'red', 'green', 'blue',
+    'yellow', 'orange', 'purple', 'pink', 'brown', 'gray', 'grey', 'cyan',
+    'magenta', 'silver', 'gold', 'navy', 'teal', 'olive', 'maroon', 'lime',
+    'aqua', 'fuchsia',
+  ];
+
+  function isSafeStyleValue(v) {
+    if (typeof v === 'number') return isFinite(v);
+    if (typeof v === 'boolean') return true;
+    if (typeof v !== 'string') return false;
+    var lower = v.toLowerCase();
+    for (var i = 0; i < UNSAFE_STYLE_FRAGMENTS.length; i++) {
+      if (lower.indexOf(UNSAFE_STYLE_FRAGMENTS[i]) !== -1) return false;
+    }
+    if (lower.indexOf('(') !== -1 || lower.indexOf(')') !== -1) return false;
+    return true;
+  }
+
+  function isValidColorValue(v) {
+    if (typeof v !== 'string' || v.length === 0) return false;
+    if (!isSafeStyleValue(v)) return false;
+    if (/^#[0-9a-fA-F]{3,8}$/.test(v)) return true;
+    for (var i = 0; i < NAMED_COLORS.length; i++) {
+      if (NAMED_COLORS[i] === v.toLowerCase()) return true;
+    }
+    return false;
+  }
+
+  /* camelCase -> kebab-case, for state key -> custom property name. */
+  function kebab(key) {
+    return String(key).replace(/[A-Z]/g, function (m) {
+      return '-' + m.toLowerCase();
+    });
+  }
+
+  /* ── The generated control panel (spec 18 §3.4) ───────────────────────
+     The renderer itself lives in pconair-controls.js, which registers here.
+     Kept out of this file so a render page — which never needs a panel —
+     does not download it. The generated shell loads both scripts; a
+     hand-written control.html that wants to call controlPanel() for part of
+     its page must do the same (docs/designing-packages.md). */
+  var controlPanelImpl = null;
+
+  function _registerControlPanel(fn) {
+    controlPanelImpl = fn;
+  }
+
+  function controlPanel(el, opts) {
+    if (!controlPanelImpl) {
+      throw new Error(
+        'PConAir.controlPanel requires the panel renderer — add ' +
+          '<script src="/packages/_runtime/pconair-controls.js"></script> after pconair.js'
+      );
+    }
+    return controlPanelImpl(el, opts);
+  }
+
   function connect(packageId, opts) {
     opts = opts || {};
 
@@ -95,8 +225,57 @@ window.PConAir = (function () {
       onConnection: onConnection,
       onTransport: onTransport,
       verb: verb,
+      applyStyle: applyStyle,
       close: close,
     };
+
+    /* Mirror a state subtree onto :root as CSS custom properties, on every
+       frame (spec 18 §3.3). This is what makes the "Look" group actually
+       restyle a live render:
+
+         { accent: '#c8a24a', panelOpacity: 0.9 }
+           -> --pc-accent: #c8a24a; --pc-panel-opacity: 0.9
+
+       camelCase becomes kebab-case and numbers pass through unitless, so a
+       render authors against `rgb(0 0 0 / var(--pc-panel-opacity))` and
+       `calc(var(--pc-corner) * 1px)` and never touches JS.
+
+       Values are filtered through isSafeStyleValue: these land in a style
+       attribute, so an unvalidated one is a CSS injection into every output.
+       An unsafe value is DROPPED — the previously-applied value stays, which
+       is a stale graphic rather than a broken one. Nested objects are
+       skipped; only scalar leaves become properties. */
+    function applyStyle(subtree, prefix) {
+      var key = subtree === undefined ? 'style' : subtree;
+      var pfx = prefix === undefined ? '--pc-' : prefix;
+
+      function apply(s) {
+        var tree = key ? getPath(s, key) : s;
+        if (!tree || typeof tree !== 'object') return;
+        var root = document.documentElement;
+        if (!root.style || !root.style.setProperty) return;
+        for (var k in tree) {
+          if (!Object.prototype.hasOwnProperty.call(tree, k)) continue;
+          var v = tree[k];
+          if (v === null || v === undefined) continue;
+          if (typeof v === 'object') continue; /* only scalar leaves */
+          if (!/^[A-Za-z0-9_-]+$/.test(k)) {
+            warn('applyStyle: skipped unsafe property name ' + JSON.stringify(k));
+            continue;
+          }
+          if (!isSafeStyleValue(v)) {
+            warn('applyStyle: dropped unsafe value for ' + k + ': ' + JSON.stringify(v));
+            continue;
+          }
+          root.style.setProperty(pfx + kebab(k), String(v));
+        }
+      }
+
+      var off = on(apply);
+      return {
+        destroy: function () { off(); },
+      };
+    }
 
     function wsUrl() {
       var proto = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -183,11 +362,18 @@ window.PConAir = (function () {
 
     /* POST a transport verb ('play'|'next'|'stop'|'clear') for this page's
        renderId. Resolves to the parsed response body, same contract as
-       patch(). */
-    function verb(name) {
+       patch().
+
+       `forRenderId` overrides this page's own renderId. A control page's
+       client has no renderId of its own (it is not a render), so spec 18's
+       `transport` control field — which names the render it drives in the
+       manifest — passes it explicitly. Omitting the argument is unchanged
+       spec 15 behaviour. */
+    function verb(name, forRenderId) {
+      var target = forRenderId === undefined || forRenderId === null ? renderId : forRenderId;
       var url =
         '/api/packages/' + encodeURIComponent(packageId) +
-        '/transport/' + encodeURIComponent(renderId || '') +
+        '/transport/' + encodeURIComponent(target || '') +
         '/' + encodeURIComponent(name);
       return window
         .fetch(url, { method: 'POST' })
@@ -544,6 +730,10 @@ window.PConAir = (function () {
         btn.className = 'pc-preview-backdrop-btn';
         btn.setAttribute('data-backdrop-option', name);
         btn.title = name;
+        /* title alone is not a reliable accessible name (inconsistent
+           screen-reader support, absent on touch) -- these are otherwise
+           unlabelled color swatches, so aria-label is the real fix. */
+        btn.setAttribute('aria-label', name + ' backdrop');
         btn.addEventListener('click', (function (n) {
           return function () { setBackdrop(n); };
         })(name));
@@ -557,6 +747,7 @@ window.PConAir = (function () {
     reloadBtn.type = 'button';
     reloadBtn.className = 'pc-preview-reload';
     reloadBtn.title = 'Reload preview';
+    reloadBtn.setAttribute('aria-label', 'Reload preview');
     reloadBtn.textContent = '↻';
     reloadBtn.addEventListener('click', function () { reload(); });
     bar.appendChild(reloadBtn);
@@ -617,6 +808,18 @@ window.PConAir = (function () {
     presenceIndicator: presenceIndicator,
     warningsPanel: warningsPanel,
     preview: preview,
+    /* Spec 18: the generated operator panel. controlPanel throws a message
+       naming the missing script when pconair-controls.js has not loaded. */
+    controlPanel: controlPanel,
+    _registerControlPanel: _registerControlPanel,
+    /* Dotted-path and patch helpers — public because packages, the kit and
+       the panel all need the same convention. */
+    getPath: getPath,
+    buildPatch: buildPatch,
+    buildPatchMulti: buildPatchMulti,
+    /* CSS value safety, shared with the panel renderer. */
+    isSafeStyleValue: isSafeStyleValue,
+    isValidColorValue: isValidColorValue,
     _diagSource: _diagSource,
     _diagSources: diagSources,
     warn: warn,
@@ -650,24 +853,44 @@ window.PConAir = (function () {
 (function () {
   'use strict';
   function hasFit(root) {
-    return !!(root.querySelector && root.querySelector('[data-fit]'));
+    return !!(root && root.querySelector && root.querySelector('[data-fit]'));
   }
   function load() {
     var script = document.createElement('script');
     script.src = '/packages/_runtime/pconair-fit.js';
     document.head.appendChild(script);
   }
+  if (typeof document === 'undefined') return;
   if (hasFit(document)) {
     load();
     return;
   }
   if (typeof window.MutationObserver === 'function') {
     var loaded = false;
+    /* Guarded defensively, not just for the one-shot case above: a test
+       harness that re-evaluates this whole file many times against one
+       shared document (every spec's own runtime tests do exactly this, via
+       `new Function(source)()`) leaves one of these observers alive per
+       load with no way to reach in and disconnect it, since it is anonymous
+       and never exposed. If a *later* reload's DOM churn fires an *earlier*
+       instance's callback after that instance's own module scope is
+       otherwise done with, an uncaught ReferenceError here does not just
+       fail silently -- thrown from inside a MutationObserver callback, it
+       can interrupt whatever microtask queue jsdom dispatches it on in the
+       same tick, corrupting unrelated assertions elsewhere in the same test
+       file (this is exactly what broke several of specs 18's tests once
+       merged next to this file). try/catch plus an explicit typeof guard is
+       the fix: this loader's only job is a best-effort trigger, so silently
+       giving up beats throwing into code that has nothing to do with it. */
     var mo = new window.MutationObserver(function () {
-      if (loaded || !hasFit(document)) return;
-      loaded = true;
-      mo.disconnect();
-      load();
+      try {
+        if (loaded || typeof document === 'undefined' || !hasFit(document)) return;
+        loaded = true;
+        mo.disconnect();
+        load();
+      } catch (e) {
+        try { mo.disconnect(); } catch (e2) { /* ignore */ }
+      }
     });
     mo.observe(document.documentElement, { childList: true, subtree: true });
   }

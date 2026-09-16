@@ -1,0 +1,994 @@
+// Spec 18 — declarative controls, server half: manifest validation, the
+// controls route, serving precedence and colour validation on POST /state.
+//
+// The client half (the generated panel) lives in
+// tests/declarative-controls-render.test.ts, which needs the jsdom
+// environment; vitest picks one environment per file.
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import request from 'supertest';
+import type { Express } from 'express';
+import { validateManifest } from '../src/main/packages/loader';
+import { resolveSchemaPath } from '../src/main/packages/controls-validate';
+import { createStateStore } from '../src/main/state';
+import { createFullServer } from './_test-server';
+
+const BASE_SCHEMA = {
+  home: { score: 'number', name: 'string', bonus: 'boolean' },
+  live: 'boolean',
+  style: { accent: 'string', panelOpacity: 'number', corner: 'number', font: 'string' },
+  scores: [],
+  logo: 'string',
+};
+
+function manifest(controls: unknown, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 'widget',
+    name: 'Widget',
+    version: '1.0.0',
+    renders: [{ id: 'main', label: 'Main', file: 'render.html' }],
+    stateSchema: BASE_SCHEMA,
+    controls,
+    ...extra,
+  };
+}
+
+/** validateManifest's failure message, or '' when it passed. */
+function err(controls: unknown, extra: Record<string, unknown> = {}): string {
+  const res = validateManifest(manifest(controls, extra));
+  return res.ok ? '' : res.error;
+}
+
+describe('T1 — controls schema + basic validation', () => {
+  it('accepts a valid two-group manifest', () => {
+    const res = validateManifest(
+      manifest({
+        groups: [
+          {
+            id: 'scores',
+            label: 'Scores',
+            fields: [
+              { type: 'number', field: 'home.score', label: 'Home score', bump: [1, 10] },
+              { type: 'text', field: 'home.name', label: 'Home name', placeholder: 'Home' },
+              { type: 'toggle', field: 'live', label: 'On air' },
+            ],
+          },
+          {
+            id: 'look',
+            label: 'Look',
+            collapsed: true,
+            fields: [
+              { type: 'color', field: 'style.accent', label: 'Accent', swatches: ['#c8a24a', '#fff'] },
+              { type: 'slider', field: 'style.panelOpacity', label: 'Panel opacity', min: 0, max: 1, step: 0.05 },
+              { type: 'static', label: 'Note', text: 'Restyles live.' },
+            ],
+          },
+        ],
+      })
+    );
+    expect(res.ok).toBe(true);
+  });
+
+  it('rejects controls that is not an object with a groups array', () => {
+    expect(err([])).toMatch(/controls must be an object/);
+    expect(err({})).toMatch(/controls\.groups must be an array/);
+  });
+
+  it('rejects duplicate group ids, naming the group', () => {
+    const message = err({
+      groups: [
+        { id: 'look', label: 'Look', fields: [{ type: 'static', label: 'a', text: 'a' }] },
+        { id: 'look', label: 'Look again', fields: [{ type: 'static', label: 'b', text: 'b' }] },
+      ],
+    });
+    expect(message).toMatch(/group 'look'/);
+    expect(message).toMatch(/duplicate/i);
+  });
+
+  it('rejects an empty field label, naming the group and the field position', () => {
+    const message = err({
+      groups: [
+        {
+          id: 'scores',
+          label: 'Scores',
+          fields: [
+            { type: 'toggle', field: 'live', label: 'On air' },
+            { type: 'text', field: 'home.name', label: '' },
+          ],
+        },
+      ],
+    });
+    expect(message).toMatch(/group 'scores'/);
+    expect(message).toMatch(/field \[1\]/);
+    expect(message).toMatch(/label is required/);
+  });
+
+  it('rejects an empty group label and a non-array fields list', () => {
+    expect(
+      err({ groups: [{ id: 'g', label: '', fields: [{ type: 'static', label: 'a', text: 'a' }] }] })
+    ).toMatch(/group 'g'.*label is required/);
+    expect(err({ groups: [{ id: 'g', label: 'G', fields: {} }] })).toMatch(
+      /group 'g'.*fields must be a non-empty array/
+    );
+  });
+
+  it('rejects a select with no choices, naming the group and field', () => {
+    const message = err({
+      groups: [
+        { id: 'look', label: 'Look', fields: [{ type: 'select', field: 'style.font', label: 'Font', choices: [] }] },
+      ],
+    });
+    expect(message).toMatch(/group 'look'/);
+    expect(message).toMatch(/field 'Font'/);
+    expect(message).toMatch(/at least one choice/);
+  });
+
+  it('rejects a slider whose min is not below its max', () => {
+    const message = err({
+      groups: [
+        {
+          id: 'look',
+          label: 'Look',
+          fields: [{ type: 'slider', field: 'style.panelOpacity', label: 'Opacity', min: 1, max: 1 }],
+        },
+      ],
+    });
+    expect(message).toMatch(/group 'look'/);
+    expect(message).toMatch(/field 'Opacity'/);
+    expect(message).toMatch(/min must be less than max/);
+  });
+
+  it('rejects an unknown field type and a bad group id', () => {
+    expect(
+      err({ groups: [{ id: 'g', label: 'G', fields: [{ type: 'rotary', field: 'live', label: 'X' }] }] })
+    ).toMatch(/unknown field type 'rotary'/);
+    expect(
+      err({ groups: [{ id: 'Bad Id', label: 'G', fields: [{ type: 'static', label: 'a', text: 'a' }] }] })
+    ).toMatch(/id must be lowercase/);
+  });
+
+  it('rejects a bad span, a non-string help and a static with no text', () => {
+    expect(
+      err({
+        groups: [{ id: 'g', label: 'G', fields: [{ type: 'toggle', field: 'live', label: 'X', span: 'quarter' }] }],
+      })
+    ).toMatch(/span must be one of/);
+    expect(
+      err({ groups: [{ id: 'g', label: 'G', fields: [{ type: 'toggle', field: 'live', label: 'X', help: 7 }] }] })
+    ).toMatch(/help must be a string/);
+    expect(err({ groups: [{ id: 'g', label: 'G', fields: [{ type: 'static', label: 'X' }] }] })).toMatch(
+      /static field requires a non-empty 'text'/
+    );
+  });
+
+});
+
+describe('T2 — field path resolution against stateSchema', () => {
+  function oneField(field: Record<string, unknown>, schema?: unknown): string {
+    const m = manifest({ groups: [{ id: 'g', label: 'G', fields: [field] }] });
+    if (schema !== undefined) m.stateSchema = schema;
+    const res = validateManifest(m);
+    return res.ok ? '' : res.error;
+  }
+
+  it('resolves a nested path', () => {
+    expect(oneField({ type: 'number', field: 'home.score', label: 'Score' }, { home: { score: 'number' } })).toBe('');
+  });
+
+  it('fails a typo\'d path naming the group, the field and the path', () => {
+    const message = oneField({ type: 'number', field: 'home.scor', label: 'Score' }, { home: { score: 'number' } });
+    expect(message).toMatch(/group 'g'/);
+    expect(message).toMatch(/field 'Score'/);
+    expect(message).toMatch(/'home\.scor'/);
+    expect(message).toMatch(/no such path in stateSchema/);
+  });
+
+  it('resolves an index under an array leaf', () => {
+    expect(oneField({ type: 'text', field: 'scores.0', label: 'First' }, { scores: [] })).toBe('');
+    // …and an untyped array element is exempt from the leaf-type check, so a
+    // number field on the same path is fine too.
+    expect(oneField({ type: 'number', field: 'scores.0', label: 'First' }, { scores: [] })).toBe('');
+  });
+
+  it('fails a path that runs past a scalar leaf', () => {
+    const message = oneField({ type: 'text', field: 'live.deeper', label: 'Deep' }, { live: 'boolean' });
+    expect(message).toMatch(/'live\.deeper'/);
+    expect(message).toMatch(/not an object/);
+  });
+
+  it('fails a path that resolves to an object rather than a value', () => {
+    expect(oneField({ type: 'text', field: 'home', label: 'Home' }, { home: { score: 'number' } })).toMatch(
+      /resolves to an object, not a value/
+    );
+  });
+
+  it('fails when the manifest declares no stateSchema at all', () => {
+    const res = validateManifest({
+      id: 'noschema',
+      name: 'No schema',
+      version: '1.0.0',
+      renders: [{ id: 'main', label: 'Main', file: 'render.html' }],
+      controls: { groups: [{ id: 'g', label: 'G', fields: [{ type: 'text', field: 'a', label: 'A' }] }] },
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/declares no stateSchema/);
+  });
+
+  it('rejects a malformed dotted path', () => {
+    expect(oneField({ type: 'text', field: 'home..name', label: 'N' }, { home: { name: 'string' } })).toMatch(
+      /malformed path/
+    );
+  });
+});
+
+describe('T3 — leaf type agreement', () => {
+  const SCHEMA = { num: 'number', str: 'string', bool: 'boolean', arr: [] };
+
+  function check(field: Record<string, unknown>): string {
+    const m = manifest({ groups: [{ id: 'g', label: 'G', fields: [field] }] });
+    m.stateSchema = SCHEMA;
+    const res = validateManifest(m);
+    return res.ok ? '' : res.error;
+  }
+
+  it('each of the seven value-bearing types validates against its correct leaf type', () => {
+    expect(check({ type: 'text', field: 'str', label: 'T' })).toBe('');
+    expect(check({ type: 'number', field: 'num', label: 'N' })).toBe('');
+    expect(check({ type: 'slider', field: 'num', label: 'S', min: 0, max: 1 })).toBe('');
+    expect(check({ type: 'toggle', field: 'bool', label: 'B' })).toBe('');
+    expect(check({ type: 'color', field: 'str', label: 'C' })).toBe('');
+    expect(check({ type: 'select', field: 'str', label: 'Sel', choices: [{ id: 'a', label: 'A' }] })).toBe('');
+    expect(check({ type: 'asset', field: 'str', label: 'A' })).toBe('');
+  });
+
+  it("rejects type: 'text' on a number leaf, naming the group, field, path and both types", () => {
+    const message = check({ type: 'text', field: 'num', label: 'Headline' });
+    expect(message).toMatch(/group 'g'/);
+    expect(message).toMatch(/field 'Headline'/);
+    expect(message).toMatch(/'num'/);
+    expect(message).toMatch(/text.*string/);
+    expect(message).toMatch(/number/);
+  });
+
+  it('rejects every other mismatched pairing', () => {
+    expect(check({ type: 'number', field: 'str', label: 'N' })).toMatch(/expects a number leaf/);
+    expect(check({ type: 'slider', field: 'bool', label: 'S', min: 0, max: 1 })).toMatch(/expects a number leaf/);
+    expect(check({ type: 'toggle', field: 'str', label: 'B' })).toMatch(/expects a boolean leaf/);
+    expect(check({ type: 'color', field: 'num', label: 'C' })).toMatch(/expects a string leaf/);
+    expect(check({ type: 'asset', field: 'bool', label: 'A' })).toMatch(/expects a string leaf/);
+    expect(check({ type: 'select', field: 'bool', label: 'Sel', choices: [{ id: 'a', label: 'A' }] })).toMatch(
+      /expects a string leaf/
+    );
+  });
+
+  it('an untyped array element is exempt from the leaf-type check', () => {
+    expect(check({ type: 'text', field: 'arr.0', label: 'T' })).toBe('');
+    expect(check({ type: 'toggle', field: 'arr.2', label: 'B' })).toBe('');
+  });
+
+  it("a `list` text field requires an array leaf, and a plain text field forbids one", () => {
+    expect(check({ type: 'text', field: 'arr', label: 'Lines', list: true })).toBe('');
+    expect(check({ type: 'text', field: 'str', label: 'Lines', list: true })).toMatch(
+      /list requires an array leaf/
+    );
+    expect(check({ type: 'text', field: 'arr', label: 'Lines' })).toMatch(/expects a string leaf/);
+  });
+
+  it('a select on a number leaf is allowed when every choice id is a number', () => {
+    // PkgCompanionOption's `dropdown` already allows numeric ids, so the panel
+    // follows suit rather than making an author learn a second rule.
+    expect(check({ type: 'select', field: 'num', label: 'Sel', choices: [{ id: 1, label: 'One' }] })).toBe('');
+    expect(check({ type: 'select', field: 'num', label: 'Sel', choices: [{ id: 'a', label: 'A' }] })).toMatch(
+      /every choice id must be a number/
+    );
+  });
+});
+
+describe('T4 — cross-references', () => {
+  // Specs 15 (render `transport`) and 20 (`dataSources`) are both merged into
+  // this branch's base, so both checks run unguarded. Spec 18 §3.7 says to
+  // skip a check only if its spec had not landed.
+  const RENDERS = [
+    { id: 'plain', label: 'Plain', file: 'a.html' },
+    { id: 'card', label: 'Card', file: 'b.html', transport: { stops: 2 } },
+  ];
+  const SOURCES = [{ id: 'feed', label: 'Feed', kind: 'rss', url: 'https://example.com/f.xml' }];
+
+  function check(field: Record<string, unknown>): string {
+    const res = validateManifest({
+      id: 'widget',
+      name: 'Widget',
+      version: '1.0.0',
+      renders: RENDERS,
+      dataSources: SOURCES,
+      stateSchema: BASE_SCHEMA,
+      controls: { groups: [{ id: 'g', label: 'G', fields: [field] }] },
+    });
+    return res.ok ? '' : res.error;
+  }
+
+  it('accepts a transport field naming a transport-managed render', () => {
+    expect(check({ type: 'transport', label: 'Card', renderId: 'card' })).toBe('');
+  });
+
+  it('rejects a transport field naming a render that declares no transport', () => {
+    const message = check({ type: 'transport', label: 'Card', renderId: 'plain' });
+    expect(message).toMatch(/group 'g'/);
+    expect(message).toMatch(/field 'Card'/);
+    expect(message).toMatch(/'plain'/);
+    expect(message).toMatch(/not transport-managed/);
+  });
+
+  it('rejects a transport field naming a render that does not exist', () => {
+    expect(check({ type: 'transport', label: 'Card', renderId: 'nope' })).toMatch(/names no declared render/);
+  });
+
+  it('accepts a data field naming a declared source and rejects an undeclared one', () => {
+    expect(check({ type: 'data', label: 'Feed', sourceId: 'feed' })).toBe('');
+    const message = check({ type: 'data', label: 'Feed', sourceId: 'ghost' });
+    expect(message).toMatch(/field 'Feed'/);
+    expect(message).toMatch(/'ghost'/);
+    expect(message).toMatch(/names no declared data source/);
+  });
+
+  it('rejects a data field when the manifest declares no data sources at all', () => {
+    const res = validateManifest({
+      id: 'widget',
+      name: 'Widget',
+      version: '1.0.0',
+      renders: RENDERS,
+      stateSchema: BASE_SCHEMA,
+      controls: { groups: [{ id: 'g', label: 'G', fields: [{ type: 'data', label: 'F', sourceId: 'feed' }] }] },
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/names no declared data source/);
+  });
+
+  it('resolves showIf.field, rejecting a typo', () => {
+    expect(check({ type: 'text', field: 'home.name', label: 'N', showIf: { field: 'live', equals: true } })).toBe('');
+    const message = check({
+      type: 'text',
+      field: 'home.name',
+      label: 'N',
+      showIf: { field: 'liv', equals: true },
+    });
+    expect(message).toMatch(/showIf/);
+    expect(message).toMatch(/'liv'/);
+    expect(message).toMatch(/no such path in stateSchema/);
+  });
+
+  it('rejects a malformed showIf', () => {
+    expect(check({ type: 'text', field: 'home.name', label: 'N', showIf: { field: 'live' } })).toMatch(
+      /showIf requires 'field' and 'equals'/
+    );
+    expect(
+      check({ type: 'text', field: 'home.name', label: 'N', showIf: { field: 'live', equals: { a: 1 } } })
+    ).toMatch(/showIf\.equals must be a string, number or boolean/);
+  });
+
+  it('resolves every dotted path inside an action patch', () => {
+    expect(check({ type: 'action', label: 'Take', patch: { live: true, home: { score: 0 } } })).toBe('');
+    const message = check({ type: 'action', label: 'Take', patch: { home: { scor: 0 } } });
+    expect(message).toMatch(/field 'Take'/);
+    expect(message).toMatch(/patch path 'home\.scor'/);
+    expect(message).toMatch(/no such path in stateSchema/);
+  });
+
+  it('accepts an array value at an array leaf inside an action patch', () => {
+    expect(check({ type: 'action', label: 'Reset', patch: { scores: [] } })).toBe('');
+  });
+
+  it('rejects an action patch that writes an engine-reserved key', () => {
+    expect(check({ type: 'action', label: 'Bad', patch: { _transport: {} } })).toMatch(/reserved/);
+  });
+});
+
+describe('T2 — resolveSchemaPath directly', () => {
+  it('reports the resolved leaf type', () => {
+    expect(resolveSchemaPath({ home: { score: 'number' } }, 'home.score')).toEqual({ ok: true, leaf: 'number' });
+    expect(resolveSchemaPath({ name: 'string' }, 'name')).toEqual({ ok: true, leaf: 'string' });
+    // Inside an array: element type is unknowable from `[]`.
+    expect(resolveSchemaPath({ rows: [] }, 'rows.3.value')).toEqual({ ok: true, leaf: 'unknown' });
+    // The array itself.
+    expect(resolveSchemaPath({ rows: [] }, 'rows')).toEqual({ ok: true, leaf: 'array' });
+  });
+
+  it('reports a reason on failure', () => {
+    const res = resolveSchemaPath({ home: { score: 'number' } }, 'away.score');
+    expect(res.ok).toBe(false);
+  });
+});
+
+
+// ── Route-level tests (T5, T6, T13) ──────────────────────────────────────
+
+const PINS = { operatorPin: '12341234', adminPin: 'adminpass9' };
+
+/** The controls block both route fixtures share. */
+const FIXTURE_CONTROLS = {
+  groups: [
+    {
+      id: 'scores',
+      label: 'Scores',
+      fields: [
+        { type: 'number', field: 'home.score', label: 'Home score', bump: [1] },
+        { type: 'text', field: 'home.name', label: 'Home name' },
+        { type: 'toggle', field: 'live', label: 'On air' },
+      ],
+    },
+    {
+      id: 'look',
+      label: 'Look',
+      fields: [
+        { type: 'color', field: 'style.accent', label: 'Accent', swatches: ['#c8a24a'] },
+        { type: 'slider', field: 'style.panelOpacity', label: 'Panel opacity', min: 0, max: 1, step: 0.05 },
+      ],
+    },
+  ],
+};
+
+interface FixtureOpts {
+  /** Package directory name and manifest id. */
+  id: string;
+  controls?: unknown;
+  controlHtml?: string;
+}
+
+function writeFixture(root: string, opts: FixtureOpts): void {
+  const dir = path.join(root, opts.id);
+  fs.mkdirSync(dir, { recursive: true });
+  const manifestBody: Record<string, unknown> = {
+    id: opts.id,
+    name: `Fixture ${opts.id}`,
+    version: '1.0.0',
+    renders: [{ id: 'main', label: 'Main', file: 'render.html' }],
+    stateSchema: BASE_SCHEMA,
+  };
+  if (opts.controls !== undefined) manifestBody.controls = opts.controls;
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(manifestBody));
+  fs.writeFileSync(path.join(dir, 'render.html'), '<!DOCTYPE html><html><body>R</body></html>');
+  if (opts.controlHtml !== undefined) fs.writeFileSync(path.join(dir, 'control.html'), opts.controlHtml);
+}
+
+describe('T5/T6 — controls route and serving precedence', () => {
+  let root: string;
+  let server: ReturnType<typeof createFullServer>;
+  let app: Express;
+  let operatorCookie: string;
+
+  beforeEach(async () => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'pconair-ctrl-'));
+    // declared: controls only          → generated shell
+    // handwritten: control.html only   → served verbatim
+    // both: control.html + controls    → control.html wins
+    // bare: neither                    → 404
+    writeFixture(root, { id: 'declared', controls: FIXTURE_CONTROLS });
+    writeFixture(root, { id: 'handwritten', controlHtml: '<!DOCTYPE html><html><body>HAND</body></html>' });
+    writeFixture(root, {
+      id: 'both',
+      controls: FIXTURE_CONTROLS,
+      controlHtml: '<!DOCTYPE html><html><body>HAND-AND-DECLARED</body></html>',
+    });
+    writeFixture(root, { id: 'bare' });
+
+    server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: root });
+    await server.listen();
+    app = server.app;
+    const op = await request(app).post('/auth/operator').send({ pin: PINS.operatorPin });
+    operatorCookie = (op.headers['set-cookie'] as unknown as string[])[0];
+  });
+
+  afterEach(async () => {
+    await server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('every fixture loaded without a manifest error', () => {
+    expect(server.packageHub?.errors() ?? []).toEqual([]);
+  });
+
+  // ── T5 ──
+  it('GET /api/packages/:id/controls returns the validated structure for an operator', async () => {
+    const res = await request(app).get('/api/packages/declared/controls').set('Cookie', operatorCookie);
+    expect(res.status).toBe(200);
+    expect(res.body.controls.groups).toHaveLength(2);
+    expect(res.body.controls.groups[0]).toMatchObject({ id: 'scores', label: 'Scores' });
+    expect(res.body.controls.groups[0].fields[0]).toMatchObject({
+      type: 'number',
+      field: 'home.score',
+      label: 'Home score',
+    });
+    // The panel needs the package's identity and render list for its header
+    // and preview selector without a second round trip.
+    expect(res.body).toMatchObject({ id: 'declared', name: 'Fixture declared' });
+    expect(res.body.renders).toEqual([{ id: 'main', label: 'Main', transport: null }]);
+  });
+
+  it('GET /api/packages/:id/controls is 401 unauthenticated', async () => {
+    const res = await request(app).get('/api/packages/declared/controls');
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /api/packages/:id/controls is 404 for a package with no controls', async () => {
+    const res = await request(app).get('/api/packages/handwritten/controls').set('Cookie', operatorCookie);
+    expect(res.status).toBe(404);
+  });
+
+  it('GET /api/packages/:id/controls is 404 for an unknown package', async () => {
+    const res = await request(app).get('/api/packages/ghost/controls').set('Cookie', operatorCookie);
+    expect(res.status).toBe(404);
+  });
+
+  // ── T6 ──
+  it('a package with control.html serves it unchanged', async () => {
+    const res = await request(app).get('/packages/handwritten/control');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('HAND');
+    expect(res.text).not.toContain('controlPanel');
+  });
+
+  it('control.html still wins when the manifest also declares controls', async () => {
+    const res = await request(app).get('/packages/both/control');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('HAND-AND-DECLARED');
+  });
+
+  it('a package with only controls serves the generated shell', async () => {
+    const res = await request(app).get('/packages/declared/control');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/html/);
+    expect(res.text).toContain('/packages/_runtime/pconair.js');
+    expect(res.text).toContain('/packages/_runtime/pconair-controls.js');
+    expect(res.text).toContain('/packages/_runtime/pconair.css');
+    expect(res.text).toContain('controlPanel');
+    expect(res.text).toContain('"declared"');
+  });
+
+  it('a package with neither still 404s', async () => {
+    const res = await request(app).get('/packages/bare/control');
+    expect(res.status).toBe(404);
+  });
+
+  it('the generated shell is still frame-denied (it is an operator surface, not a render)', async () => {
+    const res = await request(app).get('/packages/declared/control');
+    expect(res.headers['x-frame-options']).toBe('DENY');
+  });
+});
+
+describe('T13 — colour validation on POST /state', () => {
+  let root: string;
+  let server: ReturnType<typeof createFullServer>;
+  let app: Express;
+
+  beforeEach(async () => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'pconair-color-'));
+    writeFixture(root, { id: 'declared', controls: FIXTURE_CONTROLS });
+    server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: root });
+    await server.listen();
+    app = server.app;
+  });
+
+  afterEach(async () => {
+    await server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  function setAccent(value: unknown) {
+    return request(app)
+      .post('/api/packages/declared/state')
+      .send({ style: { accent: value, panelOpacity: 0.9 } });
+  }
+
+  // ── Rejection first: an unvalidated value here is a CSS injection into
+  //    every connected output, so this is the test that matters. ──
+
+  it('rejects a value that escapes the declaration', async () => {
+    const res = await setAccent('red; background: url(x)');
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/style\.accent/);
+  });
+
+  it('rejects a value containing a function call', async () => {
+    expect((await setAccent('expression(1)')).status).toBe(400);
+    expect((await setAccent('url(//evil/x.png)')).status).toBe(400);
+  });
+
+  it('rejects a value containing a brace or a comment opener', async () => {
+    expect((await setAccent('}')).status).toBe(400);
+    expect((await setAccent('#fff}')).status).toBe(400);
+    expect((await setAccent('#fff/*')).status).toBe(400);
+    expect((await setAccent('#fff;')).status).toBe(400);
+  });
+
+  it('rejects a non-string and a non-colour word', async () => {
+    expect((await setAccent(7)).status).toBe(400);
+    expect((await setAccent(true)).status).toBe(400);
+    expect((await setAccent('chartreusey')).status).toBe(400);
+    expect((await setAccent('')).status).toBe(400);
+  });
+
+  it('a rejected patch leaves state untouched — nothing partially applied', async () => {
+    const before = await request(app).get('/api/packages/declared/state');
+    await setAccent('red; background: url(x)');
+    const after = await request(app).get('/api/packages/declared/state');
+    expect(after.body.state).toEqual(before.body.state);
+  });
+
+  // ── Then acceptance. ──
+
+  it('accepts hex in 3, 6 and 8 digits and a named colour', async () => {
+    for (const ok of ['#c8a24a', '#fff', '#c8a24aff', 'transparent', 'white']) {
+      const res = await setAccent(ok);
+      expect(res.status).toBe(200);
+      expect((res.body.state.style as Record<string, unknown>).accent).toBe(ok);
+    }
+  });
+
+  it('leaves a patch that does not touch the colour field alone', async () => {
+    const res = await request(app).post('/api/packages/declared/state').send({ live: true });
+    expect(res.status).toBe(200);
+    expect(res.body.state.live).toBe(true);
+  });
+
+  it('a package with no controls is unaffected — no colour paths to check', async () => {
+    writeFixture(root, { id: 'plain', controlHtml: '<html></html>' });
+    await request(app).post('/api/packages/rescan');
+    const res = await request(app).post('/api/packages/plain/state').send({ logo: 'red; url(x)' });
+    expect(res.status).toBe(200);
+  });
+});
+
+describe('T18 — action.countdown validation', () => {
+  const CLOCK_SCHEMA = {
+    clock: { deadline: 'number', value: 'number', running: 'boolean', duration: 'number', format: 'string' },
+    label: 'string',
+  };
+
+  function check(field: Record<string, unknown>): string {
+    const res = validateManifest({
+      id: 'w',
+      name: 'W',
+      version: '1',
+      renders: [{ id: 'main', label: 'Main', file: 'r.html' }],
+      stateSchema: CLOCK_SCHEMA,
+      controls: { groups: [{ id: 'clock', label: 'Clock', fields: [field] }] },
+    });
+    return res.ok ? '' : res.error;
+  }
+
+  const START = {
+    type: 'action',
+    label: 'Start',
+    countdown: {
+      verb: 'start',
+      deadlineField: 'clock.deadline',
+      valueField: 'clock.value',
+      runningField: 'clock.running',
+      secondsField: 'clock.duration',
+    },
+  };
+
+  it('accepts all three verbs', () => {
+    expect(check(START)).toBe('');
+    expect(
+      check({
+        type: 'action',
+        label: 'Stop',
+        countdown: { verb: 'stop', deadlineField: 'clock.deadline', valueField: 'clock.value' },
+      })
+    ).toBe('');
+    expect(
+      check({
+        type: 'action',
+        label: 'Reset',
+        countdown: { verb: 'reset', deadlineField: 'clock.deadline', valueField: 'clock.value', seconds: 300 },
+      })
+    ).toBe('');
+  });
+
+  it('requires exactly one of patch and countdown', () => {
+    expect(check({ type: 'action', label: 'X' })).toMatch(/requires either 'patch' or 'countdown'/);
+    expect(check({ ...START, patch: { label: 'x' } })).toMatch(/not both/);
+  });
+
+  it('rejects an unknown verb', () => {
+    expect(check({ ...START, countdown: { ...START.countdown, verb: 'rewind' } })).toMatch(
+      /verb must be one of start, stop, reset/
+    );
+  });
+
+  it('resolves every clock path, and requires the right leaf type', () => {
+    const typo = check({ ...START, countdown: { ...START.countdown, deadlineField: 'clock.deadlin' } });
+    expect(typo).toMatch(/group 'clock'/);
+    expect(typo).toMatch(/field 'Start'/);
+    expect(typo).toMatch(/'clock\.deadlin'/);
+    expect(typo).toMatch(/no such path in stateSchema/);
+
+    expect(check({ ...START, countdown: { ...START.countdown, valueField: 'label' } })).toMatch(
+      /valueField.*must be a number leaf/
+    );
+    expect(check({ ...START, countdown: { ...START.countdown, runningField: 'label' } })).toMatch(
+      /runningField.*must be a boolean leaf/
+    );
+    expect(check({ ...START, countdown: { ...START.countdown, secondsField: 'label' } })).toMatch(
+      /secondsField.*must be a number leaf/
+    );
+  });
+
+  it('requires deadlineField and valueField', () => {
+    expect(check({ type: 'action', label: 'X', countdown: { verb: 'start', valueField: 'clock.value' } })).toMatch(
+      /countdown requires 'deadlineField' and 'valueField'/
+    );
+  });
+
+  it('rejects a non-numeric seconds', () => {
+    expect(
+      check({
+        type: 'action',
+        label: 'Reset',
+        countdown: { verb: 'reset', deadlineField: 'clock.deadline', valueField: 'clock.value', seconds: '300' },
+      })
+    ).toMatch(/seconds must be a non-negative number/);
+  });
+});
+
+// ── T18/T19/T20: the worked-example packages and the regression guard ─────
+
+describe('T18 — demo-packages/template-timer has no control.html', () => {
+  const DEMO_ROOT = path.join(__dirname, '..', 'demo-packages');
+
+  it('the package directory contains no control.html at all', () => {
+    expect(fs.existsSync(path.join(DEMO_ROOT, 'template-timer', 'control.html'))).toBe(false);
+  });
+
+  it('its manifest validates, controls and all', () => {
+    const raw = JSON.parse(fs.readFileSync(path.join(DEMO_ROOT, 'template-timer', 'package.json'), 'utf-8'));
+    const res = validateManifest(raw);
+    if (!res.ok) throw new Error(res.error);
+    expect(res.ok).toBe(true);
+  });
+
+  it('declares a Look group whose fields drive CSS custom properties', () => {
+    const raw = JSON.parse(fs.readFileSync(path.join(DEMO_ROOT, 'template-timer', 'package.json'), 'utf-8'));
+    const look = raw.controls.groups.find((g: { id: string }) => g.id === 'look');
+    expect(look).toBeDefined();
+    const types = look.fields.map((f: { type: string }) => f.type);
+    expect(types).toContain('color');
+    expect(types).toContain('slider');
+    // Every Look field points into the `style` subtree applyStyle() mirrors.
+    for (const f of look.fields) {
+      if (f.field) expect(f.field.indexOf('style.')).toBe(0);
+    }
+  });
+
+  it('its render consumes those variables and calls applyStyle', () => {
+    const html = fs.readFileSync(path.join(DEMO_ROOT, 'template-timer', 'renders', 'timer.html'), 'utf-8');
+    expect(html).toContain('var(--pc-accent');
+    expect(html).toContain('var(--pc-panel-opacity');
+    expect(html).toContain('var(--pc-corner');
+    expect(html).toContain('applyStyle()');
+  });
+
+  it('serves the generated shell rather than 404ing', async () => {
+    const server = createFullServer({
+      store: createStateStore(),
+      ...PINS,
+      port: 0,
+      packagesRoot: DEMO_ROOT,
+    });
+    await server.listen();
+    try {
+      const res = await request(server.app).get('/packages/template-timer/control');
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('/packages/_runtime/pconair-controls.js');
+      expect(res.text).toContain('controlPanel');
+      // hasControl reports false, because there is no control.html — but the
+      // panel is still served.
+      const list = await request(server.app).get('/api/packages');
+      const entry = list.body.packages.find((p: { id: string }) => p.id === 'template-timer');
+      expect(entry.hasControl).toBe(false);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('loads through createPackageHub with no errors', () => {
+    const server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: DEMO_ROOT });
+    try {
+      expect((server.packageHub?.errors() ?? []).filter((e) => e.dir === 'template-timer')).toEqual([]);
+    } finally {
+      server.packageHub?.dispose?.();
+    }
+  });
+});
+
+describe('T19 — demo-packages/template-overlay has no control.html', () => {
+  const DEMO_ROOT = path.join(__dirname, '..', 'demo-packages');
+  const manifestRaw = () =>
+    JSON.parse(fs.readFileSync(path.join(DEMO_ROOT, 'template-overlay', 'package.json'), 'utf-8'));
+
+  it('the package directory contains no control.html at all', () => {
+    expect(fs.existsSync(path.join(DEMO_ROOT, 'template-overlay', 'control.html'))).toBe(false);
+  });
+
+  it('its manifest validates, controls and all', () => {
+    const res = validateManifest(manifestRaw());
+    if (!res.ok) throw new Error(res.error);
+    expect(res.ok).toBe(true);
+  });
+
+  it('declares a transport field for its two-stop render', () => {
+    const raw = manifestRaw();
+    const group = raw.controls.groups.find((g: { id: string }) => g.id === 'playback');
+    const transport = group.fields.find((f: { type: string }) => f.type === 'transport');
+    expect(transport.renderId).toBe('overlay');
+    // …and that render really is transport-managed, with two stops.
+    const render = raw.renders.find((r: { id: string }) => r.id === 'overlay');
+    expect(render.transport.stops).toBe(2);
+  });
+
+  it('edits its ticker messages array through a list text field', () => {
+    const raw = manifestRaw();
+    const group = raw.controls.groups.find((g: { id: string }) => g.id === 'ticker');
+    const messages = group.fields.find((f: { field?: string }) => f.field === 'ticker.messages');
+    expect(messages).toMatchObject({ type: 'text', list: true });
+    // The schema leaf really is an array — this is the case the `list` flag
+    // exists for.
+    expect(Array.isArray(raw.stateSchema.ticker.messages)).toBe(true);
+  });
+
+  it('declares a Look group whose values drive the render\'s CSS variables', () => {
+    const raw = manifestRaw();
+    const look = raw.controls.groups.find((g: { id: string }) => g.id === 'look');
+    const paths = look.fields.filter((f: { field?: string }) => f.field).map((f: { field: string }) => f.field);
+    expect(paths).toEqual(
+      expect.arrayContaining(['style.accent', 'style.panelOpacity', 'style.corner', 'style.tickerHeight'])
+    );
+
+    const html = fs.readFileSync(path.join(DEMO_ROOT, 'template-overlay', 'renders', 'overlay.html'), 'utf-8');
+    // Every declared Look field has a matching custom property in the render,
+    // camelCase kebab-cased exactly as applyStyle() writes it.
+    expect(html).toContain('var(--pc-accent');
+    expect(html).toContain('var(--pc-panel-opacity');
+    expect(html).toContain('var(--pc-corner');
+    expect(html).toContain('var(--pc-ticker-height');
+    expect(html).toContain('applyStyle()');
+  });
+
+  it('keeps the render transparent — panel opacity never touches the page background', () => {
+    const html = fs.readFileSync(path.join(DEMO_ROOT, 'template-overlay', 'renders', 'overlay.html'), 'utf-8');
+    // plan_approved.md's global constraint: an overlay render stays
+    // transparent 1920x1080. The opacity slider drives the LOWER THIRD's
+    // background, not the body's.
+    expect(html).toMatch(/background:\s*transparent/);
+  });
+
+  it('serves the generated shell rather than 404ing', async () => {
+    const server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: DEMO_ROOT });
+    await server.listen();
+    try {
+      const res = await request(server.app).get('/packages/template-overlay/control');
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('controlPanel');
+      expect(res.text).toContain('"template-overlay"');
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('exposes its controls over the operator route', async () => {
+    const server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: DEMO_ROOT });
+    await server.listen();
+    try {
+      const op = await request(server.app).post('/auth/operator').send({ pin: PINS.operatorPin });
+      const cookie = (op.headers['set-cookie'] as unknown as string[])[0];
+      const res = await request(server.app).get('/api/packages/template-overlay/controls').set('Cookie', cookie);
+      expect(res.status).toBe(200);
+      expect(res.body.controls.groups.map((g: { id: string }) => g.id)).toEqual([
+        'lowerthird',
+        'ticker',
+        'bug',
+        'playback',
+        'look',
+      ]);
+      expect(res.body.renders).toEqual([{ id: 'overlay', label: 'Overlay', transport: { stops: 2, inMs: [500, 350], outMs: 400 } }]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('rejects a CSS-injecting accent colour on the real package', async () => {
+    const server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: DEMO_ROOT });
+    await server.listen();
+    try {
+      const bad = await request(server.app)
+        .post('/api/packages/template-overlay/state')
+        .send({ style: { accent: '#fff; background: url(//evil/x.png)' } });
+      expect(bad.status).toBe(400);
+      // A patch carrying only the edited key IS accepted — and demonstrates
+      // exactly why the panel never sends one: POST /state shallow-merges at
+      // the top level, so `style`'s other keys are gone.
+      const thin = await request(server.app)
+        .post('/api/packages/template-overlay/state')
+        .send({ style: { accent: '#3dd68c' } });
+      expect(thin.status).toBe(200);
+      expect(thin.body.state.style.accent).toBe('#3dd68c');
+      expect(thin.body.state.style.corner).toBeUndefined();
+
+      // What the panel actually sends (§3.5): the edited path plus its
+      // siblings, read out of current state. Nothing is lost.
+      const good = await request(server.app)
+        .post('/api/packages/template-overlay/state')
+        .send({ style: { accent: '#c8a24a', panelOpacity: 0.94, corner: 4, tickerHeight: 80 } });
+      expect(good.status).toBe(200);
+      expect(good.body.state.style).toEqual({
+        accent: '#c8a24a',
+        panelOpacity: 0.94,
+        corner: 4,
+        tickerHeight: 80,
+      });
+    } finally {
+      await server.close();
+    }
+  });
+});
+
+describe('T20 — regression guard: the hand-written panels are untouched', () => {
+  const ROOTS = {
+    hoops: path.join(__dirname, '..', 'bundled-packages', 'hoops'),
+    news: path.join(__dirname, '..', 'bundled-packages', 'news'),
+    ffg: path.join(__dirname, '..', 'bundled-packages', 'ffg'),
+    'demo-scores': path.join(__dirname, '..', 'demo-packages', 'demo-scores'),
+  };
+
+  it('all four still ship a control.html', () => {
+    for (const [id, dir] of Object.entries(ROOTS)) {
+      expect(fs.existsSync(path.join(dir, 'control.html'))).toBe(true);
+      expect(id).toBeTruthy();
+    }
+  });
+
+  it('none of them declares controls — migrating them is follow-up work', () => {
+    for (const dir of Object.values(ROOTS)) {
+      const raw = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf-8'));
+      expect(raw.controls).toBeUndefined();
+    }
+  });
+
+  it('each serves its hand-written control.html byte-for-byte', async () => {
+    for (const [id, dir] of Object.entries(ROOTS)) {
+      const root = path.dirname(dir);
+      const server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: root });
+      await server.listen();
+      try {
+        const res = await request(server.app).get(`/packages/${id}/control`);
+        expect(res.status).toBe(200);
+        const onDisk = fs.readFileSync(path.join(dir, 'control.html'), 'utf-8');
+        expect(res.text).toBe(onDisk);
+        // Emphatically NOT the generated shell.
+        expect(res.text).not.toContain('pconair-controls.js');
+      } finally {
+        await server.close();
+      }
+    }
+  });
+
+  it('their manifests still validate and still report hasControl', async () => {
+    for (const roots of [path.join(__dirname, '..', 'bundled-packages'), path.join(__dirname, '..', 'demo-packages')]) {
+      const server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: roots });
+      await server.listen();
+      try {
+        expect(server.packageHub?.errors() ?? []).toEqual([]);
+        const list = await request(server.app).get('/api/packages');
+        for (const pkg of list.body.packages) {
+          const declares = Object.keys(ROOTS).indexOf(pkg.id) >= 0;
+          if (declares) expect(pkg.hasControl).toBe(true);
+        }
+      } finally {
+        await server.close();
+      }
+    }
+  });
+});

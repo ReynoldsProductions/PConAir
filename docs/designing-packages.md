@@ -562,9 +562,259 @@ function buildTicker(state) {
 
 ---
 
-## Writing a control page
+## Declarative controls (no control page at all)
 
-The control page is served at `/packages/my-package/control` and opened from `/remote/packages` by operators. It's a normal web page — mobile-friendly, no framework required.
+**Start here.** You almost certainly do not need to write a control page.
+
+Declare `controls` in `package.json` and the shared runtime generates the whole
+operator panel: inputs, labels, layout, debouncing, focus handling, optimistic
+updates, the "nothing is listening" notice, the disconnected banner and
+keyboard access. Ship no `control.html` and `/packages/<id>/control` serves the
+generated panel instead.
+
+`demo-packages/template-timer` and `demo-packages/template-overlay` are both
+built this way and contain no control HTML whatsoever. Read their
+`package.json` alongside this section.
+
+```json
+{
+  "id": "my-package",
+  "stateSchema": {
+    "l3": { "visible": "boolean", "name": "string", "title": "string" },
+    "style": { "accent": "string", "panelOpacity": "number", "corner": "number" }
+  },
+  "controls": {
+    "groups": [
+      {
+        "id": "lowerthird",
+        "label": "Lower Third",
+        "fields": [
+          { "type": "text", "field": "l3.name", "label": "Name", "span": "half" },
+          { "type": "text", "field": "l3.title", "label": "Title", "span": "half" },
+          { "type": "toggle", "field": "l3.visible", "label": "On air" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### The principle
+
+The manifest declares **what an operator may change**. The runtime decides
+**how it is drawn**. You get a consistent panel for free; the operator gets the
+same interaction model in every package.
+
+### Groups
+
+| Key | Meaning |
+|---|---|
+| `id` | Unique, lowercase. Also the key the operator's collapse choice is stored under. |
+| `label` | Section heading. Rendered as a `<legend>`. |
+| `collapsed` | Closed on first load. The operator's own choice wins after that, remembered per viewer. |
+| `renderId` | Narrows the group to one render — shown only while that render is selected in the preview picker. Omit for "always shown". |
+| `fields` | Ordered. Panel order is manifest order, and so is tab order. |
+
+### Field types
+
+Every field takes `label` (required), and optionally `help` (a hint under the
+input), `span` (`full` · `half` · `third`, a width hint) and `showIf`.
+
+Value-bearing fields take `field`: a dotted path into your `stateSchema`, array
+indices included (`scores.0`). The path is checked when the package loads, so a
+typo fails the manifest with a message naming the group, the field and the path
+— rather than shipping a control that silently does nothing.
+
+| `type` | Draws | Requires a schema leaf of |
+|---|---|---|
+| `text` | Text input, or a textarea with `multiline` | `string` |
+| `text` + `list: true` | Textarea, one array item per line | an array (`[]`) |
+| `number` | Number input, plus −/+ buttons for each `bump` magnitude | `number` |
+| `slider` | Range input with a value readout (`unit` is display-only) | `number` |
+| `toggle` | Checkbox | `boolean` |
+| `select` | Dropdown over `choices` | `string` (or `number`, if every choice `id` is a number) |
+| `color` | Colour picker plus one-click `swatches` | `string` |
+| `asset` | Path input plus upload, through `POST /api/packages/:id/assets` | `string` |
+| `transport` | Play / Next / Stop / Clear for `renderId`, plus a phase readout | — |
+| `data` | Row count, staleness, error and a refresh button for `sourceId` | — |
+| `action` | A button that applies `patch`, or runs a `countdown` verb | — |
+| `static` | Explanatory text, no input | — |
+
+Extras per type: `text` takes `maxLength` and `placeholder`; `number` takes
+`min`, `max`, `step` and `bump`; `slider` requires `min` and `max` (with
+`min < max`) and takes `step` and `unit`; `select` requires at least one
+`choice`; `asset` takes `accept` (`image` · `video` · `any`); `action` takes
+`confirm` (a message the operator must accept) and `variant: "danger"`.
+
+`transport.renderId` must name a render that declares `transport`, and
+`data.sourceId` a declared data source — both checked at load.
+
+### Conditional fields
+
+```json
+{ "type": "select", "field": "logo.position", "label": "Logo position",
+  "showIf": { "field": "logo.visible", "equals": true } }
+```
+
+The field is absent from the DOM until the condition matches, and appears in
+its manifest position the moment it does. Comparison is strict: `"12"` never
+matches `12`.
+
+### Actions
+
+A button that merges a declared patch:
+
+```json
+{ "type": "action", "label": "Clear lower third", "variant": "danger",
+  "confirm": "Clear the lower third?", "patch": { "l3": { "visible": false } } }
+```
+
+The patch is rebuilt from its dotted paths against current state before
+sending, so `{ "l3": { "visible": false } }` keeps `l3.name` rather than
+wiping it. Every path in it is resolved at load.
+
+### Clocks: `action.countdown`
+
+A static patch cannot start a clock, because that needs `Date.now()`. Use
+`countdown`, which has exactly the same semantics as the Companion
+`countdown_start` / `countdown_stop` / `countdown_reset` ops:
+
+```json
+{ "type": "action", "label": "Start", "countdown": {
+    "verb": "start",
+    "deadlineField": "clock.deadline",
+    "valueField": "clock.value",
+    "runningField": "clock.running",
+    "secondsField": "clock.duration"
+} }
+```
+
+| `verb` | Effect |
+|---|---|
+| `start` | `deadlineField = now + remaining`. Resumes an already-running clock rather than adding time; uses `seconds`/`secondsField` when stopped. |
+| `stop` | Banks the remaining seconds (rounded up) into `valueField` and clears `deadlineField`. |
+| `reset` | Restores `seconds`/`secondsField` into `valueField` and clears `deadlineField`. |
+
+`runningField` is optional; omit it and that state is left alone rather than
+guessed at. `deadlineField`, `valueField` and `secondsField` must be `number`
+leaves and `runningField` a `boolean` — checked at load, so a timer cannot
+ship pointing at the wrong leaf and fail the first time an operator hits Start.
+
+Why a deadline rather than a ticking counter: the remaining time is always
+computed from `Date.now()` against a stored epoch-ms deadline, so every output
+agrees to the millisecond and a browser source that reloads mid-show comes back
+at the right time instead of at the start.
+
+### The "Look" convention — restyling from the UI
+
+This is the point of the exercise: **an operator should be able to restyle a
+graphic without anyone editing a file.**
+
+1. Declare your styling as state under a `style` key:
+
+   ```json
+   "style": { "accent": "string", "panelOpacity": "number", "corner": "number" }
+   ```
+
+2. Expose it with `color`, `slider` and `select` fields in a group labelled
+   "Look".
+
+3. Call `kit.applyStyle()` (or `client.applyStyle()`) once in your render.
+
+The runtime then mirrors that subtree onto `:root` as CSS custom properties on
+every state frame — camelCase becomes kebab-case, numbers pass through
+unitless:
+
+```
+{ accent: '#c8a24a', panelOpacity: 0.9, corner: 18 }
+  →  --pc-accent: #c8a24a;  --pc-panel-opacity: 0.9;  --pc-corner: 18;
+```
+
+4. Author your CSS against those variables, always with a fallback, so the
+   graphic still renders correctly before the first frame and if the Look
+   controls are removed:
+
+   ```css
+   :root {
+     --accent: var(--pc-accent, #b5a998);
+     /* rgba()'s comma syntax cannot take a variable for alpha; the
+        space-separated form can. */
+     --panel-bg: rgb(251 248 246 / var(--pc-panel-opacity, .94));
+     --panel-corner: calc(var(--pc-corner, 4) * 1px);
+   }
+   ```
+
+   Keep unit conversion in the render (`calc(... * 1px)`) so the manifest stays
+   free of CSS syntax.
+
+`applyStyle(subtree, prefix)` defaults to `('style', '--pc-')`. Only scalar
+leaves become properties; nested objects are skipped.
+
+**Colour safety.** A `color` field's value ends up in a `style` attribute on
+every connected output, so an unvalidated one is a CSS injection into all of
+them at once. Values are checked twice: `POST /api/packages/:id/state` rejects
+anything at a `color` field's path that is not a 3/4/6/8-digit hex value or one
+of a short list of named colours, with a 400 and nothing applied; and
+`applyStyle` independently refuses any value containing `;`, `}`, `{`, `/*`,
+`*/`, `url(`, a backslash or a parenthesis, dropping it rather than writing it.
+Declared `swatches` are validated at load too.
+
+### What the generated panel does for you
+
+- **Never clobbers a focused input.** An incoming state frame skips any input
+  the operator has focus in, and reconciles on blur — unless they were
+  mid-edit, in which case blur commits their work instead of discarding it.
+- **Debounces typing and dragging at 150 ms**, and commits immediately on
+  `change`, blur and Enter. Naming a guest does not emit a patch per keystroke.
+- **Optimistic, then reconciled.** The input updates immediately; the server's
+  echo is the truth; a rejected patch visibly reverts and says why.
+- **Carries siblings.** `POST /state` shallow-merges at the top level, so a
+  change to `home.score` is sent with `home`'s other keys read out of current
+  state. You never think about this.
+- **Shows `delivered: 0`** as a one-line informational notice — *"Applied — no
+  output is connected."* Never a modal, never an error.
+- **Refuses edits while disconnected**, out loud, with the input snapping back.
+  Silently swallowing an operator's edit during a dropout is worse than
+  refusing it.
+- **Is keyboard-complete.** Real `<label for>` on every input, `<fieldset>` /
+  `<legend>` per group, no positive `tabindex`, tab order = manifest order.
+
+### Reading the controls document
+
+`GET /api/packages/:id/controls` (operator session) returns the validated
+`controls` plus the package's id, name and render list. The generated shell
+fetches exactly this, which is why a panel opened without an operator session
+tells you to sign in rather than rendering empty.
+
+### The escape hatch
+
+A package may have **both**. If `control.html` exists it is always served
+unchanged, and it can call the panel renderer itself for part of the page:
+
+```html
+<script src="/packages/_runtime/pconair.js"></script>
+<script src="/packages/_runtime/pconair-controls.js"></script>
+<script>
+  window.PConAir.controlPanel(document.getElementById('generated'), {
+    packageId: 'my-package'
+  });
+  // …and hand-write the rest around it.
+</script>
+```
+
+Both scripts are required: `pconair-controls.js` registers the renderer, and
+`controlPanel()` throws a message naming it if it is missing. A render page
+should load neither.
+
+A scorebug's clock controls are the usual reason to reach for this. If you find
+yourself hand-writing something that every package would want, that is a gap in
+the field types worth filing rather than a reason to write a panel.
+
+---
+
+## Writing a control page by hand
+
+Only when `controls` above genuinely cannot express what you need. The control page is served at `/packages/my-package/control` and opened from `/remote/packages` by operators. It's a normal web page — mobile-friendly, no framework required.
 
 ```html
 <!DOCTYPE html>
@@ -822,8 +1072,9 @@ If your package implements any of these common functions, use these exact IDs. T
 - [ ] Write `package.json` with your `id`, `name`, and `renders` list
 - [ ] Write your first render HTML (1920×1080, transparent body, `<html data-render-id="...">`, loads `/packages/_runtime/pconair.js`, calls `window.PConAir.connect(id, { role: 'render' })`)
 - [ ] Set `stateSchema` and `initialState` for the state you need
-- [ ] Write `control.html` with buttons that call `client.patch()`
-- [ ] Drop in `window.PConAir.preview(el, { packageId, renderId })` so the control page shows what's actually on air
+- [ ] Declare `controls` in `package.json` and let the runtime generate the operator panel — only hand-write `control.html` if `controls` genuinely cannot express what you need
+- [ ] Expose your styling as `style` state with a "Look" group, and call `client.applyStyle()` in the render, so the graphic can be restyled from the UI without a code change
+- [ ] The generated panel already includes a live preview and a warnings row; if you do hand-write `control.html`, drop in `window.PConAir.preview(el, { packageId, renderId })` and `window.PConAir.warningsPanel(el, client)` yourself
 - [ ] Add `companionActions` for anything Companion should be able to trigger
 - [ ] Hit **Rescan** in `/remote/packages`
 - [ ] Load the render URL (`/packages/my-package/render`) as an OBS Browser Source
@@ -834,5 +1085,7 @@ If your package implements any of these common functions, use these exact IDs. T
 ## Reference: `demo-scores` package
 
 The `demo-scores` package in `demo-packages/demo-scores/` is a working template that exercises every feature described in this guide: all seven reserved state fields, all standard Companion action IDs, four render layouts, a full five-section control page, and live clock ticking. Read it alongside this guide to see each concept applied.
+
+`demo-scores` keeps a hand-written `control.html` on purpose, as the worked example of that style. For the declarative style — the one you should start from — read `demo-packages/template-overlay/` and `demo-packages/template-timer/`: neither contains any control HTML at all, and both get a complete operator panel (including transport, a clock, an array-editing textarea and a live "Look" group) from `controls` alone.
 
 To sideload it: copy the `demo-scores/` directory into your user packages folder, hit Rescan, and you're running.

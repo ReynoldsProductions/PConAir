@@ -62,6 +62,33 @@ Companion module and `/remote/packages` control UI key off them.
 These field names carry fixed semantics. A package may omit fields it doesn't use,
 but **must not** repurpose a reserved name for a different meaning.
 
+### `style` — operator-adjustable look (spec 18)
+
+```json
+"style": { "accent": "string", "panelOpacity": "number", "corner": "number", "font": "string" }
+```
+
+A package that wants its look adjustable from the UI declares it here, exposes
+it with `color` / `slider` / `select` fields in a `controls` group labelled
+"Look", and calls `client.applyStyle()` (or `kit.applyStyle()`) in the render.
+The runtime mirrors the subtree onto `:root` as `--pc-*` custom properties on
+every state frame — `panelOpacity` becomes `--pc-panel-opacity`, numbers stay
+unitless — and the render authors against `var(--pc-accent, <fallback>)`.
+
+Key names are conventional rather than fixed; what is fixed is the mapping
+(camelCase → kebab-case, `--pc-` prefix) and the safety rule below.
+
+**`color` values are validated server-side**, against
+`/^#[0-9a-fA-F]{3,8}$/` or a short list of named colours, before entering
+state; `applyStyle` independently drops any value containing `;`, `}`, `{`,
+`/*`, `*/`, `url(`, a backslash or a parenthesis. These values reach a `style`
+attribute on every connected output, so an unvalidated one is a CSS injection
+into all of them. Do not weaken either check.
+
+See `docs/designing-packages.md` → "The 'Look' convention" and
+`demo-packages/template-overlay/`.
+
+
 ### `teams` — array of team objects
 
 ```json
@@ -259,6 +286,7 @@ Minimal package manifest implementing the full standard:
     "teams":        [{ "name": "string", "city": "string", "code": "string", "presenter": "string", "color": "string" }],
     "scores":       [0, 0, 0, 0],
     "clock":        { "deadline": "number", "value": "number", "running": "boolean", "format": "string" },
+    "style":        { "accent": "string", "panelOpacity": "number", "corner": "number" },
     "ticker":       { "messages": [], "speed": "number", "visible": "boolean" },
     "h2h":          { "a": { "left": "number", "right": "number" }, "b": { "left": "number", "right": "number" } },
     "winner":       null,
