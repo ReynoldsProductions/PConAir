@@ -7,7 +7,7 @@ import type { L3CueStore } from '../l3/cue-store';
 import type { L3ThemeStore } from '../l3/theme-store';
 import type { L3LogoStore } from '../l3/logo-store';
 import { requireOperator, requireAdmin } from './middleware';
-import { sniffImageMime } from '../media-library/image-meta';
+import { sniffImageMime, pngDimensions } from '../media-library/image-meta';
 
 const MIME_TO_EXT: Record<string, string> = {
   'image/png': 'png',
@@ -482,14 +482,30 @@ export function createL3Router(
 
     try {
       const pngBuffer = await renderAdHocCard({ name, title, subtitle, theme, logoDataUrl });
+      // An empty buffer used to be sent as a 200, so the operator got a 0-byte
+      // download that looked like a success. Treat it as the failure it is.
+      if (!pngBuffer || pngBuffer.length === 0) {
+        res.status(500).json({
+          error: { code: 'RENDER_ERROR', message: 'Renderer produced an empty PNG' },
+        });
+        return;
+      }
       res.setHeader('Content-Type', 'image/png');
       const safeName = name.replace(/[^\w\s-]/g, '_');
       const encodedName = encodeURIComponent(name);
       res.setHeader('Content-Disposition', `attachment; filename="${safeName}.png"; filename*=UTF-8''${encodedName}.png`);
+      // Surfaced by the operator UI so a still's real size is confirmed on screen
+      // rather than assumed.
+      const dims = pngDimensions(pngBuffer);
+      if (dims) {
+        res.setHeader('X-Export-Width', String(dims.width));
+        res.setHeader('X-Export-Height', String(dims.height));
+      }
       res.send(pngBuffer);
-    } catch {
+    } catch (e) {
       if (!res.headersSent) {
-        res.status(500).json({ error: { code: 'RENDER_ERROR', message: 'Failed to render PNG' } });
+        const message = e instanceof Error && e.message ? e.message : 'Failed to render PNG';
+        res.status(500).json({ error: { code: 'RENDER_ERROR', message } });
       }
     }
   });

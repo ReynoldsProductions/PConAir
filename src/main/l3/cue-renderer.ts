@@ -108,25 +108,63 @@ export async function renderLowerThirdCardToPng(input: LowerThirdCardInput): Pro
   const html = renderLowerThirdCardHtml(input);
   const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 
+  // transparent/frame/useContentSize mirror scripts/export-overlay.js, the proven
+  // capture path. Without `transparent` the window's backing surface is opaque and
+  // the card's alpha composites onto white, so the PNG this promises to key over a
+  // camera arrives fully opaque.
   const win = new BrowserWindow({
     show: false,
     width: 1920,
     height: 1080,
+    useContentSize: true,
+    transparent: true,
+    frame: false,
     webPreferences: { offscreen: true },
   });
 
   try {
+    // loadURL() already resolves on did-finish-load. Do NOT then wait for that
+    // event again — it is in the past and never fires twice, which hung every
+    // export forever (isLoadingMainFrame() stays true here even though
+    // document.readyState is already 'complete').
     await win.loadURL(dataUrl);
-    if (win.webContents.isLoadingMainFrame()) {
-      await new Promise<void>((resolve) => win.webContents.once('did-finish-load', () => resolve()));
-    }
+
+    // A finished load does not mean webfonts are applied or that the compositor
+    // has produced a frame, and capturePage() on a window that has never painted
+    // comes back empty. Wait for both, the way the ProRes exporter does.
+    await win.webContents
+      .executeJavaScript('document.fonts.ready.then(() => 1)')
+      .catch(() => undefined);
+    await win.webContents
+      .executeJavaScript('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(1))))')
+      .catch(() => undefined);
+
     const rect = (await win.webContents.executeJavaScript(`(function(){
       var e = document.getElementById('card');
       var r = e.getBoundingClientRect();
       return { x: Math.floor(r.x), y: Math.floor(r.y), width: Math.ceil(r.width), height: Math.ceil(r.height) };
     })()`)) as { x: number; y: number; width: number; height: number };
-    const image = await win.webContents.capturePage(rect);
-    return image.toPNG();
+    if (!rect || rect.width < 1 || rect.height < 1) {
+      throw new Error('Lower third measured 0×0 — nothing to capture');
+    }
+
+    // Retry a blank grab rather than shipping it: the first frame after a load can
+    // still be empty under load, and an empty capture used to reach the operator
+    // as a 0-byte "successful" download.
+    let image = await win.webContents.capturePage(rect);
+    for (let tries = 0; image.isEmpty() && tries < 10; tries += 1) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      image = await win.webContents.capturePage(rect);
+    }
+    if (image.isEmpty()) {
+      throw new Error('Offscreen capture came back empty after 10 attempts');
+    }
+
+    const png = image.toPNG();
+    if (png.length === 0) {
+      throw new Error('PNG encode produced 0 bytes');
+    }
+    return png;
   } finally {
     win.destroy();
   }

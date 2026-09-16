@@ -43,6 +43,14 @@ export interface FullServerTestOpts {
   isPrompterEnabled?: () => boolean;
   savePrompterSettings?: (patch: { host?: string; enabled?: boolean }) => void;
   prompterWindow?: import('../src/main/routes/index').RouteServices['prompterWindow'];
+  /** Ad-hoc L3 PNG render stub; omitted means the export route reports 501. */
+  renderAdHocCard?: (input: {
+    name: string;
+    title?: string | null;
+    subtitle?: string | null;
+    theme?: string | null;
+    logoDataUrl?: string | null;
+  }) => Promise<Buffer>;
 }
 
 export function createFullServer(opts: FullServerTestOpts) {
@@ -144,6 +152,7 @@ export function createFullServer(opts: FullServerTestOpts) {
     isPrompterEnabled: opts.isPrompterEnabled,
     savePrompterSettings: opts.savePrompterSettings,
     prompterWindow: opts.prompterWindow,
+    renderAdHocCard: opts.renderAdHocCard,
   });
   transportEngineRef = server.transportEngine ?? null;
 

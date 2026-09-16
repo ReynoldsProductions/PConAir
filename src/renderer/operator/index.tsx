@@ -455,15 +455,21 @@ function bindLowerThirdSide(side: api.LowerThirdSide): void {
       return;
     }
     const msgEl = g('msg')!;
+    msgEl.textContent = 'Rendering PNG\u2026';
     try {
-      await api.l3ExportPng({
+      const saved = await api.l3ExportPng({
         name: f.name,
         title: f.title,
         subtitle: f.subtitle,
         theme: f.theme,
         logoAssetId: f.logoEnabled ? f.logoAssetId : null,
       });
-      msgEl.textContent = 'PNG exported.';
+      // Name the file and its real size: the download is silent and goes to the
+      // browser's own folder, so without this the operator cannot tell a
+      // finished export from one that never happened.
+      const dims = saved.width && saved.height ? `${saved.width}\u00d7${saved.height}, ` : '';
+      const kb = Math.max(1, Math.round(saved.bytes / 1024));
+      msgEl.textContent = `Saved ${saved.filename} (${dims}${kb} KB) to your browser's Downloads folder.`;
     } catch (e) {
       msgEl.textContent = (e as Error).message;
     }
