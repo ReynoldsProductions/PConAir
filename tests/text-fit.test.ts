@@ -47,6 +47,11 @@ beforeEach(() => {
   document.body.innerHTML = '';
   document.head.querySelectorAll('style[data-test-fit]').forEach((s) => s.remove());
   (window as unknown as { PConAir?: unknown }).PConAir = undefined;
+  // A couple of tests reassign window.fetch and the URL (to exercise
+  // reportWarnings' routeIdentity() parsing) -- reset both so that leaks
+  // into later tests in this file, not just the two that set them.
+  window.history.replaceState({}, '', '/');
+  delete (window as unknown as { fetch?: unknown }).fetch;
 });
 
 afterEach(() => {
@@ -218,6 +223,76 @@ describe('T6 -- font-load re-measure', () => {
     fit.runPass();
 
     expect(el.hasAttribute('data-fit-warn')).toBe(true);
+  });
+});
+
+describe('acceptance -- warnings clear when text is shortened', () => {
+  it('a warning present at long text disappears once the text fits', () => {
+    const fit = loadFit();
+    const el = makeEl({ field: 'name' }, 'Bartholomew Featherstonehaugh');
+    el.setAttribute('data-fit-max', '620');
+    el.setAttribute('data-fit-min', '0.62');
+    stubMeasurements(el, 1400, 620);
+    fit.manage(el);
+    fit.runPass();
+    expect(el.hasAttribute('data-fit-warn')).toBe(true);
+
+    // text is edited shorter -- now comfortably fits its box
+    el.textContent = 'Jane Smith';
+    stubMeasurements(el, 300, 620);
+    fit.runPass();
+
+    expect(el.hasAttribute('data-fit-warn')).toBe(false);
+    expect(el.style.transform).toBe('');
+  });
+
+  it('reports the shrunk (empty) warning set to the server, not the stale one', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true });
+    (window as unknown as { fetch: unknown }).fetch = fetchSpy;
+    // pathname drives which package/render this "page" reports as (spec 22's
+    // routeIdentity() parses /packages/<id>/render/<renderId> from it) --
+    // same convention tests/package-runtime-client.test.ts already uses.
+    window.history.replaceState({}, '', '/packages/news/render/l3');
+
+    const fit = loadFit();
+    const el = makeEl({ field: 'name' }, 'Bartholomew Featherstonehaugh');
+    el.setAttribute('data-fit-max', '620');
+    el.setAttribute('data-fit-min', '0.62');
+    stubMeasurements(el, 1400, 620);
+    fit.manage(el);
+    fit.runPass();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const firstBody = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string);
+    expect(firstBody.warnings).toHaveLength(1);
+
+    el.textContent = 'Jane Smith';
+    stubMeasurements(el, 300, 620);
+    fit.runPass();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const secondBody = JSON.parse((fetchSpy.mock.calls[1][1] as RequestInit).body as string);
+    expect(secondBody.warnings).toEqual([]);
+  });
+});
+
+describe('acceptance -- render-side warn() and control-side panel agree on wording', () => {
+  it('formatWarning (render side) and formatFitWarning (control side) produce identical text', () => {
+    const fitSrc = fs.readFileSync(path.join(process.cwd(), 'src', 'runtime', 'pconair-fit.js'), 'utf8');
+    const runtimeSrc = fs.readFileSync(path.join(process.cwd(), 'src', 'runtime', 'pconair.js'), 'utf8');
+
+    delete (window as unknown as Record<string, unknown>)._pconairFit;
+    delete (window as unknown as Record<string, unknown>).PConAir;
+    new Function(fitSrc)();
+    new Function(runtimeSrc)();
+    const fit = (window as unknown as { _pconairFit: any })._pconairFit;
+    const pconair = (window as unknown as { PConAir: any }).PConAir;
+
+    const w = { field: 'name', text: 'Bartholomew Featherstonehaugh', naturalWidth: 738, maxWidth: 620, min: 0.62 };
+    expect(fit.formatWarning(w)).toBe(pconair._formatFitWarningForTest(w));
+    expect(fit.formatWarning(w)).toBe(
+      'name \u2014 "Bartholomew Featherstonehaugh" is 738px in a 620px box (min scale 0.62)'
+    );
+    fit.dispose();
   });
 });
 

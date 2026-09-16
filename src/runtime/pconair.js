@@ -450,6 +450,10 @@ window.PConAir = (function () {
     _diagSource: _diagSource,
     _diagSources: diagSources,
     warn: warn,
+    /* Test-only: lets tests assert this stays byte-identical to
+       pconair-fit.js's own formatWarning, so a render-side ?debug=1 warning
+       and a control-side warningsPanel entry read as the same sentence. */
+    _formatFitWarningForTest: formatFitWarning,
   };
 })();
 
