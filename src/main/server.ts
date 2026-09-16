@@ -20,6 +20,8 @@ import { parseCookieHeader } from './cookie-parse';
 import { isClientIpAllowlisted } from './security/ip-allowlist';
 import { createTunnelPinGate } from './security/tunnel-pin';
 import { createPackageHub, type PackageHub } from './packages/state-hub';
+import { createPresenceRegistry } from './packages/presence';
+import type { PackagePresence } from '../shared/types';
 import { ensurePackageRenderPresets } from './packages/render-presets';
 import { createReliabilityStore } from './reliability-store';
 
@@ -230,6 +232,21 @@ export function createServer(deps: ServerDeps) {
     ensurePackageRenderPresets({ hub: packageHub, presets, port });
   }
 
+  // Output presence (spec 16): tracks which render/control pages are
+  // actually subscribed to each package namespace. Kept alongside the hub
+  // rather than inside it, since presence is purely a fact about open
+  // sockets and never persisted.
+  const presence = createPresenceRegistry();
+  const presenceSubs = new Map<string, Set<(p: PackagePresence) => void>>();
+  presence.onChange(() => {
+    for (const [namespace, fns] of presenceSubs) {
+      if (fns.size === 0) continue;
+      const id = namespace.slice('package:'.length);
+      const p = presence.forPackage(id);
+      for (const fn of fns) fn(p);
+    }
+  });
+
   const routeServices: RouteServices = {
     store,
     auth,
@@ -267,6 +284,7 @@ export function createServer(deps: ServerDeps) {
     hideQrOverlay: deps.hideQrOverlay,
     stageTimer: deps.stageTimer,
     packageHub,
+    presence,
     openGoogleAuthWindow: deps.openGoogleAuthWindow,
     getGoogleAuthState: deps.getGoogleAuthState,
     getCustomLogoPath: deps.getCustomLogoPath ?? (() => null),
@@ -391,20 +409,32 @@ export function createServer(deps: ServerDeps) {
     broadcast({ type: 'state_patch', payload: patch });
   });
 
+  function touchWebSocketClientCount(): void {
+    store.setState({
+      connectionStatus: {
+        ...store.getState().connectionStatus,
+        webSocketClients: wss.clients.size,
+      },
+    });
+  }
+
   wss.on('connection', (ws, req) => {
+    // Every role (?graphics=1, ?render=1, ?control=1, companion, authenticated
+    // operator/admin) counts toward the same live-socket gauge. Previously
+    // this only updated for the authenticated-session path — never on
+    // connect for a render/graphics socket, and never at all for a render
+    // socket, which returns early below (spec 16 §1 / T4). The recompute is
+    // called after each branch's own initial send below, not here — calling
+    // it first would broadcast a state_patch (from the store.setState it
+    // does) to this very socket before its first real message went out.
+    ws.on('close', touchWebSocketClientCount);
+
     // Read-only graphics viewer — no auth, no actions, just state broadcast.
     try {
       const u = new URL(req.url ?? '/', 'http://localhost');
       if (u.searchParams.get('graphics') === '1') {
         ws.send(JSON.stringify({ type: 'state', payload: store.getState() } satisfies WsServerMessage));
-        ws.on('close', () => {
-          store.setState({
-            connectionStatus: {
-              ...store.getState().connectionStatus,
-              webSocketClients: wss.clients.size,
-            },
-          });
-        });
+        touchWebSocketClientCount();
         return;
       }
     } catch {
@@ -413,10 +443,14 @@ export function createServer(deps: ServerDeps) {
 
     let isCompanion = false;
     let isRender = false;
+    let isControl = false;
+    let renderIdParam: string | null = null;
     try {
       const u = new URL(req.url || '/', 'http://localhost');
       isCompanion = u.searchParams.get('companion') === '1';
       isRender = u.searchParams.get('render') === '1';
+      isControl = u.searchParams.get('control') === '1';
+      renderIdParam = u.searchParams.get('renderId');
     } catch {
       /* ignore */
     }
@@ -448,15 +482,54 @@ export function createServer(deps: ServerDeps) {
             }
           })
         );
+
+        // Presence (spec 16): a render page (?render=1) counts as an output;
+        // a control page (?control=1) counts as a control, never an output.
+        // Anything else that subscribes (e.g. an authenticated debug tool)
+        // is treated like a render, per spec 16 §3.2.
+        const presenceToken = Symbol('presence');
+        presence.add(presenceToken, {
+          role: isControl ? 'control' : 'render',
+          packageId: m[1],
+          renderId: isControl ? null : renderIdParam,
+          ip: req.socket.remoteAddress ?? '0.0.0.0',
+          connectedAt: Date.now(),
+        });
+        namespaceUnsubs.push(() => presence.remove(presenceToken));
+
+        // Push presence changes to every socket subscribed to this namespace
+        // instead of making control pages poll for it (spec 16 §3.5).
+        let presenceFns = presenceSubs.get(namespace);
+        if (!presenceFns) {
+          presenceFns = new Set();
+          presenceSubs.set(namespace, presenceFns);
+        }
+        const presenceFn = (p: PackagePresence) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'presence', namespace, presence: p }));
+          }
+        };
+        presenceFns.add(presenceFn);
+        namespaceUnsubs.push(() => {
+          presenceSubs.get(namespace)?.delete(presenceFn);
+        });
       } catch {
         /* ignore malformed frames */
       }
     });
 
-    if (isRender) {
+    if (isRender || isControl) {
       // Read-only AppState push for render pages: send snapshot; package
-      // subscriptions above are the only messages honored.
-      ws.send(JSON.stringify({ type: 'state', payload: store.getState() } satisfies WsServerMessage));
+      // subscriptions above are the only messages honored. Control pages
+      // (?control=1) never received this treatment before spec 16 — they hit
+      // the cookie-auth check just below and were closed with 4001 right
+      // after opening, which meant a control page could never actually stay
+      // subscribed to a package namespace. They still get no AppState
+      // snapshot: they only care about the package namespace they subscribe to.
+      if (isRender) {
+        ws.send(JSON.stringify({ type: 'state', payload: store.getState() } satisfies WsServerMessage));
+      }
+      touchWebSocketClientCount();
       return;
     }
 
@@ -483,13 +556,7 @@ export function createServer(deps: ServerDeps) {
     }
 
     ws.send(JSON.stringify({ type: 'state', payload: store.getState() } satisfies WsServerMessage));
-
-    store.setState({
-      connectionStatus: {
-        ...store.getState().connectionStatus,
-        webSocketClients: wss.clients.size,
-      },
-    });
+    touchWebSocketClientCount();
 
     ws.on('message', async (raw) => {
       try {
@@ -570,12 +637,6 @@ export function createServer(deps: ServerDeps) {
         companionClients.delete(ws);
         setCompanionConnected(companionClients.size > 0);
       }
-      store.setState({
-        connectionStatus: {
-          ...store.getState().connectionStatus,
-          webSocketClients: wss.clients.size,
-        },
-      });
     });
   });
 

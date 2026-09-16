@@ -3,6 +3,9 @@ import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
 import type { PackageHub } from '../packages/state-hub';
+import type { PresenceRegistry } from '../packages/presence';
+import type { AuthManager } from '../auth';
+import { requireOperator } from './middleware';
 
 /**
  * Packages API + render/control/asset serving.
@@ -18,8 +21,9 @@ const ALLOWED_ASSET_MIME: Record<string, string> = {
   'image/webp': '.webp',
 };
 
-export function createPackagesRouter(hub: PackageHub): Router {
+export function createPackagesRouter(hub: PackageHub, presence: PresenceRegistry, auth: AuthManager): Router {
   const router = Router();
+  const opGuard = requireOperator(auth);
 
   const assetUpload = multer({
     storage: multer.diskStorage({
@@ -135,7 +139,28 @@ export function createPackagesRouter(hub: PackageHub): Router {
       res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: `Package '${req.params.id}' not found` } });
       return;
     }
-    res.json({ state: next });
+    // `delivered: 0` means the call succeeded and nothing was listening — it is
+    // not an error (spec 16 §3.3, docs/designing-packages.md).
+    res.json({ state: next, delivered: presence.forPackage(req.params.id).renders });
+  });
+
+  // Spec 15 (transport verbs: play/next/stop/clear) has not merged into this
+  // branch. When it does, POST /api/packages/:id/transport/:renderId/:verb and
+  // POST /api/packages/:id/transport/clear-all must carry `delivered` the same
+  // way — see specs/16-output-presence.md §3.3 and specs/15-graphics-transport.md.
+
+  /** GET /api/packages/:id/presence — presence for one package. */
+  router.get('/api/packages/:id/presence', opGuard, (req: Request, res: Response) => {
+    res.json(presence.forPackage(req.params.id));
+  });
+
+  /** GET /api/presence — presence for every package, plus the raw client list. */
+  router.get('/api/presence', opGuard, (_req: Request, res: Response) => {
+    const packages: Record<string, ReturnType<typeof presence.forPackage>> = {};
+    for (const p of hub.list()) {
+      packages[p.manifest.id] = presence.forPackage(p.manifest.id);
+    }
+    res.json({ packages, clients: presence.all() });
   });
 
   /**

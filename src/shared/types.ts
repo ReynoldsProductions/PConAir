@@ -359,13 +359,43 @@ export type ErrorCode =
   | 'FORBIDDEN'
   | 'FILE_TOO_LARGE';
 
+// ---- Package output presence (spec 16) ----
+// Tracks which render/control pages are actually connected to a package's
+// WebSocket namespace, so an operator can tell "the state changed but nothing
+// is listening" apart from "it is on screen". See src/main/packages/presence.ts.
+
+export type PresenceRole = 'render' | 'control';
+
+export interface PresenceEntry {
+  role: PresenceRole;
+  packageId: string;
+  /** null for control pages and for renders that did not identify themselves. */
+  renderId: string | null;
+  /** Remote address, for the diagnostics list. Never shown to non-operators. */
+  ip: string;
+  connectedAt: number;
+}
+
+export interface PackagePresence {
+  /** Total outputs subscribed to this package, any render. */
+  renders: number;
+  /** Outputs per render id. Absent id = zero. */
+  byRender: Record<string, number>;
+  /** Control pages open on this package. */
+  controls: number;
+}
+
 // ---- WebSocket message types ----
 
 export type WsServerMessage =
   | { type: 'state'; payload: AppState }
   | { type: 'state_patch'; payload: Partial<AppState> }
   | { type: 'error'; payload: { code: string; message: string } }
-  | { type: 'action_result'; payload: unknown };
+  | { type: 'action_result'; payload: unknown }
+  /** Presence changed for a package namespace (spec 16). Pushed to every
+      socket subscribed to that namespace, alongside the existing untyped
+      `{type:'state', namespace, state}` package frame. */
+  | { type: 'presence'; namespace: string; presence: PackagePresence };
 
 export type WsClientMessage =
   /** Dispatch an action. `pin` is required when the socket carries only an admin session. */
