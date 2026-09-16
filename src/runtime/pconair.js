@@ -57,12 +57,19 @@ window.PConAir = (function () {
     var attempt = 0; /* index into BACKOFF for the NEXT retry */
     var stateSubs = [];
     var connSubs = [];
+    var presenceSubs = [];
 
     var client = {
       state: null,
       connected: false,
+      /* PackagePresence for this package | null before the first frame
+         arrives (spec 16). Narrowed to this page's own render by nothing —
+         presenceIndicator's opts.renderId does that narrowing, not this
+         field, which always carries the whole-package counts. */
+      presence: null,
       patch: patch,
       on: on,
+      onPresence: onPresence,
       onConnection: onConnection,
       close: close,
     };
@@ -92,6 +99,13 @@ window.PConAir = (function () {
       }
     }
 
+    function emitPresence(p) {
+      client.presence = p;
+      for (var i = 0; i < presenceSubs.length; i++) {
+        try { presenceSubs[i](p); } catch (e) { /* as above */ }
+      }
+    }
+
     function open() {
       if (closed) return;
       timer = null;
@@ -111,6 +125,11 @@ window.PConAir = (function () {
            AppState as `payload` on some channels — not ours, ignore it. */
         if (msg && msg.type === 'state' && msg.namespace === namespace && msg.state) {
           emitState(msg.state);
+        }
+        /* Output presence (spec 16): pushed whenever a render/control page
+           joins or leaves this package's namespace. */
+        if (msg && msg.type === 'presence' && msg.namespace === namespace && msg.presence) {
+          emitPresence(msg.presence);
         }
       };
       ws.onclose = function () {
@@ -167,6 +186,17 @@ window.PConAir = (function () {
       };
     }
 
+    function onPresence(fn) {
+      presenceSubs.push(fn);
+      if (client.presence) {
+        try { fn(client.presence); } catch (e) { /* ignore */ }
+      }
+      return function () {
+        var i = presenceSubs.indexOf(fn);
+        if (i >= 0) presenceSubs.splice(i, 1);
+      };
+    }
+
     function onConnection(fn) {
       connSubs.push(fn);
       return function () {
@@ -189,11 +219,39 @@ window.PConAir = (function () {
     return client;
   }
 
+  /* Drop-in presence LED + label (spec 16), so no control page hand-rolls
+     one. `opts.renderId` narrows the count to a single render; otherwise it
+     reports the whole package's render count. The element gets
+     data-presence="none"|"ok" — pconair.css supplies the red/green dot. */
+  function presenceIndicator(el, client, opts) {
+    opts = opts || {};
+    var renderId = opts.renderId || null;
+
+    function countFor(p) {
+      if (!p) return 0;
+      if (renderId) return (p.byRender && p.byRender[renderId]) || 0;
+      return p.renders || 0;
+    }
+
+    function render(p) {
+      var n = countFor(p);
+      el.setAttribute('data-presence', n > 0 ? 'ok' : 'none');
+      el.textContent = n === 0 ? 'no output connected' : n === 1 ? '1 output' : n + ' outputs';
+    }
+
+    render(client.presence);
+    var off = client.onPresence(render);
+    return {
+      destroy: function () { off(); },
+    };
+  }
+
   return {
     version: '1',
     connect: connect,
     param: param,
     isDebug: isDebug,
+    presenceIndicator: presenceIndicator,
     _diagSource: _diagSource,
     _diagSources: diagSources,
   };
