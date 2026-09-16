@@ -187,3 +187,87 @@ describe('package migration to the shared runtime', () => {
     }
   });
 });
+
+/**
+ * Acceptance A4: a control page still drives its render. Proven end to end over
+ * the real socket against the real bundled packages, rather than by reading the
+ * HTML — the migration changed both the transport role and the callback shape,
+ * and only a round trip shows the pipeline still closes.
+ */
+describe('control -> server -> render round trip (spec 14 A4)', () => {
+  const BUNDLED = path.join(process.cwd(), 'bundled-packages');
+
+  async function bundledServer() {
+    const store = createStateStore();
+    const srv = createFullServer({
+      store,
+      operatorPin: 'test1234',
+      adminPin: 'adminpass8',
+      operatorSessionMs: 60000,
+      adminSessionMs: 60000,
+      port: 0,
+      packagesRoot: BUNDLED,
+    });
+    await new Promise<void>((resolve) => srv.httpServer.listen(0, resolve));
+    const port = (srv.httpServer.address() as { port: number }).port;
+    return { srv, port, close: () => new Promise<void>((r) => srv.httpServer.close(() => r())) };
+  }
+
+  it.each([
+    ['hoops', 'scorebug', 'render.html'],
+    ['news', 'ticker', 'render-ticker.html'],
+    ['ffg', 'champion', 'render-champion.html'],
+  ])('%s: a patch reaches a subscribed render socket', async (pkg, renderId) => {
+    const { port, srv, close } = await bundledServer();
+    try {
+      const ws = new WebSocket(`ws://localhost:${port}/ws?render=1&renderId=${renderId}`);
+      const frames: Array<Record<string, unknown>> = [];
+      await new Promise<void>((resolve, reject) => {
+        ws.on('open', () => {
+          ws.send(JSON.stringify({ type: 'subscribe', namespace: `package:${pkg}` }));
+          resolve();
+        });
+        ws.on('error', reject);
+      });
+      ws.on('message', (d) => frames.push(JSON.parse(d.toString())));
+
+      // first frame is the subscribe snapshot
+      await new Promise((r) => setTimeout(r, 120));
+      expect(frames.length, 'no snapshot on subscribe').toBeGreaterThan(0);
+
+      const before = frames.length;
+      const cookie = (
+        await request(srv.app).post('/auth/operator').send({ pin: 'test1234' })
+      ).headers['set-cookie'] as unknown as string[];
+      const key = Object.keys((await request(srv.app).get(`/api/packages/${pkg}/state`).set('Cookie', cookie[0])).body.state)[0];
+      const res = await request(srv.app)
+        .post(`/api/packages/${pkg}/state`)
+        .set('Cookie', cookie[0])
+        .send({ [key]: 'spec14-probe' });
+      expect(res.status).toBe(200);
+
+      await new Promise((r) => setTimeout(r, 150));
+      expect(frames.length, 'render socket never saw the patch').toBeGreaterThan(before);
+      const latest = frames[frames.length - 1] as { namespace: string; state: Record<string, unknown> };
+      expect(latest.namespace).toBe(`package:${pkg}`);
+      expect(latest.state[key]).toBe('spec14-probe');
+
+      ws.close();
+    } finally {
+      await close();
+    }
+  });
+
+  it.each(['hoops', 'news', 'ffg'])('%s control page loads the runtime and connects as a control', async (pkg) => {
+    const { srv, close } = await bundledServer();
+    try {
+      const res = await request(srv.app).get(`/packages/${pkg}/control`);
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('/packages/_runtime/pconair.js');
+      expect(res.text).toContain("role: 'control'");
+      expect(res.text).not.toContain('PConAirPackage.connect');
+    } finally {
+      await close();
+    }
+  });
+});
