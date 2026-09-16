@@ -249,3 +249,28 @@ describe('T5 — engine: stop and clear', () => {
     }
   });
 });
+
+describe('T6 — auto-advance', () => {
+  it('holding step 0 advances itself after autoAdvanceMs[0]; holding step 1 does not advance', () => {
+    vi.useFakeTimers();
+    try {
+      const { engine, root } = makeEngine({ stops: 2, inMs: [100, 100], autoAdvanceMs: [1500, 0] });
+      engine.dispatch('txp', 'card', 'play');
+      vi.advanceTimersByTime(100); // holding[0]
+      expect(engine.get('txp', 'card')).toMatchObject({ phase: 'holding', step: 0 });
+
+      vi.advanceTimersByTime(1500); // auto-advance fires
+      expect(engine.get('txp', 'card')).toMatchObject({ phase: 'playing-in', step: 1 });
+
+      vi.advanceTimersByTime(100); // in-transition completes
+      expect(engine.get('txp', 'card')).toMatchObject({ phase: 'holding', step: 1 });
+
+      // step 1's autoAdvanceMs is 0 — it must sit there, not auto-advance further
+      vi.advanceTimersByTime(10_000);
+      expect(engine.get('txp', 'card')).toMatchObject({ phase: 'holding', step: 1 });
+      fs.rmSync(root, { recursive: true, force: true });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
