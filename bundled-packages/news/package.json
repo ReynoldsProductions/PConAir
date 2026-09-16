@@ -391,5 +391,17 @@
   "transientFields": [
     "l3Left.visible",
     "l3Right.visible"
+  ],
+  "dataSources": [
+    {
+      "id": "headlines",
+      "label": "Headlines feed",
+      "kind": "rss",
+      "pollSeconds": 300,
+      "transforms": [
+        { "op": "sort", "column": "date", "direction": "desc" },
+        { "op": "limit", "count": 8 }
+      ]
+    }
   ]
 }

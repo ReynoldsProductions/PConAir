@@ -1338,6 +1338,7 @@ async function renderSystem() {
   const prefs = (fullProfileData && fullProfileData.appPreferences) || {};
   const allowlistEnabled = !!prefs.ipAllowlistEnabled;
   const allowlist = Array.isArray(prefs.ipAllowlist) ? prefs.ipAllowlist : [];
+  const dataSourceAllowedHosts = Array.isArray(prefs.dataSourceAllowedHosts) ? prefs.dataSourceAllowedHosts : [];
 
   const operationMode = (appSettingsData && appSettingsData.operationMode) || 'standalone';
   const backupIps = Array.isArray(appSettingsData && appSettingsData.backupIps) ? appSettingsData.backupIps : [];
@@ -1403,6 +1404,21 @@ async function renderSystem() {
         <button class="btn btn-primary" id="save-allowlist-btn">Save Allowlist</button>
         <span style="font-size:11px;color:var(--orange);">&#9888; Changes take effect after restarting the app.</span>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Data Source Allowed Hosts</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+        A package's data source (Packages → a feed's URL) is refused if it points at a loopback,
+        link-local, or private-network address — that's most internal dashboards and test servers.
+        List an exact hostname or IP below to allow it anyway. Takes effect on the next poll; no
+        restart needed.
+      </p>
+      <div class="field">
+        <div class="field-label">Allowed hosts (one per line)</div>
+        <textarea id="data-source-allowlist-textarea" rows="4" placeholder="metrics.internal&#10;10.0.0.5">${escHtml(dataSourceAllowedHosts.join('\n'))}</textarea>
+      </div>
+      <button class="btn btn-primary" id="save-data-source-allowlist-btn" style="margin-top:8px;">Save Allowed Hosts</button>
     </div>
 
     <div class="card">
@@ -1485,6 +1501,19 @@ async function renderSystem() {
         },
       });
       showSuccess('Allowlist saved — restart the app to apply');
+    } catch { /* showError handled in api() */ }
+  });
+
+  // Save data source allowed hosts (spec 20)
+  document.getElementById('save-data-source-allowlist-btn').addEventListener('click', async () => {
+    if (!activeProfileData) { showError('No active profile'); return; }
+    const raw = document.getElementById('data-source-allowlist-textarea').value;
+    const hosts = raw.split('\n').map(s => s.trim()).filter(Boolean);
+    try {
+      await api('PATCH', `/api/profiles/${activeProfileData.id}`, {
+        appPreferences: { dataSourceAllowedHosts: hosts },
+      });
+      showSuccess('Data source allowed hosts saved');
     } catch { /* showError handled in api() */ }
   });
 

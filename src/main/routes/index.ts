@@ -108,10 +108,14 @@ export interface RouteServices {
   stageTimer?: Omit<StageTimerRouterDeps, 'store' | 'auth'>;
   /** Graphics packages hub; null when the packages system is disabled. */
   packageHub: PackageHub | null;
-  /** Output presence registry (spec 16) — which render/control pages are subscribed to each package. */
+  /** Output presence registry (spec 16) -- which render/control pages are subscribed to each package. */
   presence: PresenceRegistry;
   /** Transport engine for packageHub; null exactly when packageHub is null. */
   transportEngine: TransportEngine | null;
+  /** Per-package data source overrides (spec 20); null when packages are disabled. */
+  dataOverrides: import('../packages/data-overrides').DataOverridesStore | null;
+  /** Data source poller (spec 20); null when packages are disabled. */
+  dataSourcePoller: import('../packages/data-sources').DataSourcePoller | null;
   /** Google Slides auth hooks (Electron main only). */
   openGoogleAuthWindow?: SlidesRouterDeps['openGoogleAuthWindow'];
   getGoogleAuthState?: SlidesRouterDeps['getGoogleAuthState'];
@@ -237,7 +241,16 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   app.use('/api', createGscCompatRouter(s.store));
   app.use(createRenderRouter(s.store, s.auth));
   if (s.packageHub && s.transportEngine) {
-    app.use(createPackagesRouter(s.packageHub, s.auth, s.transportEngine, s.presence));
+    app.use(
+      createPackagesRouter({
+        hub: s.packageHub,
+        auth: s.auth,
+        transportEngine: s.transportEngine,
+        presence: s.presence,
+        dataOverrides: s.dataOverrides,
+        dataSourcePoller: s.dataSourcePoller,
+      })
+    );
   }
   app.use(
     createTunnelRouter({

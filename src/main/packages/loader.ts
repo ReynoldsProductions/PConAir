@@ -141,6 +141,39 @@ export interface PackageManifest {
   companionFeedbacks?: PkgCompanionFeedback[];
   companionVariables?: PkgCompanionVariable[];
   companionDerived?: PkgCompanionDerived[];
+  /** Polled, normalized data feeds — see data-sources.ts. */
+  dataSources?: PackageDataSource[];
+}
+
+// ── Data sources (spec 20) ───────────────────────────────────────────────
+//
+// A package can declare polled, normalized data feeds (RSS, JSON, CSV) that
+// land in package state under the reserved `_data` key (see state-hub.ts).
+// See src/main/packages/data-sources.ts for the poller, parsers and safety
+// guard, and data-overrides.ts for operator/admin overrides.
+
+export type DataSourceKind = 'http-json' | 'http-csv' | 'rss';
+
+export type DataTransform =
+  | { op: 'sort'; column: string; direction?: 'asc' | 'desc'; numeric?: boolean }
+  | { op: 'filter'; column: string; test: 'eq' | 'neq' | 'contains' | 'gt' | 'lt'; value: string }
+  | { op: 'limit'; count: number }
+  | { op: 'offset'; count: number }
+  | { op: 'rank'; column: string };
+
+export interface PackageDataSource {
+  /** Key under `_data` in package state. Lowercase, no leading underscore. */
+  id: string;
+  label: string;
+  kind: DataSourceKind;
+  /** Default URL. Operator-overridable — see data-overrides.ts. */
+  url?: string;
+  /** http-json only: dotted path to the array, e.g. "data.standings". */
+  path?: string;
+  /** Seconds. Clamped to the floor in data-sources.ts. Default 300. */
+  pollSeconds?: number;
+  /** Applied in array order. */
+  transforms?: DataTransform[];
 }
 
 export interface LoadedPackage {
@@ -151,6 +184,9 @@ export interface LoadedPackage {
 }
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9-_]*$/;
+const DATA_SOURCE_KINDS = new Set<DataSourceKind>(['http-json', 'http-csv', 'rss']);
+const DATA_TRANSFORM_OPS = new Set(['sort', 'filter', 'limit', 'offset', 'rank']);
+const DATA_TRANSFORM_TESTS = new Set(['eq', 'neq', 'contains', 'gt', 'lt']);
 
 export function validateManifest(raw: unknown): { ok: true; manifest: PackageManifest } | { ok: false; error: string } {
   if (typeof raw !== 'object' || raw === null) return { ok: false, error: 'manifest is not an object' };
@@ -220,6 +256,12 @@ export function validateManifest(raw: unknown): { ok: true; manifest: PackageMan
     if (typeof m.stateSchema !== 'object' || m.stateSchema === null || Array.isArray(m.stateSchema)) {
       return { ok: false, error: 'stateSchema must be an object' };
     }
+    // Reserved namespace prefix (plan_approved.md "Global Constraints"): `_`-led
+    // top-level keys are engine-owned (spec 15's `_transport`, spec 20's
+    // `_data`, spec 19's `_meta`). A package cannot declare one. Originally
+    // added independently by both spec 15 and spec 20 (each wrote this exact
+    // check without seeing the other's concurrent branch, per each spec's own
+    // instructions); collapsed into one check while merging the two branches.
     for (const key of Object.keys(m.stateSchema as Record<string, unknown>)) {
       if (key.startsWith('_')) {
         return {
@@ -234,7 +276,115 @@ export function validateManifest(raw: unknown): { ok: true; manifest: PackageMan
       return { ok: false, error: 'transientFields must be an array of non-empty dotted state paths' };
     }
   }
+  if (m.dataSources !== undefined) {
+    if (!Array.isArray(m.dataSources)) {
+      return { ok: false, error: 'dataSources must be an array' };
+    }
+    const seenIds = new Set<string>();
+    for (const raw of m.dataSources) {
+      const err = validateDataSource(raw, seenIds);
+      if (err) return { ok: false, error: err };
+    }
+  }
   return { ok: true, manifest: raw as PackageManifest };
+}
+
+function validateDataSource(raw: unknown, seenIds: Set<string>): string | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return 'each data source must be an object';
+  }
+  const ds = raw as Record<string, unknown>;
+  const idForMessage = typeof ds.id === 'string' && ds.id.length > 0 ? ds.id : '(missing id)';
+  if (typeof ds.id !== 'string' || !ID_PATTERN.test(ds.id)) {
+    return `data source '${idForMessage}': id must be lowercase alphanumeric (with - or _), and not start with '_'`;
+  }
+  if (seenIds.has(ds.id)) {
+    return `data source '${ds.id}': duplicate id`;
+  }
+  seenIds.add(ds.id);
+  if (typeof ds.label !== 'string' || ds.label.length === 0) {
+    return `data source '${ds.id}': label is required`;
+  }
+  if (!DATA_SOURCE_KINDS.has(ds.kind as DataSourceKind)) {
+    return `data source '${ds.id}': kind must be one of 'http-json', 'http-csv', 'rss'`;
+  }
+  if (ds.url !== undefined && typeof ds.url !== 'string') {
+    return `data source '${ds.id}': url must be a string`;
+  }
+  if (ds.path !== undefined) {
+    if (typeof ds.path !== 'string' || ds.path.length === 0) {
+      return `data source '${ds.id}': path must be a non-empty string`;
+    }
+    if (ds.kind !== 'http-json') {
+      return `data source '${ds.id}': path is only valid when kind is 'http-json'`;
+    }
+  }
+  if (ds.pollSeconds !== undefined) {
+    if (typeof ds.pollSeconds !== 'number' || !Number.isInteger(ds.pollSeconds) || ds.pollSeconds <= 0) {
+      return `data source '${ds.id}': pollSeconds must be a positive integer`;
+    }
+  }
+  if (ds.transforms !== undefined) {
+    if (!Array.isArray(ds.transforms)) {
+      return `data source '${ds.id}': transforms must be an array`;
+    }
+    for (const t of ds.transforms) {
+      const err = validateDataTransform(ds.id, t);
+      if (err) return err;
+    }
+  }
+  return null;
+}
+
+function validateDataTransform(sourceId: string, raw: unknown): string | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return `data source '${sourceId}': each transform must be an object`;
+  }
+  const t = raw as Record<string, unknown>;
+  if (typeof t.op !== 'string' || !DATA_TRANSFORM_OPS.has(t.op)) {
+    return `data source '${sourceId}': unknown transform op '${String(t.op)}'`;
+  }
+  switch (t.op) {
+    case 'sort':
+      if (typeof t.column !== 'string' || t.column.length === 0) {
+        return `data source '${sourceId}': sort transform requires a 'column'`;
+      }
+      if (t.direction !== undefined && t.direction !== 'asc' && t.direction !== 'desc') {
+        return `data source '${sourceId}': sort direction must be 'asc' or 'desc'`;
+      }
+      if (t.numeric !== undefined && typeof t.numeric !== 'boolean') {
+        return `data source '${sourceId}': sort numeric must be a boolean`;
+      }
+      return null;
+    case 'filter':
+      if (typeof t.column !== 'string' || t.column.length === 0) {
+        return `data source '${sourceId}': filter transform requires a 'column'`;
+      }
+      if (typeof t.test !== 'string' || !DATA_TRANSFORM_TESTS.has(t.test)) {
+        return `data source '${sourceId}': filter test must be one of eq, neq, contains, gt, lt`;
+      }
+      if (typeof t.value !== 'string') {
+        return `data source '${sourceId}': filter transform requires a string 'value'`;
+      }
+      return null;
+    case 'limit':
+      if (typeof t.count !== 'number' || !Number.isInteger(t.count) || t.count < 0) {
+        return `data source '${sourceId}': limit count must be a non-negative integer`;
+      }
+      return null;
+    case 'offset':
+      if (typeof t.count !== 'number' || !Number.isInteger(t.count) || t.count < 0) {
+        return `data source '${sourceId}': offset count must be a non-negative integer`;
+      }
+      return null;
+    case 'rank':
+      if (typeof t.column !== 'string' || t.column.length === 0) {
+        return `data source '${sourceId}': rank transform requires a 'column'`;
+      }
+      return null;
+    default:
+      return `data source '${sourceId}': unknown transform op`;
+  }
 }
 
 /** Derive an initial state object from a stateSchema (number→0, string→'', boolean→false). */

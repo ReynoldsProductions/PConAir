@@ -29,6 +29,12 @@ export interface AppPreferences {
   ipAllowlist: string[] | null;
   /** When true, only IPs/CIDRs in `ipAllowlist` may access the server. */
   ipAllowlistEnabled: boolean;
+  /**
+   * Hosts (exact hostname or literal IP, not CIDR) a data source manifest may
+   * reach even though they're loopback/link-local/RFC1918 (spec 20 §3.4).
+   * Default empty — an operator opts a host in explicitly.
+   */
+  dataSourceAllowedHosts: string[];
   adminLockOnShow: boolean;
   operatorUiScale: number;
   // New fields for GSC parity:

@@ -93,11 +93,30 @@ export function createPackageHub(
     }
   }
 
+  /**
+   * Reserved top-level namespaces (`_data` — spec 20, `_transport` — spec 15,
+   * `_meta` — spec 19) are engine-owned and always transient: a stale feed or
+   * transport snapshot restored from disk at show start is worse than an
+   * empty one. Stripping them here — rather than only on load — also keeps
+   * the save file from ballooning with poller rows on every debounced flush.
+   */
+  function stripReservedNamespaces(state: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(state)) {
+      if (k.startsWith('_')) continue;
+      out[k] = v;
+    }
+    return out;
+  }
+
   let flushTimer: NodeJS.Timeout | null = null;
   function writeNow(): void {
     if (!persistPath) return;
     try {
-      const payload: PersistFileV1 = { version: 1, states: Object.fromEntries(states) };
+      const payload: PersistFileV1 = {
+        version: 1,
+        states: Object.fromEntries(Array.from(states.entries(), ([id, s]) => [id, stripReservedNamespaces(s)])),
+      };
       fs.mkdirSync(path.dirname(persistPath), { recursive: true });
       fs.writeFileSync(persistPath, JSON.stringify(payload, null, 2), 'utf8');
     } catch {
@@ -148,6 +167,14 @@ export function createPackageHub(
         // live rescan would yank an on-air lower third off the screen.
         for (const field of p.manifest.transientFields ?? []) {
           resetPath(next, base, field);
+        }
+        // Defensive: reserved namespaces are excluded from the save file
+        // already (stripReservedNamespaces), so mergeSaved never restores
+        // them (they aren't in `base` either — validateManifest rejects a
+        // `_`-prefixed stateSchema key). Delete here too in case an older
+        // save file predates that stripping.
+        for (const k of Object.keys(next)) {
+          if (k.startsWith('_')) delete next[k];
         }
       }
       states.set(id, next);

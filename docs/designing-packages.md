@@ -115,6 +115,96 @@ For bespoke layouts, any lowercase ID is fine.
 
 ---
 
+## Data sources
+
+A package can declare polled, normalized data feeds — RSS/Atom, JSON, or CSV — instead of hand-rolling its own `fetch` and poll timer. Every kind produces the same shape:
+
+```ts
+type DataRow = Record<string, string>; // values are always strings — formatting is the graphic's job
+
+interface DataSourceResult {
+  rows: DataRow[];
+  columns: string[];   // column names, first-seen order
+  fetchedAt: number;
+  error: string | null; // null when the last fetch succeeded
+  rawCount: number;      // row count before transforms
+}
+```
+
+### Declaring a source
+
+```json
+"dataSources": [
+  {
+    "id": "headlines",
+    "label": "Headlines feed",
+    "kind": "rss",
+    "pollSeconds": 300,
+    "transforms": [
+      { "op": "sort", "column": "date", "direction": "desc" },
+      { "op": "limit", "count": 8 }
+    ]
+  }
+]
+```
+
+- `id` — lowercase, matches `/^[a-z0-9][a-z0-9-_]*$/` (same rule as a render `id`), unique within the package. This is the key under `_data` in package state, so it can never start with `_`.
+- `kind` — `'http-json'`, `'http-csv'`, or `'rss'` (covers Atom too).
+- `url` — optional default. Leave it off (as `news`'s `headlines` source does) when there's no sensible default and the operator must supply one from the control page / Admin.
+- `path` — `http-json` only: a dotted path to the array in the response, e.g. `"data.standings"`.
+- `pollSeconds` — clamped to a **60-second floor** no matter what you ask for.
+- `transforms` — applied in array order (see below).
+
+The operator owns the live URL, poll interval, and enabled flag — those are overrides on top of your declaration, set via the control page (spec 18) or `PUT /api/packages/:id/data/:sourceId` (admin-only), and they persist independently of your manifest.
+
+### Transforms
+
+Applied in array order to the parsed rows:
+
+| op | fields | effect |
+|---|---|---|
+| `sort` | `column`, `direction?` (`asc`\|`desc`), `numeric?` | Re-orders rows. `numeric: true` compares as numbers (`2` before `10`); otherwise the comparison is lexical string order. |
+| `filter` | `column`, `test` (`eq`\|`neq`\|`contains`\|`gt`\|`lt`), `value` | Keeps rows where the test passes. `gt`/`lt` compare numerically. |
+| `limit` | `count` | Keeps the first `count` rows. |
+| `offset` | `count` | Drops the first `count` rows. |
+| `rank` | `column` | Writes a 1-based position into `column`, based on row order **at that point in the pipeline** — put it after `sort` and before `limit` for a "top 5 with ranks 1–5" result. |
+
+### Reading a source from a render page
+
+Results land in package state under the reserved `_data` key, keyed by source id:
+
+```js
+window.PConAir.connect('my-package', {
+  role: 'render',
+  onState: (s) => {
+    const source = s._data && s._data.my_source;
+    if (source && source.enabled !== false && source.rows.length > 0) {
+      // use source.rows
+    } else {
+      // fall back to a manually-authored field from your own stateSchema
+    }
+  },
+});
+```
+
+**The fallback is required.** A package must never go dark because a feed is unconfigured, disabled, or hasn't polled yet — always ship a manually-editable field (like `news`'s `tickerItems`) as the fallback, and only prefer the data source's rows when it's enabled and has actually returned something. See `bundled-packages/news/render-ticker.html`'s `resolveItems()` for the reference implementation, including joining new copy at a crawl's loop seam instead of mutating text mid-scroll.
+
+`_data` is **never persisted** — it's rebuilt from a live poll every time the app starts, the same as any other value under a leading-underscore reserved key (`_transport`, `_meta`). Don't rely on it surviving a restart.
+
+### Safety rules (do not weaken these)
+
+Because this is real outbound network access on behalf of a manifest file, the poller enforces, unconditionally:
+
+- **`http:`/`https:` only.** `file:`, `data:`, `ftp:`, everything else is refused.
+- **No loopback, link-local, or private-network (RFC1918) targets** — checked against the resolved IP, not just the literal hostname, so a DNS answer can't smuggle a request onto the LAN. An admin can allow a specific host anyway from Admin → System → **Data Source Allowed Hosts**.
+- **10-second timeout**, **2 MB response cap** (aborted, not buffered past the cap).
+- **Same-host redirects only**, up to 3 hops; a redirect to a different host is refused.
+- **A failed poll keeps the last good rows** and sets `error` — it never blanks what's already on air.
+
+If you're writing a new `kind`, the parser must be a pure function (no I/O) so it's unit-testable without a network stub — see `parseJson`/`parseCsv`/`parseRss` in `src/main/packages/data-sources.ts`.
+
+---
+
 ## Writing a render page
 
 A render page is a standard HTML file. It connects to PConAir's WebSocket on load, receives the full state immediately, and re-renders on every update.
