@@ -8,6 +8,7 @@ import type { PresenceRegistry } from '../packages/presence';
 import type { TransportEngine, TransportVerb } from '../packages/transport';
 import type { DataOverridesStore } from '../packages/data-overrides';
 import type { DataSourcePoller } from '../packages/data-sources';
+import type { WarningsStore, FitWarning } from '../packages/warnings';
 import { requireOperator, requireAdmin } from './middleware';
 
 /**
@@ -64,10 +65,12 @@ export interface PackagesRouterDeps {
   /** Spec 20 -- null when the packages system as a whole is disabled. */
   dataOverrides: DataOverridesStore | null;
   dataSourcePoller: DataSourcePoller | null;
+  /** Spec 22 -- live text-fit overflow warnings, per (packageId, renderId). */
+  warningsStore: WarningsStore;
 }
 
 export function createPackagesRouter(deps: PackagesRouterDeps): Router {
-  const { hub, auth, transportEngine, presence, dataOverrides, dataSourcePoller } = deps;
+  const { hub, auth, transportEngine, presence, dataOverrides, dataSourcePoller, warningsStore } = deps;
   const router = Router();
   const opGuard = requireOperator(auth);
   const adminGuard = requireAdmin(auth);
@@ -441,6 +444,73 @@ export function createPackagesRouter(deps: PackagesRouterDeps): Router {
     }
     const result = await dataSourcePoller.refresh(pkg.manifest.id, source.id);
     res.json({ result });
+  });
+
+  // ── Text-fit overflow warnings (spec 22) ────────────────────────────────
+  // POST is cookie-less like /state -- called by render pages, LAN-gated by
+  // the global IP-allowlist middleware in server.ts, same as every other
+  // render-facing surface.
+  const MAX_WARNING_BODY_BYTES = 16 * 1024;
+  const MAX_WARNINGS_PER_RENDER = 32;
+
+  router.post('/api/packages/:id/warnings', (req: Request, res: Response) => {
+    const pkg = hub.find(req.params.id);
+    if (!pkg) {
+      res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: `Package '${req.params.id}' not found` } });
+      return;
+    }
+    const body = req.body as { renderId?: unknown; warnings?: unknown };
+    if (typeof body.renderId !== 'string' || !body.renderId) {
+      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'renderId is required' } });
+      return;
+    }
+    if (!Array.isArray(body.warnings)) {
+      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'warnings must be an array' } });
+      return;
+    }
+    if (body.warnings.length > MAX_WARNINGS_PER_RENDER) {
+      res.status(400).json({
+        error: { code: 'INVALID_MODE', message: `warnings must not exceed ${MAX_WARNINGS_PER_RENDER} entries` },
+      });
+      return;
+    }
+    const bodyBytes = Buffer.byteLength(JSON.stringify(body), 'utf8');
+    if (bodyBytes > MAX_WARNING_BODY_BYTES) {
+      res.status(400).json({
+        error: { code: 'INVALID_MODE', message: `warnings body must not exceed ${MAX_WARNING_BODY_BYTES} bytes` },
+      });
+      return;
+    }
+    const warnings: FitWarning[] = [];
+    for (const raw of body.warnings) {
+      const w = raw as Partial<FitWarning>;
+      if (
+        typeof w.field !== 'string' ||
+        typeof w.text !== 'string' ||
+        typeof w.naturalWidth !== 'number' ||
+        typeof w.maxWidth !== 'number'
+      ) {
+        res.status(400).json({
+          error: { code: 'INVALID_MODE', message: 'each warning needs field, text, naturalWidth, maxWidth' },
+        });
+        return;
+      }
+      warnings.push({ field: w.field, text: w.text, naturalWidth: w.naturalWidth, maxWidth: w.maxWidth });
+    }
+    warningsStore.set(pkg.manifest.id, body.renderId, warnings);
+    res.json({ ok: true });
+  });
+
+  /** GET /api/packages/:id/warnings -- the whole map, so a control page
+      opened late is correct immediately rather than waiting for the next
+      push frame. */
+  router.get('/api/packages/:id/warnings', opGuard, (req: Request, res: Response) => {
+    const pkg = hub.find(req.params.id);
+    if (!pkg) {
+      res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: `Package '${req.params.id}' not found` } });
+      return;
+    }
+    res.json({ warnings: warningsStore.get(pkg.manifest.id) });
   });
 
   // ── Diagnostics (spec 21) ────────────────────────────────────────────────

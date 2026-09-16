@@ -22,6 +22,7 @@ import { isClientIpAllowlisted } from './security/ip-allowlist';
 import { createTunnelPinGate } from './security/tunnel-pin';
 import { createPackageHub, type PackageHub } from './packages/state-hub';
 import { createPresenceRegistry } from './packages/presence';
+import { createWarningsStore } from './packages/warnings';
 import type { PackagePresence } from '../shared/types';
 import { createTransportEngine, type TransportEngine } from './packages/transport';
 import { ensurePackageRenderPresets } from './packages/render-presets';
@@ -253,6 +254,9 @@ export function createServer(deps: ServerDeps) {
   // sockets and never persisted.
   const presence = createPresenceRegistry();
   const presenceSubs = new Map<string, Set<(p: PackagePresence) => void>>();
+  // Spec 22 -- live text-fit overflow warnings. In-memory only, same lifetime
+  // rule as presence: nothing here survives a restart.
+  const warningsStore = createWarningsStore();
   presence.onChange(() => {
     for (const [namespace, fns] of presenceSubs) {
       if (fns.size === 0) continue;
@@ -332,6 +336,7 @@ export function createServer(deps: ServerDeps) {
     transportEngine,
     dataOverrides,
     dataSourcePoller,
+    warningsStore,
     openGoogleAuthWindow: deps.openGoogleAuthWindow,
     getGoogleAuthState: deps.getGoogleAuthState,
     getCustomLogoPath: deps.getCustomLogoPath ?? (() => null),
