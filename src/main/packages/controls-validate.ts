@@ -130,6 +130,11 @@ function validateField(raw: unknown, index: number, groupId: string, ctx: Contro
     return `${at}: a ${raw.type} field requires a dotted state path in 'field'`;
   }
 
+  if (raw.showIf !== undefined) {
+    const err = validateShowIf(raw.showIf, at, ctx);
+    if (err) return err;
+  }
+
   const perType = validateFieldShape(raw, at, ctx);
   if (perType) return perType;
 
@@ -200,6 +205,39 @@ function checkLeafType(raw: Record<string, unknown>, leaf: ResolvedLeaf, at: str
     return `${at}: ${type} expects a ${want} leaf, but path '${path}' is a ${leaf}`;
   }
   return null;
+}
+
+function validateShowIf(raw: unknown, at: string, ctx: ControlsValidationContext): string | null {
+  if (!isPlainObject(raw)) return `${at}: showIf must be an object`;
+  if (typeof raw.field !== 'string' || raw.field.length === 0 || !('equals' in raw)) {
+    return `${at}: showIf requires 'field' and 'equals'`;
+  }
+  const eq = raw.equals;
+  if (typeof eq !== 'string' && typeof eq !== 'number' && typeof eq !== 'boolean') {
+    return `${at}: showIf.equals must be a string, number or boolean`;
+  }
+  const resolved = resolveSchemaPath(ctx.stateSchema, raw.field);
+  if (!resolved.ok) return `${at}: showIf path '${raw.field}' ${resolved.reason}`;
+  return null;
+}
+
+/**
+ * Flatten an action's nested patch into the dotted paths it writes.
+ * An array or scalar value terminates a path: `{ ticker: { messages: [] } }`
+ * yields "ticker.messages", which resolveSchemaPath then checks against the
+ * array leaf.
+ */
+export function flattenPatchPaths(patch: Record<string, unknown>, prefix = ''): string[] {
+  const out: string[] = [];
+  for (const [key, value] of Object.entries(patch)) {
+    const dotted = prefix ? `${prefix}.${key}` : key;
+    if (isPlainObject(value) && Object.keys(value).length > 0) {
+      out.push(...flattenPatchPaths(value, dotted));
+    } else {
+      out.push(dotted);
+    }
+  }
+  return out;
 }
 
 function describeLeaf(leaf: ResolvedLeaf): string {
@@ -281,16 +319,31 @@ function validateFieldShape(
         return `${at}: accept must be one of image, video, any`;
       }
       return null;
-    case 'transport':
+    case 'transport': {
       if (typeof raw.renderId !== 'string' || raw.renderId.length === 0) {
         return `${at}: transport requires a renderId`;
       }
+      // Cross-reference against spec 15's render `transport` declaration.
+      // Spec 15 is merged into this branch's base, so the check runs
+      // unguarded (spec 18 §3.7 only asks to skip it if 15 had not landed).
+      const render = ctx.renders.find((r) => r.id === raw.renderId);
+      if (!render) return `${at}: renderId '${raw.renderId}' names no declared render`;
+      if (!render.transport) {
+        return `${at}: renderId '${raw.renderId}' is not transport-managed — it declares no 'transport' block`;
+      }
       return null;
-    case 'data':
+    }
+    case 'data': {
       if (typeof raw.sourceId !== 'string' || raw.sourceId.length === 0) {
         return `${at}: data requires a sourceId`;
       }
+      // Cross-reference against spec 20's dataSources. Also merged, so also
+      // unguarded.
+      if (!(ctx.dataSources ?? []).some((s) => s.id === raw.sourceId)) {
+        return `${at}: sourceId '${raw.sourceId}' names no declared data source`;
+      }
       return null;
+    }
     case 'action': {
       if (!isPlainObject(raw.patch) || Object.keys(raw.patch).length === 0) {
         return `${at}: action requires a non-empty 'patch' object`;
@@ -300,6 +353,13 @@ function validateFieldShape(
       }
       if (raw.variant !== undefined && !ACTION_VARIANTS.has(raw.variant as string)) {
         return `${at}: variant must be 'default' or 'danger'`;
+      }
+      for (const dotted of flattenPatchPaths(raw.patch)) {
+        if (dotted.split('.').some((p) => p.startsWith('_'))) {
+          return `${at}: patch path '${dotted}' is reserved — leading-underscore keys belong to the engine`;
+        }
+        const resolved = resolveSchemaPath(ctx.stateSchema, dotted);
+        if (!resolved.ok) return `${at}: patch path '${dotted}' ${resolved.reason}`;
       }
       return null;
     }

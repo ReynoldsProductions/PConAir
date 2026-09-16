@@ -279,6 +279,105 @@ describe('T3 — leaf type agreement', () => {
   });
 });
 
+describe('T4 — cross-references', () => {
+  // Specs 15 (render `transport`) and 20 (`dataSources`) are both merged into
+  // this branch's base, so both checks run unguarded. Spec 18 §3.7 says to
+  // skip a check only if its spec had not landed.
+  const RENDERS = [
+    { id: 'plain', label: 'Plain', file: 'a.html' },
+    { id: 'card', label: 'Card', file: 'b.html', transport: { stops: 2 } },
+  ];
+  const SOURCES = [{ id: 'feed', label: 'Feed', kind: 'rss', url: 'https://example.com/f.xml' }];
+
+  function check(field: Record<string, unknown>): string {
+    const res = validateManifest({
+      id: 'widget',
+      name: 'Widget',
+      version: '1.0.0',
+      renders: RENDERS,
+      dataSources: SOURCES,
+      stateSchema: BASE_SCHEMA,
+      controls: { groups: [{ id: 'g', label: 'G', fields: [field] }] },
+    });
+    return res.ok ? '' : res.error;
+  }
+
+  it('accepts a transport field naming a transport-managed render', () => {
+    expect(check({ type: 'transport', label: 'Card', renderId: 'card' })).toBe('');
+  });
+
+  it('rejects a transport field naming a render that declares no transport', () => {
+    const message = check({ type: 'transport', label: 'Card', renderId: 'plain' });
+    expect(message).toMatch(/group 'g'/);
+    expect(message).toMatch(/field 'Card'/);
+    expect(message).toMatch(/'plain'/);
+    expect(message).toMatch(/not transport-managed/);
+  });
+
+  it('rejects a transport field naming a render that does not exist', () => {
+    expect(check({ type: 'transport', label: 'Card', renderId: 'nope' })).toMatch(/names no declared render/);
+  });
+
+  it('accepts a data field naming a declared source and rejects an undeclared one', () => {
+    expect(check({ type: 'data', label: 'Feed', sourceId: 'feed' })).toBe('');
+    const message = check({ type: 'data', label: 'Feed', sourceId: 'ghost' });
+    expect(message).toMatch(/field 'Feed'/);
+    expect(message).toMatch(/'ghost'/);
+    expect(message).toMatch(/names no declared data source/);
+  });
+
+  it('rejects a data field when the manifest declares no data sources at all', () => {
+    const res = validateManifest({
+      id: 'widget',
+      name: 'Widget',
+      version: '1.0.0',
+      renders: RENDERS,
+      stateSchema: BASE_SCHEMA,
+      controls: { groups: [{ id: 'g', label: 'G', fields: [{ type: 'data', label: 'F', sourceId: 'feed' }] }] },
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/names no declared data source/);
+  });
+
+  it('resolves showIf.field, rejecting a typo', () => {
+    expect(check({ type: 'text', field: 'home.name', label: 'N', showIf: { field: 'live', equals: true } })).toBe('');
+    const message = check({
+      type: 'text',
+      field: 'home.name',
+      label: 'N',
+      showIf: { field: 'liv', equals: true },
+    });
+    expect(message).toMatch(/showIf/);
+    expect(message).toMatch(/'liv'/);
+    expect(message).toMatch(/no such path in stateSchema/);
+  });
+
+  it('rejects a malformed showIf', () => {
+    expect(check({ type: 'text', field: 'home.name', label: 'N', showIf: { field: 'live' } })).toMatch(
+      /showIf requires 'field' and 'equals'/
+    );
+    expect(
+      check({ type: 'text', field: 'home.name', label: 'N', showIf: { field: 'live', equals: { a: 1 } } })
+    ).toMatch(/showIf\.equals must be a string, number or boolean/);
+  });
+
+  it('resolves every dotted path inside an action patch', () => {
+    expect(check({ type: 'action', label: 'Take', patch: { live: true, home: { score: 0 } } })).toBe('');
+    const message = check({ type: 'action', label: 'Take', patch: { home: { scor: 0 } } });
+    expect(message).toMatch(/field 'Take'/);
+    expect(message).toMatch(/patch path 'home\.scor'/);
+    expect(message).toMatch(/no such path in stateSchema/);
+  });
+
+  it('accepts an array value at an array leaf inside an action patch', () => {
+    expect(check({ type: 'action', label: 'Reset', patch: { scores: [] } })).toBe('');
+  });
+
+  it('rejects an action patch that writes an engine-reserved key', () => {
+    expect(check({ type: 'action', label: 'Bad', patch: { _transport: {} } })).toMatch(/reserved/);
+  });
+});
+
 describe('T2 — resolveSchemaPath directly', () => {
   it('reports the resolved leaf type', () => {
     expect(resolveSchemaPath({ home: { score: 'number' } }, 'home.score')).toEqual({ ok: true, leaf: 'number' });
