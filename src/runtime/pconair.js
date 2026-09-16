@@ -371,6 +371,37 @@ window.PConAir = (function () {
   }
 })();
 
+/* Conditionally load the text-fit engine (spec 22) when the page has, or
+   later gains, a [data-fit] element. A page with none never fetches it. The
+   MutationObserver here is a one-shot trigger only -- once pconair-fit.js
+   loads it takes over its own ongoing observation; this one disconnects
+   itself the moment it has done its job. */
+(function () {
+  'use strict';
+  function hasFit(root) {
+    return !!(root.querySelector && root.querySelector('[data-fit]'));
+  }
+  function load() {
+    var script = document.createElement('script');
+    script.src = '/packages/_runtime/pconair-fit.js';
+    document.head.appendChild(script);
+  }
+  if (hasFit(document)) {
+    load();
+    return;
+  }
+  if (typeof window.MutationObserver === 'function') {
+    var loaded = false;
+    var mo = new window.MutationObserver(function () {
+      if (loaded || !hasFit(document)) return;
+      loaded = true;
+      mo.disconnect();
+      load();
+    });
+    mo.observe(document.documentElement, { childList: true, subtree: true });
+  }
+})();
+
 /* Compatibility shim for packages installed from outside this repo that still
    call the old API. The old *path* (/packages/<id>/assets/state.js) is gone and
    will 404 — see docs/designing-packages.md. Keep until a major version. */
