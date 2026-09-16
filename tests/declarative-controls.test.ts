@@ -4,9 +4,16 @@
 // The client half (the generated panel) lives in
 // tests/declarative-controls-render.test.ts, which needs the jsdom
 // environment; vitest picks one environment per file.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import request from 'supertest';
+import type { Express } from 'express';
 import { validateManifest } from '../src/main/packages/loader';
 import { resolveSchemaPath } from '../src/main/packages/controls-validate';
+import { createStateStore } from '../src/main/state';
+import { createFullServer } from './_test-server';
 
 const BASE_SCHEMA = {
   home: { score: 'number', name: 'string', bonus: 'boolean' },
@@ -394,3 +401,158 @@ describe('T2 — resolveSchemaPath directly', () => {
   });
 });
 
+
+// ── Route-level tests (T5, T6, T13) ──────────────────────────────────────
+
+const PINS = { operatorPin: '12341234', adminPin: 'adminpass9' };
+
+/** The controls block both route fixtures share. */
+const FIXTURE_CONTROLS = {
+  groups: [
+    {
+      id: 'scores',
+      label: 'Scores',
+      fields: [
+        { type: 'number', field: 'home.score', label: 'Home score', bump: [1] },
+        { type: 'text', field: 'home.name', label: 'Home name' },
+        { type: 'toggle', field: 'live', label: 'On air' },
+      ],
+    },
+    {
+      id: 'look',
+      label: 'Look',
+      fields: [
+        { type: 'color', field: 'style.accent', label: 'Accent', swatches: ['#c8a24a'] },
+        { type: 'slider', field: 'style.panelOpacity', label: 'Panel opacity', min: 0, max: 1, step: 0.05 },
+      ],
+    },
+  ],
+};
+
+interface FixtureOpts {
+  /** Package directory name and manifest id. */
+  id: string;
+  controls?: unknown;
+  controlHtml?: string;
+}
+
+function writeFixture(root: string, opts: FixtureOpts): void {
+  const dir = path.join(root, opts.id);
+  fs.mkdirSync(dir, { recursive: true });
+  const manifestBody: Record<string, unknown> = {
+    id: opts.id,
+    name: `Fixture ${opts.id}`,
+    version: '1.0.0',
+    renders: [{ id: 'main', label: 'Main', file: 'render.html' }],
+    stateSchema: BASE_SCHEMA,
+  };
+  if (opts.controls !== undefined) manifestBody.controls = opts.controls;
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(manifestBody));
+  fs.writeFileSync(path.join(dir, 'render.html'), '<!DOCTYPE html><html><body>R</body></html>');
+  if (opts.controlHtml !== undefined) fs.writeFileSync(path.join(dir, 'control.html'), opts.controlHtml);
+}
+
+describe('T5/T6 — controls route and serving precedence', () => {
+  let root: string;
+  let server: ReturnType<typeof createFullServer>;
+  let app: Express;
+  let operatorCookie: string;
+
+  beforeEach(async () => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'pconair-ctrl-'));
+    // declared: controls only          → generated shell
+    // handwritten: control.html only   → served verbatim
+    // both: control.html + controls    → control.html wins
+    // bare: neither                    → 404
+    writeFixture(root, { id: 'declared', controls: FIXTURE_CONTROLS });
+    writeFixture(root, { id: 'handwritten', controlHtml: '<!DOCTYPE html><html><body>HAND</body></html>' });
+    writeFixture(root, {
+      id: 'both',
+      controls: FIXTURE_CONTROLS,
+      controlHtml: '<!DOCTYPE html><html><body>HAND-AND-DECLARED</body></html>',
+    });
+    writeFixture(root, { id: 'bare' });
+
+    server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: root });
+    await server.listen();
+    app = server.app;
+    const op = await request(app).post('/auth/operator').send({ pin: PINS.operatorPin });
+    operatorCookie = (op.headers['set-cookie'] as unknown as string[])[0];
+  });
+
+  afterEach(async () => {
+    await server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('every fixture loaded without a manifest error', () => {
+    expect(server.packageHub?.errors() ?? []).toEqual([]);
+  });
+
+  // ── T5 ──
+  it('GET /api/packages/:id/controls returns the validated structure for an operator', async () => {
+    const res = await request(app).get('/api/packages/declared/controls').set('Cookie', operatorCookie);
+    expect(res.status).toBe(200);
+    expect(res.body.controls.groups).toHaveLength(2);
+    expect(res.body.controls.groups[0]).toMatchObject({ id: 'scores', label: 'Scores' });
+    expect(res.body.controls.groups[0].fields[0]).toMatchObject({
+      type: 'number',
+      field: 'home.score',
+      label: 'Home score',
+    });
+    // The panel needs the package's identity and render list for its header
+    // and preview selector without a second round trip.
+    expect(res.body).toMatchObject({ id: 'declared', name: 'Fixture declared' });
+    expect(res.body.renders).toEqual([{ id: 'main', label: 'Main', transport: null }]);
+  });
+
+  it('GET /api/packages/:id/controls is 401 unauthenticated', async () => {
+    const res = await request(app).get('/api/packages/declared/controls');
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /api/packages/:id/controls is 404 for a package with no controls', async () => {
+    const res = await request(app).get('/api/packages/handwritten/controls').set('Cookie', operatorCookie);
+    expect(res.status).toBe(404);
+  });
+
+  it('GET /api/packages/:id/controls is 404 for an unknown package', async () => {
+    const res = await request(app).get('/api/packages/ghost/controls').set('Cookie', operatorCookie);
+    expect(res.status).toBe(404);
+  });
+
+  // ── T6 ──
+  it('a package with control.html serves it unchanged', async () => {
+    const res = await request(app).get('/packages/handwritten/control');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('HAND');
+    expect(res.text).not.toContain('controlPanel');
+  });
+
+  it('control.html still wins when the manifest also declares controls', async () => {
+    const res = await request(app).get('/packages/both/control');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('HAND-AND-DECLARED');
+  });
+
+  it('a package with only controls serves the generated shell', async () => {
+    const res = await request(app).get('/packages/declared/control');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/html/);
+    expect(res.text).toContain('/packages/_runtime/pconair.js');
+    expect(res.text).toContain('/packages/_runtime/pconair-controls.js');
+    expect(res.text).toContain('/packages/_runtime/pconair.css');
+    expect(res.text).toContain('controlPanel');
+    expect(res.text).toContain('"declared"');
+  });
+
+  it('a package with neither still 404s', async () => {
+    const res = await request(app).get('/packages/bare/control');
+    expect(res.status).toBe(404);
+  });
+
+  it('the generated shell is still frame-denied (it is an operator surface, not a render)', async () => {
+    const res = await request(app).get('/packages/declared/control');
+    expect(res.headers['x-frame-options']).toBe('DENY');
+  });
+});

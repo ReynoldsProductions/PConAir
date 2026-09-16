@@ -26,6 +26,62 @@ const ALLOWED_ASSET_MIME: Record<string, string> = {
 
 const TRANSPORT_VERBS: TransportVerb[] = ['play', 'next', 'stop', 'clear'];
 
+/** HTML-escape for text and attribute contexts. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * JSON safe to embed in an inline <script>. `<` is escaped so a string value
+ * can never close the script element, and the two JS-illegal line separators
+ * (U+2028/U+2029, legal in JSON but not in a JS string literal) with it.
+ */
+function jsonForScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+/**
+ * The generated operator panel shell (spec 18 §3.6) for a package that
+ * declares `controls` and ships no control.html.
+ *
+ * Deliberately tiny: it loads the shared runtime plus the panel renderer and
+ * hands off. Everything about how a field is drawn lives in
+ * src/runtime/pconair-controls.js, so a change there reaches every generated
+ * panel without touching this file. Both scripts are loaded unconditionally
+ * because a generated panel always needs both; render pages load neither.
+ */
+function generatedControlShell(manifest: { id: string; name: string }): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${escapeHtml(manifest.name)} — Control</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="/packages/_runtime/pconair.css" />
+</head>
+<body class="pc-panel-body">
+<div id="pc-panel-root"></div>
+<script src="/packages/_runtime/pconair.js"></script>
+<script src="/packages/_runtime/pconair-controls.js"></script>
+<script>
+  window.PConAir.controlPanel(document.getElementById('pc-panel-root'), {
+    packageId: ${jsonForScript(manifest.id)},
+    name: ${jsonForScript(manifest.name)}
+  });
+</script>
+</body>
+</html>
+`;
+}
+
 /**
  * Operator auth for the transport routes: a valid operator/admin session
  * cookie, OR the `operator_pin` query param verified against the operator
@@ -339,13 +395,59 @@ export function createPackagesRouter(deps: PackagesRouterDeps): Router {
     sendPackageFile(res, pkg.dir, pkg.manifest.renders[0].file);
   });
 
+  /**
+   * Serving precedence (spec 18 §3.6):
+   *   1. control.html present        → serve it, unchanged. Existing packages
+   *                                    keep their hand-written panels, and a
+   *                                    package may have BOTH and call
+   *                                    PConAir.controlPanel() itself for part
+   *                                    of the page.
+   *   2. manifest declares `controls` → serve the generated shell.
+   *   3. neither                      → 404, as before.
+   */
   router.get('/packages/:id/control', (req: Request, res: Response) => {
     const pkg = hub.find(req.params.id);
-    if (!pkg || !pkg.controlFile) {
+    if (!pkg) {
       res.status(404).type('text/plain').send('Package or control UI not found');
       return;
     }
-    sendPackageFile(res, pkg.dir, pkg.controlFile);
+    if (pkg.controlFile) {
+      sendPackageFile(res, pkg.dir, pkg.controlFile);
+      return;
+    }
+    if (pkg.manifest.controls) {
+      // Note: no allowSameOriginFraming() here. A control page is an operator
+      // surface with mutating actions, so it keeps the global DENY; only
+      // render routes relax framing.
+      res.type('html').send(generatedControlShell(pkg.manifest));
+      return;
+    }
+    res.status(404).type('text/plain').send('Package or control UI not found');
+  });
+
+  /**
+   * The validated `controls` document, plus the identity and render list the
+   * generated panel needs for its header and preview selector. One small
+   * document rather than the whole manifest (spec 18 §3.6).
+   */
+  router.get('/api/packages/:id/controls', opGuard, (req: Request, res: Response) => {
+    const pkg = hub.find(req.params.id);
+    if (!pkg || !pkg.manifest.controls) {
+      res.status(404).json({
+        error: { code: 'ITEM_NOT_FOUND', message: `Package '${req.params.id}' declares no controls` },
+      });
+      return;
+    }
+    res.json({
+      id: pkg.manifest.id,
+      name: pkg.manifest.name,
+      renders: pkg.manifest.renders.map((r) => ({
+        id: r.id,
+        label: r.label ?? r.id,
+        transport: r.transport ?? null,
+      })),
+      controls: pkg.manifest.controls,
+    });
   });
 
   router.get('/packages/:id/assets/*', (req: Request, res: Response) => {
