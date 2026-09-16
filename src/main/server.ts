@@ -491,12 +491,18 @@ export function createServer(deps: ServerDeps) {
     let isCompanion = false;
     let isRender = false;
     let isControl = false;
+    let isPreview = false;
     let renderIdParam: string | null = null;
     try {
       const u = new URL(req.url || '/', 'http://localhost');
       isCompanion = u.searchParams.get('companion') === '1';
       isRender = u.searchParams.get('render') === '1';
       isControl = u.searchParams.get('control') === '1';
+      // Spec 17 §3.3: a control page's live preview iframe connects as a real
+      // render socket (so it gets the exact same state frames a real output
+      // would), but must never count toward presence/`delivered` — otherwise
+      // opening a preview would make "is anything actually listening" lie.
+      isPreview = u.searchParams.get('preview') === '1';
       renderIdParam = u.searchParams.get('renderId');
     } catch {
       /* ignore */
@@ -534,15 +540,22 @@ export function createServer(deps: ServerDeps) {
         // a control page (?control=1) counts as a control, never an output.
         // Anything else that subscribes (e.g. an authenticated debug tool)
         // is treated like a render, per spec 16 §3.2.
-        const presenceToken = Symbol('presence');
-        presence.add(presenceToken, {
-          role: isControl ? 'control' : 'render',
-          packageId: m[1],
-          renderId: isControl ? null : renderIdParam,
-          ip: req.socket.remoteAddress ?? '0.0.0.0',
-          connectedAt: Date.now(),
-        });
-        namespaceUnsubs.push(() => presence.remove(presenceToken));
+        //
+        // Spec 17 §3.3: a preview socket (`preview=1`) skips this entirely —
+        // it still subscribes and still receives every state frame above, it
+        // is simply never added to the registry, so it never counts toward
+        // presence or `delivered` regardless of which role param it carries.
+        if (!isPreview) {
+          const presenceToken = Symbol('presence');
+          presence.add(presenceToken, {
+            role: isControl ? 'control' : 'render',
+            packageId: m[1],
+            renderId: isControl ? null : renderIdParam,
+            ip: req.socket.remoteAddress ?? '0.0.0.0',
+            connectedAt: Date.now(),
+          });
+          namespaceUnsubs.push(() => presence.remove(presenceToken));
+        }
 
         // Push presence changes to every socket subscribed to this namespace
         // instead of making control pages poll for it (spec 16 §3.5).
