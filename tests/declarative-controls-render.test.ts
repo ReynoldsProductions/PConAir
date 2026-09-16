@@ -808,3 +808,278 @@ describe('T15 — showIf', () => {
     expect(patchBodies()).toHaveLength(0);
   });
 });
+
+describe('T16 — transport, action, asset, data, slider and static', () => {
+  function verbCalls(): string[] {
+    return fetchCalls.filter((c) => c.url.indexOf('/transport/') !== -1).map((c) => c.url);
+  }
+
+  it('transport renders four buttons that call client.verb for the DECLARED render', async () => {
+    const { el } = mount(
+      { groups: [{ id: 'g', label: 'G', fields: [{ type: 'transport', label: 'Stat card', renderId: 'card' }] }] },
+      { renders: [{ id: 'card', label: 'Card', transport: { stops: 2 } }] },
+      BASIC_STATE
+    );
+    const wrapper = el.querySelector('[data-field-type="transport"]') as HTMLElement;
+    const buttons = Array.from(wrapper.querySelectorAll('button[data-verb]'));
+    expect(buttons.map((b) => b.getAttribute('data-verb'))).toEqual(['play', 'next', 'stop', 'clear']);
+
+    (buttons[0] as HTMLButtonElement).click();
+    (buttons[2] as HTMLButtonElement).click();
+    await flush();
+    // A control page's own client has NO renderId — the field's renderId is
+    // what must reach the URL.
+    expect(verbCalls()).toEqual([
+      '/api/packages/widget/transport/card/play',
+      '/api/packages/widget/transport/card/stop',
+    ]);
+  });
+
+  it('transport shows the current phase and step from _transport', () => {
+    const { el } = mount(
+      { groups: [{ id: 'g', label: 'G', fields: [{ type: 'transport', label: 'Stat card', renderId: 'card' }] }] },
+      { renders: [{ id: 'card', label: 'Card', transport: { stops: 2 } }] },
+      { ...BASIC_STATE, _transport: { card: { phase: 'holding', step: 1, stops: 2, phaseStartedAt: 0, phaseMs: 0 } } }
+    );
+    const readout = el.querySelector('[data-field-type="transport"] .pc-transport-phase') as HTMLElement;
+    expect(readout.textContent).toMatch(/holding/);
+    expect(readout.textContent).toMatch(/2 of 2/);
+  });
+
+  it('action merges its declared patch, preserving siblings at every level', async () => {
+    const { el } = mount(
+      {
+        groups: [
+          {
+            id: 'g',
+            label: 'G',
+            fields: [{ type: 'action', label: 'Clear name', patch: { home: { name: '' } } }],
+          },
+        ],
+      },
+      {},
+      BASIC_STATE
+    );
+    const btn = el.querySelector('[data-field-type="action"] button') as HTMLButtonElement;
+    btn.click();
+    await flush();
+    // §3.5's sibling rule applies to an action's patch too — a declared
+    // { home: { name: '' } } must not drop home.score.
+    expect(patchBodies()).toEqual([{ home: { name: '', score: 12, bonus: true } }]);
+  });
+
+  it('action honours confirm, sending nothing when the operator cancels', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { el } = mount(
+      {
+        groups: [
+          {
+            id: 'g',
+            label: 'G',
+            fields: [{ type: 'action', label: 'Wipe', patch: { live: false }, confirm: 'Really wipe?', variant: 'danger' }],
+          },
+        ],
+      },
+      {},
+      BASIC_STATE
+    );
+    const btn = el.querySelector('[data-field-type="action"] button') as HTMLButtonElement;
+    btn.click();
+    await flush();
+    expect(confirmSpy).toHaveBeenCalledWith('Really wipe?');
+    expect(patchBodies()).toHaveLength(0);
+
+    confirmSpy.mockReturnValue(true);
+    btn.click();
+    await flush();
+    expect(patchBodies()).toEqual([{ live: false }]);
+    expect(btn.className).toMatch(/danger/);
+    confirmSpy.mockRestore();
+  });
+
+  it('asset uploads through the existing POST /api/packages/:id/assets flow', async () => {
+    fetchHandler = (url) => {
+      if (url.indexOf('/assets') !== -1) {
+        return Promise.resolve(jsonResponse({ path: '/packages/widget/assets/logo.png', filename: 'logo.png' }));
+      }
+      return Promise.resolve(jsonResponse({ state: {}, delivered: 1 }));
+    };
+    const { el } = mount(
+      { groups: [{ id: 'g', label: 'G', fields: [{ type: 'asset', field: 'logo', label: 'Logo', accept: 'image' }] }] },
+      {},
+      { ...BASIC_STATE, logo: '' }
+    );
+    const wrapper = field(el, 'logo');
+    const file = wrapper.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(file).not.toBeNull();
+    // Every input still needs a label, even the hidden file picker.
+    expect(el.querySelector(`label[for="${file.id}"]`)).not.toBeNull();
+    expect(file.getAttribute('accept')).toBe('image/*');
+
+    Object.defineProperty(file, 'files', {
+      value: [new window.File(['x'], 'logo.png', { type: 'image/png' })],
+      configurable: true,
+    });
+    fire(file, 'change');
+    await flush();
+
+    const upload = fetchCalls.find((c) => c.url === '/api/packages/widget/assets');
+    expect(upload).toBeDefined();
+    expect((upload!.init as Record<string, unknown>).method).toBe('POST');
+    // …and the returned path is then written to the field.
+    expect(patchBodies()).toEqual([{ logo: '/packages/widget/assets/logo.png' }]);
+  });
+
+  it('data shows row count, age and a refresh button hitting spec 20\'s route', async () => {
+    const { el } = mount(
+      { groups: [{ id: 'g', label: 'G', fields: [{ type: 'data', label: 'Headlines', sourceId: 'feed' }] }] },
+      {},
+      {
+        ...BASIC_STATE,
+        _data: {
+          feed: {
+            rows: [{ a: '1' }, { a: '2' }],
+            columns: ['a'],
+            fetchedAt: Date.now() - 65_000,
+            error: null,
+            rawCount: 40,
+            enabled: true,
+          },
+        },
+      }
+    );
+    const wrapper = el.querySelector('[data-field-type="data"]') as HTMLElement;
+    expect(wrapper.textContent).toMatch(/2 rows/);
+    expect(wrapper.textContent).toMatch(/of 40/);
+    expect(wrapper.textContent).toMatch(/1 min/);
+
+    const refresh = wrapper.querySelector('button[data-refresh]') as HTMLButtonElement;
+    refresh.click();
+    await flush();
+    expect(fetchCalls.map((c) => c.url)).toContain('/api/packages/widget/data/feed/refresh');
+  });
+
+  it('data surfaces a source error, and says so when nothing has fetched', () => {
+    const { el } = mount(
+      { groups: [{ id: 'g', label: 'G', fields: [{ type: 'data', label: 'Headlines', sourceId: 'feed' }] }] },
+      {},
+      { ...BASIC_STATE, _data: { feed: { rows: [], columns: [], fetchedAt: 0, error: 'HTTP 503', rawCount: 0, enabled: true } } }
+    );
+    const wrapper = el.querySelector('[data-field-type="data"]') as HTMLElement;
+    expect(wrapper.textContent).toMatch(/HTTP 503/);
+
+    const bare = mount(
+      { groups: [{ id: 'g', label: 'G', fields: [{ type: 'data', label: 'Headlines', sourceId: 'feed' }] }] },
+      {},
+      BASIC_STATE
+    );
+    expect((bare.el.querySelector('[data-field-type="data"]') as HTMLElement).textContent).toMatch(
+      /never fetched|not fetched/i
+    );
+  });
+
+  it('slider renders a range with a readout and commits on change', async () => {
+    const { el } = mount(
+      {
+        groups: [
+          {
+            id: 'g',
+            label: 'G',
+            fields: [
+              { type: 'slider', field: 'style.panelOpacity', label: 'Opacity', min: 0, max: 1, step: 0.05, unit: '' },
+            ],
+          },
+        ],
+      },
+      {},
+      BASIC_STATE
+    );
+    const input = inputFor(el, 'style.panelOpacity');
+    expect(input.getAttribute('type')).toBe('range');
+    expect(input.value).toBe('0.9');
+    const readout = field(el, 'style.panelOpacity').querySelector('.pc-slider-value') as HTMLElement;
+    expect(readout.textContent).toContain('0.9');
+
+    input.value = '0.5';
+    fire(input, 'change');
+    await flush();
+    expect((patchBodies()[0].style as Record<string, unknown>).panelOpacity).toBe(0.5);
+  });
+
+  it('slider debounces its drag, then commits once', async () => {
+    vi.useFakeTimers();
+    const { el } = mount(
+      {
+        groups: [
+          {
+            id: 'g',
+            label: 'G',
+            fields: [{ type: 'slider', field: 'style.panelOpacity', label: 'Opacity', min: 0, max: 1, step: 0.1 }],
+          },
+        ],
+      },
+      {},
+      BASIC_STATE
+    );
+    const input = inputFor(el, 'style.panelOpacity');
+    for (const v of ['0.1', '0.2', '0.3']) {
+      input.value = v;
+      fire(input, 'input');
+      await vi.advanceTimersByTimeAsync(30);
+    }
+    expect(patchBodies()).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(patchBodies()).toHaveLength(1);
+    expect((patchBodies()[0].style as Record<string, unknown>).panelOpacity).toBe(0.3);
+  });
+
+  it('slider shows its unit in the readout', () => {
+    const { el } = mount(
+      {
+        groups: [
+          {
+            id: 'g',
+            label: 'G',
+            fields: [{ type: 'slider', field: 'home.score', label: 'Corner', min: 0, max: 40, unit: 'px' }],
+          },
+        ],
+      },
+      {},
+      BASIC_STATE
+    );
+    expect((field(el, 'home.score').querySelector('.pc-slider-value') as HTMLElement).textContent).toBe('12px');
+  });
+
+  it('static renders its text and no input at all', () => {
+    const { el } = mount(
+      { groups: [{ id: 'g', label: 'G', fields: [{ type: 'static', label: 'Note', text: 'Restyles live.' }] }] },
+      {},
+      BASIC_STATE
+    );
+    const wrapper = el.querySelector('[data-field-type="static"]') as HTMLElement;
+    expect(wrapper.textContent).toContain('Restyles live.');
+    expect(wrapper.querySelector('input, select, textarea')).toBeNull();
+    // No <label for> pointing at a control that does not exist.
+    expect(wrapper.querySelector('label')).toBeNull();
+  });
+
+  it('a list text field joins an array for display and splits it on commit', async () => {
+    const { el } = mount(
+      {
+        groups: [
+          { id: 'g', label: 'G', fields: [{ type: 'text', field: 'scores', label: 'Messages', list: true }] },
+        ],
+      },
+      {},
+      { scores: ['one', 'two'] }
+    );
+    const input = inputFor(el, 'scores');
+    expect(input.tagName).toBe('TEXTAREA');
+    expect(input.value).toBe('one\ntwo');
+    input.value = 'alpha\n\n  beta  \n';
+    fire(input, 'change');
+    await flush();
+    // Blank lines dropped, each line trimmed.
+    expect(patchBodies()).toEqual([{ scores: ['alpha', 'beta'] }]);
+  });
+});

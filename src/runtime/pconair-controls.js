@@ -21,6 +21,13 @@
 
   var DEFAULT_DEBOUNCE_MS = 150;
 
+  /* Module scope on purpose: controlPanel()'s body returns its handle before
+     these lines would run, so a `var` inside it hoists as undefined and never
+     gets assigned. Only function declarations survive down there. */
+  var ASSET_ACCEPT_ATTR = { image: 'image/*', video: 'video/*', any: '' };
+  var TRANSPORT_VERBS = ['play', 'next', 'stop', 'clear'];
+  var TRANSPORT_LABELS = { play: 'Play', next: 'Next', stop: 'Stop', clear: 'Clear' };
+
   // ── small DOM helpers ───────────────────────────────────────────────────
 
   function h(tag, className, text) {
@@ -251,6 +258,9 @@
         localDirty: false,
         needsSync: false,
         lastSent: undefined,
+        /* Set by field types that read engine-managed state (_transport,
+           _data) instead of a declared dotted path. */
+        syncExtra: null,
         readValue: function () { return undefined; },
         applyValue: function () {},
       };
@@ -289,11 +299,14 @@
         case 'toggle': return buildToggle(f, id, entry);
         case 'select': return buildSelect(f, id, entry);
         case 'color': return buildColor(f, id, entry);
+        case 'slider': return buildSlider(f, id, entry);
+        case 'asset': return buildAsset(f, id, entry, doc);
+        case 'transport': return buildTransport(f, entry, doc);
+        case 'data': return buildData(f, entry, doc);
+        case 'action': return buildAction(f, entry);
         case 'static': return h('p', 'pc-static', f.text);
-        default: {
-          var todo = h('p', 'pc-static', 'Unsupported field type: ' + f.type);
-          return todo;
-        }
+        default:
+          return h('p', 'pc-static', 'Unsupported field type: ' + f.type);
       }
     }
 
@@ -477,6 +490,286 @@
       });
       entry.controls.push(b);
       return b;
+    }
+
+    function buildSlider(f, id, entry) {
+      var row = h('div', 'pc-slider-row');
+      var input = document.createElement('input');
+      input.type = 'range';
+      input.className = 'pc-input pc-slider';
+      input.id = id;
+      input.setAttribute('min', String(f.min));
+      input.setAttribute('max', String(f.max));
+      if (typeof f.step === 'number') input.setAttribute('step', String(f.step));
+
+      var readout = h('span', 'pc-slider-value');
+      /* aria-hidden: the range input already announces its own value, so a
+         screen reader would otherwise read it twice. */
+      readout.setAttribute('aria-hidden', 'true');
+
+      function paint() {
+        readout.textContent = input.value + (f.unit || '');
+      }
+
+      entry.readValue = function () {
+        var n = parseFloat(input.value);
+        return isNaN(n) ? f.min : n;
+      };
+      entry.applyValue = function (v) {
+        input.value = v === null || v === undefined || v === '' ? String(f.min) : String(v);
+        paint();
+      };
+      input.addEventListener('input', paint);
+      wireValueEvents(entry, input, { debounce: true });
+      registerInput(entry, input);
+      row.appendChild(input);
+      row.appendChild(readout);
+      paint();
+      return row;
+    }
+
+    /* Reuses the asset endpoint packages already have (POST
+       /api/packages/:id/assets) rather than inventing an upload path. The
+       returned server path is what gets written to the field. */
+    function buildAsset(f, id, entry, doc) {
+      var row = h('div', 'pc-asset-row');
+
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'pc-input pc-asset-path';
+      input.id = id;
+      input.setAttribute('placeholder', '/packages/' + (doc.id || packageId) + '/assets/…');
+      entry.readValue = function () { return input.value; };
+      entry.applyValue = function (v) { input.value = v === null || v === undefined ? '' : String(v); };
+      wireValueEvents(entry, input, { debounce: true });
+      registerInput(entry, input);
+
+      var fileId = id + '-file';
+      var file = document.createElement('input');
+      file.type = 'file';
+      file.id = fileId;
+      file.className = 'pc-asset-file';
+      var accept = ASSET_ACCEPT_ATTR[f.accept || 'image'];
+      if (accept) file.setAttribute('accept', accept);
+      /* Visually hidden, but still labelled: it is a real focusable input, so
+         leaving it nameless would break the panel for a screen reader. */
+      var fileLabel = labelFor(fileId, f.label + ' — choose a file');
+      fileLabel.className = 'pc-label pc-sr-only';
+
+      var preview = h('span', 'pc-asset-preview');
+      var choose = button('pc-asset-choose', 'Choose…');
+      choose.addEventListener('click', function () { file.click(); });
+      var clear = button('pc-asset-clear', 'Clear');
+      clear.addEventListener('click', function () {
+        if (!ensureConnected(entry)) return;
+        entry.applyValue('');
+        commitExplicit(entry, '');
+      });
+
+      file.addEventListener('change', function () {
+        var chosen = file.files && file.files[0];
+        if (!chosen) return;
+        if (!ensureConnected(entry)) return;
+        var form = new window.FormData();
+        form.append('file', chosen);
+        setFieldError(entry, null);
+        window
+          .fetch('/api/packages/' + encodeURIComponent(doc.id || packageId) + '/assets', {
+            method: 'POST',
+            body: form,
+          })
+          .then(function (res) {
+            return res.text().then(function (text) {
+              var body = null;
+              try { body = text ? JSON.parse(text) : null; } catch (e) { body = null; }
+              if (!res.ok || !body || !body.path) {
+                throw new Error((body && body.error && body.error.message) || 'Upload failed');
+              }
+              return body.path;
+            });
+          })
+          .then(
+            function (p) {
+              entry.applyValue(p);
+              commitExplicit(entry, p);
+            },
+            function (err) {
+              setFieldError(entry, (err && err.message) || 'Upload failed');
+            }
+          );
+      });
+
+      entry.controls.push(choose);
+      entry.controls.push(clear);
+      entry.controls.push(file);
+
+      row.appendChild(input);
+      row.appendChild(fileLabel);
+      row.appendChild(file);
+      row.appendChild(choose);
+      row.appendChild(clear);
+      row.appendChild(preview);
+      return row;
+    }
+
+    /* Spec 15's verbs as a control type, not new plumbing. The field names
+       the render it drives, because a control page's own client has no
+       renderId — it is not a render. */
+    function buildTransport(f, entry, doc) {
+      var row = h('div', 'pc-transport-row');
+      for (var i = 0; i < TRANSPORT_VERBS.length; i++) {
+        row.appendChild(verbButton(f, entry, TRANSPORT_VERBS[i]));
+      }
+      var phase = h('span', 'pc-transport-phase', 'idle');
+      phase.setAttribute('role', 'status');
+      row.appendChild(phase);
+
+      entry.applyValue = function () {};
+      entry.syncExtra = function (state) {
+        var map = state && state._transport;
+        var t = map && typeof map === 'object' ? map[f.renderId] : null;
+        if (!t) {
+          phase.textContent = 'idle';
+          row.removeAttribute('data-phase');
+          return;
+        }
+        row.setAttribute('data-phase', t.phase);
+        var stops = t.stops || 1;
+        phase.textContent =
+          t.phase + (t.phase === 'holding' ? ' — stop ' + (t.step + 1) + ' of ' + stops : '');
+      };
+      return row;
+    }
+
+    function verbButton(f, entry, name) {
+      var b = button('pc-verb pc-verb-' + name, TRANSPORT_LABELS[name]);
+      b.setAttribute('data-verb', name);
+      b.addEventListener('click', function () {
+        if (!ensureConnected(entry)) return;
+        setFieldError(entry, null);
+        client.verb(name, f.renderId).then(
+          function (body) { showDelivered(body && body.delivered); },
+          function (err) { setFieldError(entry, (err && err.message) || 'Transport verb failed'); }
+        );
+      });
+      entry.controls.push(b);
+      return b;
+    }
+
+    /* A view onto spec 20's `_data` state and refresh route — not a second
+       copy of the poller. Shows what an operator actually needs to judge a
+       feed: how many rows survived the transforms, out of how many arrived,
+       how stale it is, and what went wrong. */
+    function buildData(f, entry, doc) {
+      var row = h('div', 'pc-data-row');
+      var summary = h('span', 'pc-data-summary', 'not fetched yet');
+      summary.setAttribute('role', 'status');
+      var refresh = button('pc-data-refresh', 'Refresh');
+      refresh.setAttribute('data-refresh', f.sourceId);
+      refresh.addEventListener('click', function () {
+        if (!ensureConnected(entry)) return;
+        setFieldError(entry, null);
+        refresh.setAttribute('aria-busy', 'true');
+        window
+          .fetch(
+            '/api/packages/' + encodeURIComponent(doc.id || packageId) +
+              '/data/' + encodeURIComponent(f.sourceId) + '/refresh',
+            { method: 'POST' }
+          )
+          .then(
+            function () { refresh.removeAttribute('aria-busy'); },
+            function (err) {
+              refresh.removeAttribute('aria-busy');
+              setFieldError(entry, (err && err.message) || 'Refresh failed');
+            }
+          );
+      });
+      entry.controls.push(refresh);
+      row.appendChild(summary);
+      row.appendChild(refresh);
+
+      entry.applyValue = function () {};
+      entry.syncExtra = function (state) {
+        var all = state && state._data;
+        var d = all && typeof all === 'object' ? all[f.sourceId] : null;
+        if (!d) {
+          summary.textContent = 'not fetched yet';
+          row.removeAttribute('data-state');
+          return;
+        }
+        if (d.enabled === false) {
+          summary.textContent = 'disabled by an operator';
+          row.setAttribute('data-state', 'disabled');
+          return;
+        }
+        if (d.error) {
+          summary.textContent = 'error: ' + d.error;
+          row.setAttribute('data-state', 'error');
+          return;
+        }
+        if (!d.fetchedAt) {
+          summary.textContent = 'not fetched yet';
+          row.removeAttribute('data-state');
+          return;
+        }
+        var rows = (d.rows && d.rows.length) || 0;
+        row.setAttribute('data-state', 'ok');
+        summary.textContent =
+          rows + (rows === 1 ? ' row' : ' rows') +
+          ' of ' + (d.rawCount || rows) +
+          ' · ' + ageText(d.fetchedAt);
+      };
+      return row;
+    }
+
+    function ageText(fetchedAt) {
+      var secs = Math.max(0, Math.round((Date.now() - fetchedAt) / 1000));
+      if (secs < 60) return secs + 's ago';
+      var mins = Math.floor(secs / 60);
+      if (mins < 60) return mins + (mins === 1 ? ' min ago' : ' mins ago');
+      var hrs = Math.floor(mins / 60);
+      return hrs + (hrs === 1 ? ' hour ago' : ' hours ago');
+    }
+
+    function buildAction(f, entry) {
+      var b = button('pc-action' + (f.variant === 'danger' ? ' pc-action-danger' : ''), f.label);
+      b.addEventListener('click', function () {
+        if (!ensureConnected(entry)) return;
+        if (f.confirm && !window.confirm(f.confirm)) return;
+        setFieldError(entry, null);
+        /* §3.5's sibling rule applies here too: a declared patch of
+           { l3: { visible: false } } must not drop l3.name, so the patch is
+           rebuilt from its dotted paths against current state rather than
+           posted as-is into a shallow merge. */
+        var patch = P.buildPatchMulti(client.state, flattenDeclaredPatch(f.patch));
+        client.patch(patch).then(
+          function (body) { showDelivered(body && body.delivered); },
+          function (err) { setFieldError(entry, (err && err.message) || 'Action failed'); }
+        );
+      });
+      entry.controls.push(b);
+      entry.applyValue = function () {};
+      return b;
+    }
+
+    /* { home: { name: '' }, live: true } -> [{path:'home.name',value:''},
+       {path:'live',value:true}]. An array or scalar terminates a path. */
+    function flattenDeclaredPatch(patch, prefix) {
+      var out = [];
+      for (var key in patch) {
+        if (!Object.prototype.hasOwnProperty.call(patch, key)) continue;
+        var dotted = prefix ? prefix + '.' + key : key;
+        var value = patch[key];
+        if (value && typeof value === 'object' && !isArray(value)) {
+          var nested = flattenDeclaredPatch(value, dotted);
+          if (nested.length > 0) {
+            out = out.concat(nested);
+            continue;
+          }
+        }
+        out.push({ path: dotted, value: value });
+      }
+      return out;
     }
 
     // ── value events ──────────────────────────────────────────────────────
@@ -667,6 +960,9 @@
       for (i = 0; i < entries.length; i++) {
         var entry = entries[i];
         if (!entry.visible) continue;
+        /* Fields that read engine-managed state rather than a declared path
+           (transport's _transport slice, data's _data slice). */
+        if (entry.syncExtra) entry.syncExtra(state);
         if (!entry.field.field) continue;
         /* Never clobber a focused input (§3.4). hoops/control.html's syncInput
            is the reference for this rule; here it is applied once for every
