@@ -1620,3 +1620,133 @@ describe('T18 — action.countdown in the panel', () => {
     expect(patchBodies()).toHaveLength(0);
   });
 });
+
+describe('Acceptance — an operator restyles a live render from the panel, no reload', () => {
+  /* The real template-overlay Look group, read off disk rather than
+     re-declared, so this breaks if the shipped manifest drifts. */
+  const OVERLAY_MANIFEST = JSON.parse(
+    fs.readFileSync(path.join(process.cwd(), 'demo-packages', 'template-overlay', 'package.json'), 'utf8')
+  );
+  const OVERLAY_RENDER_HTML = fs.readFileSync(
+    path.join(process.cwd(), 'demo-packages', 'template-overlay', 'renders', 'overlay.html'),
+    'utf8'
+  );
+
+  it('panel edit -> patch -> state frame -> CSS custom property on the render', async () => {
+    const PConAir = loadRuntime();
+
+    // 1. The operator's panel, built from the shipped manifest.
+    const panelEl = document.createElement('div');
+    document.body.appendChild(panelEl);
+    PConAir.controlPanel(panelEl, {
+      packageId: 'template-overlay',
+      name: OVERLAY_MANIFEST.name,
+      controls: OVERLAY_MANIFEST.controls,
+      renders: OVERLAY_MANIFEST.renders.map((r: { id: string; label: string }) => ({ id: r.id, label: r.label })),
+    });
+    const panelSocket = last();
+    panelSocket.fireOpen();
+    panelSocket.fireMessage({
+      type: 'state',
+      namespace: 'package:template-overlay',
+      state: OVERLAY_MANIFEST.initialState,
+    });
+
+    // 2. A render page, elsewhere, already on air.
+    const renderClient = PConAir.connect('template-overlay', { role: 'render', renderId: 'overlay' });
+    const renderSocket = last();
+    renderSocket.fireOpen();
+    renderClient.applyStyle();
+    renderSocket.fireMessage({
+      type: 'state',
+      namespace: 'package:template-overlay',
+      state: OVERLAY_MANIFEST.initialState,
+    });
+    const root = document.documentElement;
+    expect(root.style.getPropertyValue('--pc-accent')).toBe('#b5a998');
+
+    // 3. The operator picks a new accent swatch and drags two sliders.
+    const accentWrapper = panelEl.querySelector('[data-field-path="style.accent"]') as HTMLElement;
+    const greenSwatch = accentWrapper.querySelector('[data-swatch="#3dd68c"]') as HTMLButtonElement;
+    expect(greenSwatch).not.toBeNull();
+    greenSwatch.click();
+
+    const opacity = panelEl.querySelector('[data-field-path="style.panelOpacity"] input') as HTMLInputElement;
+    opacity.value = '0.5';
+    fire(opacity, 'change');
+
+    const corner = panelEl.querySelector('[data-field-path="style.corner"] input') as HTMLInputElement;
+    corner.value = '18';
+    fire(corner, 'change');
+    await flush();
+
+    // Each edit went out as a patch carrying `style`'s other keys.
+    const patches = patchBodies();
+    expect(patches).toHaveLength(3);
+    expect(patches[0].style).toEqual({ accent: '#3dd68c', panelOpacity: 0.94, corner: 4, tickerHeight: 80 });
+    expect(patches[2].style).toMatchObject({ corner: 18 });
+
+    // 4. The server echoes the merged state to every subscriber, including
+    //    the render — which restyles itself with no reload and no file edit.
+    const merged = {
+      ...OVERLAY_MANIFEST.initialState,
+      style: { accent: '#3dd68c', panelOpacity: 0.5, corner: 18, tickerHeight: 80 },
+    };
+    renderSocket.fireMessage({ type: 'state', namespace: 'package:template-overlay', state: merged });
+
+    expect(root.style.getPropertyValue('--pc-accent')).toBe('#3dd68c');
+    expect(root.style.getPropertyValue('--pc-panel-opacity')).toBe('0.5');
+    expect(root.style.getPropertyValue('--pc-corner')).toBe('18');
+    expect(root.style.getPropertyValue('--pc-ticker-height')).toBe('80');
+
+    // 5. …and the render's own stylesheet really does consume those exact
+    //    property names, so the values above are not landing in a vacuum.
+    for (const prop of ['--pc-accent', '--pc-panel-opacity', '--pc-corner', '--pc-ticker-height']) {
+      expect(OVERLAY_RENDER_HTML).toContain('var(' + prop);
+    }
+  });
+
+  it('the panel reflects the echoed values back, so two operators agree', () => {
+    const PConAir = loadRuntime();
+    const panelEl = document.createElement('div');
+    document.body.appendChild(panelEl);
+    PConAir.controlPanel(panelEl, {
+      packageId: 'template-overlay',
+      name: OVERLAY_MANIFEST.name,
+      controls: OVERLAY_MANIFEST.controls,
+      renders: OVERLAY_MANIFEST.renders.map((r: { id: string }) => ({ id: r.id, label: r.id })),
+    });
+    last().fireOpen();
+    pushOverlay(OVERLAY_MANIFEST.initialState);
+
+    // Another operator (or Companion) changes the accent.
+    pushOverlay({
+      ...OVERLAY_MANIFEST.initialState,
+      style: { ...OVERLAY_MANIFEST.initialState.style, accent: '#e5484d', corner: 22 },
+    });
+    const accent = panelEl.querySelector('[data-field-path="style.accent"] input') as HTMLInputElement;
+    expect(accent.getAttribute('data-pc-raw')).toBe('#e5484d');
+    const corner = panelEl.querySelector('[data-field-path="style.corner"] input') as HTMLInputElement;
+    expect(corner.value).toBe('22');
+  });
+
+  function pushOverlay(state: unknown): void {
+    last().fireMessage({ type: 'state', namespace: 'package:template-overlay', state });
+  }
+
+  it('an unsafe colour arriving in a state frame never reaches the render\'s style attribute', () => {
+    // Belt and braces: the server rejects this at POST /state, but if one
+    // ever got into persisted state, applyStyle still refuses to write it.
+    const PConAir = loadRuntime();
+    const renderClient = PConAir.connect('template-overlay', { role: 'render', renderId: 'overlay' });
+    last().fireOpen();
+    renderClient.applyStyle();
+    pushOverlay({ style: { accent: '#fff; background: url(//evil/x.png)', corner: 4 } });
+    const styleAttr = document.documentElement.getAttribute('style') || '';
+    expect(styleAttr).not.toContain('evil');
+    expect(styleAttr).not.toContain('url(');
+    expect(document.documentElement.style.getPropertyValue('--pc-accent')).toBe('');
+    // The safe sibling in the same frame still landed.
+    expect(document.documentElement.style.getPropertyValue('--pc-corner')).toBe('4');
+  });
+});
