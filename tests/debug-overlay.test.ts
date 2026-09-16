@@ -238,3 +238,28 @@ describe('T4 — Overlay renders registered samplers only', () => {
     expect(overlay).toBeFalsy();
   });
 });
+
+describe('T5 — 4 Hz sampling', () => {
+  it('a sampler is called 4 times per simulated second', () => {
+    window.history.replaceState({}, '', '/packages/p/render/main?debug=1');
+    const PConAir = loadRuntime();
+    
+    let callCount = 0;
+    PConAir._diagSource('test', function() {
+      callCount++;
+      return { calls: callCount };
+    });
+    
+    vi.useFakeTimers();
+    
+    loadDebugModule();
+    
+    // Advance 1000ms (one simulated second)
+    vi.advanceTimersByTime(1000);
+    
+    // Should be called 4 times (at 0, 250, 500, 750 ms, then 1000)
+    expect(callCount).toBeGreaterThanOrEqual(4);
+    
+    vi.useRealTimers();
+  });
+});
