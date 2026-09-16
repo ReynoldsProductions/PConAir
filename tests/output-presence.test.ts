@@ -308,3 +308,80 @@ describe('presence endpoints (T6)', () => {
     }
   });
 });
+
+describe('presence frames pushed over the namespace WS (T7)', () => {
+  const PINS = { operatorPin: 'test1234', adminPin: 'adminpass8' };
+  const bundledRoot = path.join(__dirname, '..', 'bundled-packages');
+
+  function subscribe(port: number, qs: string, namespace: string): Promise<{ ws: WebSocket; messages: Array<Record<string, unknown>> }> {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(`ws://localhost:${port}/ws${qs}`);
+      const messages: Array<Record<string, unknown>> = [];
+      ws.on('message', (data) => {
+        const msg = JSON.parse(data.toString());
+        messages.push(msg);
+        if (msg.type === 'state' && msg.namespace === namespace) {
+          resolve({ ws, messages });
+        }
+      });
+      ws.on('open', () => ws.send(JSON.stringify({ type: 'subscribe', namespace })));
+      ws.on('error', reject);
+    });
+  }
+
+  function waitForPresenceFrame(
+    messages: Array<Record<string, unknown>>,
+    predicate: (presence: { renders: number; controls: number }) => boolean,
+    startIndex: number
+  ): Promise<{ renders: number; controls: number }> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('no matching presence frame received')), 3000);
+      const iv = setInterval(() => {
+        for (let i = startIndex; i < messages.length; i++) {
+          const m = messages[i];
+          if (m.type === 'presence' && predicate(m.presence as { renders: number; controls: number })) {
+            clearInterval(iv);
+            clearTimeout(timer);
+            resolve(m.presence as { renders: number; controls: number });
+            return;
+          }
+        }
+      }, 20);
+    });
+  }
+
+  it('a subscribed socket receives a presence frame when a second socket subscribes, and again when it closes', async () => {
+    const store = createStateStore();
+    const server = createFullServer({ store, ...PINS, port: 0, packagesRoot: bundledRoot });
+    await server.listen();
+    const addr = server.httpServer.address();
+    const port = typeof addr === 'object' && addr ? addr.port : 0;
+    try {
+      const first = await subscribe(port, '?render=1&renderId=main', 'package:hoops');
+      const firstCountAfterFirstJoin = first.messages.length;
+
+      const second = await subscribe(port, '?control=1', 'package:hoops');
+
+      const afterSecondJoins = await waitForPresenceFrame(
+        first.messages,
+        (p) => p.renders === 1 && p.controls === 1,
+        firstCountAfterFirstJoin
+      );
+      expect(afterSecondJoins).toEqual({ renders: 1, byRender: { main: 1 }, controls: 1 });
+
+      const countBeforeClose = first.messages.length;
+      second.ws.close();
+
+      const afterSecondLeaves = await waitForPresenceFrame(
+        first.messages,
+        (p) => p.renders === 1 && p.controls === 0,
+        countBeforeClose
+      );
+      expect(afterSecondLeaves).toEqual({ renders: 1, byRender: { main: 1 }, controls: 0 });
+
+      first.ws.close();
+    } finally {
+      await server.close();
+    }
+  });
+});
