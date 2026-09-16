@@ -211,9 +211,16 @@
       for (var i = 0; i < group.fields.length; i++) {
         var entry = buildField(group.fields[i], group, doc);
         entries.push(entry);
-        body.appendChild(entry.anchor);
-        body.appendChild(entry.wrapper);
         entry.parent = body;
+        body.appendChild(entry.anchor);
+        if (entry.field.showIf) {
+          /* Start hidden and let the first state frame decide. Showing it
+             first and hiding it a frame later would flash a control the
+             operator is not supposed to have yet. */
+          entry.visible = false;
+        } else {
+          body.appendChild(entry.wrapper);
+        }
       }
 
       groupViews.push({ group: group, el: fs });
@@ -623,9 +630,43 @@
 
     // ── state and connection ──────────────────────────────────────────────
 
+    /* §3.2's showIf: "logo position" appears only once "show logo" is on.
+       Comparison is strict, so "12" never matches 12 — a manifest that meant
+       the number should say the number. */
+    function showIfMatches(f, state) {
+      if (!f.showIf) return true;
+      return P.getPath(state, f.showIf.field) === f.showIf.equals;
+    }
+
+    /* Detach or re-attach one field around its own anchor comment. Doing it
+       this way, rather than re-appending the whole group, means a field
+       appearing never moves — and so never un-focuses — any of its siblings,
+       and it comes back in its manifest position rather than at the end. */
+    function setFieldVisible(entry, visible) {
+      if (entry.visible === visible) return;
+      entry.visible = visible;
+      if (visible) {
+        entry.parent.insertBefore(entry.wrapper, entry.anchor.nextSibling);
+      } else {
+        /* A hidden field must not finish a debounce it had already armed:
+           the operator can no longer see what it would send. */
+        if (entry.timer) {
+          window.clearTimeout(entry.timer);
+          entry.timer = null;
+        }
+        entry.localDirty = false;
+        if (entry.wrapper.parentNode) entry.wrapper.parentNode.removeChild(entry.wrapper);
+      }
+    }
+
     function syncAll(state) {
-      for (var i = 0; i < entries.length; i++) {
+      var i;
+      for (i = 0; i < entries.length; i++) {
+        setFieldVisible(entries[i], showIfMatches(entries[i].field, state));
+      }
+      for (i = 0; i < entries.length; i++) {
         var entry = entries[i];
+        if (!entry.visible) continue;
         if (!entry.field.field) continue;
         /* Never clobber a focused input (§3.4). hoops/control.html's syncInput
            is the reference for this rule; here it is applied once for every

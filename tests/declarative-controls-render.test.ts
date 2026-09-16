@@ -719,3 +719,92 @@ describe('T14 — applyStyle mirrors a state subtree onto :root', () => {
     expect(document.documentElement.style.getPropertyValue('--pc-accent')).toBe('#c8a24a');
   });
 });
+
+describe('T15 — showIf', () => {
+  const CONTROLS = {
+    groups: [
+      {
+        id: 'logo',
+        label: 'Logo',
+        fields: [
+          { type: 'toggle', field: 'live', label: 'Show logo' },
+          { type: 'text', field: 'home.name', label: 'Logo position', showIf: { field: 'live', equals: true } },
+          { type: 'number', field: 'home.score', label: 'Always here' },
+        ],
+      },
+    ],
+  };
+
+  it('is absent from the DOM when unmatched', () => {
+    const { el } = mount(CONTROLS, {}, { ...BASIC_STATE, live: false });
+    expect(el.querySelector('[data-field-path="home.name"]')).toBeNull();
+    // Its siblings are unaffected.
+    expect(el.querySelector('[data-field-path="live"]')).not.toBeNull();
+    expect(el.querySelector('[data-field-path="home.score"]')).not.toBeNull();
+  });
+
+  it('is present when matched', () => {
+    const { el } = mount(CONTROLS, {}, { ...BASIC_STATE, live: true });
+    expect(el.querySelector('[data-field-path="home.name"]')).not.toBeNull();
+    expect(inputFor(el, 'home.name').value).toBe('Lions');
+  });
+
+  it('appears and disappears live as the watched value changes', () => {
+    const { el } = mount(CONTROLS, {}, { ...BASIC_STATE, live: false });
+    expect(el.querySelector('[data-field-path="home.name"]')).toBeNull();
+    pushState({ ...BASIC_STATE, live: true });
+    expect(el.querySelector('[data-field-path="home.name"]')).not.toBeNull();
+    pushState({ ...BASIC_STATE, live: false });
+    expect(el.querySelector('[data-field-path="home.name"]')).toBeNull();
+  });
+
+  it('reappears in its manifest position, not at the end of the group', () => {
+    const { el } = mount(CONTROLS, {}, { ...BASIC_STATE, live: false });
+    pushState({ ...BASIC_STATE, live: true });
+    const paths = Array.from(el.querySelectorAll('[data-field-path]')).map((n) =>
+      n.getAttribute('data-field-path')
+    );
+    expect(paths).toEqual(['live', 'home.name', 'home.score']);
+  });
+
+  it('does not steal focus from a sibling when it appears', () => {
+    const { el } = mount(CONTROLS, {}, { ...BASIC_STATE, live: false });
+    const score = inputFor(el, 'home.score');
+    score.focus();
+    pushState({ ...BASIC_STATE, live: true });
+    expect(document.activeElement).toBe(score);
+  });
+
+  it('matches on a string and a number too, strictly', () => {
+    const controls = {
+      groups: [
+        {
+          id: 'g',
+          label: 'G',
+          fields: [
+            { type: 'text', field: 'home.name', label: 'On serif', showIf: { field: 'style.font', equals: 'serif' } },
+            { type: 'toggle', field: 'live', label: 'On twelve', showIf: { field: 'home.score', equals: 12 } },
+          ],
+        },
+      ],
+    };
+    const { el } = mount(controls, {}, BASIC_STATE);
+    expect(el.querySelector('[data-field-path="home.name"]')).not.toBeNull();
+    expect(el.querySelector('[data-field-path="live"]')).not.toBeNull();
+    // "12" is not 12.
+    pushState({ ...BASIC_STATE, home: { ...BASIC_STATE.home, score: '12' }, style: { font: 'sans' } });
+    expect(el.querySelector('[data-field-path="home.name"]')).toBeNull();
+    expect(el.querySelector('[data-field-path="live"]')).toBeNull();
+  });
+
+  it('a hidden field sends no patch, even if its debounce was already armed', async () => {
+    vi.useFakeTimers();
+    const { el } = mount(CONTROLS, {}, { ...BASIC_STATE, live: true });
+    const input = inputFor(el, 'home.name');
+    input.value = 'Tigers';
+    fire(input, 'input');
+    pushState({ ...BASIC_STATE, live: false });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(patchBodies()).toHaveLength(0);
+  });
+});
