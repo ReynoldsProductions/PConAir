@@ -212,7 +212,7 @@ export function createPackagesRouter(hub: PackageHub, auth?: AuthManager): Route
   if (auth) {
     const opGuard = requireOperator(auth);
     router.get('/api/diagnostics', opGuard, (_req: Request, res: Response) => {
-      const pkgjson = require('../../package.json');
+      const pkgjson = require('../../../package.json');
       const mem = process.memoryUsage();
       const packages = hub.list().map(pkg => ({
         id: pkg.manifest.id,

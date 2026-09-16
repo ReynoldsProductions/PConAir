@@ -20,7 +20,7 @@ describe('T9 & T10 — Diagnostics route and secret leak guard', () => {
   });
 
   afterEach(async () => {
-    await new Promise<void>(resolve => server.close(() => resolve()));
+    await server.close();
   });
 
   it('GET /api/diagnostics requires operator auth', async () => {
@@ -32,7 +32,7 @@ describe('T9 & T10 — Diagnostics route and secret leak guard', () => {
     const agent = request.agent(server.app);
     // Login as operator
     await agent
-      .post('/api/login')
+      .post('/auth/operator')
       .send({ pin: '1234' });
 
     const res = await agent.get('/api/diagnostics');
@@ -60,7 +60,7 @@ describe('T9 & T10 — Diagnostics route and secret leak guard', () => {
 
   it('packages array has correct shape', async () => {
     const agent = request.agent(server.app);
-    await agent.post('/api/login').send({ pin: '1234' });
+    await agent.post('/auth/operator').send({ pin: '1234' });
 
     const res = await agent.get('/api/diagnostics');
     
@@ -81,7 +81,7 @@ describe('T9 & T10 — Diagnostics route and secret leak guard', () => {
 
   it('T10: secret leak guard - no pin, hash, token, secret in response', async () => {
     const agent = request.agent(server.app);
-    await agent.post('/api/login').send({ pin: '1234' });
+    await agent.post('/auth/operator').send({ pin: '1234' });
 
     const res = await agent.get('/api/diagnostics');
     expect(res.status).toBe(200);
