@@ -3,6 +3,9 @@ import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
 import type { PackageHub } from '../packages/state-hub';
+import type { AuthManager } from '../auth';
+import { requireOperator } from './middleware';
+import type { TransportEngine, TransportVerb } from '../packages/transport';
 
 /**
  * Packages API + render/control/asset serving.
@@ -18,8 +21,11 @@ const ALLOWED_ASSET_MIME: Record<string, string> = {
   'image/webp': '.webp',
 };
 
-export function createPackagesRouter(hub: PackageHub): Router {
+const TRANSPORT_VERBS: TransportVerb[] = ['play', 'next', 'stop', 'clear'];
+
+export function createPackagesRouter(hub: PackageHub, auth: AuthManager, transportEngine: TransportEngine): Router {
   const router = Router();
+  const operatorGuard = requireOperator(auth);
 
   const assetUpload = multer({
     storage: multer.diskStorage({
@@ -125,10 +131,20 @@ export function createPackagesRouter(hub: PackageHub): Router {
   });
 
   router.post('/api/packages/:id/state', (req: Request, res: Response) => {
-    const patch = req.body as Record<string, unknown>;
-    if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) {
+    const raw = req.body as Record<string, unknown>;
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
       res.status(400).json({ error: { code: 'INVALID_MODE', message: 'Body must be a JSON object (state patch)' } });
       return;
+    }
+    // Leading-underscore keys are reserved for the engine (_transport this
+    // spec, _data/_meta later) — strip them from a generic state patch so a
+    // naive or malicious caller cannot clobber engine-managed state via the
+    // package's own state route. See specs/15-graphics-transport.md §Global
+    // Constraints.
+    const patch: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(raw)) {
+      if (key.startsWith('_')) continue;
+      patch[key] = value;
     }
     const next = hub.patchState(req.params.id, patch);
     if (!next) {
@@ -136,6 +152,58 @@ export function createPackagesRouter(hub: PackageHub): Router {
       return;
     }
     res.json({ state: next });
+  });
+
+  // ── Transport (spec 15) ──────────────────────────────────────────────────
+
+  router.get('/api/packages/:id/transport', operatorGuard, (req: Request, res: Response) => {
+    const pkg = hub.find(req.params.id);
+    if (!pkg) {
+      res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: `Package '${req.params.id}' not found` } });
+      return;
+    }
+    const snapshot: Record<string, unknown> = {};
+    for (const r of pkg.manifest.renders) {
+      if (!r.transport) continue;
+      const s = transportEngine.get(pkg.manifest.id, r.id);
+      if (s) snapshot[r.id] = s;
+    }
+    res.json(snapshot);
+  });
+
+  router.post('/api/packages/:id/transport/clear-all', operatorGuard, (req: Request, res: Response) => {
+    const pkg = hub.find(req.params.id);
+    if (!pkg) {
+      res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: `Package '${req.params.id}' not found` } });
+      return;
+    }
+    const cleared = pkg.manifest.renders.filter((r) => r.transport).map((r) => r.id);
+    transportEngine.clearAll(pkg.manifest.id);
+    res.json({ ok: true, cleared });
+  });
+
+  router.post('/api/packages/:id/transport/:renderId/:verb', operatorGuard, (req: Request, res: Response) => {
+    const { id, renderId, verb } = req.params;
+    if (!TRANSPORT_VERBS.includes(verb as TransportVerb)) {
+      res.status(400).json({
+        error: { code: 'INVALID_VERB', message: `verb must be one of: ${TRANSPORT_VERBS.join(', ')}` },
+      });
+      return;
+    }
+    const pkg = hub.find(id);
+    const render = pkg?.manifest.renders.find((r) => r.id === renderId);
+    if (!pkg || !render || !render.transport) {
+      res.status(404).json({
+        error: { code: 'ITEM_NOT_FOUND', message: `Render '${renderId}' in package '${id}' is not transport-managed` },
+      });
+      return;
+    }
+    const state = transportEngine.dispatch(id, renderId, verb as TransportVerb);
+    if (!state) {
+      res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: 'Transport dispatch failed' } });
+      return;
+    }
+    res.json({ ok: true, verb, renderId, transport: state });
   });
 
   /**

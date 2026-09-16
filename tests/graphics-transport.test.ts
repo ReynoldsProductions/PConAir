@@ -2,9 +2,13 @@ import { describe, it, expect, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import request from 'supertest';
+import type { Express } from 'express';
 import { validateManifest } from '../src/main/packages/loader';
 import { createPackageHub } from '../src/main/packages/state-hub';
 import { createTransportEngine } from '../src/main/packages/transport';
+import { createStateStore } from '../src/main/state';
+import { createFullServer } from './_test-server';
 
 function baseManifest(overrides: Record<string, unknown> = {}) {
   return {
@@ -303,6 +307,105 @@ describe('T7 — transient across reload', () => {
       engine2.dispose();
     } finally {
       vi.useRealTimers();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('T8 — HTTP routes', () => {
+  const PINS = { operatorPin: '1234', adminPin: 'supersecret' };
+
+  function makeTransportServer(opts: Parameters<typeof writeTransportFixture>[1] = {}) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pconair-transport-http-'));
+    writeTransportFixture(root, opts);
+    const store = createStateStore();
+    const server = createFullServer({ store, ...PINS, port: 0, packagesRoot: root });
+    return { root, server };
+  }
+
+  async function operatorCookie(app: Express) {
+    const res = await request(app).post('/auth/operator').send({ pin: PINS.operatorPin });
+    return (res.headers['set-cookie'] as unknown as string[])[0];
+  }
+
+  it('play/next/stop/clear return 200 with the expected transport body', async () => {
+    const { root, server } = makeTransportServer({ stops: 2, inMs: [100, 100], outMs: 100 });
+    try {
+      const cookie = await operatorCookie(server.app);
+      const play = await request(server.app)
+        .post('/api/packages/txp/transport/card/play')
+        .set('Cookie', cookie);
+      expect(play.status).toBe(200);
+      expect(play.body).toMatchObject({ ok: true, verb: 'play', renderId: 'card', transport: { phase: 'playing-in' } });
+
+      const next = await request(server.app)
+        .post('/api/packages/txp/transport/card/next')
+        .set('Cookie', cookie);
+      expect(next.status).toBe(200);
+      expect(next.body.transport).toBeDefined();
+
+      const stop = await request(server.app)
+        .post('/api/packages/txp/transport/card/stop')
+        .set('Cookie', cookie);
+      expect(stop.status).toBe(200);
+      expect(stop.body.transport.phase).toBe('playing-out');
+
+      const clear = await request(server.app)
+        .post('/api/packages/txp/transport/card/clear')
+        .set('Cookie', cookie);
+      expect(clear.status).toBe(200);
+      expect(clear.body.transport.phase).toBe('idle');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('a bad verb is 400 INVALID_VERB', async () => {
+    const { root, server } = makeTransportServer();
+    try {
+      const cookie = await operatorCookie(server.app);
+      const res = await request(server.app)
+        .post('/api/packages/txp/transport/card/moonwalk')
+        .set('Cookie', cookie);
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('INVALID_VERB');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('a render with no transport key is 404', async () => {
+    const { root, server } = makeTransportServer();
+    try {
+      const cookie = await operatorCookie(server.app);
+      const res = await request(server.app)
+        .post('/api/packages/txp/transport/plain/play')
+        .set('Cookie', cookie);
+      expect(res.status).toBe(404);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('unauthenticated is 401', async () => {
+    const { root, server } = makeTransportServer();
+    try {
+      const res = await request(server.app).post('/api/packages/txp/transport/card/play');
+      expect(res.status).toBe(401);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('GET the package transport snapshot', async () => {
+    const { root, server } = makeTransportServer({ stops: 2, inMs: [100, 100] });
+    try {
+      const cookie = await operatorCookie(server.app);
+      await request(server.app).post('/api/packages/txp/transport/card/play').set('Cookie', cookie);
+      const res = await request(server.app).get('/api/packages/txp/transport').set('Cookie', cookie);
+      expect(res.status).toBe(200);
+      expect(res.body.card).toBeDefined();
+    } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
   });
