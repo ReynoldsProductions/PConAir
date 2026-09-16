@@ -803,3 +803,192 @@ describe('T18 — demo-packages/template-timer has no control.html', () => {
     }
   });
 });
+
+describe('T19 — demo-packages/template-overlay has no control.html', () => {
+  const DEMO_ROOT = path.join(__dirname, '..', 'demo-packages');
+  const manifestRaw = () =>
+    JSON.parse(fs.readFileSync(path.join(DEMO_ROOT, 'template-overlay', 'package.json'), 'utf-8'));
+
+  it('the package directory contains no control.html at all', () => {
+    expect(fs.existsSync(path.join(DEMO_ROOT, 'template-overlay', 'control.html'))).toBe(false);
+  });
+
+  it('its manifest validates, controls and all', () => {
+    const res = validateManifest(manifestRaw());
+    if (!res.ok) throw new Error(res.error);
+    expect(res.ok).toBe(true);
+  });
+
+  it('declares a transport field for its two-stop render', () => {
+    const raw = manifestRaw();
+    const group = raw.controls.groups.find((g: { id: string }) => g.id === 'playback');
+    const transport = group.fields.find((f: { type: string }) => f.type === 'transport');
+    expect(transport.renderId).toBe('overlay');
+    // …and that render really is transport-managed, with two stops.
+    const render = raw.renders.find((r: { id: string }) => r.id === 'overlay');
+    expect(render.transport.stops).toBe(2);
+  });
+
+  it('edits its ticker messages array through a list text field', () => {
+    const raw = manifestRaw();
+    const group = raw.controls.groups.find((g: { id: string }) => g.id === 'ticker');
+    const messages = group.fields.find((f: { field?: string }) => f.field === 'ticker.messages');
+    expect(messages).toMatchObject({ type: 'text', list: true });
+    // The schema leaf really is an array — this is the case the `list` flag
+    // exists for.
+    expect(Array.isArray(raw.stateSchema.ticker.messages)).toBe(true);
+  });
+
+  it('declares a Look group whose values drive the render\'s CSS variables', () => {
+    const raw = manifestRaw();
+    const look = raw.controls.groups.find((g: { id: string }) => g.id === 'look');
+    const paths = look.fields.filter((f: { field?: string }) => f.field).map((f: { field: string }) => f.field);
+    expect(paths).toEqual(
+      expect.arrayContaining(['style.accent', 'style.panelOpacity', 'style.corner', 'style.tickerHeight'])
+    );
+
+    const html = fs.readFileSync(path.join(DEMO_ROOT, 'template-overlay', 'renders', 'overlay.html'), 'utf-8');
+    // Every declared Look field has a matching custom property in the render,
+    // camelCase kebab-cased exactly as applyStyle() writes it.
+    expect(html).toContain('var(--pc-accent');
+    expect(html).toContain('var(--pc-panel-opacity');
+    expect(html).toContain('var(--pc-corner');
+    expect(html).toContain('var(--pc-ticker-height');
+    expect(html).toContain('applyStyle()');
+  });
+
+  it('keeps the render transparent — panel opacity never touches the page background', () => {
+    const html = fs.readFileSync(path.join(DEMO_ROOT, 'template-overlay', 'renders', 'overlay.html'), 'utf-8');
+    // plan_approved.md's global constraint: an overlay render stays
+    // transparent 1920x1080. The opacity slider drives the LOWER THIRD's
+    // background, not the body's.
+    expect(html).toMatch(/background:\s*transparent/);
+  });
+
+  it('serves the generated shell rather than 404ing', async () => {
+    const server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: DEMO_ROOT });
+    await server.listen();
+    try {
+      const res = await request(server.app).get('/packages/template-overlay/control');
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('controlPanel');
+      expect(res.text).toContain('"template-overlay"');
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('exposes its controls over the operator route', async () => {
+    const server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: DEMO_ROOT });
+    await server.listen();
+    try {
+      const op = await request(server.app).post('/auth/operator').send({ pin: PINS.operatorPin });
+      const cookie = (op.headers['set-cookie'] as unknown as string[])[0];
+      const res = await request(server.app).get('/api/packages/template-overlay/controls').set('Cookie', cookie);
+      expect(res.status).toBe(200);
+      expect(res.body.controls.groups.map((g: { id: string }) => g.id)).toEqual([
+        'lowerthird',
+        'ticker',
+        'bug',
+        'playback',
+        'look',
+      ]);
+      expect(res.body.renders).toEqual([{ id: 'overlay', label: 'Overlay', transport: { stops: 2, inMs: [500, 350], outMs: 400 } }]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('rejects a CSS-injecting accent colour on the real package', async () => {
+    const server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: DEMO_ROOT });
+    await server.listen();
+    try {
+      const bad = await request(server.app)
+        .post('/api/packages/template-overlay/state')
+        .send({ style: { accent: '#fff; background: url(//evil/x.png)' } });
+      expect(bad.status).toBe(400);
+      // A patch carrying only the edited key IS accepted — and demonstrates
+      // exactly why the panel never sends one: POST /state shallow-merges at
+      // the top level, so `style`'s other keys are gone.
+      const thin = await request(server.app)
+        .post('/api/packages/template-overlay/state')
+        .send({ style: { accent: '#3dd68c' } });
+      expect(thin.status).toBe(200);
+      expect(thin.body.state.style.accent).toBe('#3dd68c');
+      expect(thin.body.state.style.corner).toBeUndefined();
+
+      // What the panel actually sends (§3.5): the edited path plus its
+      // siblings, read out of current state. Nothing is lost.
+      const good = await request(server.app)
+        .post('/api/packages/template-overlay/state')
+        .send({ style: { accent: '#c8a24a', panelOpacity: 0.94, corner: 4, tickerHeight: 80 } });
+      expect(good.status).toBe(200);
+      expect(good.body.state.style).toEqual({
+        accent: '#c8a24a',
+        panelOpacity: 0.94,
+        corner: 4,
+        tickerHeight: 80,
+      });
+    } finally {
+      await server.close();
+    }
+  });
+});
+
+describe('T20 — regression guard: the hand-written panels are untouched', () => {
+  const ROOTS = {
+    hoops: path.join(__dirname, '..', 'bundled-packages', 'hoops'),
+    news: path.join(__dirname, '..', 'bundled-packages', 'news'),
+    ffg: path.join(__dirname, '..', 'bundled-packages', 'ffg'),
+    'demo-scores': path.join(__dirname, '..', 'demo-packages', 'demo-scores'),
+  };
+
+  it('all four still ship a control.html', () => {
+    for (const [id, dir] of Object.entries(ROOTS)) {
+      expect(fs.existsSync(path.join(dir, 'control.html'))).toBe(true);
+      expect(id).toBeTruthy();
+    }
+  });
+
+  it('none of them declares controls — migrating them is follow-up work', () => {
+    for (const dir of Object.values(ROOTS)) {
+      const raw = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf-8'));
+      expect(raw.controls).toBeUndefined();
+    }
+  });
+
+  it('each serves its hand-written control.html byte-for-byte', async () => {
+    for (const [id, dir] of Object.entries(ROOTS)) {
+      const root = path.dirname(dir);
+      const server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: root });
+      await server.listen();
+      try {
+        const res = await request(server.app).get(`/packages/${id}/control`);
+        expect(res.status).toBe(200);
+        const onDisk = fs.readFileSync(path.join(dir, 'control.html'), 'utf-8');
+        expect(res.text).toBe(onDisk);
+        // Emphatically NOT the generated shell.
+        expect(res.text).not.toContain('pconair-controls.js');
+      } finally {
+        await server.close();
+      }
+    }
+  });
+
+  it('their manifests still validate and still report hasControl', async () => {
+    for (const roots of [path.join(__dirname, '..', 'bundled-packages'), path.join(__dirname, '..', 'demo-packages')]) {
+      const server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: roots });
+      await server.listen();
+      try {
+        expect(server.packageHub?.errors() ?? []).toEqual([]);
+        const list = await request(server.app).get('/api/packages');
+        for (const pkg of list.body.packages) {
+          const declares = Object.keys(ROOTS).indexOf(pkg.id) >= 0;
+          if (declares) expect(pkg.hasControl).toBe(true);
+        }
+      } finally {
+        await server.close();
+      }
+    }
+  });
+});
