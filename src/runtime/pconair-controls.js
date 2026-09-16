@@ -82,6 +82,9 @@
     var notice = null;
     var banner = null;
     var errorLine = null;
+    var renders = [];
+    var activeRenderId = null;
+    var previewHandle = null;
 
     var handle = {
       el: el,
@@ -186,6 +189,15 @@
       errorLine.hidden = true;
       root.appendChild(errorLine);
 
+      renders = doc.renders || [];
+      activeRenderId = opts.renderId || (renders[0] && renders[0].id) || null;
+
+      // 2. Preview (spec 17), with a render selector when there are several.
+      buildPreview(root, doc);
+
+      // 3. Warnings (spec 22).
+      buildWarnings(root);
+
       // 4. Groups, in manifest order.
       var form = h('div', 'pc-panel-groups');
       var groups = (doc.controls && doc.controls.groups) || [];
@@ -195,6 +207,7 @@
       root.appendChild(form);
 
       el.appendChild(root);
+      applyRenderNarrowing();
 
       // Live wiring.
       disposers.push(client.on(syncAll));
@@ -203,17 +216,109 @@
       if (client.state) syncAll(client.state);
     }
 
+    /* §3.4 item 2. Spec 17 owns the preview itself; this only gives it a home
+       and tells it which render to show. Feature-detected AND wrapped in
+       try/catch: spec 17 runs concurrently with this one, so its exact
+       signature is unverified here, and a mismatch must cost the operator a
+       preview rather than the whole panel. */
+    function buildPreview(root, doc) {
+      if (typeof P.preview !== 'function' || renders.length === 0) return;
+      var host = h('div', 'pc-panel-preview');
+      root.appendChild(host);
+
+      if (renders.length > 1) {
+        var selId = 'pc-render-select';
+        var lbl = labelFor(selId, 'Preview render');
+        lbl.className = 'pc-label pc-render-label';
+        var sel = document.createElement('select');
+        sel.className = 'pc-input pc-render-select';
+        sel.id = selId;
+        for (var i = 0; i < renders.length; i++) {
+          var opt = document.createElement('option');
+          opt.value = renders[i].id;
+          opt.textContent = renders[i].label || renders[i].id;
+          sel.appendChild(opt);
+        }
+        sel.value = activeRenderId;
+        sel.addEventListener('change', function () {
+          activeRenderId = sel.value;
+          applyRenderNarrowing();
+          if (previewHandle && typeof previewHandle.setRender === 'function') {
+            try { previewHandle.setRender(activeRenderId); } catch (e) { /* ignore */ }
+          }
+        });
+        host.appendChild(lbl);
+        host.appendChild(sel);
+      }
+
+      try {
+        previewHandle = P.preview(host, client, {
+          packageId: doc.id || packageId,
+          renderId: activeRenderId,
+          renders: renders,
+        });
+        if (previewHandle && typeof previewHandle.destroy === 'function') {
+          disposers.push(previewHandle.destroy);
+        }
+      } catch (e) {
+        previewHandle = null;
+        if (host.parentNode) host.parentNode.removeChild(host);
+      }
+    }
+
+    /* §3.4 item 3. Same feature-detect-and-survive treatment: spec 22 is also
+       concurrent. Its own panel decides when it has anything to say. */
+    function buildWarnings(root) {
+      if (typeof P.warningsPanel !== 'function') return;
+      var host = h('div', 'pc-panel-warnings');
+      root.appendChild(host);
+      try {
+        var wh = P.warningsPanel(host, client, { packageId: packageId, renderId: activeRenderId });
+        if (wh && typeof wh.destroy === 'function') disposers.push(wh.destroy);
+      } catch (e) {
+        if (host.parentNode) host.parentNode.removeChild(host);
+      }
+    }
+
+    /* A group may narrow itself to one render (§3.2's ControlGroup.renderId).
+       A generated panel covers the whole package, so "the" render is whichever
+       one the preview selector is showing; a group with no renderId is always
+       shown. Hidden rather than detached: these are whole sections, and an
+       operator switching renders back and forth should not see the panel
+       reflow from scratch each time. */
+    function applyRenderNarrowing() {
+      for (var i = 0; i < groupViews.length; i++) {
+        var gv = groupViews[i];
+        var narrowed = typeof gv.group.renderId === 'string';
+        gv.el.hidden = narrowed && gv.group.renderId !== activeRenderId;
+      }
+    }
+
     function buildGroup(group, doc) {
       var fs = document.createElement('fieldset');
       fs.className = 'pc-group';
       fs.setAttribute('data-group-id', group.id);
       var legend = document.createElement('legend');
       legend.className = 'pc-group-legend';
-      legend.textContent = group.label;
+      /* The legend is a real button so the section is keyboard-operable;
+         aria-expanded is what tells a screen reader which way it went. */
+      var toggle = button('pc-group-toggle', group.label);
+      legend.appendChild(toggle);
       fs.appendChild(legend);
 
       var body = h('div', 'pc-group-fields');
       fs.appendChild(body);
+
+      /* Collapsed on first load if the manifest says so, but the operator's
+         own choice wins from then on and persists per viewer. */
+      var stored = readCollapsed(group.id);
+      var collapsed = stored === null ? group.collapsed === true : stored;
+      setCollapsed(fs, toggle, collapsed);
+      toggle.addEventListener('click', function () {
+        var next = fs.getAttribute('data-collapsed') === null;
+        setCollapsed(fs, toggle, next);
+        writeCollapsed(group.id, next);
+      });
 
       for (var i = 0; i < group.fields.length; i++) {
         var entry = buildField(group.fields[i], group, doc);
@@ -232,6 +337,36 @@
 
       groupViews.push({ group: group, el: fs });
       return fs;
+    }
+
+    function setCollapsed(fs, toggle, collapsed) {
+      if (collapsed) fs.setAttribute('data-collapsed', '');
+      else fs.removeAttribute('data-collapsed');
+      toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    }
+
+    function collapseKey(groupId) {
+      return 'pconair.controls.' + packageId + '.' + groupId + '.collapsed';
+    }
+
+    /* localStorage is per viewer and can be absent, blocked or throw outright
+       (private window, cleared site data). Every access is guarded, and a
+       failure just means the manifest's default is used — a forgotten
+       collapse state is not worth a broken panel. */
+    function readCollapsed(groupId) {
+      try {
+        var v = window.localStorage.getItem(collapseKey(groupId));
+        if (v === null) return null;
+        return v === '1';
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function writeCollapsed(groupId, collapsed) {
+      try {
+        window.localStorage.setItem(collapseKey(groupId), collapsed ? '1' : '0');
+      } catch (e) { /* ignore */ }
     }
 
     function buildField(f, group, doc) {

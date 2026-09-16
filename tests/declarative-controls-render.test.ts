@@ -156,9 +156,29 @@ async function flush(): Promise<void> {
   for (let i = 0; i < 6; i++) await Promise.resolve();
 }
 
+/**
+ * This jsdom build ships a `localStorage` object whose methods are not
+ * functions, so a real one has to be supplied to test persistence at all.
+ * Fresh per test: group collapse state persists per viewer, so one test's
+ * click would otherwise decide the next test's starting state.
+ */
+function installStubLocalStorage(): void {
+  const store = new Map<string, string>();
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+      setItem: (k: string, v: string) => { store.set(k, String(v)); },
+      removeItem: (k: string) => { store.delete(k); },
+      clear: () => { store.clear(); },
+    },
+  });
+}
+
 beforeEach(() => {
   installStubWebSocket();
   installStubFetch();
+  installStubLocalStorage();
   window.history.replaceState({}, '', '/packages/widget/control');
   document.body.innerHTML = '';
   document.documentElement.removeAttribute('style');
@@ -526,13 +546,23 @@ describe('T12 — disconnected state', () => {
     return { PConAir, el, handle };
   }
 
-  it('marks every input aria-disabled and shows the banner while disconnected', () => {
+  it('marks every mutating control aria-disabled and shows the banner while disconnected', () => {
     const { el } = mountDisconnected();
     expect(banner(el).hidden).toBe(false);
     expect(banner(el).textContent).toMatch(/not connected/i);
-    const inputs = Array.from(el.querySelectorAll('input, select, textarea, button'));
-    expect(inputs.length).toBeGreaterThan(0);
-    for (const i of inputs) expect(i.getAttribute('aria-disabled')).toBe('true');
+    const controls = Array.from(el.querySelectorAll('input, select, textarea, button')).filter(
+      (n) => !n.classList.contains('pc-group-toggle')
+    );
+    expect(controls.length).toBeGreaterThan(0);
+    for (const c of controls) expect(c.getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('but collapsing a group still works offline — it changes nothing on air', () => {
+    const { el } = mountDisconnected();
+    const toggle = el.querySelector('.pc-group-toggle') as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-disabled')).toBeNull();
+    toggle.click();
+    expect((el.querySelector('[data-group-id="scores"]') as HTMLElement).getAttribute('data-collapsed')).toBe('');
   });
 
   it('clears both on reconnect', () => {
@@ -1227,5 +1257,189 @@ describe('T17 — accessibility', () => {
     const { el } = mountEvery();
     expect(el.querySelectorAll('.pc-field')).toHaveLength(12);
     expect(el.textContent).not.toContain('Unsupported field type');
+  });
+});
+
+describe('§3.4 panel composition — preview, warnings, collapse, render narrowing', () => {
+  const TWO_RENDERS = [
+    { id: 'main', label: 'Main', transport: null },
+    { id: 'card', label: 'Card', transport: { stops: 2 } },
+  ];
+
+  it('composes no preview and no warnings when specs 17 and 22 have not landed', () => {
+    // This is the state of the base branch as spec 18 was built: neither hook
+    // exists, and the panel must still be complete and usable.
+    const { PConAir, el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    expect(typeof PConAir.preview).not.toBe('function');
+    expect(typeof PConAir.warningsPanel).not.toBe('function');
+    expect(el.querySelector('.pc-panel-preview')).toBeNull();
+    expect(el.querySelector('.pc-panel-warnings')).toBeNull();
+    // …and the rest of the panel is there.
+    expect(el.querySelectorAll('.pc-field')).toHaveLength(4);
+  });
+
+  it('composes spec 17\'s preview when it exists, between header and groups', () => {
+    const PConAir = loadRuntime();
+    const calls: Array<Record<string, unknown>> = [];
+    PConAir.preview = (host: HTMLElement, client: unknown, o: Record<string, unknown>) => {
+      calls.push(o);
+      host.appendChild(document.createElement('iframe'));
+      return { destroy: () => {} };
+    };
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    PConAir.controlPanel(el, {
+      packageId: 'widget',
+      name: 'Widget',
+      controls: SCHEMA_CONTROLS,
+      renders: TWO_RENDERS,
+    });
+    last().fireOpen();
+
+    const preview = el.querySelector('.pc-panel-preview');
+    expect(preview).not.toBeNull();
+    expect(preview!.querySelector('iframe')).not.toBeNull();
+    expect(calls[0]).toMatchObject({ packageId: 'widget', renderId: 'main' });
+    // Order: header, then preview, then the groups.
+    const kids = Array.from(el.firstElementChild!.children).map((n) => n.className);
+    expect(kids.indexOf('pc-panel-preview')).toBeGreaterThan(kids.indexOf('pc-panel-header'));
+    expect(kids.indexOf('pc-panel-preview')).toBeLessThan(kids.indexOf('pc-panel-groups'));
+  });
+
+  it('offers a render selector only when the package has more than one render', () => {
+    const PConAir = loadRuntime();
+    PConAir.preview = () => ({ destroy: () => {} });
+    function mountWith(renders: unknown[]): HTMLElement {
+      const el = document.createElement('div');
+      document.body.appendChild(el);
+      PConAir.controlPanel(el, { packageId: 'widget', name: 'W', controls: SCHEMA_CONTROLS, renders });
+      last().fireOpen();
+      return el;
+    }
+    expect(mountWith([TWO_RENDERS[0]]).querySelector('.pc-render-select')).toBeNull();
+    const two = mountWith(TWO_RENDERS);
+    const sel = two.querySelector('.pc-render-select') as HTMLSelectElement;
+    expect(sel).not.toBeNull();
+    expect(Array.from(sel.options).map((o) => o.value)).toEqual(['main', 'card']);
+    expect(two.querySelector(`label[for="${sel.id}"]`)).not.toBeNull();
+  });
+
+  it('a preview that throws degrades to no preview rather than no panel', () => {
+    // Spec 17 had not merged when this was written, so its exact signature is
+    // unverified — a mismatch must not take the panel down with it.
+    const PConAir = loadRuntime();
+    PConAir.preview = () => { throw new Error('signature mismatch'); };
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    PConAir.controlPanel(el, { packageId: 'widget', name: 'W', controls: SCHEMA_CONTROLS, renders: TWO_RENDERS });
+    last().fireOpen();
+    expect(el.querySelector('.pc-panel-preview')).toBeNull();
+    expect(el.querySelectorAll('.pc-field')).toHaveLength(4);
+  });
+
+  it('composes spec 22\'s warnings panel when it exists, after the preview', () => {
+    const PConAir = loadRuntime();
+    PConAir.warningsPanel = (host: HTMLElement) => {
+      host.appendChild(h('p', 'warn', 'too long'));
+      return { destroy: () => {} };
+    };
+    function h(tag: string, cls: string, text: string): HTMLElement {
+      const n = document.createElement(tag);
+      n.className = cls;
+      n.textContent = text;
+      return n;
+    }
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    PConAir.controlPanel(el, { packageId: 'widget', name: 'W', controls: SCHEMA_CONTROLS, renders: TWO_RENDERS });
+    last().fireOpen();
+    const warnings = el.querySelector('.pc-panel-warnings');
+    expect(warnings).not.toBeNull();
+    expect(warnings!.textContent).toContain('too long');
+  });
+
+  it('groups collapse on click, and a declared collapsed:true starts closed', () => {
+    const controls = {
+      groups: [
+        { id: 'open', label: 'Open', fields: [{ type: 'toggle', field: 'live', label: 'A' }] },
+        { id: 'shut', label: 'Shut', collapsed: true, fields: [{ type: 'text', field: 'home.name', label: 'B' }] },
+      ],
+    };
+    const { el } = mount(controls, {}, BASIC_STATE);
+    const open = el.querySelector('[data-group-id="open"]') as HTMLElement;
+    const shut = el.querySelector('[data-group-id="shut"]') as HTMLElement;
+    expect(open.getAttribute('data-collapsed')).toBeNull();
+    expect(shut.getAttribute('data-collapsed')).toBe('');
+
+    const toggle = open.querySelector('.pc-group-toggle') as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    toggle.click();
+    expect(open.getAttribute('data-collapsed')).toBe('');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.click();
+    expect(open.getAttribute('data-collapsed')).toBeNull();
+  });
+
+  it('remembers the operator\'s collapse choice per viewer', () => {
+    const controls = {
+      groups: [{ id: 'open', label: 'Open', fields: [{ type: 'toggle', field: 'live', label: 'A' }] }],
+    };
+    const first = mount(controls, {}, BASIC_STATE);
+    (first.el.querySelector('.pc-group-toggle') as HTMLButtonElement).click();
+    // A fresh panel for the same package and group picks the choice back up.
+    const second = mount(controls, {}, BASIC_STATE);
+    expect((second.el.querySelector('[data-group-id="open"]') as HTMLElement).getAttribute('data-collapsed')).toBe('');
+  });
+
+  it('survives localStorage being unavailable', () => {
+    const original = window.localStorage;
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() { throw new Error('blocked'); },
+    });
+    try {
+      const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+      expect(el.querySelectorAll('.pc-field')).toHaveLength(4);
+      (el.querySelector('.pc-group-toggle') as HTMLButtonElement).click();
+      expect((el.querySelector('[data-group-id="scores"]') as HTMLElement).getAttribute('data-collapsed')).toBe('');
+    } finally {
+      Object.defineProperty(window, 'localStorage', { configurable: true, value: original });
+    }
+  });
+
+  it('a group with renderId shows only for the selected render', () => {
+    const PConAir = loadRuntime();
+    PConAir.preview = () => ({ destroy: () => {} });
+    const controls = {
+      groups: [
+        { id: 'shared', label: 'Shared', fields: [{ type: 'toggle', field: 'live', label: 'A' }] },
+        { id: 'cardonly', label: 'Card only', renderId: 'card', fields: [{ type: 'text', field: 'home.name', label: 'B' }] },
+      ],
+    };
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    PConAir.controlPanel(el, { packageId: 'widget', name: 'W', controls, renders: TWO_RENDERS });
+    last().fireOpen();
+
+    expect((el.querySelector('[data-group-id="shared"]') as HTMLElement).hidden).toBe(false);
+    expect((el.querySelector('[data-group-id="cardonly"]') as HTMLElement).hidden).toBe(true);
+
+    const sel = el.querySelector('.pc-render-select') as HTMLSelectElement;
+    sel.value = 'card';
+    fire(sel, 'change');
+    expect((el.querySelector('[data-group-id="cardonly"]') as HTMLElement).hidden).toBe(false);
+    expect((el.querySelector('[data-group-id="shared"]') as HTMLElement).hidden).toBe(false);
+  });
+
+  it('destroy() tears down subscriptions, timers and the DOM', () => {
+    vi.useFakeTimers();
+    const { el, handle } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const input = inputFor(el, 'home.name');
+    input.value = 'Tigers';
+    fire(input, 'input');
+    handle.destroy();
+    expect(el.innerHTML).toBe('');
+    vi.advanceTimersByTime(500);
+    expect(patchBodies()).toHaveLength(0);
   });
 });
