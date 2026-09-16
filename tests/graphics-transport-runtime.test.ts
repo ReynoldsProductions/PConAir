@@ -106,3 +106,70 @@ describe('T10 — runtime drives data-phase/data-step/--pc-phase-ms', () => {
     expect((seen[0] as { phase: string }).phase).toBe('playing-in');
   });
 });
+
+describe('T11 — late-join correction', () => {
+  it('a first frame more than 120ms stale adds data-phase-jump then removes it before returning', () => {
+    const PConAir = loadRuntime();
+    PConAir.connect('txp', { role: 'render', renderId: 'card' });
+    last().fireOpen();
+
+    const setSpy = vi.spyOn(document.documentElement, 'setAttribute');
+    const removeSpy = vi.spyOn(document.documentElement, 'removeAttribute');
+
+    last().fireMessage({
+      type: 'state',
+      namespace: 'package:txp',
+      state: { _transport: { card: { phase: 'holding', step: 0, stops: 2, phaseStartedAt: Date.now() - 5000, phaseMs: 0 } } },
+    });
+
+    const jumpSetIndex = setSpy.mock.calls.findIndex((c) => c[0] === 'data-phase-jump');
+    const jumpRemoveIndex = removeSpy.mock.calls.findIndex((c) => c[0] === 'data-phase-jump');
+    expect(jumpSetIndex).toBeGreaterThanOrEqual(0);
+    expect(jumpRemoveIndex).toBeGreaterThanOrEqual(0);
+    // it was removed again within the same synchronous frame, not left set
+    expect(document.documentElement.hasAttribute('data-phase-jump')).toBe(false);
+    // and the real phase attributes landed after the jump was cleared
+    expect(document.documentElement.getAttribute('data-phase')).toBe('holding');
+
+    setSpy.mockRestore();
+    removeSpy.mockRestore();
+  });
+
+  it('a fresh (non-stale) first frame does not add data-phase-jump', () => {
+    const PConAir = loadRuntime();
+    PConAir.connect('txp', { role: 'render', renderId: 'card' });
+    last().fireOpen();
+
+    const setSpy = vi.spyOn(document.documentElement, 'setAttribute');
+    last().fireMessage({
+      type: 'state',
+      namespace: 'package:txp',
+      state: { _transport: { card: { phase: 'playing-in', step: 0, stops: 2, phaseStartedAt: Date.now(), phaseMs: 500 } } },
+    });
+    const jumpSetIndex = setSpy.mock.calls.findIndex((c) => c[0] === 'data-phase-jump');
+    expect(jumpSetIndex).toBe(-1);
+    setSpy.mockRestore();
+  });
+
+  it('only the FIRST transport frame after connect is eligible for the jump, even if later frames are also stale', () => {
+    const PConAir = loadRuntime();
+    PConAir.connect('txp', { role: 'render', renderId: 'card' });
+    last().fireOpen();
+
+    last().fireMessage({
+      type: 'state',
+      namespace: 'package:txp',
+      state: { _transport: { card: { phase: 'holding', step: 0, stops: 2, phaseStartedAt: Date.now(), phaseMs: 0 } } },
+    });
+
+    const setSpy = vi.spyOn(document.documentElement, 'setAttribute');
+    last().fireMessage({
+      type: 'state',
+      namespace: 'package:txp',
+      state: { _transport: { card: { phase: 'holding', step: 0, stops: 2, phaseStartedAt: Date.now() - 5000, phaseMs: 0 } } },
+    });
+    const jumpSetIndex = setSpy.mock.calls.findIndex((c) => c[0] === 'data-phase-jump');
+    expect(jumpSetIndex).toBe(-1);
+    setSpy.mockRestore();
+  });
+});
