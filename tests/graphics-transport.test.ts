@@ -484,3 +484,32 @@ describe('T9 — clear-all + panic', () => {
     }
   });
 });
+
+describe('T8b — operator_pin query fallback (Companion is cookie-less)', () => {
+  it('accepts a verb call authenticated by ?operator_pin= instead of a cookie', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pconair-transport-pin-'));
+    writeTransportFixture(root, { stops: 2, inMs: [100, 100] });
+    const store = createStateStore();
+    const server = createFullServer({ store, operatorPin: '1234', adminPin: 'supersecret', port: 0, packagesRoot: root });
+    try {
+      const res = await request(server.app).post('/api/packages/txp/transport/card/play?operator_pin=1234');
+      expect(res.status).toBe(200);
+      expect(res.body.transport.phase).toBe('playing-in');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a wrong operator_pin', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pconair-transport-pin-bad-'));
+    writeTransportFixture(root, { stops: 2, inMs: [100, 100] });
+    const store = createStateStore();
+    const server = createFullServer({ store, operatorPin: '1234', adminPin: 'supersecret', port: 0, packagesRoot: root });
+    try {
+      const res = await request(server.app).post('/api/packages/txp/transport/card/play?operator_pin=0000');
+      expect(res.status).toBe(401);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});

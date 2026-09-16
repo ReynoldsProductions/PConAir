@@ -1,10 +1,9 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
 import type { PackageHub } from '../packages/state-hub';
 import type { AuthManager } from '../auth';
-import { requireOperator } from './middleware';
 import type { TransportEngine, TransportVerb } from '../packages/transport';
 
 /**
@@ -23,9 +22,37 @@ const ALLOWED_ASSET_MIME: Record<string, string> = {
 
 const TRANSPORT_VERBS: TransportVerb[] = ['play', 'next', 'stop', 'clear'];
 
+/**
+ * Operator auth for the transport routes: a valid operator/admin session
+ * cookie, OR the `operator_pin` query param verified against the operator
+ * PIN — same fallback POST /api/action already gives Companion (routes/
+ * action.ts), because unlike the admin web GUI's other operator-gated
+ * routes, the Companion module talks to PConAir cookie-less and only ever
+ * carries a PIN. requireOperator() (middleware.ts) is cookie-only, which is
+ * right for the admin GUI but would make these routes uncallable from
+ * Companion, defeating spec 15 section 3.7.
+ */
+function requireOperatorOrPin(auth: AuthManager) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const pinQ = typeof req.query.operator_pin === 'string' ? req.query.operator_pin : undefined;
+    const opCookie = req.cookies?.pconair_operator_session as string | undefined;
+    const admCookie = req.cookies?.pconair_admin_session as string | undefined;
+    const sid = opCookie ?? admCookie;
+    let authed = Boolean(sid && auth.getSession(sid));
+    if (!authed && pinQ) {
+      authed = await auth.verifyOperatorPin(pinQ);
+    }
+    if (!authed) {
+      res.status(401).json({ error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } });
+      return;
+    }
+    next();
+  };
+}
+
 export function createPackagesRouter(hub: PackageHub, auth: AuthManager, transportEngine: TransportEngine): Router {
   const router = Router();
-  const operatorGuard = requireOperator(auth);
+  const operatorGuard = requireOperatorOrPin(auth);
 
   const assetUpload = multer({
     storage: multer.diskStorage({
@@ -102,7 +129,13 @@ export function createPackagesRouter(hub: PackageHub, auth: AuthManager, transpo
         name: p.manifest.name,
         version: p.manifest.version,
         description: p.manifest.description ?? '',
-        renders: p.manifest.renders.map((r) => ({ id: r.id, label: r.label ?? r.id })),
+        renders: p.manifest.renders.map((r) => ({
+          id: r.id,
+          label: r.label ?? r.id,
+          // Lets the Companion module synthesise transport actions/feedback/
+          // variables for this render without a second round trip.
+          transport: r.transport ?? null,
+        })),
         hasControl: p.controlFile !== null,
         live: hub.subscriberCount(p.manifest.id) > 0,
         // Declarative Companion interface — registered dynamically by the

@@ -259,6 +259,25 @@ export class PcoClient {
     await this.httpPost(`/api/packages/${encodeURIComponent(pkgId)}/state`, patch)
   }
 
+  /**
+   * Dispatch a transport verb (spec 15). Unlike patchPackageState, the
+   * transport routes require operator auth — the same PIN query fallback
+   * sendAction() uses over HTTP, since this module has no session cookie.
+   */
+  async postTransportVerb(pkgId: string, renderId: string, verb: string): Promise<void> {
+    const pinQ = this.config.operatorPin ? `?operator_pin=${encodeURIComponent(this.config.operatorPin)}` : ''
+    await this.httpPost(
+      `/api/packages/${encodeURIComponent(pkgId)}/transport/${encodeURIComponent(renderId)}/${encodeURIComponent(verb)}${pinQ}`,
+      {}
+    )
+  }
+
+  /** Clear every transport-managed render in a package (spec 15). */
+  async clearAllTransport(pkgId: string): Promise<void> {
+    const pinQ = this.config.operatorPin ? `?operator_pin=${encodeURIComponent(this.config.operatorPin)}` : ''
+    await this.httpPost(`/api/packages/${encodeURIComponent(pkgId)}/transport/clear-all${pinQ}`, {})
+  }
+
   private httpBase(): string {
     return `http://${this.config.host}:${this.config.port}`
   }
