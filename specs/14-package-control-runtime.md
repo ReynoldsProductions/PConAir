@@ -1,6 +1,6 @@
 # Spec 14 — Package Control Runtime
 
-**Status:** Planned · **Date:** 2026-09-09 · **Wave:** 0 (gate — nothing runs alongside this)
+**Status:** ✅ Done 2026-09-15 · **Date:** 2026-09-09 · **Wave:** 0 (gate — nothing runs alongside this)
 **Model:** `claude-opus-5` · **Depends on:** — · **Branch:** `feat/graphics-14-package-control-runtime`
 **Umbrella:** [`../plan_approved.md`](../plan_approved.md)
 
@@ -169,27 +169,63 @@ A third-party page loading the *old path* `/packages/<id>/assets/state.js` will 
 
 Each task: failing test → confirm it fails → minimal implementation → full suite → commit.
 
-- [ ] **T1 — Serve the runtime.** Test: `GET /packages/_runtime/pconair.js` returns 200 with `application/javascript`; `GET /packages/_runtime/../../package.json` does not escape the mount. Add `runtimeRoot` to `RouteServices`, `src/main/index.ts`, `tests/_test-server.ts`, `forge.config.ts`. Commit.
-- [ ] **T2 — Reserved id.** Test: `validateManifest({id: '_runtime', …})` returns `{ok: false}`. Assert it holds via the existing `ID_PATTERN`; add the test even if no code change is needed. Commit.
-- [ ] **T3 — `?control=1` role.** Test in `tests/websocket.test.ts` style: a cookie-less WS connect with `?control=1` from an allowlisted IP succeeds; the same via a `cf-ray` header is rejected. Modify `server.ts` `verifyClient`. Commit.
-- [ ] **T4 — Runtime core.** Write `src/runtime/pconair.js` with `connect`, `param`, `isDebug`, `_diagSource` and the `Client` surface in §3.2. Test it in `tests/package-runtime.test.ts` under jsdom (`// @vitest-environment jsdom`) with a stub `WebSocket`: asserts subscribe frame shape, that `payload`-shaped frames are ignored, that `on()` fires immediately when state is already known, and that `close()` prevents reconnect. Commit.
-- [ ] **T5 — Backoff.** Test with fake timers: closes at 1s, 2s, 4s, 8s, 15s, 15s; a successful open resets the next delay to 1s. Commit.
-- [ ] **T6 — Connection callbacks.** Test: `connected` is false before open, true after, false after close; `onConnection` fires on each edge and its unsubscribe stops delivery. Commit.
-- [ ] **T7 — `patch()` returns parsed body.** Test with a stub `fetch`: resolves to the decoded JSON, and a non-2xx response rejects with an `Error` carrying the response body's `message` when present. Commit.
-- [ ] **T8 — Base stylesheet.** Create `src/runtime/pconair.css` with the six custom properties in §3.5 defined on `:root`, plus a dark default. Test: served 200 as `text/css`. Commit.
-- [ ] **T9 — Migrate the six packages.** Point every render and control page at `/packages/_runtime/pconair.js` and `window.PConAir.connect(id, {role, renderId})`. Control pages pass `role: 'control'`; render pages pass `role: 'render'` and their manifest `renderId`. Test: a filesystem assertion in `tests/package-runtime.test.ts` that no file under `bundled-packages/` or `demo-packages/` contains the string `PConAirPackage.connect` or `assets/state.js`. Commit.
-- [ ] **T10 — Delete the duplicates.** Remove all six `assets/state.js`. Run the full suite. Add the shim from §3.6. Commit.
-- [ ] **T11 — Docs + wave script.** Update `docs/designing-packages.md` and `docs/package-graphics-standard.md` to document the runtime API and the removed path. Create `scripts/run-wave.sh` per `plan_approved.md`. Commit.
+- [x] **T1 — Serve the runtime.** Test: `GET /packages/_runtime/pconair.js` returns 200 with `application/javascript`; `GET /packages/_runtime/../../package.json` does not escape the mount. Add `runtimeRoot` to `RouteServices`, `src/main/index.ts`, `tests/_test-server.ts`, `forge.config.ts`. Commit.
+- [x] **T2 — Reserved id.** Test: `validateManifest({id: '_runtime', …})` returns `{ok: false}`. Assert it holds via the existing `ID_PATTERN`; add the test even if no code change is needed. Commit.
+- [x] **T3 — `?control=1` role.** Test in `tests/websocket.test.ts` style: a cookie-less WS connect with `?control=1` from an allowlisted IP succeeds; the same via a `cf-ray` header is rejected. Modify `server.ts` `verifyClient`. Commit.
+- [x] **T4 — Runtime core.** Write `src/runtime/pconair.js` with `connect`, `param`, `isDebug`, `_diagSource` and the `Client` surface in §3.2. Test it in `tests/package-runtime.test.ts` under jsdom (`// @vitest-environment jsdom`) with a stub `WebSocket`: asserts subscribe frame shape, that `payload`-shaped frames are ignored, that `on()` fires immediately when state is already known, and that `close()` prevents reconnect. Commit.
+- [x] **T5 — Backoff.** Test with fake timers: closes at 1s, 2s, 4s, 8s, 15s, 15s; a successful open resets the next delay to 1s. Commit.
+- [x] **T6 — Connection callbacks.** Test: `connected` is false before open, true after, false after close; `onConnection` fires on each edge and its unsubscribe stops delivery. Commit.
+- [x] **T7 — `patch()` returns parsed body.** Test with a stub `fetch`: resolves to the decoded JSON, and a non-2xx response rejects with an `Error` carrying the response body's `message` when present. Commit.
+- [x] **T8 — Base stylesheet.** Create `src/runtime/pconair.css` with the six custom properties in §3.5 defined on `:root`, plus a dark default. Test: served 200 as `text/css`. Commit.
+- [x] **T9 — Migrate the six packages.** Point every render and control page at `/packages/_runtime/pconair.js` and `window.PConAir.connect(id, {role, renderId})`. Control pages pass `role: 'control'`; render pages pass `role: 'render'` and their manifest `renderId`. Test: a filesystem assertion in `tests/package-runtime.test.ts` that no file under `bundled-packages/` or `demo-packages/` contains the string `PConAirPackage.connect` or `assets/state.js`. Commit.
+- [x] **T10 — Delete the duplicates.** Remove all six `assets/state.js`. Run the full suite. Add the shim from §3.6. Commit.
+- [x] **T11 — Docs + wave script.** Update `docs/designing-packages.md` and `docs/package-graphics-standard.md` to document the runtime API and the removed path. Create `scripts/run-wave.sh` per `plan_approved.md`. Commit.
 
 ## 5. Acceptance
 
-- [ ] `GET /packages/_runtime/pconair.js` and `…/pconair.css` return 200 in dev and from a packaged build.
-- [ ] `grep -r "assets/state.js" bundled-packages demo-packages` returns nothing.
-- [ ] `find . -name state.js -path '*packages*'` returns nothing.
-- [ ] `hoops`, `news` and `ffg` control pages drive their renders exactly as before — verified by loading each control page and its render side by side and changing a field.
-- [ ] Killing the server for 60s and restarting it: an open render page reconnects and rehydrates, with visibly widening gaps between attempts, not one every 2s.
-- [ ] `npm run typecheck && npm test` green.
+- [x] `GET /packages/_runtime/pconair.js` and `…/pconair.css` return 200 in dev and from a packaged build.
+- [x] `grep -r "assets/state.js" bundled-packages demo-packages` returns nothing.
+- [x] `find . -name state.js -path '*packages*'` returns nothing.
+- [x] `hoops`, `news` and `ffg` control pages drive their renders exactly as before — verified by loading each control page and its render side by side and changing a field.
+- [x] Killing the server for 60s and restarting it: an open render page reconnects and rehydrates, with visibly widening gaps between attempts, not one every 2s.
+- [x] `npm run typecheck && npm test` green.
 
 ## 6. Out of scope
 
 Transport verbs (spec 15), presence counting (spec 16), the debug overlay itself (spec 21 — this spec only ships the `isDebug`/`_diagSource` hooks), the control schema (spec 18). Do not add fields to `PackageManifest` beyond what §3 names.
+
+---
+
+## 7. Implementation notes (2026-09-15)
+
+Landed on `claude/breeze-overlay-graphics-review-f12320` in seven commits
+(`b328cc0`..`b6e0b6a`). Departures from the spec as written, all deliberate:
+
+- **Client tests live in `tests/package-runtime-client.test.ts`.** The spec put
+  them in `tests/package-runtime.test.ts`, but that file is node-environment for
+  supertest and real `ws`, and vitest takes one environment per file.
+- **`<html data-render-id>` fallback for `renderId`.** §3.5 listed only
+  `control.html` and `render*.html`, but `ffg-common.js` and three copies of
+  `pconair-kit.js` each connect on behalf of several renders and cannot hardcode
+  an id. Render pages now declare it once on the document; explicit
+  `opts.renderId` still wins. Spec 16 needs no further page edits.
+- **Control pages use `client.on()` rather than an inline `onState`.** Keeps the
+  original callback terminator balanced, so the diff stays a two-line change per
+  page instead of a rebraced block.
+- **`tests/packages.test.ts` assertion updated.** It asserted the retired
+  `/packages/hoops/assets/state.js` path still served `PConAirPackage`. It now
+  asserts 404 plus a served runtime, per §3.6.
+- **A4 verified by an end-to-end round trip**, not by eye. Three tests subscribe
+  a real render socket against the real bundled packages, POST a patch and
+  assert the frame arrives.
+
+**Pre-existing bug fixed in passing:** all three `pconair-kit.js` copies nested
+a `/* custom logic */` comment inside their outer doc comment, terminating it
+early. The files did not parse, so `window.PConAirKit` was never defined and
+every demo render page that loads the kit was broken. Caught by a syntax gate
+run over both package trees during T9.
+
+**Known unrelated failure:** `tests/companion-defs.test.ts` cannot load because
+`packages/companion-module-pconair/node_modules` was never installed in this
+worktree, so `@companion-module/base` does not resolve. Nothing under
+`packages/` was touched. 638/638 individual tests pass.

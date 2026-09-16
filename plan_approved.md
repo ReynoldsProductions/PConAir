@@ -54,7 +54,7 @@ Every task in every spec inherits these.
 
 | # | Spec | Wave | Model | Depends on | Addresses |
 |---|------|------|-------|-----------|-----------|
-| 14 | [Package Control Runtime](specs/14-package-control-runtime.md) | **0** | `claude-opus-5` | — | foundation for all |
+| 14 | [Package Control Runtime](specs/14-package-control-runtime.md) ✅ | **0** | `claude-opus-5` | — | foundation for all |
 | 15 | [Graphics Transport (play/next/stop/clear)](specs/15-graphics-transport.md) | 1 | `claude-sonnet-5` | 14 | ask 1 |
 | 16 | [Output Presence & `delivered`](specs/16-output-presence.md) | 1 | `claude-sonnet-5` | 14 | ask 2a |
 | 20 | [Normalized Data Sources](specs/20-data-sources.md) | 1 | `claude-sonnet-5` | 14 | ask 4 |
@@ -155,7 +155,7 @@ git worktree remove .claude/worktrees/gfx-<N>
 
 ## Definition of done for the whole plan
 
-- [ ] `bundled-packages/*/assets/state.js` deleted; all six packages load `/packages/_runtime/pconair.js`.
+- [x] `bundled-packages/*/assets/state.js` deleted; all six packages load `/packages/_runtime/pconair.js`. *(spec 14)*
 - [ ] A new graphics package can ship a working control panel with **zero hand-written control HTML** — manifest `controls` only. Proven by `demo-packages/template-timer` and `demo-packages/template-overlay` having no `control.html`.
 - [ ] An operator can play, hold, advance, stop and clear any render from the control page and from Companion.
 - [ ] Every control page shows whether an output is actually connected, and every mutating response carries `delivered`.
