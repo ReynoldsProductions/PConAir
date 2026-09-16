@@ -211,3 +211,41 @@ describe('T4 — engine: advance and wrap', () => {
     }
   });
 });
+
+describe('T5 — engine: stop and clear', () => {
+  it('stop moves to playing-out then finished after outMs', () => {
+    vi.useFakeTimers();
+    try {
+      const { engine, root } = makeEngine({ stops: 2, inMs: [500, 350], outMs: 250 });
+      engine.dispatch('txp', 'card', 'play');
+      vi.advanceTimersByTime(500); // holding[0]
+
+      const stopped = engine.dispatch('txp', 'card', 'stop');
+      expect(stopped).toMatchObject({ phase: 'playing-out', phaseMs: 250 });
+
+      vi.advanceTimersByTime(250);
+      expect(engine.get('txp', 'card')).toMatchObject({ phase: 'finished' });
+      fs.rmSync(root, { recursive: true, force: true });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clear from playing-in returns idle synchronously and cancels the pending timer', () => {
+    vi.useFakeTimers();
+    try {
+      const { engine, root } = makeEngine({ stops: 2, inMs: [500, 350] });
+      engine.dispatch('txp', 'card', 'play'); // playing-in[0]
+
+      const cleared = engine.dispatch('txp', 'card', 'clear');
+      expect(cleared).toMatchObject({ phase: 'idle' });
+
+      // advancing the clock must NOT resurrect the cancelled playing-in -> holding timer
+      vi.advanceTimersByTime(10_000);
+      expect(engine.get('txp', 'card')).toMatchObject({ phase: 'idle' });
+      fs.rmSync(root, { recursive: true, force: true });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
