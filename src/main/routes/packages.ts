@@ -1,10 +1,11 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
 import type { PackageHub } from '../packages/state-hub';
 import type { PresenceRegistry } from '../packages/presence';
 import type { AuthManager } from '../auth';
+import type { TransportEngine, TransportVerb } from '../packages/transport';
 import { requireOperator } from './middleware';
 
 /**
@@ -21,9 +22,46 @@ const ALLOWED_ASSET_MIME: Record<string, string> = {
   'image/webp': '.webp',
 };
 
-export function createPackagesRouter(hub: PackageHub, presence: PresenceRegistry, auth: AuthManager): Router {
+const TRANSPORT_VERBS: TransportVerb[] = ['play', 'next', 'stop', 'clear'];
+
+/**
+ * Operator auth for the transport routes: a valid operator/admin session
+ * cookie, OR the `operator_pin` query param verified against the operator
+ * PIN -- same fallback POST /api/action already gives Companion (routes/
+ * action.ts), because unlike the admin web GUI's other operator-gated
+ * routes (including spec 16's read-only presence routes below, which stay
+ * cookie-only via requireOperator), the Companion module talks to PConAir
+ * cookie-less and only ever carries a PIN. requireOperator() (middleware.ts)
+ * is cookie-only, which is right for the admin GUI but would make the
+ * transport routes uncallable from Companion, defeating spec 15 section 3.7.
+ */
+function requireOperatorOrPin(auth: AuthManager) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const pinQ = typeof req.query.operator_pin === 'string' ? req.query.operator_pin : undefined;
+    const opCookie = req.cookies?.pconair_operator_session as string | undefined;
+    const admCookie = req.cookies?.pconair_admin_session as string | undefined;
+    const sid = opCookie ?? admCookie;
+    let authed = Boolean(sid && auth.getSession(sid));
+    if (!authed && pinQ) {
+      authed = await auth.verifyOperatorPin(pinQ);
+    }
+    if (!authed) {
+      res.status(401).json({ error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } });
+      return;
+    }
+    next();
+  };
+}
+
+export function createPackagesRouter(
+  hub: PackageHub,
+  auth: AuthManager,
+  transportEngine: TransportEngine,
+  presence: PresenceRegistry
+): Router {
   const router = Router();
   const opGuard = requireOperator(auth);
+  const operatorGuard = requireOperatorOrPin(auth);
 
   const assetUpload = multer({
     storage: multer.diskStorage({
@@ -100,7 +138,13 @@ export function createPackagesRouter(hub: PackageHub, presence: PresenceRegistry
         name: p.manifest.name,
         version: p.manifest.version,
         description: p.manifest.description ?? '',
-        renders: p.manifest.renders.map((r) => ({ id: r.id, label: r.label ?? r.id })),
+        renders: p.manifest.renders.map((r) => ({
+          id: r.id,
+          label: r.label ?? r.id,
+          // Lets the Companion module synthesise transport actions/feedback/
+          // variables for this render without a second round trip.
+          transport: r.transport ?? null,
+        })),
         hasControl: p.controlFile !== null,
         live: hub.subscriberCount(p.manifest.id) > 0,
         // Declarative Companion interface — registered dynamically by the
@@ -129,10 +173,20 @@ export function createPackagesRouter(hub: PackageHub, presence: PresenceRegistry
   });
 
   router.post('/api/packages/:id/state', (req: Request, res: Response) => {
-    const patch = req.body as Record<string, unknown>;
-    if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) {
+    const raw = req.body as Record<string, unknown>;
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
       res.status(400).json({ error: { code: 'INVALID_MODE', message: 'Body must be a JSON object (state patch)' } });
       return;
+    }
+    // Leading-underscore keys are reserved for the engine (_transport this
+    // spec, _data/_meta later) — strip them from a generic state patch so a
+    // naive or malicious caller cannot clobber engine-managed state via the
+    // package's own state route. See specs/15-graphics-transport.md §Global
+    // Constraints.
+    const patch: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(raw)) {
+      if (key.startsWith('_')) continue;
+      patch[key] = value;
     }
     const next = hub.patchState(req.params.id, patch);
     if (!next) {
@@ -144,10 +198,8 @@ export function createPackagesRouter(hub: PackageHub, presence: PresenceRegistry
     res.json({ state: next, delivered: presence.forPackage(req.params.id).renders });
   });
 
-  // Spec 15 (transport verbs: play/next/stop/clear) has not merged into this
-  // branch. When it does, POST /api/packages/:id/transport/:renderId/:verb and
-  // POST /api/packages/:id/transport/clear-all must carry `delivered` the same
-  // way — see specs/16-output-presence.md §3.3 and specs/15-graphics-transport.md.
+  // Spec 15's transport routes (below) now carry `delivered` too -- see the
+  // res.json calls in the transport section for how each is scoped.
 
   /** GET /api/packages/:id/presence — presence for one package. */
   router.get('/api/packages/:id/presence', opGuard, (req: Request, res: Response) => {
@@ -161,6 +213,70 @@ export function createPackagesRouter(hub: PackageHub, presence: PresenceRegistry
       packages[p.manifest.id] = presence.forPackage(p.manifest.id);
     }
     res.json({ packages, clients: presence.all() });
+  });
+
+  // ── Transport (spec 15) ──────────────────────────────────────────────────
+
+  router.get('/api/packages/:id/transport', operatorGuard, (req: Request, res: Response) => {
+    const pkg = hub.find(req.params.id);
+    if (!pkg) {
+      res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: `Package '${req.params.id}' not found` } });
+      return;
+    }
+    const snapshot: Record<string, unknown> = {};
+    for (const r of pkg.manifest.renders) {
+      if (!r.transport) continue;
+      const s = transportEngine.get(pkg.manifest.id, r.id);
+      if (s) snapshot[r.id] = s;
+    }
+    res.json(snapshot);
+  });
+
+  router.post('/api/packages/:id/transport/clear-all', operatorGuard, (req: Request, res: Response) => {
+    const pkg = hub.find(req.params.id);
+    if (!pkg) {
+      res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: `Package '${req.params.id}' not found` } });
+      return;
+    }
+    const cleared = pkg.manifest.renders.filter((r) => r.transport).map((r) => r.id);
+    transportEngine.clearAll(pkg.manifest.id);
+    // delivered (spec 16 s3.3): count every render output subscribed to this
+    // package, not just the transport-managed ones -- matches the meaning
+    // `delivered` already carries on POST /state above.
+    res.json({ ok: true, cleared, delivered: presence.forPackage(pkg.manifest.id).renders });
+  });
+
+  router.post('/api/packages/:id/transport/:renderId/:verb', operatorGuard, (req: Request, res: Response) => {
+    const { id, renderId, verb } = req.params;
+    if (!TRANSPORT_VERBS.includes(verb as TransportVerb)) {
+      res.status(400).json({
+        error: { code: 'INVALID_VERB', message: `verb must be one of: ${TRANSPORT_VERBS.join(', ')}` },
+      });
+      return;
+    }
+    const pkg = hub.find(id);
+    const render = pkg?.manifest.renders.find((r) => r.id === renderId);
+    if (!pkg || !render || !render.transport) {
+      res.status(404).json({
+        error: { code: 'ITEM_NOT_FOUND', message: `Render '${renderId}' in package '${id}' is not transport-managed` },
+      });
+      return;
+    }
+    const state = transportEngine.dispatch(id, renderId, verb as TransportVerb);
+    if (!state) {
+      res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: 'Transport dispatch failed' } });
+      return;
+    }
+    // delivered (spec 16 s3.3): count only outputs for THIS render -- a
+    // scoreboard's clock take should not read as delivered because the
+    // package's ticker render happens to have a browser source open.
+    res.json({
+      ok: true,
+      verb,
+      renderId,
+      transport: state,
+      delivered: presence.forPackage(id).byRender[renderId] ?? 0,
+    });
   });
 
   /**

@@ -22,6 +22,7 @@ import { createTunnelPinGate } from './security/tunnel-pin';
 import { createPackageHub, type PackageHub } from './packages/state-hub';
 import { createPresenceRegistry } from './packages/presence';
 import type { PackagePresence } from '../shared/types';
+import { createTransportEngine, type TransportEngine } from './packages/transport';
 import { ensurePackageRenderPresets } from './packages/render-presets';
 import { createReliabilityStore } from './reliability-store';
 
@@ -225,6 +226,10 @@ export function createServer(deps: ServerDeps) {
   const packageHub: PackageHub | null = deps.packagesRoot
     ? createPackageHub(deps.packagesRoot, { persistPath: deps.packageStatePath })
     : null;
+  // Owns the transport setTimeout state, so it must be the single instance
+  // both the HTTP routes and `panic` dispatch through — see index.ts/
+  // _test-server.ts's getTransportEngine wiring for how `panic` reaches it.
+  const transportEngine: TransportEngine | null = packageHub ? createTransportEngine(packageHub) : null;
 
   // Renders that declare a preset get one in the shared preset list, so a whole
   // scene can be launched by name from admin → URL Presets or remote → URLs.
@@ -285,6 +290,7 @@ export function createServer(deps: ServerDeps) {
     stageTimer: deps.stageTimer,
     packageHub,
     presence,
+    transportEngine,
     openGoogleAuthWindow: deps.openGoogleAuthWindow,
     getGoogleAuthState: deps.getGoogleAuthState,
     getCustomLogoPath: deps.getCustomLogoPath ?? (() => null),
@@ -651,6 +657,7 @@ export function createServer(deps: ServerDeps) {
   }
 
   function close(): Promise<void> {
+    transportEngine?.dispose();
     return new Promise((resolve, reject) => {
       wss.clients.forEach((client) => client.terminate());
       wss.close(() => {
@@ -659,5 +666,5 @@ export function createServer(deps: ServerDeps) {
     });
   }
 
-  return { app, httpServer, wss, listen, close };
+  return { app, httpServer, wss, listen, close, transportEngine };
 }

@@ -12,12 +12,14 @@ import {
   computeDerived,
   evalFeedback,
   hasActiveCountdown,
+  synthesizeTransportDefs,
   variableValue,
   type OptionValues,
   type PkgActionDef,
   type PkgDerivedDef,
   type PkgFeedbackDef,
   type PkgOption,
+  type PkgRenderInfo,
   type PkgState,
   type PkgVariableDef,
 } from './pkg-engine.js'
@@ -26,6 +28,7 @@ import {
 export interface PackageInfo {
   id: string
   name: string
+  renders: PkgRenderInfo[]
   companionActions: PkgActionDef[]
   companionFeedbacks: PkgFeedbackDef[]
   companionVariables: PkgVariableDef[]
@@ -36,6 +39,10 @@ export interface PackageDeps {
   getPkgState: (pkgId: string) => PkgState
   patchPkg: (pkgId: string, patch: PkgState) => Promise<void>
   log: (level: 'debug' | 'info' | 'warn' | 'error', msg: string) => void
+  /** POST /api/packages/:id/transport/:renderId/:verb (spec 15). */
+  postTransportVerb: (pkgId: string, renderId: string, verb: 'play' | 'next' | 'stop' | 'clear') => Promise<void>
+  /** POST /api/packages/:id/transport/clear-all (spec 15). */
+  clearAllTransport: (pkgId: string) => Promise<void>
 }
 
 /** Parse the GET /api/packages response defensively. */
@@ -46,6 +53,7 @@ export function parsePackageList(body: Record<string, unknown>): PackageInfo[] {
     .map((p) => ({
       id: String(p.id),
       name: typeof p.name === 'string' ? p.name : String(p.id),
+      renders: Array.isArray(p.renders) ? (p.renders as PkgRenderInfo[]) : [],
       companionActions: Array.isArray(p.companionActions) ? (p.companionActions as PkgActionDef[]) : [],
       companionFeedbacks: Array.isArray(p.companionFeedbacks) ? (p.companionFeedbacks as PkgFeedbackDef[]) : [],
       companionVariables: Array.isArray(p.companionVariables) ? (p.companionVariables as PkgVariableDef[]) : [],
@@ -116,14 +124,41 @@ export function buildPackageDefinitions(packages: PackageInfo[], deps: PackageDe
   const variableDefs: CompanionVariableDefinition[] = []
 
   for (const pkg of packages) {
-    for (const def of pkg.companionActions) {
+    // Transport actions/feedback/variables (spec 15) are synthesised, never
+    // declared by the package — merge them in alongside the declared ones so
+    // everything below (actions/feedbacks/variableDefs/computeVariableValues)
+    // treats them identically.
+    const transportDefs = synthesizeTransportDefs(pkg.renders)
+    const companionActions = [...pkg.companionActions, ...transportDefs.actions]
+    const companionFeedbacks = [...pkg.companionFeedbacks, ...transportDefs.feedbacks]
+    const companionVariables = [...pkg.companionVariables, ...transportDefs.variables]
+
+    for (const def of companionActions) {
       if (!def || typeof def.id !== 'string' || !Array.isArray(def.ops)) continue
+      const transportOp = def.ops.find((op) => op.op === 'transport_verb') as
+        | { op: 'transport_verb'; verb: 'play' | 'next' | 'stop' | 'clear' | 'clear_all' }
+        | undefined
       actions[`pkg_${pkg.id}_${def.id}`] = {
         name: `${pkg.name}: ${def.label ?? def.id}`,
         description: def.description,
         options: (def.options ?? []).map(toActionInput),
         callback: async (event, context) => {
           try {
+            if (transportOp) {
+              // Transport lives at a different HTTP route from package state
+              // — it is not expressible as a state-patch op, so it never goes
+              // through applyOps()/patchPkg().
+              if (transportOp.verb === 'clear_all') {
+                await deps.clearAllTransport(pkg.id)
+                return
+              }
+              const options = await collectOptionValues(def.options, event.options, (t) =>
+                context.parseVariablesInString(t)
+              )
+              const renderId = String(options.renderId ?? '')
+              if (renderId) await deps.postTransportVerb(pkg.id, renderId, transportOp.verb)
+              return
+            }
             const options = await collectOptionValues(def.options, event.options, (t) =>
               context.parseVariablesInString(t)
             )
@@ -139,7 +174,7 @@ export function buildPackageDefinitions(packages: PackageInfo[], deps: PackageDe
       }
     }
 
-    for (const def of pkg.companionFeedbacks) {
+    for (const def of companionFeedbacks) {
       if (!def || typeof def.id !== 'string' || typeof def.field !== 'string') continue
       const style = def.defaultStyle
       feedbacks[`pkg_${pkg.id}_${def.id}`] = {
@@ -164,7 +199,7 @@ export function buildPackageDefinitions(packages: PackageInfo[], deps: PackageDe
       }
     }
 
-    for (const def of pkg.companionVariables) {
+    for (const def of companionVariables) {
       if (!def || typeof def.id !== 'string') continue
       variableDefs.push({ variableId: `${pkg.id}_${def.id}`, name: `${pkg.name}: ${def.label ?? def.id}` })
     }
@@ -175,7 +210,8 @@ export function buildPackageDefinitions(packages: PackageInfo[], deps: PackageDe
     const values: CompanionVariableValues = {}
     for (const pkg of packages) {
       const state = computeDerived(pkg.companionDerived, deps.getPkgState(pkg.id))
-      for (const def of pkg.companionVariables) {
+      const companionVariables = [...pkg.companionVariables, ...synthesizeTransportDefs(pkg.renders).variables]
+      for (const def of companionVariables) {
         if (!def || typeof def.id !== 'string') continue
         values[`${pkg.id}_${def.id}`] = variableValue(def, state, now)
       }

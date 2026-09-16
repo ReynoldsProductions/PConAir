@@ -80,6 +80,13 @@ export function createFullServer(opts: FullServerTestOpts) {
   const l3Logos = createL3LogoStore({ l3FilesRoot });
 
   const slideshow = createSlideshowEngine({ store: opts.store, media: mediaLibrary });
+
+  // Set once createServer() below constructs the transport engine alongside
+  // the package hub — see src/main/index.ts's identical wiring and
+  // action-dispatch.ts's getTransportEngine doc for why this is a live
+  // binding read lazily rather than a value passed at construction time.
+  let transportEngineRef: import('../src/main/packages/transport').TransportEngine | null = null;
+
   const dispatchAction = createActionDispatcher({
     store: opts.store,
     auth,
@@ -90,6 +97,7 @@ export function createFullServer(opts: FullServerTestOpts) {
     slideshow,
     getPrompterHost: opts.getPrompterHost,
     isPrompterEnabled: opts.isPrompterEnabled,
+    getTransportEngine: () => transportEngineRef,
   });
 
   const server = createServer({
@@ -121,6 +129,7 @@ export function createFullServer(opts: FullServerTestOpts) {
     savePrompterSettings: opts.savePrompterSettings,
     prompterWindow: opts.prompterWindow,
   });
+  transportEngineRef = server.transportEngine ?? null;
 
   return {
     ...server,

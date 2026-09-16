@@ -15,6 +15,7 @@ import { createRenderRouter } from './render';
 import { createPackagesRouter } from './packages';
 import type { PackageHub } from '../packages/state-hub';
 import type { PresenceRegistry } from '../packages/presence';
+import type { TransportEngine } from '../packages/transport';
 import { createAdminRouter } from './admin';
 import { createPresetsRouter } from './presets';
 import { createL3Router } from './l3';
@@ -109,6 +110,8 @@ export interface RouteServices {
   packageHub: PackageHub | null;
   /** Output presence registry (spec 16) — which render/control pages are subscribed to each package. */
   presence: PresenceRegistry;
+  /** Transport engine for packageHub; null exactly when packageHub is null. */
+  transportEngine: TransportEngine | null;
   /** Google Slides auth hooks (Electron main only). */
   openGoogleAuthWindow?: SlidesRouterDeps['openGoogleAuthWindow'];
   getGoogleAuthState?: SlidesRouterDeps['getGoogleAuthState'];
@@ -233,8 +236,8 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   // GSC Companion module compat — cookie-less, IP-allowlist-gated (see gsc-compat.ts)
   app.use('/api', createGscCompatRouter(s.store));
   app.use(createRenderRouter(s.store, s.auth));
-  if (s.packageHub) {
-    app.use(createPackagesRouter(s.packageHub, s.presence, s.auth));
+  if (s.packageHub && s.transportEngine) {
+    app.use(createPackagesRouter(s.packageHub, s.auth, s.transportEngine, s.presence));
   }
   app.use(
     createTunnelRouter({

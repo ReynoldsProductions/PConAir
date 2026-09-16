@@ -89,6 +89,10 @@ Use these exact names for common data — the Companion module and future PConAi
 
 You don't need all of them. Use what your package requires and omit the rest.
 
+Top-level `stateSchema` keys starting with `_` are reserved for the engine
+(`_transport` for spec 15's transport state; more may follow) — declaring one
+fails manifest validation.
+
 ### Render IDs
 
 Use these standard IDs when your layout matches the concept — it makes Companion presets and multi-package setups predictable:
@@ -241,6 +245,69 @@ a `{type:'presence', namespace, presence}` frame lands on every socket
 subscribed to that namespace the moment another one joins or leaves. Nothing
 needs to poll for it.
 
+### Transport (play / hold / advance / stop / clear)
+
+Some graphics reveal in stages — a stat card that brings up a name, then a
+headshot, then bullet points — rather than a single `visible` boolean. Declare
+a `transport` block on a render in the manifest and the shared runtime drives
+a playback state machine for you, with no page-specific animation JavaScript:
+
+```json
+{
+  "renders": [
+    {
+      "id": "overlay",
+      "label": "Overlay",
+      "file": "renders/overlay.html",
+      "transport": { "stops": 2, "inMs": [500, 350], "outMs": 400 }
+    }
+  ]
+}
+```
+
+| Key | Meaning |
+|---|---|
+| `stops` | Number of hold points, 1-16. 1 is the classic in/hold/out. |
+| `inMs` | Intro duration per segment; segment *i* is `inMs[i]`, the last value repeats for further stops. Defaults to 400ms. |
+| `outMs` | Outro duration. Defaults to 400ms. |
+| `autoAdvanceMs` | Auto-advance a hold after N ms; 0 or omitted holds until told. |
+
+The state machine: `idle → playing-in → holding[0] → (playing-in → holding[1] → …) → playing-out → finished`.
+`play`/`next` from a hold advances to the next one; from the last hold, `play`
+behaves as `stop`. `clear` snaps to `idle` from anywhere — the panic verb.
+
+**Driving it.** From a control page or any script with a `Client`:
+
+```js
+client.verb('play');   // idle/finished -> playing-in -> holding[0]
+client.verb('next');   // holding[n] -> playing-in -> holding[n+1]
+client.verb('stop');   // any live phase -> playing-out -> finished
+client.verb('clear');  // any phase -> idle, immediately
+```
+
+Each resolves to the parsed response body, same contract as `patch()`. The
+same four verbs are also available as `POST /api/packages/:id/transport/:renderId/:verb`,
+`GET /api/packages/:id/transport`, `POST /api/packages/:id/transport/clear-all`,
+and as synthesised Companion actions/feedback/variables (nothing to declare —
+see "Companion integration" below).
+
+**Styling it.** The runtime sets `data-phase` and `data-step` on `<html>` for
+this render's own id, and `--pc-phase-ms` to the current phase's duration.
+Style purely against those — no JavaScript:
+
+```css
+[data-phase="idle"]        .card { opacity: 0; transform: translateY(40px); }
+[data-phase="playing-in"]  .card,
+[data-phase="holding"]     .card { opacity: 1; transform: none; }
+.card { transition: all calc(var(--pc-phase-ms) * 1ms); }
+[data-step="0"] .bullets { opacity: 0; } /* revealed at step 1 */
+```
+
+A render whose manifest has no `transport` key is not transport-managed —
+`client.transport` is `null` and the attributes are never set, so an existing
+render is unaffected until you opt in. `demo-packages/template-overlay`'s
+`.stat-card` is a worked example.
+
 ### Clock display
 
 For a clock field, compute the display value live:
@@ -366,6 +433,13 @@ client.patch({ 'clock.running': true }); // ← this doesn't work
 ## Companion integration
 
 Declare actions, feedbacks, and variables in `package.json`. The PConAir Companion module loads them dynamically — you get a working Companion page with no module code to write.
+
+If a render declares `transport` (see above), its Companion interface needs no
+declaration at all: `transport_play`, `transport_next`, `transport_stop`,
+`transport_clear` (each with a `renderId` dropdown listing your
+transport-managed renders), `transport_clear_all`, a `transport_phase`
+feedback, and one `transport_<renderId>_phase` variable per transport-managed
+render are all synthesised automatically.
 
 ### Actions
 

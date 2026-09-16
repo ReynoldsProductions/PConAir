@@ -4,7 +4,12 @@
   "version": "1.0.0",
   "description": "Starter template — lower third, ticker, logo bug. Copy this folder, change the id, and restyle.",
   "renders": [
-    { "id": "overlay", "label": "Overlay", "file": "renders/overlay.html" }
+    {
+      "id": "overlay",
+      "label": "Overlay",
+      "file": "renders/overlay.html",
+      "transport": { "stops": 2, "inMs": [500, 350], "outMs": 400 }
+    }
   ],
   "stateSchema": {
     "bugVisible": "boolean",

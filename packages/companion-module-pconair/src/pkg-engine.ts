@@ -41,6 +41,12 @@ export type PkgOp =
       value?: unknown
       defaultValue?: number
     }
+  // Synthesised transport actions (spec 15) carry no state-patch semantics —
+  // applyOps() does not (and must not) implement this op. The companion
+  // runtime (packages.ts) special-cases it and POSTs to the transport HTTP
+  // route instead of PATCHing state, since transport lives in a different
+  // endpoint from the rest of a package's declarative state ops.
+  | { op: 'transport_verb'; verb: 'play' | 'next' | 'stop' | 'clear' | 'clear_all' }
 
 export interface PkgActionDef {
   id: string
@@ -70,6 +76,21 @@ export interface PkgVariableDef {
 export type PkgDerivedDef =
   | { field: string; fn: 'argmax'; source: string }
   | { field: string; fn: 'lookup'; source: string; index: string; path: string }
+
+// ── synthesised transport companion interface (spec 15) ─────────────────────
+//
+// Transport-managed renders (manifest render.transport present) get a fixed
+// Companion interface for free — the package declares nothing. This mirrors
+// the shape GET /api/packages already serves for a render (id/label), plus
+// whether it carries a transport config.
+
+export interface PkgRenderInfo {
+  id: string
+  label: string
+  transport?: { stops: number } | null
+}
+
+const TRANSPORT_PHASES = ['idle', 'playing-in', 'holding', 'playing-out', 'finished'] as const
 
 // ── path helpers ─────────────────────────────────────────────────────────────
 
@@ -351,4 +372,89 @@ export function hasActiveCountdown(defs: PkgVariableDef[], state: PkgState): boo
     if (!d.countdown) return false
     return (Number(getPath(state, d.countdown.deadlineField)) || 0) > 0
   })
+}
+
+/**
+ * Build the fixed Companion interface for a package's transport-managed
+ * renders: transport_play/next/stop/clear (one action each, with a renderId
+ * dropdown listing exactly the transport-managed renders), transport_clear_all
+ * (no options), one transport_phase feedback, and one
+ * transport_<renderId>_phase variable per transport-managed render.
+ *
+ * Pure data — no callbacks. The companion runtime (packages.ts) wires
+ * `transport_verb` ops to the transport HTTP route; feedbacks/variables need
+ * no special wiring since they read `_transport.<renderId>.phase` through the
+ * same evalFeedback/variableValue path as any package-declared field.
+ */
+export function synthesizeTransportDefs(renders: PkgRenderInfo[]): {
+  actions: PkgActionDef[]
+  feedbacks: PkgFeedbackDef[]
+  variables: PkgVariableDef[]
+} {
+  const managed = renders.filter((r) => r.transport)
+  if (managed.length === 0) return { actions: [], feedbacks: [], variables: [] }
+
+  const renderChoices = managed.map((r) => ({ id: r.id, label: r.label }))
+  const renderIdOption: PkgOption = {
+    id: 'renderId',
+    label: 'Render',
+    type: 'dropdown',
+    choices: renderChoices,
+    default: renderChoices[0].id,
+  }
+
+  const VERB_LABELS: Record<'play' | 'next' | 'stop' | 'clear', string> = {
+    play: 'Play',
+    next: 'Next',
+    stop: 'Stop',
+    clear: 'Clear',
+  }
+
+  function verbAction(verb: 'play' | 'next' | 'stop' | 'clear'): PkgActionDef {
+    return {
+      id: `transport_${verb}`,
+      label: `Transport: ${VERB_LABELS[verb]}`,
+      options: [renderIdOption],
+      ops: [{ op: 'transport_verb', verb }],
+    }
+  }
+
+  const actions: PkgActionDef[] = [
+    verbAction('play'),
+    verbAction('next'),
+    verbAction('stop'),
+    verbAction('clear'),
+    {
+      id: 'transport_clear_all',
+      label: 'Transport: Clear All',
+      ops: [{ op: 'transport_verb', verb: 'clear_all' }],
+    },
+  ]
+
+  const feedbacks: PkgFeedbackDef[] = [
+    {
+      id: 'transport_phase',
+      label: 'Transport: phase',
+      field: '_transport.{renderId}.phase',
+      equals: { option: 'phase' },
+      options: [
+        renderIdOption,
+        {
+          id: 'phase',
+          label: 'Phase',
+          type: 'dropdown',
+          choices: TRANSPORT_PHASES.map((p) => ({ id: p, label: p })),
+          default: 'holding',
+        },
+      ],
+    },
+  ]
+
+  const variables: PkgVariableDef[] = managed.map((r) => ({
+    id: `transport_${r.id}_phase`,
+    label: `Transport: ${r.label} phase`,
+    field: `_transport.${r.id}.phase`,
+  }))
+
+  return { actions, feedbacks, variables }
 }
