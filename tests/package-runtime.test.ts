@@ -48,6 +48,16 @@ describe('GET /packages/_runtime (shared package runtime)', () => {
     expect(res.text).toContain('window.PConAir');
   });
 
+  it('serves pconair.css with the tokens specs 16-23 style against', async () => {
+    const srv = makeServer();
+    const res = await request(srv.app).get('/packages/_runtime/pconair.css');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/css/);
+    for (const token of ['--pc-bg', '--pc-fg', '--pc-accent', '--pc-danger', '--pc-ok', '--pc-gap']) {
+      expect(res.text).toContain(token);
+    }
+  });
+
   it('404s an unknown file under the mount instead of falling through', async () => {
     const srv = makeServer();
     const res = await request(srv.app).get('/packages/_runtime/nope.js');

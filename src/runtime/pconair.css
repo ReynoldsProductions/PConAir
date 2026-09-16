@@ -1,0 +1,35 @@
+/* PConAir shared package runtime - base stylesheet.
+   Served at /packages/_runtime/pconair.css. See specs/14-package-control-runtime.md.
+
+   Ships the design tokens now so specs 16-23 style against one set rather than
+   each negotiating its own. Control panels are operated in dim rooms next to a
+   switcher, so the default is dark; a package can override any token. */
+:root {
+  --pc-bg: #14161a;
+  --pc-fg: #e8eaed;
+  --pc-accent: #c8a24a;
+  --pc-danger: #e5484d;
+  --pc-ok: #3dd68c;
+  --pc-gap: 12px;
+}
+
+/* Presence indicator (spec 16 renders into this). Red means an operator is
+   about to push a graphic at nothing; green means an output is listening. */
+[data-presence] {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--pc-gap) / 2);
+  color: var(--pc-fg);
+}
+
+[data-presence]::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pc-danger);
+}
+
+[data-presence='ok']::before {
+  background: var(--pc-ok);
+}
