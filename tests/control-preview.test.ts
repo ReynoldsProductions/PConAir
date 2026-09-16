@@ -100,3 +100,39 @@ describe('T1 — preview socket is excluded from presence and delivered (spec 17
     }
   });
 });
+
+describe('T7 — bundled control pages wire a live preview (spec 17 §3.6)', () => {
+  const PINS = { operatorPin: 'test1234', adminPin: 'adminpass8' };
+  const bundledRoot = path.join(__dirname, '..', 'bundled-packages');
+
+  it('hoops, news and ffg control pages each mount PConAir.preview with the right packageId', async () => {
+    const store = createStateStore();
+    const server = createFullServer({ store, ...PINS, port: 0, packagesRoot: bundledRoot });
+    await server.listen();
+    try {
+      const hoops = await request(server.app).get('/packages/hoops/control');
+      expect(hoops.status).toBe(200);
+      expect(hoops.text).toContain('PConAir.preview(');
+      expect(hoops.text).toContain("packageId: 'hoops'");
+      expect(hoops.text).toContain("renderId: 'scorebug'");
+
+      const ffg = await request(server.app).get('/packages/ffg/control');
+      expect(ffg.status).toBe(200);
+      expect(ffg.text).toContain('PConAir.preview(');
+      expect(ffg.text).toContain("packageId: 'ffg'");
+
+      const news = await request(server.app).get('/packages/news/control');
+      expect(news.status).toBe(200);
+      expect(news.text).toContain('PConAir.preview(');
+      expect(news.text).toContain("packageId: 'news'");
+      // news ships three renders (ticker, l3, all) — its preview needs a
+      // selector driving setRender, not a single hardcoded renderId.
+      expect(news.text).toContain('.setRender(');
+      expect(news.text).toMatch(/<option[^>]*value="ticker"/);
+      expect(news.text).toMatch(/<option[^>]*value="l3"/);
+      expect(news.text).toMatch(/<option[^>]*value="all"/);
+    } finally {
+      await server.close();
+    }
+  });
+});
