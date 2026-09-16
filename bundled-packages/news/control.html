@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Faire Wire — control</title>
+<link rel="stylesheet" href="/packages/_runtime/pconair.css">
 <style>
   /* Tokens match the admin/operator light theme (src/renderer/admin/index.html
      :root) so this panel reads as part of the same app, not a separate
@@ -68,6 +69,18 @@
   </div>
 </div>
 <div id="fit-warnings"></div>
+
+<div class="section">
+  <div class="cardhead">
+    <div class="lbl">Preview</div>
+    <select id="previewRender">
+      <option value="ticker">Ticker + logo bug</option>
+      <option value="l3">Lower thirds (left + right)</option>
+      <option value="all">Ticker + lower thirds (one source)</option>
+    </select>
+  </div>
+  <div id="preview"></div>
+</div>
 
 <div class="l3grid">
   <div class="section">
@@ -259,6 +272,9 @@
   const client = window.PConAir.connect('news', { role: 'control' });
   window.PConAir.presenceIndicator(g('presence'), client);
   window.PConAir.warningsPanel(g('fit-warnings'), client);
+
+  const preview = window.PConAir.preview(g('preview'), { packageId: 'news', renderId: 'ticker', width: 480 });
+  g('previewRender').addEventListener('change', () => preview.setRender(g('previewRender').value));
   client.on((s) => {
     state = s;
     g('pill').className = 'pill live';

@@ -115,3 +115,76 @@
 .pc-warning:last-child {
   margin-bottom: 0;
 }
+/* Control-page live preview (spec 17). The iframe always lays out its
+   content at exactly 1920x1080 — the viewport just clips a scaled-down
+   view of it, so nothing inside the framed render ever reflows. */
+.pc-preview {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pc-gap) / 2);
+}
+
+.pc-preview-viewport {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #000;
+}
+
+.pc-preview-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 0;
+  display: block;
+}
+
+.pc-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-gap);
+  font-size: 12px;
+}
+
+.pc-preview-backdrops {
+  display: flex;
+  gap: 4px;
+}
+
+/* Small swatch buttons — one per backdrop choice. The checker swatch uses a
+   conic-gradient rather than a linear-gradient stack or an image asset, so a
+   crisp 2x2 check reads at 18px without extra markup. */
+.pc-preview-backdrop-btn {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+}
+
+.pc-preview-backdrop-btn[data-backdrop-option='checker'] {
+  background-image: conic-gradient(#bbb 90deg, #fff 90deg 180deg, #bbb 180deg 270deg, #fff 270deg);
+  background-size: 8px 8px;
+}
+
+.pc-preview-backdrop-btn[data-backdrop-option='black'] { background: #000; }
+.pc-preview-backdrop-btn[data-backdrop-option='white'] { background: #fff; }
+.pc-preview-backdrop-btn[data-backdrop-option='green'] { background: #00b140; }
+
+.pc-preview-backdrop-btn.pc-preview-backdrop-active {
+  outline: 2px solid var(--pc-accent);
+  outline-offset: 1px;
+}
+
+.pc-preview-reload {
+  margin-left: auto;
+  cursor: pointer;
+  background: transparent;
+  color: var(--pc-fg);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
