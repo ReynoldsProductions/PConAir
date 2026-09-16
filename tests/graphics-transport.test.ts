@@ -274,3 +274,36 @@ describe('T6 — auto-advance', () => {
     }
   });
 });
+
+describe('T7 — transient across reload', () => {
+  it('a render left in holding never comes back from a rebuilt hub', () => {
+    vi.useFakeTimers();
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pconair-transport-persist-'));
+    const persistPath = path.join(root, 'state', 'package-state.json');
+    try {
+      writeTransportFixture(root, { stops: 2, inMs: [100, 100] });
+
+      const hub1 = createPackageHub(root, { persistPath });
+      const engine1 = createTransportEngine(hub1);
+      engine1.dispatch('txp', 'card', 'play');
+      vi.advanceTimersByTime(100); // holding[0]
+      expect(engine1.get('txp', 'card')).toMatchObject({ phase: 'holding' });
+      hub1.flushState();
+      engine1.dispose();
+
+      // simulate a crash + relaunch: brand new hub over the same persisted file
+      const hub2 = createPackageHub(root, { persistPath });
+      const raw = hub2.getState('txp');
+      const transportMap = (raw?._transport ?? {}) as Record<string, { phase: string }>;
+      expect(transportMap.card === undefined || transportMap.card.phase === 'idle').toBe(true);
+
+      // and the engine's own view agrees — idle, never holding
+      const engine2 = createTransportEngine(hub2);
+      expect(engine2.get('txp', 'card')).toMatchObject({ phase: 'idle' });
+      engine2.dispose();
+    } finally {
+      vi.useRealTimers();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
