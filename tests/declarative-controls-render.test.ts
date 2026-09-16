@@ -1083,3 +1083,149 @@ describe('T16 — transport, action, asset, data, slider and static', () => {
     expect(patchBodies()).toEqual([{ scores: ['alpha', 'beta'] }]);
   });
 });
+
+describe('T17 — accessibility', () => {
+  /* One manifest exercising every field type, so the checks below cover the
+     whole surface rather than the easy half. Operators work these panels in
+     the dark with one hand. */
+  const EVERY_TYPE = {
+    groups: [
+      {
+        id: 'content',
+        label: 'Content',
+        fields: [
+          { type: 'text', field: 'home.name', label: 'Home name', help: 'Shown on the lower third.' },
+          { type: 'text', field: 'scores', label: 'Messages', list: true },
+          { type: 'number', field: 'home.score', label: 'Home score', bump: [1, 10] },
+          { type: 'toggle', field: 'live', label: 'On air' },
+          { type: 'select', field: 'style.font', label: 'Font', choices: [{ id: 'serif', label: 'Serif' }] },
+          { type: 'asset', field: 'logo', label: 'Logo' },
+        ],
+      },
+      {
+        id: 'look',
+        label: 'Look',
+        fields: [
+          { type: 'color', field: 'style.accent', label: 'Accent', swatches: ['#c8a24a'] },
+          { type: 'slider', field: 'style.panelOpacity', label: 'Panel opacity', min: 0, max: 1, step: 0.05 },
+          { type: 'static', label: 'Note', text: 'Restyles live.' },
+        ],
+      },
+      {
+        id: 'playback',
+        label: 'Playback',
+        fields: [
+          { type: 'transport', label: 'Stat card', renderId: 'card' },
+          { type: 'data', label: 'Headlines', sourceId: 'feed' },
+          { type: 'action', label: 'Reset', patch: { live: false } },
+        ],
+      },
+    ],
+  };
+
+  const FULL_STATE = {
+    home: { name: 'Lions', score: 12, bonus: true },
+    live: false,
+    logo: '',
+    scores: ['one'],
+    style: { font: 'serif', accent: '#c8a24a', panelOpacity: 0.9 },
+  };
+
+  function mountEvery(): MountResult {
+    return mount(
+      EVERY_TYPE,
+      { renders: [{ id: 'card', label: 'Card', transport: { stops: 2 } }] },
+      FULL_STATE
+    );
+  }
+
+  it('every input, select and textarea has an associated <label for>', () => {
+    const { el } = mountEvery();
+    const inputs = Array.from(el.querySelectorAll('input, select, textarea'));
+    expect(inputs.length).toBeGreaterThanOrEqual(9);
+    const missing: string[] = [];
+    for (const input of inputs) {
+      const id = input.getAttribute('id');
+      if (!id || !el.querySelector(`label[for="${id}"]`)) {
+        missing.push(input.outerHTML.slice(0, 80));
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it('ids are unique across the whole panel', () => {
+    const { el } = mountEvery();
+    const ids = Array.from(el.querySelectorAll('[id]')).map((n) => n.getAttribute('id'));
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('groups are fieldset/legend', () => {
+    const { el } = mountEvery();
+    const groups = Array.from(el.querySelectorAll('[data-group-id]'));
+    expect(groups).toHaveLength(3);
+    for (const g of groups) {
+      expect(g.tagName).toBe('FIELDSET');
+      const legend = g.firstElementChild;
+      expect(legend!.tagName).toBe('LEGEND');
+      expect(legend!.textContent).not.toBe('');
+    }
+  });
+
+  it('tab order follows manifest order', () => {
+    const { el } = mountEvery();
+    // No explicit tabindex anywhere — DOM order IS tab order, and DOM order
+    // is manifest order. A positive tabindex would silently reorder the panel.
+    for (const n of Array.from(el.querySelectorAll('[tabindex]'))) {
+      expect(Number(n.getAttribute('tabindex'))).toBeLessThanOrEqual(0);
+    }
+    const paths = Array.from(el.querySelectorAll('[data-field-path], [data-field-type]'))
+      .filter((n) => n.classList.contains('pc-field'))
+      .map((n) => n.getAttribute('data-field-path') || n.getAttribute('data-field-type'));
+    expect(paths).toEqual([
+      'home.name',
+      'scores',
+      'home.score',
+      'live',
+      'style.font',
+      'logo',
+      'style.accent',
+      'style.panelOpacity',
+      'static',
+      'transport',
+      'data',
+      'action',
+    ]);
+  });
+
+  it('every button has a non-empty accessible name', () => {
+    const { el } = mountEvery();
+    const nameless: string[] = [];
+    for (const b of Array.from(el.querySelectorAll('button'))) {
+      const name = (b.getAttribute('aria-label') || b.textContent || '').replace(/\s+/g, '');
+      if (!name) nameless.push(b.outerHTML.slice(0, 80));
+    }
+    expect(nameless).toEqual([]);
+  });
+
+  it('help text is wired to its input through aria-describedby', () => {
+    const { el } = mountEvery();
+    const input = inputFor(el, 'home.name');
+    const describedBy = input.getAttribute('aria-describedby');
+    expect(describedBy).toBeTruthy();
+    const help = el.querySelector(`#${describedBy}`);
+    expect(help!.textContent).toBe('Shown on the lower third.');
+  });
+
+  it('the notice and banner are polite status regions, and errors are alerts', () => {
+    const { el } = mountEvery();
+    expect((el.querySelector('.pc-panel-notice') as HTMLElement).getAttribute('role')).toBe('status');
+    expect((el.querySelector('.pc-panel-banner') as HTMLElement).getAttribute('role')).toBe('status');
+    expect((el.querySelector('.pc-panel-error') as HTMLElement).getAttribute('role')).toBe('alert');
+  });
+
+  it('renders every declared field type without throwing', () => {
+    const { el } = mountEvery();
+    expect(el.querySelectorAll('.pc-field')).toHaveLength(12);
+    expect(el.textContent).not.toContain('Unsupported field type');
+  });
+});
