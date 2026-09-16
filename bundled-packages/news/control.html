@@ -247,12 +247,13 @@
   </div>
 </div>
 
-<script src="/packages/news/assets/state.js"></script>
+<script src="/packages/_runtime/pconair.js"></script>
 <script>
   const g = (id) => document.getElementById(id);
   let state = null;
 
-  const client = PConAirPackage.connect('news', (s) => {
+  const client = window.PConAir.connect('news', { role: 'control' });
+  client.on((s) => {
     state = s;
     g('pill').className = 'pill live';
     g('pill').textContent = 'LIVE';

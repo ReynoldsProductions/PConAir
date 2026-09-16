@@ -64,13 +64,14 @@
   </div>
 </div>
 
-<script src="/packages/template-overlay/assets/state.js"></script>
+<script src="/packages/_runtime/pconair.js"></script>
 <script>
   const g = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   let state = null;
 
-  const client = PConAirPackage.connect('template-overlay', s => {
+  const client = window.PConAir.connect('template-overlay', { role: 'control' });
+  client.on(s => {
     state = s;
     g('status-pill').className = 'status-pill live';
     g('status-pill').textContent = 'LIVE';

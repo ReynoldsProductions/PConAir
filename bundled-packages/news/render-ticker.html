@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-render-id="ticker">
 <head>
 <meta charset="UTF-8">
 <title>Faire Wire — ticker</title>
@@ -104,7 +104,7 @@
   </div>
 </div>
 
-<script src="/packages/news/assets/state.js"></script>
+<script src="/packages/_runtime/pconair.js"></script>
 <script>
   const g = (id) => document.getElementById(id);
   const LOGO_CLASS = { cream: 'cream', plain: 'on-dark' };
@@ -266,7 +266,7 @@
     g('ticker').classList.toggle('in', s.tickerVisible !== false && items.length > 0);
   }
 
-  PConAirPackage.connect('news', applyState);
+  window.PConAir.connect('news', { role: 'render', onState: applyState });
 </script>
 </body>
 </html>

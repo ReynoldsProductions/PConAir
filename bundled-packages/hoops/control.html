@@ -196,12 +196,13 @@
   <div class="small">Crawl speed in pixels/second — it now stays constant regardless of how many headlines are loaded, so the ticker no longer speeds up with more text. Drag to adjust live.</div>
 </div>
 
-<script src="/packages/hoops/assets/state.js"></script>
+<script src="/packages/_runtime/pconair.js"></script>
 <script>
   const g = (id) => document.getElementById(id);
   let state = null;
 
-  const client = PConAirPackage.connect('hoops', (s) => {
+  const client = window.PConAir.connect('hoops', { role: 'control' });
+  client.on((s) => {
     state = s;
     g('pill').className = 'pill live';
     g('pill').textContent = 'LIVE';

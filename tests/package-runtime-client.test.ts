@@ -74,6 +74,29 @@ describe('PConAir.connect — subscribe and state frames', () => {
     expect(last().url).toContain('renderId=main');
   });
 
+  it('falls back to <html data-render-id> when opts.renderId is absent', () => {
+    document.documentElement.setAttribute('data-render-id', 'champion');
+    try {
+      const PConAir = loadRuntime();
+      PConAir.connect('ffg', { role: 'render' });
+      expect(last().url).toContain('renderId=champion');
+    } finally {
+      document.documentElement.removeAttribute('data-render-id');
+    }
+  });
+
+  it('prefers an explicit opts.renderId over the attribute', () => {
+    document.documentElement.setAttribute('data-render-id', 'champion');
+    try {
+      const PConAir = loadRuntime();
+      PConAir.connect('ffg', { role: 'render', renderId: 'four-up' });
+      expect(last().url).toContain('renderId=four-up');
+      expect(last().url).not.toContain('champion');
+    } finally {
+      document.documentElement.removeAttribute('data-render-id');
+    }
+  });
+
   it('uses ?control=1 for a control page and sends no renderId', () => {
     const PConAir = loadRuntime();
     PConAir.connect('hoops', { role: 'control' });

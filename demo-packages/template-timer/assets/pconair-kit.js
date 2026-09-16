@@ -3,7 +3,7 @@
    so you can focus on design rather than plumbing.
 
    Load AFTER state.js:
-     <script src="/packages/YOUR-ID/assets/state.js"></script>
+     <script src="/packages/_runtime/pconair.js"></script>
      <script src="/packages/YOUR-ID/assets/pconair-kit.js"></script>
 
    Usage:
@@ -13,7 +13,7 @@
         .gameClock({ deadline: 'clock.deadline', value: 'clock.value', el: '#clock' })
         .shotClock({ deadline: 'shotEndsAt', value: 'shotClock', el: '#shot', dangerAt: 5 })
         .ticker({ messages: 'ticker.messages', speed: 'ticker.speed', track: '#track' })
-        .onState(s => { /* custom logic */ });
+        .onState(s => { ... your custom logic ... });
 
    All methods are chainable. */
 
@@ -55,9 +55,12 @@ window.PConAirKit = (function () {
       for (i = 0; i < stateHandlers.length; i++) stateHandlers[i](s);
     }
 
-    client = window.PConAirPackage.connect(packageId, function (s) {
-      state = s;
-      applyAll(s);
+    client = window.PConAir.connect(packageId, {
+      role: 'render',
+      onState: function (s) {
+        state = s;
+        applyAll(s);
+      },
     });
 
     var kit = {};

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-render-id="l3">
 <head>
 <meta charset="UTF-8">
 <title>Faire Wire — lower thirds</title>
@@ -164,7 +164,7 @@
   </div>
 </div>
 
-<script src="/packages/news/assets/state.js"></script>
+<script src="/packages/_runtime/pconair.js"></script>
 <script>
   var NAME_MIN = 34;
   var FONT_FAMILIES = {
@@ -302,7 +302,7 @@
     document.fonts.ready.then(function () { left.refit(); right.refit(); });
   }
 
-  client = PConAirPackage.connect('news', applyState);
+  client = window.PConAir.connect('news', { role: 'render', onState: applyState });
 </script>
 </body>
 </html>

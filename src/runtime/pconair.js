@@ -41,7 +41,15 @@ window.PConAir = (function () {
 
     var namespace = 'package:' + packageId;
     var role = opts.role === 'control' ? 'control' : 'render';
-    var renderId = opts.renderId || null;
+    /* Which render this page is. Explicit opts wins; otherwise read it off
+       <html data-render-id="...">. The attribute exists because ffg-common.js
+       and pconair-kit.js are shared by several renders apiece and cannot
+       hardcode one id — so each render page declares its identity once,
+       declaratively, the same way specs 15 and 22 use data-* attributes. */
+    var renderId =
+      opts.renderId ||
+      (document.documentElement && document.documentElement.getAttribute('data-render-id')) ||
+      null;
 
     var ws = null;
     var closed = false;

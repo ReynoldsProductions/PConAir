@@ -191,7 +191,12 @@ describe('bundled packages (phase 8)', () => {
       expect((await request(server.app).get('/packages/ffg/control')).text).toContain('SET WINNER');
       expect((await request(server.app).get('/packages/ffg/assets/cardboard.css')).status).toBe(200);
       expect((await request(server.app).get('/packages/ffg/assets/icons/one-faire.gif')).status).toBe(200);
-      expect((await request(server.app).get('/packages/hoops/assets/state.js')).text).toContain('PConAirPackage');
+      // spec 14: the per-package state.js copies are gone. The retired path
+      // 404s on purpose; every page now loads the one shared runtime instead.
+      expect((await request(server.app).get('/packages/hoops/assets/state.js')).status).toBe(404);
+      const runtime = await request(server.app).get('/packages/_runtime/pconair.js');
+      expect(runtime.status).toBe(200);
+      expect(runtime.text).toContain('window.PConAir');
     } finally {
       await server.close();
     }

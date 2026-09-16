@@ -43,13 +43,14 @@
   </div>
 </div>
 
-<script src="/packages/template-timer/assets/state.js"></script>
+<script src="/packages/_runtime/pconair.js"></script>
 <script>
   const g = id => document.getElementById(id);
   let state = null;
   let clockInterval = null;
 
-  const client = PConAirPackage.connect('template-timer', s => {
+  const client = window.PConAir.connect('template-timer', { role: 'control' });
+  client.on(s => {
     state = s;
     g('status-pill').className = 'status-pill live';
     g('status-pill').textContent = 'LIVE';
