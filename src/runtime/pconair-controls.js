@@ -876,7 +876,9 @@
            { l3: { visible: false } } must not drop l3.name, so the patch is
            rebuilt from its dotted paths against current state rather than
            posted as-is into a shallow merge. */
-        var patch = P.buildPatchMulti(client.state, flattenDeclaredPatch(f.patch));
+        var writes = f.countdown ? countdownWrites(f.countdown) : flattenDeclaredPatch(f.patch);
+        if (!writes || writes.length === 0) return;
+        var patch = P.buildPatchMulti(client.state, writes);
         client.patch(patch).then(
           function (body) { showDelivered(body && body.delivered); },
           function (err) { setFieldError(entry, (err && err.message) || 'Action failed'); }
@@ -885,6 +887,53 @@
       entry.controls.push(b);
       entry.applyValue = function () {};
       return b;
+    }
+
+    /* Deadline-based countdown verbs, with exactly the semantics
+       PkgCompanionOp's countdown_start/stop/reset already document in
+       loader.ts — so a timer driven from Companion and the same timer driven
+       from the panel cannot disagree.
+
+       Why a deadline and not a ticking counter: the remaining time is always
+       computed from Date.now() against a stored epoch-ms deadline, so every
+       output agrees to the millisecond and a browser source that reloads
+       mid-show comes back at the right time instead of at the start. */
+    function countdownWrites(cd) {
+      var now = Date.now();
+      var deadline = Number(P.getPath(client.state, cd.deadlineField)) || 0;
+      var banked = Number(P.getPath(client.state, cd.valueField)) || 0;
+      /* Remaining: from the deadline while running, otherwise the banked
+         seconds. Never negative — a clock that ran out is at zero. */
+      var remaining = deadline > 0 ? Math.max(0, (deadline - now) / 1000) : Math.max(0, banked);
+
+      var declared = null;
+      if (typeof cd.secondsField === 'string') {
+        declared = Number(P.getPath(client.state, cd.secondsField));
+      } else if (typeof cd.seconds === 'number') {
+        declared = cd.seconds;
+      }
+      if (declared === null || isNaN(declared)) declared = null;
+
+      var writes = [];
+      if (cd.verb === 'start') {
+        /* Restarting an already-running clock must resume, not add time. */
+        var secs = deadline > 0 ? remaining : declared !== null ? declared : remaining;
+        secs = Math.max(0, secs);
+        writes.push({ path: cd.deadlineField, value: now + Math.round(secs * 1000) });
+        writes.push({ path: cd.valueField, value: Math.ceil(secs) });
+        if (cd.runningField) writes.push({ path: cd.runningField, value: true });
+      } else if (cd.verb === 'stop') {
+        /* Bank the remaining time, rounded UP, so stopping at 42.5s left does
+           not silently lose a second. */
+        writes.push({ path: cd.valueField, value: Math.ceil(remaining) });
+        writes.push({ path: cd.deadlineField, value: 0 });
+        if (cd.runningField) writes.push({ path: cd.runningField, value: false });
+      } else {
+        writes.push({ path: cd.valueField, value: Math.ceil(declared !== null ? declared : remaining) });
+        writes.push({ path: cd.deadlineField, value: 0 });
+        if (cd.runningField) writes.push({ path: cd.runningField, value: false });
+      }
+      return writes;
     }
 
     /* { home: { name: '' }, live: true } -> [{path:'home.name',value:''},

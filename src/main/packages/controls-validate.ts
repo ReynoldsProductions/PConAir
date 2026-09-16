@@ -207,6 +207,47 @@ function checkLeafType(raw: Record<string, unknown>, leaf: ResolvedLeaf, at: str
   return null;
 }
 
+const COUNTDOWN_VERBS = new Set(['start', 'stop', 'reset']);
+
+/**
+ * Every clock path must resolve AND be the right leaf type. A timer whose
+ * `deadlineField` points at a string would look fine at load and then write
+ * an epoch-ms number into a string leaf the first time an operator hit Start.
+ */
+function validateCountdown(raw: unknown, at: string, ctx: ControlsValidationContext): string | null {
+  if (!isPlainObject(raw)) return `${at}: countdown must be an object`;
+  if (typeof raw.verb !== 'string' || !COUNTDOWN_VERBS.has(raw.verb)) {
+    return `${at}: countdown verb must be one of start, stop, reset`;
+  }
+  if (typeof raw.deadlineField !== 'string' || typeof raw.valueField !== 'string') {
+    return `${at}: countdown requires 'deadlineField' and 'valueField'`;
+  }
+  if (raw.seconds !== undefined && (typeof raw.seconds !== 'number' || !(raw.seconds >= 0))) {
+    return `${at}: countdown seconds must be a non-negative number`;
+  }
+  const checks: Array<[string, PackageSchemaLeaf]> = [
+    ['deadlineField', 'number'],
+    ['valueField', 'number'],
+    ['runningField', 'boolean'],
+    ['secondsField', 'number'],
+  ];
+  for (const [key, want] of checks) {
+    const dotted = raw[key];
+    if (dotted === undefined) continue;
+    if (typeof dotted !== 'string' || dotted.length === 0) {
+      return `${at}: countdown ${key} must be a dotted state path`;
+    }
+    const resolved = resolveSchemaPath(ctx.stateSchema, dotted);
+    if (!resolved.ok) return `${at}: countdown ${key} '${dotted}' ${resolved.reason}`;
+    if (resolved.leaf !== 'unknown' && resolved.leaf !== want) {
+      return `${at}: countdown ${key} '${dotted}' must be a ${want} leaf, but it is ${describeLeaf(
+        resolved.leaf
+      )}`;
+    }
+  }
+  return null;
+}
+
 function validateShowIf(raw: unknown, at: string, ctx: ControlsValidationContext): string | null {
   if (!isPlainObject(raw)) return `${at}: showIf must be an object`;
   if (typeof raw.field !== 'string' || raw.field.length === 0 || !('equals' in raw)) {
@@ -345,6 +386,25 @@ function validateFieldShape(
       return null;
     }
     case 'action': {
+      const hasPatch = raw.patch !== undefined;
+      const hasCountdown = raw.countdown !== undefined;
+      if (hasPatch && hasCountdown) {
+        return `${at}: action takes 'patch' or 'countdown', not both`;
+      }
+      if (!hasPatch && !hasCountdown) {
+        return `${at}: action requires either 'patch' or 'countdown'`;
+      }
+      if (hasCountdown) {
+        const err = validateCountdown(raw.countdown, at, ctx);
+        if (err) return err;
+        if (raw.confirm !== undefined && (typeof raw.confirm !== 'string' || raw.confirm.length === 0)) {
+          return `${at}: confirm must be a non-empty string`;
+        }
+        if (raw.variant !== undefined && !ACTION_VARIANTS.has(raw.variant as string)) {
+          return `${at}: variant must be 'default' or 'danger'`;
+        }
+        return null;
+      }
       if (!isPlainObject(raw.patch) || Object.keys(raw.patch).length === 0) {
         return `${at}: action requires a non-empty 'patch' object`;
       }

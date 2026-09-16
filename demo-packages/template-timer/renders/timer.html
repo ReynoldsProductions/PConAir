@@ -4,15 +4,26 @@
 <meta charset="UTF-8">
 <title>Timer Template</title>
 <style>
-  /* ── CUSTOMIZE: tweak these tokens to restyle everything ── */
+  /* ── CUSTOMIZE: tweak these tokens to restyle everything ──
+     Every --pc-* variable below is written onto :root by the shared runtime
+     from this package's `style` state (kit.applyStyle() at the bottom of this
+     file), so an operator restyles the graphic LIVE from the control panel's
+     "Look" group — no file edited, no reload. The value after the comma is
+     the fallback used before the first state frame arrives, and if you delete
+     the Look controls from package.json the graphic still renders exactly
+     like this. See specs/18-declarative-controls.md 3.3. */
   :root {
     --bg: #111012;
-    --ink: #f2f0f0;
+    --ink: var(--pc-ink, #f2f0f0);
     --sub: #888;
-    --accent: #b5a998;
+    --accent: var(--pc-accent, #b5a998);
     --danger: #dd3322;
     --mono: ui-monospace, 'SF Mono', Menlo, monospace;
     --sans: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+    /* Unitless numbers, so a render can calc() them into whatever unit it
+       actually wants. */
+    --backdrop-opacity: var(--pc-panel-opacity, 1);
+    --backdrop-corner: calc(var(--pc-corner, 0) * 1px);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
@@ -26,20 +37,34 @@
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 32px;
     transition: opacity .5s ease;
   }
+
+  /* Operator-controlled backdrop: opacity 0 leaves the render fully
+     transparent for compositing over camera, 1 makes it a full-frame slate. */
+  #backdrop {
+    position: absolute; inset: 0;
+    background: var(--bg);
+    opacity: var(--backdrop-opacity);
+    border-radius: var(--backdrop-corner);
+    transition: opacity .3s ease, border-radius .3s ease;
+  }
   #stage.hidden { opacity: 0; pointer-events: none; }
 
   .timer-label { font-size: 28px; font-weight: 600; letter-spacing: .26em; text-transform: uppercase; color: var(--sub); }
 
   #clock-display {
     font-family: var(--mono); font-size: 240px; font-weight: 700; line-height: 1;
-    font-variant-numeric: tabular-nums; color: #fff;
+    font-variant-numeric: tabular-nums; color: var(--ink);
     transition: color .3s ease;
   }
+  /* state.style.font === 'sans' -> the runtime writes --pc-font: sans, and
+     this rule picks it up. A select field with two choices, no JS. */
+  html[style*="--pc-font: sans"] #clock-display { font-family: var(--sans); }
   #clock-display.danger { color: var(--danger); animation: pulse .8s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.5;} }
 </style>
 </head>
 <body>
+<div id="backdrop"></div>
 <div id="stage">
   <div class="timer-label" id="label">BREAK</div>
   <div id="clock-display">05:00</div>
@@ -57,6 +82,10 @@
     .onState(s => {
       document.getElementById('stage').classList.toggle('hidden', !s.visible);
     });
+
+  // Mirror state.style onto :root as --pc-* custom properties. This one line
+  // is what makes the control panel's "Look" group restyle this graphic live.
+  kit.applyStyle();
 
   // OBS transparent background — add ?obs to browser source URL
   if (new URLSearchParams(location.search).get('obs')) document.body.classList.add('obs');

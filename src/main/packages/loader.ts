@@ -298,10 +298,41 @@ export interface DataField extends FieldBase {
   field?: never;
 }
 
+/**
+ * A deadline-based countdown verb — the one thing a static `patch` provably
+ * cannot express, because starting a clock needs `Date.now()`.
+ *
+ * Semantics are lifted verbatim from `PkgCompanionOp`'s
+ * countdown_start/stop/reset above, so an author who has written the Companion
+ * half of a timer already knows this. Not in spec 18 §3.2's original union —
+ * added because §3.8 requires `demo-packages/template-timer` to ship with NO
+ * control.html, and a countdown is the entire point of that package. See §7 of
+ * the spec.
+ */
+export interface ControlCountdown {
+  verb: 'start' | 'stop' | 'reset';
+  /** Dotted path to the epoch-ms deadline. Must be a number leaf. */
+  deadlineField: string;
+  /** Dotted path to the seconds remaining. Must be a number leaf. */
+  valueField: string;
+  /** Optional boolean leaf kept in step with the clock. */
+  runningField?: string;
+  /**
+   * `start`: seconds to run when the clock is not already running.
+   * `reset`: seconds to restore.
+   * A literal; `secondsField` reads it from state instead.
+   */
+  seconds?: number;
+  /** Number leaf to read `seconds` from — e.g. an operator-set duration. */
+  secondsField?: string;
+}
+
 export interface ActionField extends FieldBase {
   type: 'action';
   /** Patch merged on click. Every dotted path in it must resolve. */
-  patch: Record<string, unknown>;
+  patch?: Record<string, unknown>;
+  /** Deadline-based clock verb. Mutually exclusive with `patch`. */
+  countdown?: ControlCountdown;
   confirm?: string;
   variant?: 'default' | 'danger';
 }

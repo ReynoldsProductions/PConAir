@@ -639,3 +639,167 @@ describe('T13 — colour validation on POST /state', () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe('T18 — action.countdown validation', () => {
+  const CLOCK_SCHEMA = {
+    clock: { deadline: 'number', value: 'number', running: 'boolean', duration: 'number', format: 'string' },
+    label: 'string',
+  };
+
+  function check(field: Record<string, unknown>): string {
+    const res = validateManifest({
+      id: 'w',
+      name: 'W',
+      version: '1',
+      renders: [{ id: 'main', label: 'Main', file: 'r.html' }],
+      stateSchema: CLOCK_SCHEMA,
+      controls: { groups: [{ id: 'clock', label: 'Clock', fields: [field] }] },
+    });
+    return res.ok ? '' : res.error;
+  }
+
+  const START = {
+    type: 'action',
+    label: 'Start',
+    countdown: {
+      verb: 'start',
+      deadlineField: 'clock.deadline',
+      valueField: 'clock.value',
+      runningField: 'clock.running',
+      secondsField: 'clock.duration',
+    },
+  };
+
+  it('accepts all three verbs', () => {
+    expect(check(START)).toBe('');
+    expect(
+      check({
+        type: 'action',
+        label: 'Stop',
+        countdown: { verb: 'stop', deadlineField: 'clock.deadline', valueField: 'clock.value' },
+      })
+    ).toBe('');
+    expect(
+      check({
+        type: 'action',
+        label: 'Reset',
+        countdown: { verb: 'reset', deadlineField: 'clock.deadline', valueField: 'clock.value', seconds: 300 },
+      })
+    ).toBe('');
+  });
+
+  it('requires exactly one of patch and countdown', () => {
+    expect(check({ type: 'action', label: 'X' })).toMatch(/requires either 'patch' or 'countdown'/);
+    expect(check({ ...START, patch: { label: 'x' } })).toMatch(/not both/);
+  });
+
+  it('rejects an unknown verb', () => {
+    expect(check({ ...START, countdown: { ...START.countdown, verb: 'rewind' } })).toMatch(
+      /verb must be one of start, stop, reset/
+    );
+  });
+
+  it('resolves every clock path, and requires the right leaf type', () => {
+    const typo = check({ ...START, countdown: { ...START.countdown, deadlineField: 'clock.deadlin' } });
+    expect(typo).toMatch(/group 'clock'/);
+    expect(typo).toMatch(/field 'Start'/);
+    expect(typo).toMatch(/'clock\.deadlin'/);
+    expect(typo).toMatch(/no such path in stateSchema/);
+
+    expect(check({ ...START, countdown: { ...START.countdown, valueField: 'label' } })).toMatch(
+      /valueField.*must be a number leaf/
+    );
+    expect(check({ ...START, countdown: { ...START.countdown, runningField: 'label' } })).toMatch(
+      /runningField.*must be a boolean leaf/
+    );
+    expect(check({ ...START, countdown: { ...START.countdown, secondsField: 'label' } })).toMatch(
+      /secondsField.*must be a number leaf/
+    );
+  });
+
+  it('requires deadlineField and valueField', () => {
+    expect(check({ type: 'action', label: 'X', countdown: { verb: 'start', valueField: 'clock.value' } })).toMatch(
+      /countdown requires 'deadlineField' and 'valueField'/
+    );
+  });
+
+  it('rejects a non-numeric seconds', () => {
+    expect(
+      check({
+        type: 'action',
+        label: 'Reset',
+        countdown: { verb: 'reset', deadlineField: 'clock.deadline', valueField: 'clock.value', seconds: '300' },
+      })
+    ).toMatch(/seconds must be a non-negative number/);
+  });
+});
+
+// ── T18/T19/T20: the worked-example packages and the regression guard ─────
+
+describe('T18 — demo-packages/template-timer has no control.html', () => {
+  const DEMO_ROOT = path.join(__dirname, '..', 'demo-packages');
+
+  it('the package directory contains no control.html at all', () => {
+    expect(fs.existsSync(path.join(DEMO_ROOT, 'template-timer', 'control.html'))).toBe(false);
+  });
+
+  it('its manifest validates, controls and all', () => {
+    const raw = JSON.parse(fs.readFileSync(path.join(DEMO_ROOT, 'template-timer', 'package.json'), 'utf-8'));
+    const res = validateManifest(raw);
+    if (!res.ok) throw new Error(res.error);
+    expect(res.ok).toBe(true);
+  });
+
+  it('declares a Look group whose fields drive CSS custom properties', () => {
+    const raw = JSON.parse(fs.readFileSync(path.join(DEMO_ROOT, 'template-timer', 'package.json'), 'utf-8'));
+    const look = raw.controls.groups.find((g: { id: string }) => g.id === 'look');
+    expect(look).toBeDefined();
+    const types = look.fields.map((f: { type: string }) => f.type);
+    expect(types).toContain('color');
+    expect(types).toContain('slider');
+    // Every Look field points into the `style` subtree applyStyle() mirrors.
+    for (const f of look.fields) {
+      if (f.field) expect(f.field.indexOf('style.')).toBe(0);
+    }
+  });
+
+  it('its render consumes those variables and calls applyStyle', () => {
+    const html = fs.readFileSync(path.join(DEMO_ROOT, 'template-timer', 'renders', 'timer.html'), 'utf-8');
+    expect(html).toContain('var(--pc-accent');
+    expect(html).toContain('var(--pc-panel-opacity');
+    expect(html).toContain('var(--pc-corner');
+    expect(html).toContain('applyStyle()');
+  });
+
+  it('serves the generated shell rather than 404ing', async () => {
+    const server = createFullServer({
+      store: createStateStore(),
+      ...PINS,
+      port: 0,
+      packagesRoot: DEMO_ROOT,
+    });
+    await server.listen();
+    try {
+      const res = await request(server.app).get('/packages/template-timer/control');
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('/packages/_runtime/pconair-controls.js');
+      expect(res.text).toContain('controlPanel');
+      // hasControl reports false, because there is no control.html — but the
+      // panel is still served.
+      const list = await request(server.app).get('/api/packages');
+      const entry = list.body.packages.find((p: { id: string }) => p.id === 'template-timer');
+      expect(entry.hasControl).toBe(false);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('loads through createPackageHub with no errors', () => {
+    const server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: DEMO_ROOT });
+    try {
+      expect((server.packageHub?.errors() ?? []).filter((e) => e.dir === 'template-timer')).toEqual([]);
+    } finally {
+      server.packageHub?.dispose?.();
+    }
+  });
+});

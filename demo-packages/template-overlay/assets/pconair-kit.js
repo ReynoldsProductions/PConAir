@@ -114,6 +114,22 @@ window.PConAirKit = (function () {
     /* kit.patch({ field: value }) — shallow-merge state patch. */
     kit.patch = function (obj) { return client.patch(obj); };
 
+    /* kit.client — the underlying PConAir client, for anything the kit does
+       not wrap (client.verb, client.onTransport, client.onPresence). */
+    kit.client = client;
+
+    /* kit.applyStyle([subtree], [prefix]) — mirror a state subtree onto :root
+       as CSS custom properties, so a manifest's "Look" controls restyle this
+       render live. Defaults to state.style -> --pc-*:
+         { accent: '#c8a24a', panelOpacity: .9 }
+           -> --pc-accent: #c8a24a; --pc-panel-opacity: .9
+       Author your CSS against var(--pc-accent, <fallback>) and you are done.
+       See specs/18-declarative-controls.md 3.3. */
+    kit.applyStyle = function (subtree, prefix) {
+      client.applyStyle(subtree, prefix);
+      return kit;
+    };
+
     // ── Game Clock ────────────────────────────────────────────────────────────
 
     /* kit.gameClock({ deadline, value, el, [format] })

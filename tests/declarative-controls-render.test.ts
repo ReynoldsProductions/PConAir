@@ -1443,3 +1443,180 @@ describe('§3.4 panel composition — preview, warnings, collapse, render narrow
     expect(patchBodies()).toHaveLength(0);
   });
 });
+
+describe('T18 — action.countdown in the panel', () => {
+  const CLOCK_CONTROLS = {
+    groups: [
+      {
+        id: 'clock',
+        label: 'Clock',
+        fields: [
+          { type: 'number', field: 'clock.duration', label: 'Duration', min: 0, max: 3600 },
+          {
+            type: 'action',
+            label: 'Start',
+            countdown: {
+              verb: 'start',
+              deadlineField: 'clock.deadline',
+              valueField: 'clock.value',
+              runningField: 'clock.running',
+              secondsField: 'clock.duration',
+            },
+          },
+          {
+            type: 'action',
+            label: 'Stop',
+            countdown: {
+              verb: 'stop',
+              deadlineField: 'clock.deadline',
+              valueField: 'clock.value',
+              runningField: 'clock.running',
+            },
+          },
+          {
+            type: 'action',
+            label: 'Reset',
+            countdown: {
+              verb: 'reset',
+              deadlineField: 'clock.deadline',
+              valueField: 'clock.value',
+              runningField: 'clock.running',
+              secondsField: 'clock.duration',
+            },
+          },
+        ],
+      },
+    ],
+  };
+
+  const NOW = 1_700_000_000_000;
+
+  function clockButton(el: HTMLElement, label: string): HTMLButtonElement {
+    const found = Array.from(el.querySelectorAll('.pc-action')).find((b) => b.textContent === label);
+    if (!found) throw new Error(`no button labelled '${label}'`);
+    return found as HTMLButtonElement;
+  }
+
+  function clockPatch(): Record<string, unknown> {
+    return patchBodies()[0].clock as Record<string, unknown>;
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+
+  it('start sets a deadline of now + the declared duration', async () => {
+    const { el } = mount(CLOCK_CONTROLS, {}, {
+      clock: { deadline: 0, value: 0, running: false, duration: 300, format: 'mm:ss' },
+    });
+    clockButton(el, 'Start').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(clockPatch()).toMatchObject({
+      deadline: NOW + 300_000,
+      value: 300,
+      running: true,
+      // The operator-set duration is untouched.
+      duration: 300,
+    });
+  });
+
+  it('start resumes from the remaining time when a clock is already running', async () => {
+    const { el } = mount(CLOCK_CONTROLS, {}, {
+      clock: { deadline: NOW + 42_000, value: 300, running: true, duration: 300, format: 'mm:ss' },
+    });
+    clockButton(el, 'Start').click();
+    await vi.advanceTimersByTimeAsync(0);
+    // 42s left, not a fresh 300 — restarting a running clock must not add time.
+    expect(clockPatch()).toMatchObject({ deadline: NOW + 42_000, value: 42, running: true });
+  });
+
+  it('stop banks the remaining time and clears the deadline', async () => {
+    const { el } = mount(CLOCK_CONTROLS, {}, {
+      clock: { deadline: NOW + 42_500, value: 300, running: true, duration: 300, format: 'mm:ss' },
+    });
+    clockButton(el, 'Stop').click();
+    await vi.advanceTimersByTimeAsync(0);
+    // Rounded up, so stopping at 42.5s left does not silently lose a second.
+    expect(clockPatch()).toMatchObject({ deadline: 0, value: 43, running: false });
+  });
+
+  it('reset restores the declared duration and stops', async () => {
+    const { el } = mount(CLOCK_CONTROLS, {}, {
+      clock: { deadline: NOW + 10_000, value: 10, running: true, duration: 300, format: 'mm:ss' },
+    });
+    clockButton(el, 'Reset').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(clockPatch()).toMatchObject({ deadline: 0, value: 300, running: false });
+  });
+
+  it('a past deadline banks zero, never a negative', async () => {
+    const { el } = mount(CLOCK_CONTROLS, {}, {
+      clock: { deadline: NOW - 9_000, value: 300, running: true, duration: 300, format: 'mm:ss' },
+    });
+    clockButton(el, 'Stop').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(clockPatch()).toMatchObject({ deadline: 0, value: 0, running: false });
+  });
+
+  it('honours a literal seconds when no secondsField is declared', async () => {
+    const controls = {
+      groups: [
+        {
+          id: 'clock',
+          label: 'Clock',
+          fields: [
+            {
+              type: 'action',
+              label: 'Reset',
+              countdown: {
+                verb: 'reset',
+                deadlineField: 'clock.deadline',
+                valueField: 'clock.value',
+                seconds: 90,
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const { el } = mount(controls, {}, { clock: { deadline: 0, value: 7, running: false, duration: 0, format: '' } });
+    clockButton(el, 'Reset').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(clockPatch()).toMatchObject({ deadline: 0, value: 90 });
+  });
+
+  it('omits runningField from the patch when the manifest omits it', async () => {
+    const controls = {
+      groups: [
+        {
+          id: 'clock',
+          label: 'Clock',
+          fields: [
+            {
+              type: 'action',
+              label: 'Stop',
+              countdown: { verb: 'stop', deadlineField: 'clock.deadline', valueField: 'clock.value' },
+            },
+          ],
+        },
+      ],
+    };
+    const { el } = mount(controls, {}, { clock: { deadline: NOW + 5000, value: 9, running: true, duration: 0, format: '' } });
+    clockButton(el, 'Stop').click();
+    await vi.advanceTimersByTimeAsync(0);
+    // `running` survives untouched rather than being guessed at.
+    expect(clockPatch()).toMatchObject({ deadline: 0, value: 5, running: true });
+  });
+
+  it('refuses a countdown verb while disconnected', async () => {
+    const PConAir = loadRuntime();
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    PConAir.controlPanel(el, { packageId: 'widget', name: 'W', controls: CLOCK_CONTROLS, renders: [] });
+    pushState({ clock: { deadline: 0, value: 0, running: false, duration: 300, format: 'mm:ss' } });
+    clockButton(el, 'Start').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(patchBodies()).toHaveLength(0);
+  });
+});
