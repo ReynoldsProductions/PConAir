@@ -170,3 +170,44 @@ describe('T3 — engine: play from idle', () => {
     }
   });
 });
+
+describe('T4 — engine: advance and wrap', () => {
+  it('next from holding step 0 advances to playing-in step 1 then holding step 1', () => {
+    vi.useFakeTimers();
+    try {
+      const { engine, root } = makeEngine({ stops: 2, inMs: [500, 350] });
+      engine.dispatch('txp', 'card', 'play');
+      vi.advanceTimersByTime(500); // now holding[0]
+
+      const advancing = engine.dispatch('txp', 'card', 'next');
+      expect(advancing).toMatchObject({ phase: 'playing-in', step: 1, phaseMs: 350 });
+
+      vi.advanceTimersByTime(350);
+      const held = engine.get('txp', 'card');
+      expect(held).toMatchObject({ phase: 'holding', step: 1 });
+      fs.rmSync(root, { recursive: true, force: true });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('play from the last hold behaves as stop', () => {
+    vi.useFakeTimers();
+    try {
+      const { engine, root } = makeEngine({ stops: 2, inMs: [500, 350], outMs: 400 });
+      engine.dispatch('txp', 'card', 'play');
+      vi.advanceTimersByTime(500); // holding[0]
+      engine.dispatch('txp', 'card', 'next');
+      vi.advanceTimersByTime(350); // holding[1] — the last hold
+
+      const stopped = engine.dispatch('txp', 'card', 'play');
+      expect(stopped).toMatchObject({ phase: 'playing-out', phaseMs: 400 });
+
+      vi.advanceTimersByTime(400);
+      expect(engine.get('txp', 'card')).toMatchObject({ phase: 'finished' });
+      fs.rmSync(root, { recursive: true, force: true });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
