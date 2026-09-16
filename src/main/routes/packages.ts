@@ -2,9 +2,9 @@ import { Router, Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
+import type { AuthManager } from '../auth';
 import type { PackageHub } from '../packages/state-hub';
 import type { PresenceRegistry } from '../packages/presence';
-import type { AuthManager } from '../auth';
 import type { TransportEngine, TransportVerb } from '../packages/transport';
 import type { DataOverridesStore } from '../packages/data-overrides';
 import type { DataSourcePoller } from '../packages/data-sources';
@@ -442,6 +442,38 @@ export function createPackagesRouter(deps: PackagesRouterDeps): Router {
     const result = await dataSourcePoller.refresh(pkg.manifest.id, source.id);
     res.json({ result });
   });
+
+  // ── Diagnostics (spec 21) ────────────────────────────────────────────────
+  router.get('/api/diagnostics', opGuard, (_req: Request, res: Response) => {
+    const pkgjson = require('../../../package.json');
+    const mem = process.memoryUsage();
+    const packages = hub.list().map((pkg) => ({
+      id: pkg.manifest.id,
+      version: pkg.manifest.version,
+      renders: pkg.manifest.renders.map((r) => r.id),
+      hasControl: pkg.controlFile !== null,
+    }));
+    // Spec 16's presence registry is guaranteed present now that both specs
+    // are merged (this file's constructor no longer takes an optional auth,
+    // so `presence` is always in scope) -- shares the exact shape GET
+    // /api/presence returns, per specs/21-debug-diagnostics.md s3.6.
+    const presenceBody = {
+      packages: Object.fromEntries(hub.list().map((pkg) => [pkg.manifest.id, presence.forPackage(pkg.manifest.id)])),
+      clients: presence.all(),
+    };
+    res.json({
+      version: pkgjson.version,
+      uptimeSeconds: Math.floor(process.uptime()),
+      platform: process.platform + ' ' + require('os').release(),
+      memoryMB: {
+        rss: Math.round(mem.rss / 1024 / 1024),
+        heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+      },
+      packages,
+      presence: presenceBody,
+    });
+  });
+
 
   return router;
 }
