@@ -12,12 +12,30 @@ export interface PackageRenderPreset {
   description?: string;
 }
 
+/**
+ * Declares a render as transport-managed: it has a playback state machine
+ * (idle -> playing-in -> holding[n] -> playing-out -> finished) driven by the
+ * server, rather than a single `visible` boolean. See
+ * specs/15-graphics-transport.md.
+ */
+export interface PackageRenderTransport {
+  /** Number of hold points. 1 = classic in/hold/out. Max 16. */
+  stops: number;
+  /** Milliseconds of intro per segment. Segment i is durations[i], last repeats. */
+  inMs?: number[];
+  /** Milliseconds of outro. Default 400. */
+  outMs?: number;
+  /** Auto-advance a hold after N ms. 0 or absent = hold until told. */
+  autoAdvanceMs?: number[];
+}
+
 /** One render page declared by a package. */
 export interface PackageRenderDecl {
   id: string;
   label: string;
   file: string;
   preset?: PackageRenderPreset;
+  transport?: PackageRenderTransport;
 }
 
 /** Leaf types allowed in a package stateSchema. */
@@ -161,6 +179,39 @@ export function validateManifest(raw: unknown): { ok: true; manifest: PackageMan
       for (const key of ['name', 'description'] as const) {
         if (preset[key] !== undefined && typeof preset[key] !== 'string') {
           return { ok: false, error: `render '${rr.id}' preset ${key} must be a string` };
+        }
+      }
+    }
+    if (rr.transport !== undefined) {
+      const t = rr.transport as Record<string, unknown>;
+      if (typeof t !== 'object' || t === null || Array.isArray(t)) {
+        return { ok: false, error: `render '${rr.id}' transport must be an object` };
+      }
+      if (typeof t.stops !== 'number' || !Number.isInteger(t.stops) || t.stops < 1 || t.stops > 16) {
+        return { ok: false, error: `render '${rr.id}' transport.stops must be an integer between 1 and 16` };
+      }
+      const stops = t.stops;
+      const isNonNegIntArray = (v: unknown): v is number[] =>
+        Array.isArray(v) && v.every((n) => typeof n === 'number' && Number.isInteger(n) && n >= 0);
+      if (t.inMs !== undefined) {
+        if (!isNonNegIntArray(t.inMs) || t.inMs.length > stops) {
+          return {
+            ok: false,
+            error: `render '${rr.id}' transport.inMs must be an array of up to ${stops} non-negative integers`,
+          };
+        }
+      }
+      if (t.outMs !== undefined) {
+        if (typeof t.outMs !== 'number' || !Number.isInteger(t.outMs) || t.outMs < 0) {
+          return { ok: false, error: `render '${rr.id}' transport.outMs must be a non-negative integer` };
+        }
+      }
+      if (t.autoAdvanceMs !== undefined) {
+        if (!isNonNegIntArray(t.autoAdvanceMs) || t.autoAdvanceMs.length > stops) {
+          return {
+            ok: false,
+            error: `render '${rr.id}' transport.autoAdvanceMs must be an array of up to ${stops} non-negative integers`,
+          };
         }
       }
     }
