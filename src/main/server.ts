@@ -328,8 +328,8 @@ export function createServer(deps: ServerDeps) {
     server: httpServer,
     path: '/ws',
     verifyClient: (info, cb) => {
-      // Render pages (OBS browser sources, ?render=1) and Companion (?companion=1)
-      // connect cookie-less — LAN-only via the IP allowlist, same model as the
+      // Render pages (OBS browser sources, ?render=1), package control pages
+      // (?control=1) and Companion (?companion=1) connect cookie-less — LAN-only via the IP allowlist, same model as the
       // GSC-compat and packages HTTP surfaces. Connections arriving through the
       // Cloudflare tunnel (cf-* headers) never get the cookie-less path: the
       // tunnel PIN gate is HTTP middleware and can't protect WS upgrades.
@@ -339,7 +339,10 @@ export function createServer(deps: ServerDeps) {
           cb(true); // read-only viewer — no auth required
           return;
         }
-        const cookieLess = u.searchParams.get('render') === '1' || u.searchParams.get('companion') === '1';
+        const cookieLess =
+          u.searchParams.get('render') === '1' ||
+          u.searchParams.get('control') === '1' ||
+          u.searchParams.get('companion') === '1';
         const viaTunnel = Boolean(
           info.req.headers['cf-connecting-ip'] ?? info.req.headers['cf-ray'] ?? info.req.headers['cf-visitor']
         );
