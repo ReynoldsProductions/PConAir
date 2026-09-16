@@ -322,3 +322,50 @@ describe('admin allowlist persistence round-trip (T12)', () => {
     expect(reloaded.appPreferences.dataSourceAllowedHosts).toEqual(['10.0.0.5']);
   });
 });
+
+describe('acceptance: an operator points the bundled news RSS source at a URL and headlines appear', () => {
+  it('PUT url -> refresh -> package state carries the parsed rows', async () => {
+    const bundledRoot = path.join(__dirname, '..', 'bundled-packages');
+    const rssXml =
+      '<rss><channel><item>' +
+      '<title>Breaking News</title>' +
+      '<link>https://example.test/a</link>' +
+      '<pubDate>Mon, 01 Jan 2024 00:00:00 GMT</pubDate>' +
+      '</item></channel></rss>';
+    const store = createStateStore();
+    const server = createFullServer({
+      store,
+      operatorPin: '12341234',
+      adminPin: 'adminpass9',
+      port: 0,
+      packagesRoot: bundledRoot,
+      dataSourceFetchImpl: (async () => fakeResponse({ text: rssXml })) as unknown as typeof fetch,
+    });
+    await server.listen();
+    try {
+      const adm = await request(server.app).post('/auth/admin').send({ pin: 'adminpass9' });
+      const adminCookie = (adm.headers['set-cookie'] as unknown as string[])[0];
+
+      // Operator sets the URL in the UI (spec 18 renders this as a form field; the
+      // route underneath is what this test exercises directly).
+      const put = await request(server.app)
+        .put('/api/packages/news/data/headlines')
+        .set('Cookie', adminCookie)
+        .send({ url: SAFE_URL });
+      expect(put.status).toBe(200);
+
+      const refresh = await request(server.app).post('/api/packages/news/data/headlines/refresh').set('Cookie', adminCookie);
+      expect(refresh.status).toBe(200);
+      expect(refresh.body.result.error).toBeNull();
+      expect(refresh.body.result.rows[0].title).toBe('Breaking News');
+
+      // …and it landed in package state under `_data`, the same place a render
+      // page's onState callback reads it from — no file, no `?ticker=` param.
+      const state = await request(server.app).get('/api/packages/news/state');
+      const data = state.body.state._data as Record<string, { rows: Array<{ title: string }> }>;
+      expect(data.headlines.rows[0].title).toBe('Breaking News');
+    } finally {
+      await server.close();
+    }
+  });
+});

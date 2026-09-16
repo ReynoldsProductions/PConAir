@@ -1,6 +1,6 @@
 # Spec 20 — Normalized Data Sources
 
-**Status:** Planned · **Date:** 2026-09-09 · **Wave:** 1 (concurrent with 15, 16, 21)
+**Status:** Done · **Date:** 2026-09-09 · **Wave:** 1 (concurrent with 15, 16, 21)
 **Model:** `claude-sonnet-5` · **Depends on:** spec 14 · **Branch:** `feat/graphics-20-data-sources`
 **Umbrella:** [`../plan_approved.md`](../plan_approved.md)
 
@@ -177,31 +177,47 @@ New items must join the crawl **at the loop seam**, never by mutating text mid-s
 
 ## 4. Tasks
 
-- [ ] **T1 — Manifest schema.** Test: a valid `dataSources` array passes; duplicate ids, an unknown `kind`, `path` on `http-csv`, `pollSeconds: 0`, and an unknown transform `op` each fail with a message naming the source id. Commit.
-- [ ] **T2 — CSV parser.** Test in `tests/data-sources-parse.test.ts`: plain rows; quoted field containing a comma; quoted field containing a newline; doubled quote as a literal quote; CRLF line endings; a ragged row shorter than the header (missing columns become `''`). Commit.
-- [ ] **T3 — JSON parser.** Test: top-level array; dotted path `data.items`; a path that misses returns an error result, not a throw; non-string leaves are stringified; `columns` is the union across rows in first-seen order. Commit.
-- [ ] **T4 — RSS/Atom parser.** Test: an RSS 2.0 fixture and an Atom fixture both yield `title`/`link`/`date`; `&amp;` and `&#39;` are decoded; CDATA is unwrapped. Commit.
-- [ ] **T5 — Transforms.** Test each op alone and the composed pipeline `sort desc → rank → limit 5`, asserting ranks are 1–5 and reflect post-sort order. Test `numeric: true` sorts 2 before 10 and the default lexical sort does not. Commit.
-- [ ] **T6 — Poll floor and clamping.** Test: `pollSeconds: 5` polls at 60s; the result reports the effective value. Fake timers. Commit.
-- [ ] **T7 — SSRF guard.** Test with an injected `fetchImpl` that must never be called: `file:///etc/passwd`, `http://127.0.0.1:8080/`, `http://169.254.169.254/`, and `http://10.0.0.5/` are all refused with an error result. Then add `10.0.0.5` to the allowlist and assert the fetch proceeds. Commit.
-- [ ] **T8 — Response cap and timeout.** Test: a stub returning 3 MB records an error and does not store rows; a stub that never resolves records a timeout error after the fake clock advances 10s. Commit.
-- [ ] **T9 — Failure keeps last good rows.** Test: succeed with 3 rows, then fail; assert `rows.length === 3` and `error` is set. Commit.
-- [ ] **T10 — Not persisted.** Test: populate `_data`, rebuild the hub from disk, assert `_data` is empty. Commit.
-- [ ] **T11 — Routes.** supertest: `GET …/data` shape; `PUT …/data/:sourceId` requires **admin** and rejects operator with 403; `POST …/refresh` returns the new result. Commit.
-- [ ] **T12 — Admin allowlist UI.** Test the persistence round-trip through the admin route. Commit.
-- [ ] **T13 — Migrate `news`.** Declare the source, wire the ticker with its fallback, implement loop-seam swapping. Test: with no source configured the ticker still renders its manual items. Commit.
-- [ ] **T14 — Docs.** Document declaration, transforms, the safety rules and the fallback requirement in `docs/designing-packages.md`. Commit.
+- [x] **T1 — Manifest schema.** Test: a valid `dataSources` array passes; duplicate ids, an unknown `kind`, `path` on `http-csv`, `pollSeconds: 0`, and an unknown transform `op` each fail with a message naming the source id. Commit.
+- [x] **T2 — CSV parser.** Test in `tests/data-sources-parse.test.ts`: plain rows; quoted field containing a comma; quoted field containing a newline; doubled quote as a literal quote; CRLF line endings; a ragged row shorter than the header (missing columns become `''`). Commit.
+- [x] **T3 — JSON parser.** Test: top-level array; dotted path `data.items`; a path that misses returns an error result, not a throw; non-string leaves are stringified; `columns` is the union across rows in first-seen order. Commit.
+- [x] **T4 — RSS/Atom parser.** Test: an RSS 2.0 fixture and an Atom fixture both yield `title`/`link`/`date`; `&amp;` and `&#39;` are decoded; CDATA is unwrapped. Commit.
+- [x] **T5 — Transforms.** Test each op alone and the composed pipeline `sort desc → rank → limit 5`, asserting ranks are 1–5 and reflect post-sort order. Test `numeric: true` sorts 2 before 10 and the default lexical sort does not. Commit.
+- [x] **T6 — Poll floor and clamping.** Test: `pollSeconds: 5` polls at 60s; the result reports the effective value. Fake timers. Commit.
+- [x] **T7 — SSRF guard.** Test with an injected `fetchImpl` that must never be called: `file:///etc/passwd`, `http://127.0.0.1:8080/`, `http://169.254.169.254/`, and `http://10.0.0.5/` are all refused with an error result. Then add `10.0.0.5` to the allowlist and assert the fetch proceeds. Commit.
+- [x] **T8 — Response cap and timeout.** Test: a stub returning 3 MB records an error and does not store rows; a stub that never resolves records a timeout error after the fake clock advances 10s. Commit.
+- [x] **T9 — Failure keeps last good rows.** Test: succeed with 3 rows, then fail; assert `rows.length === 3` and `error` is set. Commit.
+- [x] **T10 — Not persisted.** Test: populate `_data`, rebuild the hub from disk, assert `_data` is empty. Commit.
+- [x] **T11 — Routes.** supertest: `GET …/data` shape; `PUT …/data/:sourceId` requires **admin** and rejects operator with 403; `POST …/refresh` returns the new result. Commit.
+- [x] **T12 — Admin allowlist UI.** Test the persistence round-trip through the admin route. Commit.
+- [x] **T13 — Migrate `news`.** Declare the source, wire the ticker with its fallback, implement loop-seam swapping. Test: with no source configured the ticker still renders its manual items. Commit.
+- [x] **T14 — Docs.** Document declaration, transforms, the safety rules and the fallback requirement in `docs/designing-packages.md`. Commit.
 
 ## 5. Acceptance
 
-- [ ] A package declares an RSS source; an operator points it at a URL in the UI; headlines appear in the ticker within one poll and update on later polls without touching a file or a URL param.
-- [ ] Unconfiguring or breaking the source leaves the last headlines on air and surfaces an error — it never blanks the ticker.
-- [ ] No test performs real network I/O.
-- [ ] A manifest cannot reach loopback, link-local or RFC1918 addresses unless an admin has allowlisted the host.
-- [ ] Poll intervals below 60s are clamped.
-- [ ] `hoops` and `ffg`, which declare no data sources, are unaffected.
-- [ ] `npm run typecheck && npm test` green.
+- [x] A package declares an RSS source; an operator points it at a URL in the UI; headlines appear in the ticker within one poll and update on later polls without touching a file or a URL param.
+- [x] Unconfiguring or breaking the source leaves the last headlines on air and surfaces an error — it never blanks the ticker.
+- [x] No test performs real network I/O.
+- [x] A manifest cannot reach loopback, link-local or RFC1918 addresses unless an admin has allowlisted the host.
+- [x] Poll intervals below 60s are clamped.
+- [x] `hoops` and `ffg`, which declare no data sources, are unaffected.
+- [x] `npm run typecheck && npm test` green.
 
 ## 6. Out of scope
 
 **Weather providers** — the manifest `kind` union is the extension point, and adding `'weather'` later is a contained change, but corporate work rarely calls for it and every provider carries an on-screen attribution obligation. Not built here. Also out: Google Sheets private API, XML with arbitrary repeating tags, FTP/SFTP drops, table layers with re-sort animation, and any control-panel UI for editing rows by hand (spec 18 renders the operator-facing side).
+
+## 7. Implementation notes (departures from the spec as written)
+
+Spec 15 (transport) had not merged into this branch (confirmed: no `_transport` or underscore-prefix handling existed in `loader.ts`/`state-hub.ts` at the base commit), so per §3.3's instruction this implementation added the underscore-prefix rejection itself, in `validateManifest` (`loader.ts`). It rejects any **top-level** `stateSchema` key starting with `_`, not a recursive check on nested objects — the reserved namespaces (`_data`, spec 15's `_transport`, spec 19's `_meta`) only ever live at the top level of a package's state object (`state-hub.ts`'s `patchState`/`setState` only ever shallow-merge at that level), so a nested field named `_foo` inside a schema sub-object can't collide with them. When spec 15 merges, its identical top-level check should be a no-op merge conflict as the spec predicted.
+
+**`_data`'s exact persistence mechanism.** §3.3 says `_data` must not be persisted. Given `validateManifest` now rejects a `_`-prefixed `stateSchema` key, `_data` was never going to appear in the manifest-derived `base` state that `mergeSaved` restores against — so in principle it could never survive a restart even without further changes. This implementation also strips every top-level `_`-prefixed key from the *serialized* save file itself (`state-hub.ts`'s `writeNow`/`stripReservedNamespaces`), for two reasons beyond the letter of the spec: (1) defense in depth, in case a future change to `mergeSaved` ever widens what it restores, and (2) practically, `_data` can hold up to the full 2MB response cap per source — leaving it in the debounced-flush save file would balloon `package-state.json` on every poll for no benefit, since it's discarded on load anyway.
+
+**`StoredDataSourceResult` adds `enabled` on top of the spec's `DataSourceResult`.** §3.7 requires the render page to fall back to manually-typed items when the source is "absent, disabled, or has never fetched" — but §3.1's `DataSourceResult` (what's specified to live under `_data`) has no `enabled` field, and §3.5's `enabled` lives only in the `PackageDataSourceView` returned by `GET /api/packages/:id/data`, which a render page (subscribed only to package state, not that route) never sees. Rather than have the render page silently misinterpret "disabled but still has last-good rows" (required by §3.4/§3.5) as "configured and live," this implementation stores `DataSourceResult & { enabled: boolean }` under `_data.<sourceId>` — additive to the spec's shape, not a different one. `render-ticker.html`'s `resolveItems()` checks `enabled !== false` before trusting `rows`.
+
+**Where the allowed-hosts list and its persistence live.** §3.4 says "persist the allowlist next to the existing security preferences." The nearest existing "security preferences" in this codebase is `appPreferences.ipAllowlist`/`ipAllowlistEnabled` on the per-show `ShowProfile` (`profiles/types.ts`), read/written today via the generic `PATCH /api/profiles/:id` route and rendered in Admin → System next to the IP Allowlist card. This implementation added `appPreferences.dataSourceAllowedHosts: string[]` there (default `[]`) rather than introducing a dedicated route or a new file store — it reuses the exact persistence/validation/API surface the IP allowlist already has, needs no new route, and is exactly "next to" that preference in both the data model and the Admin UI. Unlike the IP allowlist (which needs an app restart), a change here takes effect on the poller's next tick, since `getAllowedHosts()` reads the active profile live at fetch time.
+
+**Fetch injection for tests.** The spec's `createDataSourcePoller({ fetchImpl? })` is exactly as specified, but wiring it through `createServer`/`createFullServer` needed a new `dataSourceFetchImpl` field on `ServerDeps` and `FullServerTestOpts` — not called out explicitly in §3.8's file list, but necessary for any supertest-based route test (T11, T12, and the acceptance-flow test) to avoid the poller's default of Node's real global `fetch`. `tests/_test-server.ts` defaults this to a stub that throws if actually invoked, so a test that forgets to stub it fails loudly instead of silently making a real network call.
+
+**Extra test file.** Tests landed in `tests/data-sources.test.ts` and `tests/data-sources-parse.test.ts` as specified. T13's ticker-specific behavior (data-source fallback precedence, loop-seam swap) needed a `// @vitest-environment jsdom` file to load and execute `render-ticker.html`'s inline script directly (the same technique `tests/package-runtime-client.test.ts` uses for the shared runtime) — that lives in the new `tests/news-ticker-datasource.test.ts` rather than being force-fit into the two node-environment files vitest would otherwise run `data-sources.test.ts` under.
+
+**T8 in a single file vs. the spec's split description.** The spec's task list writes the cap and the timeout as one task (T8) with two behaviors; the test file mirrors that as two `it()` blocks rather than combining them into one, since combining them would obscure which assertion failed.
