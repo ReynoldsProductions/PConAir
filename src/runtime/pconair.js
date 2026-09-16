@@ -98,6 +98,12 @@ window.PConAir = (function () {
          make `delivered` report an output that does not exist. */
       var qs = role === 'control' ? '?control=1' : '?render=1';
       if (renderId) qs += '&renderId=' + encodeURIComponent(renderId);
+      /* Spec 17 §3.3: a control page's live preview iframe loads this same
+         render page with ?preview=1 in its own URL. Forwarding that onto the
+         WS URL lets the server exclude this one socket from presence/
+         `delivered` while it still subscribes and renders normally — a
+         preview must be genuinely live, just never counted as an output. */
+      if (param('preview') === '1') qs += '&preview=1';
       return proto + window.location.host + '/ws' + qs;
     }
 
