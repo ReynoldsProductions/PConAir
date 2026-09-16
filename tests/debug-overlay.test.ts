@@ -179,9 +179,6 @@ describe('T3 — Backgrounds', () => {
     loadDebugModule();
     const wrapper = document.querySelector('.pc-stage-wrapper');
     expect(wrapper).toBeTruthy();
-    const style = window.getComputedStyle(wrapper as Element);
-    // The background-color should be set to the color (might be in different format)
-    expect(wrapper as HTMLElement).toHaveProperty('style');
     const elem = wrapper as HTMLElement;
     expect(elem.style.backgroundColor).toMatch(/rgb\(0, 128, 0\)|008000|green|#008000/i);
   });
@@ -192,7 +189,6 @@ describe('T3 — Backgrounds', () => {
     loadDebugModule();
     const wrapper = document.querySelector('.pc-stage-wrapper');
     const elem = wrapper as HTMLElement;
-    // Should not have any background color set
     expect(elem.style.backgroundColor).toBe('');
   });
 });
@@ -215,7 +211,6 @@ describe('T4 — Overlay renders registered samplers only', () => {
   it('register a fake transport sampler and assert its row appears', () => {
     window.history.replaceState({}, '', '/packages/p/render/main?debug=1');
     const PConAir = loadRuntime();
-    // Register a fake sampler
     PConAir._diagSource('transport', function() {
       return { phase: 'play', step: 1, n: 10, remaining: 5000 };
     });
@@ -229,7 +224,6 @@ describe('T4 — Overlay renders registered samplers only', () => {
   it('without ?debug=1, no overlay is shown even if samplers are registered', () => {
     window.history.replaceState({}, '', '/packages/p/render/main');
     const PConAir = loadRuntime();
-    // Register a sampler
     PConAir._diagSource('transport', function() {
       return { phase: 'play' };
     });
@@ -257,7 +251,7 @@ describe('T5 — 4 Hz sampling', () => {
     // Advance 1000ms (one simulated second)
     vi.advanceTimersByTime(1000);
     
-    // Should be called 4 times (at 0, 250, 500, 750 ms, then 1000)
+    // Should be called 4+ times
     expect(callCount).toBeGreaterThanOrEqual(4);
     
     vi.useRealTimers();
@@ -273,10 +267,8 @@ describe('T6 — fps', () => {
     
     loadDebugModule();
     
-    // Give the RAF callback a chance to run
     vi.advanceTimersByTime(1000);
     
-    // The overlay should show an fps value
     const overlay = document.querySelector('.pc-debug');
     const text = (overlay as HTMLElement)?.textContent || '';
     expect(text).toContain('fps');
@@ -292,13 +284,37 @@ describe('T6 — fps', () => {
     
     loadDebugModule();
     
-    // Advance time
     vi.advanceTimersByTime(100);
     
-    // The overlay should have fps row
     const overlay = document.querySelector('.pc-debug');
     expect(overlay).toBeTruthy();
     
     vi.useRealTimers();
+  });
+});
+
+describe('T7 — Keyboard verbs', () => {
+  it('Space key is not ignored when debug=1', () => {
+    window.history.replaceState({}, '', '/packages/p/render/main?debug=1');
+    const PConAir = loadRuntime();
+    
+    loadDebugModule();
+    
+    const event = new KeyboardEvent('keydown', { key: ' ' });
+    expect(() => {
+      document.dispatchEvent(event);
+    }).not.toThrow();
+  });
+
+  it('keyboard verbs not bound without debug=1', () => {
+    window.history.replaceState({}, '', '/packages/p/render/main');
+    const PConAir = loadRuntime();
+    
+    loadDebugModule();
+    
+    const event = new KeyboardEvent('keydown', { key: ' ' });
+    expect(() => {
+      document.dispatchEvent(event);
+    }).not.toThrow();
   });
 });

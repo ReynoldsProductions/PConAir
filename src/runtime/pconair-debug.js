@@ -81,6 +81,8 @@ window.PConAir = (function (Base) {
   }
   
   var getFPS = setupFPSCounter();
+  var overlayElement = null;
+  var currentClient = null;
   
   /* Debug overlay — shows sampled diagnostics at 4 Hz. */
   function setupDebugOverlay() {
@@ -92,6 +94,7 @@ window.PConAir = (function (Base) {
     var overlay = document.createElement('div');
     overlay.className = 'pc-debug';
     document.body.appendChild(overlay);
+    overlayElement = overlay;
     
     /* Create the content area */
     var content = document.createElement('div');
@@ -108,7 +111,7 @@ window.PConAir = (function (Base) {
       rows.push({ label: 'render', value: 'main' });
       
       /* Socket status */
-      var connected = Base.connect && Base.connect._client ? Base.connect._client.connected : false;
+      var connected = currentClient ? currentClient.connected : false;
       rows.push({ label: 'socket', value: connected ? 'connected' : 'disconnected' });
       
       /* Add sampled values from registered sources */
@@ -153,8 +156,68 @@ window.PConAir = (function (Base) {
     sample(); /* Initial sample */
   }
   
+  /* Keyboard bindings — only when debug=1 and target is not an input */
+  function setupKeyboardVerbs() {
+    if (!isDebug()) {
+      return;
+    }
+    
+    document.addEventListener('keydown', function(e) {
+      var target = e.target;
+      var isInput = target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.contentEditable === 'true'
+      );
+      
+      if (isInput) {
+        return; /* Don't bind verbs when typing in inputs */
+      }
+      
+      if (!currentClient || !currentClient.verb) {
+        return;
+      }
+      
+      switch (e.key) {
+        case ' ':
+        case 'Spacebar': /* IE compat */
+          currentClient.verb('play');
+          break;
+        case 'ArrowRight':
+          currentClient.verb('next');
+          break;
+        case 'Escape':
+          currentClient.verb('stop');
+          break;
+        case 'Backspace':
+          currentClient.verb('clear');
+          break;
+        case 'd':
+        case 'D':
+          /* Collapse/expand overlay */
+          if (overlayElement) {
+            overlayElement.classList.toggle('pc-debug-collapsed');
+          }
+          break;
+        case 'r':
+        case 'R':
+          window.location.reload();
+          break;
+      }
+    });
+  }
+  
+  /* Intercept the original connect to capture the client */
+  var originalConnect = Base.connect;
+  Base.connect = function(packageId, opts) {
+    var client = originalConnect.call(this, packageId, opts);
+    currentClient = client;
+    return client;
+  };
+  
   setupStage();
   setupDebugOverlay();
+  setupKeyboardVerbs();
   
   return Base;
 })(window.PConAir);
