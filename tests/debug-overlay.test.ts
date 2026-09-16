@@ -49,6 +49,10 @@ function loadRuntime() {
   return (window as unknown as { PConAir: any }).PConAir;
 }
 
+function loadDebugModule() {
+  new Function(DEBUG_CODE)();
+}
+
 function last(): StubSocket { return sockets[sockets.length - 1]; }
 
 beforeEach(() => {
@@ -100,5 +104,62 @@ describe('T1 — Conditional load', () => {
     PConAir.connect('hoops', { role: 'render', renderId: 'main' });
     const scripts = Array.from(document.querySelectorAll('script[src*="pconair-debug"]'));
     expect(scripts).toHaveLength(1);
+  });
+});
+
+describe('T2 — Scaling', () => {
+  it('at 960×540 viewport with ?scale=contain, the wrapper has scale(0.5)', () => {
+    window.history.replaceState({}, '', '/packages/p/render/main?scale=contain');
+    vi.stubGlobal('innerWidth', 960);
+    vi.stubGlobal('innerHeight', 540);
+    const PConAir = loadRuntime();
+    loadDebugModule();
+    const wrapper = document.querySelector('.pc-stage-scale');
+    expect(wrapper).toBeTruthy();
+    const style = window.getComputedStyle(wrapper as Element);
+    expect(style.transform).toContain('scale(0.5)');
+    expect(style.transformOrigin).toContain('left');
+  });
+
+  it('at 1920×600 viewport with ?scale=contain, the wrapper is height-bound with scale(0.555)', () => {
+    window.history.replaceState({}, '', '/packages/p/render/main?scale=contain');
+    vi.stubGlobal('innerWidth', 1920);
+    vi.stubGlobal('innerHeight', 600);
+    const PConAir = loadRuntime();
+    loadDebugModule();
+    const wrapper = document.querySelector('.pc-stage-scale');
+    expect(wrapper).toBeTruthy();
+    const style = window.getComputedStyle(wrapper as Element);
+    const match = style.transform.match(/scale\(([0-9.]+)\)/);
+    expect(match).toBeTruthy();
+    const scale = parseFloat(match![1]);
+    expect(scale).toBeCloseTo(0.5555, 3);
+  });
+
+  it('recomputes scale on resize', async () => {
+    window.history.replaceState({}, '', '/packages/p/render/main?scale=contain');
+    vi.stubGlobal('innerWidth', 960);
+    vi.stubGlobal('innerHeight', 540);
+    const PConAir = loadRuntime();
+    loadDebugModule();
+    let wrapper = document.querySelector('.pc-stage-scale');
+    let style = window.getComputedStyle(wrapper as Element);
+    let match = style.transform.match(/scale\(([0-9.]+)\)/);
+    let scale1 = parseFloat(match![1]);
+    
+    // Simulate resize
+    vi.stubGlobal('innerWidth', 1920);
+    vi.stubGlobal('innerHeight', 1080);
+    window.dispatchEvent(new Event('resize'));
+    
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    wrapper = document.querySelector('.pc-stage-scale');
+    style = window.getComputedStyle(wrapper as Element);
+    match = style.transform.match(/scale\(([0-9.]+)\)/);
+    let scale2 = parseFloat(match![1]);
+    
+    expect(scale2).not.toBe(scale1);
+    expect(scale2).toBeCloseTo(1, 3);
   });
 });
