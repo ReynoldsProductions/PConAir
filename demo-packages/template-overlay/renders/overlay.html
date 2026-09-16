@@ -94,6 +94,43 @@
   .ticker-item { font-size: 20px; color: var(--ink); padding: 0 36px; }
   .ticker-item b { font-weight: 700; color: var(--accent); }
   .ticker-sep { color: rgba(255,255,255,.3); }
+
+  /* ── Transport-managed stat card (bottom-right) ──
+     WORKED EXAMPLE for spec 15's transport verbs (play/next/stop/clear).
+     This card has NO animation JavaScript at all — the shared runtime
+     (/packages/_runtime/pconair.js) sets data-phase/data-step on <html> for
+     you the moment connect() sees this render's manifest declares
+     `transport`, and every rule below just styles against those attributes.
+     Drive it with client.verb('play' | 'next' | 'stop' | 'clear') from a
+     control page, or the matching POST /api/packages/.../transport/... route,
+     or the Companion actions synthesised for it — see
+     docs/designing-packages.md "Transport (play / hold / advance / stop /
+     clear)". */
+  .stat-card {
+    position: absolute; right: 80px; bottom: calc(var(--ticker-h) + 24px);
+    width: 460px;
+    background: var(--panel-bg); border-radius: 4px;
+    border: 1px solid rgba(200,190,180,.3);
+    box-shadow: 0 4px 24px rgba(0,0,0,.2);
+    padding: 24px 28px;
+    opacity: 0; transform: translateY(30px);
+    /* --pc-phase-ms is set by the runtime to the manifest's current inMs/outMs
+       for this phase, so the transition duration always matches the timing
+       actually declared in package.json rather than a hand-tuned guess. */
+    transition: opacity calc(var(--pc-phase-ms, 400) * 1ms) ease,
+                transform calc(var(--pc-phase-ms, 400) * 1ms) cubic-bezier(.2,.7,.2,1);
+  }
+  html[data-phase="playing-in"] .stat-card,
+  html[data-phase="holding"] .stat-card {
+    opacity: 1; transform: none;
+  }
+  .stat-card .stat-headline { font-size: 30px; font-weight: 700; color: #333; line-height: 1.15; }
+  .stat-card .stat-detail {
+    margin-top: 12px; font-size: 19px; color: #757575; line-height: 1.4;
+    opacity: 0; transition: opacity calc(var(--pc-phase-ms, 350) * 1ms) ease;
+  }
+  /* Second stage (data-step="1") reveals the detail line — no JS involved. */
+  html[data-step="1"] .stat-card .stat-detail { opacity: 1; }
 </style>
 </head>
 <body>
@@ -122,6 +159,17 @@
   <div class="ticker" id="ticker">
     <div class="ticker-tag" id="ticker-label">ON AIR</div>
     <div class="ticker-mask"><div class="track" id="track"></div></div>
+  </div>
+
+  <!-- Transport worked example — see the CSS block above. Play/hold/advance/
+       stop/clear this from a control page with client.verb(...), or:
+         POST /api/packages/template-overlay/transport/overlay/play
+         POST /api/packages/template-overlay/transport/overlay/next
+         POST /api/packages/template-overlay/transport/overlay/stop
+         POST /api/packages/template-overlay/transport/overlay/clear -->
+  <div class="stat-card" id="stat-card">
+    <div class="stat-headline">Second-stage reveal</div>
+    <div class="stat-detail">This line appears at step 2 (data-step="1") — advance with "next".</div>
   </div>
 </div>
 

@@ -513,3 +513,44 @@ describe('T8b — operator_pin query fallback (Companion is cookie-less)', () =>
     }
   });
 });
+
+describe('T13 — worked example: demo-packages/template-overlay', () => {
+  const demoRoot = path.join(__dirname, '..', 'demo-packages');
+
+  it('declares a two-stop transport on its overlay render and validates', () => {
+    const manifestRaw = JSON.parse(
+      fs.readFileSync(path.join(demoRoot, 'template-overlay', 'package.json'), 'utf-8')
+    );
+    const res = validateManifest(manifestRaw);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      const render = res.manifest.renders.find((r) => r.id === 'overlay')!;
+      expect(render.transport).toMatchObject({ stops: 2, inMs: [500, 350], outMs: 400 });
+    }
+  });
+
+  it('loads through scanPackagesDir and createPackageHub without errors', () => {
+    const hub = createPackageHub(demoRoot);
+    expect(hub.errors().filter((e) => e.dir === 'template-overlay')).toEqual([]);
+    expect(hub.find('template-overlay')).not.toBeNull();
+  });
+
+  it('the render page styles the transport reveal purely from data-phase/data-step — no animation JS', () => {
+    const html = fs.readFileSync(
+      path.join(demoRoot, 'template-overlay', 'renders', 'overlay.html'),
+      'utf-8'
+    );
+    // CSS keyed on the runtime-driven attributes is present...
+    expect(html).toContain('[data-phase="holding"]');
+    expect(html).toContain('[data-step="1"]');
+    expect(html).toContain('--pc-phase-ms');
+    // ...and the inline <script> block never sets those attributes itself —
+    // the shared runtime is the only thing that touches them.
+    const scriptMatch = html.match(/<script>([\s\S]*?)<\/script>/);
+    expect(scriptMatch).not.toBeNull();
+    const inlineScript = scriptMatch![1];
+    expect(inlineScript).not.toContain('data-phase');
+    expect(inlineScript).not.toContain('data-step');
+    expect(inlineScript).not.toContain('.verb(');
+  });
+});
