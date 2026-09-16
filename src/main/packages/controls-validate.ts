@@ -133,6 +133,13 @@ function validateField(raw: unknown, index: number, groupId: string, ctx: Contro
   const perType = validateFieldShape(raw, at, ctx);
   if (perType) return perType;
 
+  // A typo'd path is caught here, at load, rather than by an operator
+  // wondering why a control does nothing (spec 18 §3.7).
+  if (typeof raw.field === 'string') {
+    const resolved = resolveSchemaPath(ctx.stateSchema, raw.field);
+    if (!resolved.ok) return `${at}: path '${raw.field}' ${resolved.reason}`;
+  }
+
   return null;
 }
 

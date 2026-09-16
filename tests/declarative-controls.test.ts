@@ -6,6 +6,7 @@
 // environment; vitest picks one environment per file.
 import { describe, it, expect } from 'vitest';
 import { validateManifest } from '../src/main/packages/loader';
+import { resolveSchemaPath } from '../src/main/packages/controls-validate';
 
 const BASE_SCHEMA = {
   home: { score: 'number', name: 'string', bonus: 'boolean' },
@@ -155,13 +156,77 @@ describe('T1 — controls schema + basic validation', () => {
     );
   });
 
-  it('a manifest with no controls key still validates (additive)', () => {
+});
+
+describe('T2 — field path resolution against stateSchema', () => {
+  function oneField(field: Record<string, unknown>, schema?: unknown): string {
+    const m = manifest({ groups: [{ id: 'g', label: 'G', fields: [field] }] });
+    if (schema !== undefined) m.stateSchema = schema;
+    const res = validateManifest(m);
+    return res.ok ? '' : res.error;
+  }
+
+  it('resolves a nested path', () => {
+    expect(oneField({ type: 'number', field: 'home.score', label: 'Score' }, { home: { score: 'number' } })).toBe('');
+  });
+
+  it('fails a typo\'d path naming the group, the field and the path', () => {
+    const message = oneField({ type: 'number', field: 'home.scor', label: 'Score' }, { home: { score: 'number' } });
+    expect(message).toMatch(/group 'g'/);
+    expect(message).toMatch(/field 'Score'/);
+    expect(message).toMatch(/'home\.scor'/);
+    expect(message).toMatch(/no such path in stateSchema/);
+  });
+
+  it('resolves an index under an array leaf', () => {
+    expect(oneField({ type: 'text', field: 'scores.0', label: 'First' }, { scores: [] })).toBe('');
+    // …and an untyped array element is exempt from the leaf-type check, so a
+    // number field on the same path is fine too.
+    expect(oneField({ type: 'number', field: 'scores.0', label: 'First' }, { scores: [] })).toBe('');
+  });
+
+  it('fails a path that runs past a scalar leaf', () => {
+    const message = oneField({ type: 'text', field: 'live.deeper', label: 'Deep' }, { live: 'boolean' });
+    expect(message).toMatch(/'live\.deeper'/);
+    expect(message).toMatch(/not an object/);
+  });
+
+  it('fails a path that resolves to an object rather than a value', () => {
+    expect(oneField({ type: 'text', field: 'home', label: 'Home' }, { home: { score: 'number' } })).toMatch(
+      /resolves to an object, not a value/
+    );
+  });
+
+  it('fails when the manifest declares no stateSchema at all', () => {
     const res = validateManifest({
-      id: 'plain',
-      name: 'Plain',
+      id: 'noschema',
+      name: 'No schema',
       version: '1.0.0',
       renders: [{ id: 'main', label: 'Main', file: 'render.html' }],
+      controls: { groups: [{ id: 'g', label: 'G', fields: [{ type: 'text', field: 'a', label: 'A' }] }] },
     });
-    expect(res.ok).toBe(true);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/declares no stateSchema/);
+  });
+
+  it('rejects a malformed dotted path', () => {
+    expect(oneField({ type: 'text', field: 'home..name', label: 'N' }, { home: { name: 'string' } })).toMatch(
+      /malformed path/
+    );
   });
 });
+
+describe('T2 — resolveSchemaPath directly', () => {
+  it('reports the resolved leaf type', () => {
+    expect(resolveSchemaPath({ home: { score: 'number' } }, 'home.score')).toEqual({ ok: true, leaf: 'number' });
+    expect(resolveSchemaPath({ name: 'string' }, 'name')).toEqual({ ok: true, leaf: 'string' });
+    expect(resolveSchemaPath({ rows: [] }, 'rows.3.value')).toEqual({ ok: true, leaf: 'unknown' });
+    expect(resolveSchemaPath({ rows: [] }, 'rows')).toEqual({ ok: true, leaf: 'unknown' });
+  });
+
+  it('reports a reason on failure', () => {
+    const res = resolveSchemaPath({ home: { score: 'number' } }, 'away.score');
+    expect(res.ok).toBe(false);
+  });
+});
+
