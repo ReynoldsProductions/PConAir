@@ -216,6 +216,19 @@ export function validateManifest(raw: unknown): { ok: true; manifest: PackageMan
       }
     }
   }
+  if (m.stateSchema !== undefined) {
+    if (typeof m.stateSchema !== 'object' || m.stateSchema === null || Array.isArray(m.stateSchema)) {
+      return { ok: false, error: 'stateSchema must be an object' };
+    }
+    for (const key of Object.keys(m.stateSchema as Record<string, unknown>)) {
+      if (key.startsWith('_')) {
+        return {
+          ok: false,
+          error: `stateSchema key '${key}' is reserved — leading-underscore keys belong to the engine (_transport, _data, _meta)`,
+        };
+      }
+    }
+  }
   if (m.transientFields !== undefined) {
     if (!Array.isArray(m.transientFields) || m.transientFields.some((f) => typeof f !== 'string' || f.length === 0)) {
       return { ok: false, error: 'transientFields must be an array of non-empty dotted state paths' };

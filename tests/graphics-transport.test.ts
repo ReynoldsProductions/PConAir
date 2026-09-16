@@ -10,6 +10,41 @@ function baseManifest(overrides: Record<string, unknown> = {}) {
   };
 }
 
+describe('T2 — underscore-prefixed stateSchema keys are reserved', () => {
+  it('rejects a stateSchema with a leading-underscore top-level key', () => {
+    const res = validateManifest({
+      id: 'txp',
+      name: 'Transport Test',
+      version: '1.0.0',
+      renders: [{ id: 'r', label: 'R', file: 'r.html' }],
+      stateSchema: { _transport: 'string' },
+    });
+    expect(res.ok).toBe(false);
+  });
+
+  it('rejects a stateSchema colliding with _data too', () => {
+    const res = validateManifest({
+      id: 'txp',
+      name: 'Transport Test',
+      version: '1.0.0',
+      renders: [{ id: 'r', label: 'R', file: 'r.html' }],
+      stateSchema: { _data: {} },
+    });
+    expect(res.ok).toBe(false);
+  });
+
+  it('still passes for an ordinary top-level key', () => {
+    const res = validateManifest({
+      id: 'txp',
+      name: 'Transport Test',
+      version: '1.0.0',
+      renders: [{ id: 'r', label: 'R', file: 'r.html' }],
+      stateSchema: { scoreA: 'number' },
+    });
+    expect(res.ok).toBe(true);
+  });
+});
+
 describe('T1 — transport manifest schema', () => {
   it('validates a render declaring transport: {stops: 3}', () => {
     const res = validateManifest(baseManifest({ transport: { stops: 3 } }));
