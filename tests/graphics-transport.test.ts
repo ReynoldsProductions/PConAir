@@ -9,6 +9,7 @@ import { createPackageHub } from '../src/main/packages/state-hub';
 import { createTransportEngine } from '../src/main/packages/transport';
 import { createStateStore } from '../src/main/state';
 import { createFullServer } from './_test-server';
+import { WebSocket } from 'ws';
 
 function baseManifest(overrides: Record<string, unknown> = {}) {
   return {
@@ -552,5 +553,59 @@ describe('T13 — worked example: demo-packages/template-overlay', () => {
     expect(inlineScript).not.toContain('data-phase');
     expect(inlineScript).not.toContain('data-step');
     expect(inlineScript).not.toContain('.verb(');
+  });
+});
+
+describe('Acceptance — a late-joining WS subscriber sees the graphic held, not idle', () => {
+  const PINS_A = { operatorPin: '1234', adminPin: 'supersecret' };
+
+  it('a render socket that subscribes after play/next receives the current holding phase in its first frame', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pconair-transport-latejoin-'));
+    writeTransportFixture(root, { stops: 2, inMs: [10, 10] });
+    const store = createStateStore();
+    const server = createFullServer({ store, ...PINS_A, port: 0, packagesRoot: root });
+    await server.listen();
+    try {
+      const addr = server.httpServer.address();
+      const port = typeof addr === 'object' && addr ? addr.port : 0;
+
+      const cookieRes = await request(server.app).post('/auth/operator').send({ pin: PINS_A.operatorPin });
+      const cookie = (cookieRes.headers['set-cookie'] as unknown as string[])[0];
+
+      // Drive the render into holding[0] before anyone is watching — this is
+      // the "graphic already on air" scenario a browser source joins late into.
+      await request(server.app).post('/api/packages/txp/transport/card/play').set('Cookie', cookie);
+      await new Promise((r) => setTimeout(r, 50)); // let the playing-in -> holding timer fire for real
+
+      // Now a fresh render page (a new OBS browser source) connects and subscribes.
+      const ws = new WebSocket(`ws://localhost:${port}/ws?render=1&renderId=card`);
+      const messages: Array<{ type: string; namespace?: string; state?: Record<string, unknown> }> = [];
+      ws.on('message', (d) => messages.push(JSON.parse(d.toString())));
+      await new Promise<void>((resolve) => ws.on('open', () => resolve()));
+      ws.send(JSON.stringify({ type: 'subscribe', namespace: 'package:txp' }));
+
+      await new Promise<void>((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error('no namespace state received')), 3000);
+        const iv = setInterval(() => {
+          if (messages.some((m) => m.type === 'state' && m.namespace === 'package:txp')) {
+            clearTimeout(t);
+            clearInterval(iv);
+            resolve();
+          }
+        }, 20);
+      });
+
+      const frame = messages.find((m) => m.type === 'state' && m.namespace === 'package:txp')!;
+      const transportMap = frame.state?._transport as Record<string, { phase: string }> | undefined;
+      // The late-joining socket's very first frame already shows `holding` —
+      // never `idle` — so the runtime's late-join correction (T11) has real
+      // server-side state to snap to instead of animating in from scratch.
+      expect(transportMap?.card.phase).toBe('holding');
+
+      ws.close();
+    } finally {
+      await server.close();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });
