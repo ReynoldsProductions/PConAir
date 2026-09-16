@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import path from 'path';
+import { WebSocket } from 'ws';
 import { createStateStore } from '../src/main/state';
 import { createFullServer } from './_test-server';
+import type { WsServerMessage } from '../src/shared/types';
 
 const BUNDLED = path.join(process.cwd(), 'bundled-packages');
 
@@ -98,5 +100,143 @@ describe('GET /api/packages/:id/warnings (spec 22 T9)', () => {
     const cookie = await operatorCookie(srv.app);
     const res = await request(srv.app).get('/api/packages/nope/warnings').set('Cookie', cookie);
     expect(res.status).toBe(404);
+  });
+});
+
+describe('warnings push frame + disconnect-clearing (spec 22 T10)', () => {
+  const BUNDLED2 = path.join(process.cwd(), 'bundled-packages');
+
+  async function bundledServer() {
+    const store = createStateStore();
+    const srv = createFullServer({
+      store,
+      operatorPin: 'test1234',
+      adminPin: 'adminpass8',
+      port: 0,
+      packagesRoot: BUNDLED2,
+    });
+    await new Promise<void>((resolve) => srv.httpServer.listen(0, resolve));
+    const port = (srv.httpServer.address() as { port: number }).port;
+    return { srv, port, close: () => new Promise<void>((r) => srv.httpServer.close(() => r())) };
+  }
+
+  function connectAndSubscribe(port: number, qs: string): Promise<{ ws: WebSocket; frames: WsServerMessage[] }> {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(`ws://localhost:${port}/ws${qs}`);
+      const frames: WsServerMessage[] = [];
+      ws.on('message', (d) => frames.push(JSON.parse(d.toString())));
+      ws.on('open', () => {
+        ws.send(JSON.stringify({ type: 'subscribe', namespace: 'package:news' }));
+        // give the subscribe a beat to land before the caller starts asserting
+        setTimeout(() => resolve({ ws, frames }), 100);
+      });
+      ws.on('error', reject);
+    });
+  }
+
+  it('a subscribed control socket receives a warnings frame after a POST', async () => {
+    const { srv, port, close } = await bundledServer();
+    try {
+      const { ws, frames } = await connectAndSubscribe(port, '?control=1');
+      const before = frames.length;
+
+      const res = await request(srv.app)
+        .post('/api/packages/news/warnings')
+        .send({ renderId: 'l3', warnings: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }] });
+      expect(res.status).toBe(200);
+
+      await new Promise((r) => setTimeout(r, 150));
+      const frame = frames.slice(before).find((f) => f.type === 'warnings') as
+        | { type: 'warnings'; namespace: string; renderId: string; warnings: unknown[] }
+        | undefined;
+      expect(frame, 'no warnings frame arrived').toBeTruthy();
+      expect(frame!.namespace).toBe('package:news');
+      expect(frame!.renderId).toBe('l3');
+      expect(frame!.warnings).toEqual([{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }]);
+
+      ws.close();
+    } finally {
+      await close();
+    }
+  });
+
+  it('a render socket for a DIFFERENT renderId does not receive the frame', async () => {
+    const { srv, port, close } = await bundledServer();
+    try {
+      const { ws, frames } = await connectAndSubscribe(port, '?render=1&renderId=ticker');
+      const before = frames.length;
+
+      await request(srv.app)
+        .post('/api/packages/news/warnings')
+        .send({ renderId: 'l3', warnings: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }] });
+
+      await new Promise((r) => setTimeout(r, 150));
+      expect(frames.slice(before).some((f) => f.type === 'warnings')).toBe(false);
+
+      ws.close();
+    } finally {
+      await close();
+    }
+  });
+
+  it('clears when the reporting render disconnects (last output for that render)', async () => {
+    const { srv, port, close } = await bundledServer();
+    try {
+      // The render itself, whose disconnect should trigger the clear.
+      const { ws: renderWs } = await connectAndSubscribe(port, '?render=1&renderId=l3');
+      // A separate control observer to witness the cleared frame.
+      const { ws: controlWs, frames } = await connectAndSubscribe(port, '?control=1');
+
+      await request(srv.app)
+        .post('/api/packages/news/warnings')
+        .send({ renderId: 'l3', warnings: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }] });
+      await new Promise((r) => setTimeout(r, 150));
+
+      const before = frames.length;
+      renderWs.close();
+      await new Promise((r) => setTimeout(r, 200));
+
+      const cleared = frames.slice(before).find(
+        (f) => f.type === 'warnings' && (f as { renderId: string }).renderId === 'l3'
+      ) as { warnings: unknown[] } | undefined;
+      expect(cleared, 'no cleared frame arrived after the render disconnected').toBeTruthy();
+      expect(cleared!.warnings).toEqual([]);
+
+      const check = await request(srv.app).get('/api/packages/news/warnings').set(
+        'Cookie',
+        (await request(srv.app).post('/auth/operator').send({ pin: 'test1234' })).headers['set-cookie']![0]
+      );
+      expect(check.body.warnings).toEqual({});
+
+      controlWs.close();
+    } finally {
+      await close();
+    }
+  });
+
+  it('a second render output for the same renderId keeps the warning (not last output)', async () => {
+    const { srv, port, close } = await bundledServer();
+    try {
+      const { ws: renderA } = await connectAndSubscribe(port, '?render=1&renderId=l3');
+      const { ws: renderB, frames } = await connectAndSubscribe(port, '?render=1&renderId=l3');
+
+      await request(srv.app)
+        .post('/api/packages/news/warnings')
+        .send({ renderId: 'l3', warnings: [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }] });
+      await new Promise((r) => setTimeout(r, 150));
+
+      renderA.close();
+      await new Promise((r) => setTimeout(r, 150));
+
+      const cookie = (await request(srv.app).post('/auth/operator').send({ pin: 'test1234' })).headers[
+        'set-cookie'
+      ]![0];
+      const check = await request(srv.app).get('/api/packages/news/warnings').set('Cookie', cookie);
+      expect(check.body.warnings.l3).toEqual([{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }]);
+
+      renderB.close();
+    } finally {
+      await close();
+    }
   });
 });

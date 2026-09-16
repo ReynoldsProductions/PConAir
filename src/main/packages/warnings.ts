@@ -1,9 +1,6 @@
-export interface FitWarning {
-  field: string;
-  text: string;
-  naturalWidth: number;
-  maxWidth: number;
-}
+import type { FitWarning } from '../../shared/types';
+
+export type { FitWarning };
 
 /** Keyed by renderId. */
 export type PackageWarningsState = Record<string, FitWarning[]>;
@@ -22,10 +19,26 @@ export interface WarningsStore {
   get(packageId: string): PackageWarningsState;
   /** Removes one render's entry entirely (e.g. its last output disconnected). */
   clear(packageId: string, renderId: string): void;
+  /** Fires after set()/clear() actually changes something, with which
+      (packageId, renderId) changed -- so a subscriber can push exactly the
+      one WS frame that changed, not recompute every namespace on every
+      write. Returns an unsubscribe. */
+  onChange(fn: (packageId: string, renderId: string) => void): () => void;
 }
 
 export function createWarningsStore(): WarningsStore {
   const byPackage = new Map<string, Map<string, FitWarning[]>>();
+  const listeners = new Set<(packageId: string, renderId: string) => void>();
+
+  function notify(packageId: string, renderId: string): void {
+    for (const fn of listeners) {
+      try {
+        fn(packageId, renderId);
+      } catch {
+        /* a bad listener must not stop the rest */
+      }
+    }
+  }
 
   function set(packageId: string, renderId: string, warnings: FitWarning[]): void {
     if (warnings.length === 0) {
@@ -38,6 +51,7 @@ export function createWarningsStore(): WarningsStore {
       byPackage.set(packageId, pkg);
     }
     pkg.set(renderId, warnings);
+    notify(packageId, renderId);
   }
 
   function get(packageId: string): PackageWarningsState {
@@ -52,10 +66,18 @@ export function createWarningsStore(): WarningsStore {
 
   function clear(packageId: string, renderId: string): void {
     const pkg = byPackage.get(packageId);
-    if (!pkg) return;
+    if (!pkg || !pkg.has(renderId)) return;
     pkg.delete(renderId);
     if (pkg.size === 0) byPackage.delete(packageId);
+    notify(packageId, renderId);
   }
 
-  return { set, get, clear };
+  function onChange(fn: (packageId: string, renderId: string) => void): () => void {
+    listeners.add(fn);
+    return () => {
+      listeners.delete(fn);
+    };
+  }
+
+  return { set, get, clear, onChange };
 }

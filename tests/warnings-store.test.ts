@@ -53,3 +53,41 @@ describe('WarningsStore (spec 22 T8)', () => {
     expect(store.get('hoops')).toEqual({ scorebug: [{ field: 'clock', text: '99:99', naturalWidth: 500, maxWidth: 300 }] });
   });
 });
+
+describe('WarningsStore.onChange', () => {
+  it('fires with (packageId, renderId) on set', () => {
+    const store = createWarningsStore();
+    const seen: Array<[string, string]> = [];
+    store.onChange((p, r) => seen.push([p, r]));
+    store.set('news', 'l3', [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }]);
+    expect(seen).toEqual([['news', 'l3']]);
+  });
+
+  it('fires on clear(), and on set([]) which clears internally', () => {
+    const store = createWarningsStore();
+    store.set('news', 'l3', [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }]);
+    const seen: Array<[string, string]> = [];
+    store.onChange((p, r) => seen.push([p, r]));
+    store.clear('news', 'l3');
+    store.set('news', 'ticker', [{ field: 'headline', text: 'Y', naturalWidth: 500, maxWidth: 400 }]);
+    store.set('news', 'ticker', []);
+    expect(seen).toEqual([['news', 'l3'], ['news', 'ticker'], ['news', 'ticker']]);
+  });
+
+  it('does not fire for a clear() that changes nothing', () => {
+    const store = createWarningsStore();
+    const seen: Array<[string, string]> = [];
+    store.onChange((p, r) => seen.push([p, r]));
+    store.clear('news', 'l3'); // never existed
+    expect(seen).toEqual([]);
+  });
+
+  it('unsubscribe stops delivery', () => {
+    const store = createWarningsStore();
+    const seen: Array<[string, string]> = [];
+    const off = store.onChange((p, r) => seen.push([p, r]));
+    off();
+    store.set('news', 'l3', [{ field: 'name', text: 'X', naturalWidth: 900, maxWidth: 620 }]);
+    expect(seen).toEqual([]);
+  });
+});
