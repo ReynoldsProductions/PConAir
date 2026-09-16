@@ -83,6 +83,7 @@ window.PConAir = (function (Base) {
   var getFPS = setupFPSCounter();
   var overlayElement = null;
   var currentClient = null;
+  var warnings = [];
   
   /* Debug overlay — shows sampled diagnostics at 4 Hz. */
   function setupDebugOverlay() {
@@ -100,6 +101,15 @@ window.PConAir = (function (Base) {
     var content = document.createElement('div');
     content.className = 'pc-debug-content';
     overlay.appendChild(content);
+    
+    /* Expose warn function for other parts of the system to use */
+    window._pconairWarn = function(message) {
+      warnings.push(message);
+      /* Keep only the last 5 */
+      if (warnings.length > 5) {
+        warnings.shift();
+      }
+    };
     
     /* Sample at 4 Hz */
     var lastSample = {};
@@ -139,6 +149,11 @@ window.PConAir = (function (Base) {
       
       /* Viewport */
       rows.push({ label: 'viewport', value: window.innerWidth + '×' + window.innerHeight });
+      
+      /* Warnings */
+      if (warnings.length > 0) {
+        rows.push({ label: 'warnings', value: warnings[warnings.length - 1] });
+      }
       
       /* Render the rows */
       content.innerHTML = '';

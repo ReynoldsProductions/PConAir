@@ -30,6 +30,15 @@ window.PConAir = (function () {
     return param('debug') === '1';
   }
 
+  function warn(message) {
+    /* Spec 21: push a message into the debug overlay's warnings row.
+       No-op when overlay is not active. */
+    if (typeof window !== 'undefined' && window._pconairWarn) {
+      window._pconairWarn(message);
+    }
+  }
+
+
   /* Registered by other specs, sampled by spec 21's debug overlay. Underscore-
      prefixed: not part of the page-author API. */
   function _diagSource(name, fn) {
@@ -196,6 +205,7 @@ window.PConAir = (function () {
     isDebug: isDebug,
     _diagSource: _diagSource,
     _diagSources: diagSources,
+    warn: warn,
   };
 })();
 

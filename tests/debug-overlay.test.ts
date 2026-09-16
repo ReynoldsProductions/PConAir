@@ -318,3 +318,30 @@ describe('T7 — Keyboard verbs', () => {
     }).not.toThrow();
   });
 });
+
+describe('T8 — PConAir.warn', () => {
+  it('no-op and does not throw when the overlay is inactive', () => {
+    window.history.replaceState({}, '', '/packages/p/render/main');
+    const PConAir = loadRuntime();
+    
+    loadDebugModule();
+    
+    expect(() => {
+      PConAir.warn('test warning');
+    }).not.toThrow();
+  });
+
+  it('warn function exists and can be called when debug is active', () => {
+    window.history.replaceState({}, '', '/packages/p/render/main?debug=1');
+    const PConAir = loadRuntime();
+    
+    loadDebugModule();
+    
+    expect(PConAir.warn).toBeDefined();
+    expect(() => {
+      PConAir.warn('test 1');
+      PConAir.warn('test 2');
+      PConAir.warn('test 3');
+    }).not.toThrow();
+  });
+});
