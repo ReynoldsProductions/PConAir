@@ -116,6 +116,8 @@ export interface RouteServices {
   dataOverrides: import('../packages/data-overrides').DataOverridesStore | null;
   /** Data source poller (spec 20); null when packages are disabled. */
   dataSourcePoller: import('../packages/data-sources').DataSourcePoller | null;
+  /** Live text-fit overflow warnings (spec 22). */
+  warningsStore: import('../packages/warnings').WarningsStore;
   /** Google Slides auth hooks (Electron main only). */
   openGoogleAuthWindow?: SlidesRouterDeps['openGoogleAuthWindow'];
   getGoogleAuthState?: SlidesRouterDeps['getGoogleAuthState'];
@@ -249,6 +251,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
         presence: s.presence,
         dataOverrides: s.dataOverrides,
         dataSourcePoller: s.dataSourcePoller,
+        warningsStore: s.warningsStore,
       })
     );
   }

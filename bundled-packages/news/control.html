@@ -67,6 +67,7 @@
     <div class="pill offline" id="pill">CONNECTING…</div>
   </div>
 </div>
+<div id="fit-warnings"></div>
 
 <div class="l3grid">
   <div class="section">
@@ -257,6 +258,7 @@
 
   const client = window.PConAir.connect('news', { role: 'control' });
   window.PConAir.presenceIndicator(g('presence'), client);
+  window.PConAir.warningsPanel(g('fit-warnings'), client);
   client.on((s) => {
     state = s;
     g('pill').className = 'pill live';

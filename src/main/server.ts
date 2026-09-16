@@ -22,6 +22,8 @@ import { isClientIpAllowlisted } from './security/ip-allowlist';
 import { createTunnelPinGate } from './security/tunnel-pin';
 import { createPackageHub, type PackageHub } from './packages/state-hub';
 import { createPresenceRegistry } from './packages/presence';
+import { createWarningsStore } from './packages/warnings';
+import type { FitWarning } from '../shared/types';
 import type { PackagePresence } from '../shared/types';
 import { createTransportEngine, type TransportEngine } from './packages/transport';
 import { ensurePackageRenderPresets } from './packages/render-presets';
@@ -253,6 +255,9 @@ export function createServer(deps: ServerDeps) {
   // sockets and never persisted.
   const presence = createPresenceRegistry();
   const presenceSubs = new Map<string, Set<(p: PackagePresence) => void>>();
+  // Spec 22 -- live text-fit overflow warnings. In-memory only, same lifetime
+  // rule as presence: nothing here survives a restart.
+  const warningsStore = createWarningsStore();
   presence.onChange(() => {
     for (const [namespace, fns] of presenceSubs) {
       if (fns.size === 0) continue;
@@ -260,6 +265,20 @@ export function createServer(deps: ServerDeps) {
       const p = presence.forPackage(id);
       for (const fn of fns) fn(p);
     }
+  });
+
+  // Spec 22 -- push a `{type:'warnings'}` frame only to sockets subscribed to
+  // the ONE namespace that changed, carrying only the ONE render's current
+  // list (not the whole package's map) -- warningsStore.onChange already
+  // tells us exactly which (packageId, renderId) changed, so there is no
+  // need to recompute every namespace the way presence's broadcast does.
+  const warningsSubs = new Map<string, Set<(renderId: string, warnings: FitWarning[]) => void>>();
+  warningsStore.onChange((packageId, renderId) => {
+    const namespace = 'package:' + packageId;
+    const fns = warningsSubs.get(namespace);
+    if (!fns || fns.size === 0) return;
+    const warnings = warningsStore.get(packageId)[renderId] ?? [];
+    for (const fn of fns) fn(renderId, warnings);
   });
 
   /**
@@ -332,6 +351,7 @@ export function createServer(deps: ServerDeps) {
     transportEngine,
     dataOverrides,
     dataSourcePoller,
+    warningsStore,
     openGoogleAuthWindow: deps.openGoogleAuthWindow,
     getGoogleAuthState: deps.getGoogleAuthState,
     getCustomLogoPath: deps.getCustomLogoPath ?? (() => null),
@@ -560,6 +580,40 @@ export function createServer(deps: ServerDeps) {
         namespaceUnsubs.push(() => {
           presenceSubs.get(namespace)?.delete(presenceFn);
         });
+
+        // Warnings (spec 22): push this socket the current warnings for its
+        // OWN renderId whenever that render's set changes. A control page
+        // (isControl, renderIdParam is always null for it) subscribes with no
+        // renderId, so it gets every render's frames instead -- narrowing to
+        // one render, if it wants that, is warningsPanel's opts.renderId job
+        // on the client side, same division of labour as presenceIndicator.
+        const warningsFn = (changedRenderId: string, warnings: FitWarning[]) => {
+          if (isControl || changedRenderId === renderIdParam) {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'warnings', namespace, renderId: changedRenderId, warnings }));
+            }
+          }
+        };
+        let warningsFns = warningsSubs.get(namespace);
+        if (!warningsFns) {
+          warningsFns = new Set();
+          warningsSubs.set(namespace, warningsFns);
+        }
+        warningsFns.add(warningsFn);
+        namespaceUnsubs.push(() => {
+          warningsSubs.get(namespace)?.delete(warningsFn);
+        });
+
+        // Clear a render's warnings once its LAST output disconnects (spec 22
+        // §3.2) -- checked after presence.remove() above has already run, so
+        // forPackage() reflects the drop. Skipped for control sockets and for
+        // a render page that never sent a renderId (nothing to key on).
+        if (!isControl && renderIdParam) {
+          namespaceUnsubs.push(() => {
+            const remaining = presence.forPackage(m[1]).byRender[renderIdParam] ?? 0;
+            if (remaining === 0) warningsStore.clear(m[1], renderIdParam);
+          });
+        }
       } catch {
         /* ignore malformed frames */
       }

@@ -385,6 +385,18 @@ export interface PackagePresence {
   controls: number;
 }
 
+// Text-fit overflow warnings (spec 22) -- see src/main/packages/warnings.ts.
+export interface FitWarning {
+  field: string;
+  text: string;
+  naturalWidth: number;
+  maxWidth: number;
+  /** The floor ratio (data-fit-min) that was applied when this fired. Lets a
+      control-page warning read exactly like the render-side window.PConAir.warn()
+      message (spec 22 s3.3's example: '... (min scale 0.62)'). */
+  min: number;
+}
+
 // ---- WebSocket message types ----
 
 export type WsServerMessage =
@@ -395,7 +407,11 @@ export type WsServerMessage =
   /** Presence changed for a package namespace (spec 16). Pushed to every
       socket subscribed to that namespace, alongside the existing untyped
       `{type:'state', namespace, state}` package frame. */
-  | { type: 'presence'; namespace: string; presence: PackagePresence };
+  | { type: 'presence'; namespace: string; presence: PackagePresence }
+  /** Text-fit overflow warnings changed for one render (spec 22). `warnings`
+      is that render's full current list, not a diff -- an empty array means
+      the render is clean. */
+  | { type: 'warnings'; namespace: string; renderId: string; warnings: FitWarning[] };
 
 export type WsClientMessage =
   /** Dispatch an action. `pin` is required when the socket carries only an admin session. */

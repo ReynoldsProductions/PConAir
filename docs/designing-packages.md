@@ -477,6 +477,50 @@ It's a no-op when the overlay isn't active, so you never need to guard the call 
 
 For app-wide diagnostics rather than one render, `GET /api/diagnostics` (operator auth) returns app version, uptime, memory, and the loaded package list. It never includes PINs, hashes, tokens or other secrets — the response is checked for those substrings in `tests/diagnostics-route.test.ts`.
 
+### Text fit & overflow warnings
+
+A name typed into a control panel is not length-limited. Long names break lower thirds the same way every time: the text keeps growing past its box until something gives. The wrong fix is a silent ellipsis — a truncated name on air that nobody notices until after the show. The right fix is to condense the text as far as looks good, and if that still is not enough, leave it **visibly overflowing** so whoever is watching the control page sees the problem before they take the graphic.
+
+Mark an element and the shared runtime does the rest — no page-specific JavaScript:
+
+```html
+<div class="name" data-fit data-fit-max="620" data-fit-min="0.62">Bartholomew Featherstonehaugh</div>
+```
+
+| Attribute | Default | Meaning |
+|---|---|---|
+| `data-fit` | — | Opt in. An optional value names the field in the warning message (falls back to the element's `id`, then its first class). |
+| `data-fit-max` | the element's own current width | Max width in CSS px the text must fit inside |
+| `data-fit-min` | `0.5` | Floor ratio for condensing — never goes narrower/smaller than this |
+| `data-fit-mode` | `condense` | `condense` scales the element horizontally (`transform: scaleX(...)`); `shrink` scales `font-size` instead |
+
+The element must have `white-space: nowrap` in your own CSS — the engine measures a single line's natural width, the same way the browser would if nothing were clipping it.
+
+What happens as text grows:
+
+1. **Fits** — nothing changes.
+2. **Too wide, but condensing to `data-fit-min` or above closes the gap** — that exact ratio is applied. No warning.
+3. **Still too wide at the floor** — the floor ratio is applied anyway, the text is left **overflowing rather than ellipsized**, and a warning is raised.
+
+`transform-origin` (for `condense` mode) follows the element's own `text-align`, so a right-aligned card condenses toward its own edge instead of drifting off its panel.
+
+Measurement re-runs when text changes, when the element (or an ancestor affecting its size) resizes, and again once `document.fonts.ready` resolves — a graphic that measures against a fallback font and then swaps to the real webfont can still fail once the real metrics land, and this catches it. All of that is batched into one pass per animation frame, however many changes fire in between.
+
+**Seeing the warning.** A render page in `?debug=1` shows it immediately via the debug overlay (spec 21's `window.PConAir.warn()` — wired automatically, nothing to call yourself). On a control page, drop in the live panel:
+
+```html
+<div id="fit-warnings"></div>
+<script>
+  window.PConAir.warningsPanel(document.getElementById('fit-warnings'), client);
+  // Or scope it to one render when your package has several:
+  // window.PConAir.warningsPanel(el, client, { renderId: 'l3' });
+</script>
+```
+
+It renders nothing when there are nothing to show, and one line per warning otherwise: `name — "Bartholomew Featherstonehaugh" is 738px in a 620px box (min scale 0.62)`. Warnings clear themselves as soon as the text is fixed, and when the reporting render's last output disconnects — a warning from a browser source that closed five minutes ago is noise, not a fact worth keeping.
+
+Under the hood: the render page POSTs its current warning set to `POST /api/packages/:id/warnings` whenever it changes; the server holds it in memory only (never persisted — same lifetime rule as presence) and pushes a `{type:'warnings'}` frame to every control page subscribed to that package, the same broadcast path presence uses. `GET /api/packages/:id/warnings` (operator auth) returns the whole map, so a control page opened after the fact is correct immediately rather than waiting for the next change.
+
 ### Handling teams and scores
 
 ```js

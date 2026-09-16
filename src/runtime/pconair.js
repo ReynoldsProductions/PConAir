@@ -67,6 +67,7 @@ window.PConAir = (function () {
     var stateSubs = [];
     var connSubs = [];
     var presenceSubs = [];
+    var warningsSubs = [];
     var transportSubs = [];
     /* Whether a transport frame (one where this renderId has a _transport
        entry) has been applied yet — gates the once-per-page-load late-join
@@ -81,10 +82,16 @@ window.PConAir = (function () {
          presenceIndicator's opts.renderId does that narrowing, not this
          field, which always carries the whole-package counts. */
       presence: null,
+      /* Map of renderId -> FitWarning[] for this package (spec 22). Starts
+         empty, not null -- "no warnings yet" and "nothing has ever been
+         checked" look the same from a page that just connected, and
+         warningsPanel needs an object it can iterate immediately. */
+      warnings: {},
       transport: null,
       patch: patch,
       on: on,
       onPresence: onPresence,
+      onWarnings: onWarnings,
       onConnection: onConnection,
       onTransport: onTransport,
       verb: verb,
@@ -204,6 +211,20 @@ window.PConAir = (function () {
       }
     }
 
+    /* One renderId's slot at a time (spec 22): an empty list clears that
+       render's entry entirely rather than leaving a stale `[]` around, so
+       warningsPanel's "any warnings at all?" check stays a plain key count. */
+    function emitWarnings(renderId, warnings) {
+      if (warnings && warnings.length > 0) {
+        client.warnings[renderId] = warnings;
+      } else {
+        delete client.warnings[renderId];
+      }
+      for (var i = 0; i < warningsSubs.length; i++) {
+        try { warningsSubs[i](client.warnings); } catch (e) { /* as above */ }
+      }
+    }
+
     function open() {
       if (closed) return;
       timer = null;
@@ -228,6 +249,9 @@ window.PConAir = (function () {
            joins or leaves this package's namespace. */
         if (msg && msg.type === 'presence' && msg.namespace === namespace && msg.presence) {
           emitPresence(msg.presence);
+        }
+        if (msg && msg.type === 'warnings' && msg.namespace === namespace && typeof msg.renderId === 'string') {
+          emitWarnings(msg.renderId, msg.warnings);
         }
       };
       ws.onclose = function () {
@@ -295,6 +319,20 @@ window.PConAir = (function () {
       };
     }
 
+    function onWarnings(fn) {
+      warningsSubs.push(fn);
+      /* Fire immediately, same reasoning as on()/onPresence: a subscriber
+         added after the first frame should not be blank until the next
+         change. An empty {} the first time through is still meaningful --
+         it says "no warnings reported yet", which is the correct initial
+         render for a panel that mounts before anything has misbehaved. */
+      try { fn(client.warnings); } catch (e) { /* ignore */ }
+      return function () {
+        var i = warningsSubs.indexOf(fn);
+        if (i >= 0) warningsSubs.splice(i, 1);
+      };
+    }
+
     function onConnection(fn) {
       connSubs.push(fn);
       return function () {
@@ -344,15 +382,78 @@ window.PConAir = (function () {
     };
   }
 
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /* One warning's sentence, per spec 22 s3.3: matches the format
+     window.PConAir.warn() uses on the render side, so an operator reading
+     the control page sees the identical wording a ?debug=1 render would. */
+  function formatFitWarning(w) {
+    return w.field + ' \u2014 "' + w.text + '" is ' + w.naturalWidth + 'px in a ' +
+      w.maxWidth + 'px box (min scale ' + w.min + ')';
+  }
+
+  /* Live overflow-warnings list (spec 22). Renders nothing when there are
+     none -- opts.renderId narrows to one render's warnings; omitted, every
+     render this package has reported shows up, newest-registered render
+     first isn't guaranteed (object key order), which is fine: there is
+     rarely more than one live warning at a time. */
+  function warningsPanel(el, client, opts) {
+    opts = opts || {};
+    var renderId = opts.renderId || null;
+
+    function flatten(map) {
+      var out = [];
+      for (var rid in map) {
+        if (Object.prototype.hasOwnProperty.call(map, rid) === false) continue;
+        if (renderId && rid !== renderId) continue;
+        var list = map[rid] || [];
+        for (var i = 0; i < list.length; i++) out.push(list[i]);
+      }
+      return out;
+    }
+
+    function render(map) {
+      var list = flatten(map);
+      if (list.length === 0) {
+        el.innerHTML = '';
+        el.hidden = true;
+        return;
+      }
+      el.hidden = false;
+      var html = '';
+      for (var i = 0; i < list.length; i++) {
+        html += '<div class="pc-warning">' + escapeHtml(formatFitWarning(list[i])) + '</div>';
+      }
+      el.innerHTML = html;
+    }
+
+    render(client.warnings);
+    var off = client.onWarnings(render);
+    return {
+      destroy: function () { off(); },
+    };
+  }
+
   return {
     version: '1',
     connect: connect,
     param: param,
     isDebug: isDebug,
     presenceIndicator: presenceIndicator,
+    warningsPanel: warningsPanel,
     _diagSource: _diagSource,
     _diagSources: diagSources,
     warn: warn,
+    /* Test-only: lets tests assert this stays byte-identical to
+       pconair-fit.js's own formatWarning, so a render-side ?debug=1 warning
+       and a control-side warningsPanel entry read as the same sentence. */
+    _formatFitWarningForTest: formatFitWarning,
   };
 })();
 
@@ -368,6 +469,37 @@ window.PConAir = (function () {
     var script = document.createElement('script');
     script.src = '/packages/_runtime/pconair-debug.js';
     document.head.appendChild(script);
+  }
+})();
+
+/* Conditionally load the text-fit engine (spec 22) when the page has, or
+   later gains, a [data-fit] element. A page with none never fetches it. The
+   MutationObserver here is a one-shot trigger only -- once pconair-fit.js
+   loads it takes over its own ongoing observation; this one disconnects
+   itself the moment it has done its job. */
+(function () {
+  'use strict';
+  function hasFit(root) {
+    return !!(root.querySelector && root.querySelector('[data-fit]'));
+  }
+  function load() {
+    var script = document.createElement('script');
+    script.src = '/packages/_runtime/pconair-fit.js';
+    document.head.appendChild(script);
+  }
+  if (hasFit(document)) {
+    load();
+    return;
+  }
+  if (typeof window.MutationObserver === 'function') {
+    var loaded = false;
+    var mo = new window.MutationObserver(function () {
+      if (loaded || !hasFit(document)) return;
+      loaded = true;
+      mo.disconnect();
+      load();
+    });
+    mo.observe(document.documentElement, { childList: true, subtree: true });
   }
 })();
 

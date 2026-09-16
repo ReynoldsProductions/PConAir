@@ -97,3 +97,21 @@
   text-align: right;
   color: var(--pc-accent);
 }
+
+/* Text-fit overflow warnings (spec 22). Hidden entirely when empty --
+   warningsPanel sets [hidden] rather than leaving an empty shell in the
+   layout. */
+.pc-warning {
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--pc-danger) 16%, transparent);
+  border: 1px solid var(--pc-danger);
+  color: var(--pc-fg);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.pc-warning:last-child {
+  margin-bottom: 0;
+}

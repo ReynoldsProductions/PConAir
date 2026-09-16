@@ -1,6 +1,6 @@
 # Spec 22 — Text Fit & Overflow Warning
 
-**Status:** Planned · **Date:** 2026-09-09 · **Wave:** 2 (concurrent with 17, 18, 23)
+**Status:** ✅ Done 2026-09-15 · **Date:** 2026-09-09 · **Wave:** 2 (concurrent with 17, 18, 23)
 **Model:** `claude-sonnet-5` · **Depends on:** specs 14, 16 · **Branch:** `feat/graphics-22-text-fit-overflow`
 **Umbrella:** [`../plan_approved.md`](../plan_approved.md)
 
@@ -106,30 +106,45 @@ Also call `window.PConAir.warn()` (spec 21) on the render side so `?debug=1` sur
 
 ## 4. Tasks
 
-- [ ] **T1 — Fits, no warning.** jsdom test with a stubbed `getBoundingClientRect`: natural 400px in a 620px box leaves no transform and produces no warning. Commit.
-- [ ] **T2 — Condense above the floor.** Test: natural 700px, max 620, min 0.5 → `transform: scaleX(0.8857…)`, no warning. Commit.
-- [ ] **T3 — Below the floor warns.** Test: natural 1400px, max 620, min 0.62 → transform is exactly `scaleX(0.62)`, no ellipsis applied, and one warning with `naturalWidth: 1400`, `maxWidth: 620`. Commit.
-- [ ] **T4 — `transform-origin` follows `text-align`.** Test: `left` → `left center`, `right` → `right center`, `center` → `center`. A right-aligned card that condenses from the left drifts off its panel. Commit.
-- [ ] **T5 — `shrink` mode.** Test: `data-fit-mode="shrink"` scales `font-size` instead of applying a transform. Commit.
-- [ ] **T6 — Font-load re-measure.** Test: measuring before `document.fonts.ready` resolves and again after a wider metric produces a warning on the second pass. Commit.
-- [ ] **T7 — Batched recomputation.** Test with a stubbed `requestAnimationFrame`: ten text mutations in one tick cause one measurement pass, not ten. Commit.
-- [ ] **T8 — Warning store.** Unit test `warnings.ts`: set, overwrite by `(packageId, renderId)`, clear on disconnect, and `get` for an unknown package returns an empty map. Commit.
-- [ ] **T9 — Routes.** supertest: `POST …/warnings` from an allowlisted IP stores them; `GET …/warnings` returns the map for an operator and 401 unauthenticated; a 33-warning body and a 20 KB body are both 400. Commit.
-- [ ] **T10 — Push frame.** Test: a subscribed control socket receives a `{type:'warnings'}` frame after a POST, and receives a cleared set when the reporting render disconnects. Commit.
-- [ ] **T11 — `warningsPanel`.** jsdom test: renders nothing when empty; renders the §3.3 sentence for one warning; `opts.renderId` filters; `destroy()` unsubscribes. Commit.
-- [ ] **T12 — Migrate `render-l3.html`.** Assert the bespoke shrink JS is gone (`grep`) and that a normal-length name renders at 52px with no transform. Commit.
-- [ ] **T13 — Docs.** Commit.
+- [x] **T1 — Fits, no warning.** jsdom test with a stubbed `getBoundingClientRect`: natural 400px in a 620px box leaves no transform and produces no warning. Commit.
+- [x] **T2 — Condense above the floor.** Test: natural 700px, max 620, min 0.5 → `transform: scaleX(0.8857…)`, no warning. Commit.
+- [x] **T3 — Below the floor warns.** Test: natural 1400px, max 620, min 0.62 → transform is exactly `scaleX(0.62)`, no ellipsis applied, and one warning with `naturalWidth: 1400`, `maxWidth: 620`. Commit.
+- [x] **T4 — `transform-origin` follows `text-align`.** Test: `left` → `left center`, `right` → `right center`, `center` → `center`. A right-aligned card that condenses from the left drifts off its panel. Commit.
+- [x] **T5 — `shrink` mode.** Test: `data-fit-mode="shrink"` scales `font-size` instead of applying a transform. Commit.
+- [x] **T6 — Font-load re-measure.** Test: measuring before `document.fonts.ready` resolves and again after a wider metric produces a warning on the second pass. Commit.
+- [x] **T7 — Batched recomputation.** Test with a stubbed `requestAnimationFrame`: ten text mutations in one tick cause one measurement pass, not ten. Commit.
+- [x] **T8 — Warning store.** Unit test `warnings.ts`: set, overwrite by `(packageId, renderId)`, clear on disconnect, and `get` for an unknown package returns an empty map. Commit.
+- [x] **T9 — Routes.** supertest: `POST …/warnings` from an allowlisted IP stores them; `GET …/warnings` returns the map for an operator and 401 unauthenticated; a 33-warning body and a 20 KB body are both 400. Commit.
+- [x] **T10 — Push frame.** Test: a subscribed control socket receives a `{type:'warnings'}` frame after a POST, and receives a cleared set when the reporting render disconnects. Commit.
+- [x] **T11 — `warningsPanel`.** jsdom test: renders nothing when empty; renders the §3.3 sentence for one warning; `opts.renderId` filters; `destroy()` unsubscribes. Commit.
+- [x] **T12 — Migrate `render-l3.html`.** Assert the bespoke shrink JS is gone (`grep`) and that a normal-length name renders at 52px with no transform. Commit.
+- [x] **T13 — Docs.** Commit.
 
 ## 5. Acceptance
 
-- [ ] A name too long for its panel condenses to the floor, stays fully legible with no ellipsis, and raises a warning in the control page within a second — without a reload.
-- [ ] The warning names the field, the text, the natural width and the box width.
-- [ ] Warnings clear when the text is shortened and when the render disconnects.
-- [ ] `?debug=1` on the render shows the same warning with no control page open.
-- [ ] Right-aligned text condenses toward its right edge.
-- [ ] `news`'s lower third looks identical to `main` at normal name lengths, with no bespoke fitting JS left in the file.
-- [ ] `npm run typecheck && npm test` green.
+- [x] A name too long for its panel condenses to the floor, stays fully legible with no ellipsis, and raises a warning in the control page within a second — without a reload.
+- [x] The warning names the field, the text, the natural width and the box width.
+- [x] Warnings clear when the text is shortened and when the render disconnects.
+- [x] `?debug=1` on the render shows the same warning with no control page open.
+- [x] Right-aligned text condenses toward its right edge.
+- [x] `news`'s lower third looks identical to `main` at normal name lengths, with no bespoke fitting JS left in the file.
+- [x] `npm run typecheck && npm test` green.
 
 ## 6. Out of scope
 
 Multi-line wrapping or auto-balancing. Vertical fitting. Warnings for anything other than text width. Blocking a take on a warning — the operator is told, and decides.
+
+---
+
+## 6. Implementation notes (2026-09-15)
+
+Landed on `feat/graphics-22-text-fit-overflow` (base: `claude/breeze-overlay-graphics-review-f12320` with specs 14, 15, 16, 20, 21 merged). All thirteen tasks done, plus a follow-up commit closing two acceptance gaps T1-T13's own tests hadn't actually covered. Departures from the spec as written:
+
+- **`FitWarning` gained a `min: number` field**, carried through the whole wire path (pconair-fit.js's warning object -> POST body -> the store -> the push frame -> `warningsPanel`). Section 3.2's wire shape (`{field, text, naturalWidth, maxWidth}`) and section 3.3's example message (`... (min scale 0.62)`) disagreed — the message needs a field the wire format didn't carry. Extended it end-to-end rather than have the control-side panel show a strictly poorer message than the render-side `window.PConAir.warn()` call, which has the ratio available locally either way.
+- **`WarningsStore` gained `onChange(fn)`**, not in the spec's original interface sketch (§3.5 didn't list it), because server.ts needs to know exactly which `(packageId, renderId)` changed to push the one right frame — mirrors `PresenceRegistry.onChange` exactly, including "does not fire for a no-op clear."
+- **`routeIdentity()` reads `location.pathname`** (`/packages/<id>/render/<renderId>`) rather than adding a new DOM attribute for packageId — the render route already encodes both ids in its URL, so no page-author markup is needed to make reporting work.
+- **`tests/news-l3-typography.test.ts` deleted, not amended.** Its entire premise — that padding must compensate for an `overflow:hidden` clip box — is gone now that nothing clips `.name`. Replaced with `tests/news-l3-fit-migration.test.ts`, which asserts the old mechanism is actually gone (grep) and drives the real engine against the migrated markup.
+- **`bundled-packages/news/control.html`** got a `warningsPanel` wired in alongside its existing `presenceIndicator`, matching spec 16/17's pattern of demonstrating each new surface in the bundled reference package (spec's own file list named `control.html` as modified but didn't specify what for).
+- **Two acceptance criteria — "warnings clear when the text is shortened" and "`?debug=1` shows the same warning" — were not actually exercised by any T1-T13 test**, only asserted true by inspection. Added tests for both in a follow-up commit; the first also caught a real bug in the *test* itself (`vi.stubGlobal('fetch', ...)` doesn't reach `window.fetch` as read from inside the module under this repo's jsdom setup — switched to the direct-assignment + `history.replaceState` pattern `tests/package-runtime-client.test.ts` already established, and hardened `beforeEach` to reset both so the leak couldn't reach later tests in the file).
+
+**Final verification:** `npm run typecheck && npm test` — typecheck clean, 822/822 real tests passing. The only failing file is `tests/companion-defs.test.ts`, the same pre-existing environmental failure seen on every branch in this plan (`packages/companion-module-pconair/node_modules` never installed in this worktree) — confirmed unrelated to this work.
