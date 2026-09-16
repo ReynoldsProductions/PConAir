@@ -556,3 +556,86 @@ describe('T5/T6 — controls route and serving precedence', () => {
     expect(res.headers['x-frame-options']).toBe('DENY');
   });
 });
+
+describe('T13 — colour validation on POST /state', () => {
+  let root: string;
+  let server: ReturnType<typeof createFullServer>;
+  let app: Express;
+
+  beforeEach(async () => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'pconair-color-'));
+    writeFixture(root, { id: 'declared', controls: FIXTURE_CONTROLS });
+    server = createFullServer({ store: createStateStore(), ...PINS, port: 0, packagesRoot: root });
+    await server.listen();
+    app = server.app;
+  });
+
+  afterEach(async () => {
+    await server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  function setAccent(value: unknown) {
+    return request(app)
+      .post('/api/packages/declared/state')
+      .send({ style: { accent: value, panelOpacity: 0.9 } });
+  }
+
+  // ── Rejection first: an unvalidated value here is a CSS injection into
+  //    every connected output, so this is the test that matters. ──
+
+  it('rejects a value that escapes the declaration', async () => {
+    const res = await setAccent('red; background: url(x)');
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/style\.accent/);
+  });
+
+  it('rejects a value containing a function call', async () => {
+    expect((await setAccent('expression(1)')).status).toBe(400);
+    expect((await setAccent('url(//evil/x.png)')).status).toBe(400);
+  });
+
+  it('rejects a value containing a brace or a comment opener', async () => {
+    expect((await setAccent('}')).status).toBe(400);
+    expect((await setAccent('#fff}')).status).toBe(400);
+    expect((await setAccent('#fff/*')).status).toBe(400);
+    expect((await setAccent('#fff;')).status).toBe(400);
+  });
+
+  it('rejects a non-string and a non-colour word', async () => {
+    expect((await setAccent(7)).status).toBe(400);
+    expect((await setAccent(true)).status).toBe(400);
+    expect((await setAccent('chartreusey')).status).toBe(400);
+    expect((await setAccent('')).status).toBe(400);
+  });
+
+  it('a rejected patch leaves state untouched — nothing partially applied', async () => {
+    const before = await request(app).get('/api/packages/declared/state');
+    await setAccent('red; background: url(x)');
+    const after = await request(app).get('/api/packages/declared/state');
+    expect(after.body.state).toEqual(before.body.state);
+  });
+
+  // ── Then acceptance. ──
+
+  it('accepts hex in 3, 6 and 8 digits and a named colour', async () => {
+    for (const ok of ['#c8a24a', '#fff', '#c8a24aff', 'transparent', 'white']) {
+      const res = await setAccent(ok);
+      expect(res.status).toBe(200);
+      expect((res.body.state.style as Record<string, unknown>).accent).toBe(ok);
+    }
+  });
+
+  it('leaves a patch that does not touch the colour field alone', async () => {
+    const res = await request(app).post('/api/packages/declared/state').send({ live: true });
+    expect(res.status).toBe(200);
+    expect(res.body.state.live).toBe(true);
+  });
+
+  it('a package with no controls is unaffected — no colour paths to check', async () => {
+    writeFixture(root, { id: 'plain', controlHtml: '<html></html>' });
+    await request(app).post('/api/packages/rescan');
+    const res = await request(app).post('/api/packages/plain/state').send({ logo: 'red; url(x)' });
+    expect(res.status).toBe(200);
+  });
+});

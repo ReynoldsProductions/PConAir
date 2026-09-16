@@ -281,6 +281,7 @@
         case 'number': return buildNumber(f, id, entry);
         case 'toggle': return buildToggle(f, id, entry);
         case 'select': return buildSelect(f, id, entry);
+        case 'color': return buildColor(f, id, entry);
         case 'static': return h('p', 'pc-static', f.text);
         default: {
           var todo = h('p', 'pc-static', 'Unsupported field type: ' + f.type);
@@ -417,6 +418,60 @@
       return registerInput(entry, sel);
     }
 
+    function buildColor(f, id, entry) {
+      var row = h('div', 'pc-color-row');
+      var input = document.createElement('input');
+      input.type = 'color';
+      input.className = 'pc-input pc-color';
+      input.id = id;
+
+      entry.readValue = function () { return input.value; };
+      entry.applyValue = function (v) {
+        var s = v === null || v === undefined ? '' : String(v);
+        /* <input type="color"> normalises to #rrggbb, which loses "#fff" and
+           cannot hold a named colour at all. Keep what state actually says
+           alongside it so nothing silently rewrites an author's value. */
+        input.setAttribute('data-pc-raw', s);
+        var hex = toPickerHex(s);
+        if (hex) input.value = hex;
+      };
+      wireValueEvents(entry, input, { debounce: true });
+      registerInput(entry, input);
+      row.appendChild(input);
+
+      var swatches = isArray(f.swatches) ? f.swatches : [];
+      for (var i = 0; i < swatches.length; i++) row.appendChild(swatchButton(f, entry, swatches[i]));
+      return row;
+    }
+
+    /* #rgb -> #rrggbb, #rrggbbaa -> #rrggbb, anything else -> null (the
+       picker keeps whatever it had; data-pc-raw carries the truth). */
+    function toPickerHex(value) {
+      if (!/^#[0-9a-fA-F]+$/.test(value)) return null;
+      var body = value.slice(1);
+      if (body.length === 3) return '#' + body[0] + body[0] + body[1] + body[1] + body[2] + body[2];
+      if (body.length === 6 || body.length === 8) return '#' + body.slice(0, 6);
+      return null;
+    }
+
+    function swatchButton(f, entry, value) {
+      var b = button('pc-swatch', '');
+      b.setAttribute('aria-label', f.label + ': ' + value);
+      b.setAttribute('data-swatch', value);
+      /* Validated at load by controls-validate.ts, and again here, because
+         this writes straight into a style property. */
+      if (P.isValidColorValue(value)) b.style.backgroundColor = value;
+      b.addEventListener('click', function () {
+        if (!ensureConnected(entry)) return;
+        entry.applyValue(value);
+        /* Commit the DECLARED value, not the picker's reading of it: a
+           swatch of "#fff" must stay "#fff", not become "#ffffff". */
+        commitExplicit(entry, value);
+      });
+      entry.controls.push(b);
+      return b;
+    }
+
     // ── value events ──────────────────────────────────────────────────────
 
     /* The interaction rules of §3.4, in one place, because getting them
@@ -474,18 +529,34 @@
     }
 
     function commitImmediate(entry) {
+      commitExplicit(entry, entry.readValue());
+    }
+
+    /* Commit a value the caller already has, bypassing readValue — used where
+       the input cannot represent the authoritative value faithfully (a colour
+       swatch) or where there is no input at all (a bump button). */
+    function commitExplicit(entry, value) {
       if (entry.timer) {
         window.clearTimeout(entry.timer);
         entry.timer = null;
       }
       entry.localDirty = true;
-      commitValue(entry, entry.readValue());
+      commitValue(entry, value);
     }
 
     function commitValue(entry, value) {
       var f = entry.field;
       if (!f.field) return;
       if (!ensureConnected(entry)) return;
+      /* The client half of §3.3's colour rule. The server is the real gate
+         (POST /state rejects with 400), but refusing here too means a typo
+         is explained next to the input instead of coming back as a generic
+         request failure. */
+      if (f.type === 'color' && !P.isValidColorValue(value)) {
+        setFieldError(entry, 'Not a valid colour — use a hex value like #c8a24a, or a named colour.');
+        reconcile(entry);
+        return;
+      }
       /* Dedupe: browsers fire `change` after typing then blurring, so the
          debounced patch and the change event would otherwise send the same
          value twice. `lastSent` is cleared on rejection so a retry is never

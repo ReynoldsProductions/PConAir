@@ -570,3 +570,152 @@ describe('T12 — disconnected state', () => {
     expect(input.value).toBe('Lions');
   });
 });
+
+describe('T13 — colour validation, client side', () => {
+  const COLOR_CONTROLS = {
+    groups: [
+      {
+        id: 'look',
+        label: 'Look',
+        fields: [{ type: 'color', field: 'style.accent', label: 'Accent', swatches: ['#c8a24a', '#fff'] }],
+      },
+    ],
+  };
+
+  it('PConAir.isValidColorValue rejects anything with CSS syntax in it', () => {
+    const { PConAir } = mount(COLOR_CONTROLS, {}, BASIC_STATE);
+    for (const bad of [
+      'red; background: url(x)',
+      'expression(1)',
+      '}',
+      '#fff}',
+      '#fff;',
+      '#fff/*',
+      'url(//evil/x.png)',
+      'chartreusey',
+      '',
+      7,
+      null,
+      undefined,
+      {},
+    ]) {
+      expect(PConAir.isValidColorValue(bad)).toBe(false);
+    }
+  });
+
+  it('PConAir.isValidColorValue accepts hex and named colours', () => {
+    const { PConAir } = mount(COLOR_CONTROLS, {}, BASIC_STATE);
+    for (const ok of ['#c8a24a', '#fff', '#C8A24AFF', 'transparent', 'white', 'Black']) {
+      expect(PConAir.isValidColorValue(ok)).toBe(true);
+    }
+  });
+
+  it('the panel refuses to send an invalid colour, so the server never sees it', async () => {
+    const { el } = mount(COLOR_CONTROLS, {}, BASIC_STATE);
+    const input = inputFor(el, 'style.accent');
+    // A colour input cannot hold this, but a scripted page or a stale
+    // autofill can — the panel must not forward it either way.
+    Object.defineProperty(input, 'value', {
+      value: 'red; background: url(x)',
+      configurable: true,
+      writable: true,
+    });
+    fire(input, 'change');
+    await flush();
+    expect(patchBodies()).toHaveLength(0);
+    const err = field(el, 'style.accent').querySelector('.pc-field-error') as HTMLElement;
+    expect(err.hidden).toBe(false);
+    expect(err.textContent).toMatch(/colour/i);
+  });
+
+  it('a valid colour is sent normally', async () => {
+    const { el } = mount(COLOR_CONTROLS, {}, BASIC_STATE);
+    const input = inputFor(el, 'style.accent');
+    input.value = '#123456';
+    fire(input, 'change');
+    await flush();
+    expect((patchBodies()[0].style as Record<string, unknown>).accent).toBe('#123456');
+  });
+
+  it('renders the declared swatches and commits one on click', async () => {
+    const { el } = mount(COLOR_CONTROLS, {}, BASIC_STATE);
+    const swatches = Array.from(field(el, 'style.accent').querySelectorAll('.pc-swatch'));
+    expect(swatches).toHaveLength(2);
+    (swatches[1] as HTMLButtonElement).click();
+    await flush();
+    expect((patchBodies()[0].style as Record<string, unknown>).accent).toBe('#fff');
+  });
+});
+
+describe('T14 — applyStyle mirrors a state subtree onto :root', () => {
+  function connectRender(): { PConAir: any; client: any } {
+    const PConAir = loadRuntime();
+    const client = PConAir.connect('widget', { role: 'render', renderId: 'main' });
+    last().fireOpen();
+    return { PConAir, client };
+  }
+
+  it('sets a custom property per scalar key, camelCase becoming kebab-case', () => {
+    const { client } = connectRender();
+    client.applyStyle();
+    pushState({ style: { accent: '#c8a24a', panelOpacity: 0.9, cornerRadius: 12 } });
+    const root = document.documentElement;
+    expect(root.style.getPropertyValue('--pc-accent')).toBe('#c8a24a');
+    expect(root.style.getPropertyValue('--pc-panel-opacity')).toBe('0.9');
+    expect(root.style.getPropertyValue('--pc-corner-radius')).toBe('12');
+  });
+
+  it('numbers pass through unitless so a render can calc() them', () => {
+    const { client } = connectRender();
+    client.applyStyle();
+    pushState({ style: { corner: 4 } });
+    expect(document.documentElement.style.getPropertyValue('--pc-corner')).toBe('4');
+  });
+
+  it('drops a value containing CSS syntax instead of writing it', () => {
+    const { client } = connectRender();
+    client.applyStyle();
+    pushState({ style: { accent: 'red; background: url(//evil/x.png)' } });
+    expect(document.documentElement.style.getPropertyValue('--pc-accent')).toBe('');
+    // …and the whole subtree is not abandoned: safe siblings still land.
+    pushState({ style: { accent: '}', panelOpacity: 0.5 } });
+    expect(document.documentElement.style.getPropertyValue('--pc-accent')).toBe('');
+    expect(document.documentElement.style.getPropertyValue('--pc-panel-opacity')).toBe('0.5');
+  });
+
+  it('keeps the last good value when a later frame carries an unsafe one', () => {
+    const { client } = connectRender();
+    client.applyStyle();
+    pushState({ style: { accent: '#c8a24a' } });
+    expect(document.documentElement.style.getPropertyValue('--pc-accent')).toBe('#c8a24a');
+    pushState({ style: { accent: 'x;y' } });
+    // A stale graphic beats a broken one.
+    expect(document.documentElement.style.getPropertyValue('--pc-accent')).toBe('#c8a24a');
+  });
+
+  it('honours a custom subtree and prefix, and skips nested objects', () => {
+    const { client } = connectRender();
+    client.applyStyle('look', '--x-');
+    pushState({ look: { tone: 'warm', nested: { no: 1 } } });
+    expect(document.documentElement.style.getPropertyValue('--x-tone')).toBe('warm');
+    expect(document.documentElement.style.getPropertyValue('--x-nested')).toBe('');
+  });
+
+  it('is a no-op when the subtree is absent or not an object', () => {
+    const { client } = connectRender();
+    client.applyStyle();
+    pushState({ other: 1 });
+    expect(document.documentElement.getAttribute('style') || '').toBe('');
+    pushState({ style: 'nope' });
+    expect(document.documentElement.getAttribute('style') || '').toBe('');
+  });
+
+  it('stops applying after destroy()', () => {
+    const { client } = connectRender();
+    const handle = client.applyStyle();
+    pushState({ style: { accent: '#c8a24a' } });
+    handle.destroy();
+    pushState({ style: { accent: '#000000' } });
+    expect(document.documentElement.style.getPropertyValue('--pc-accent')).toBe('#c8a24a');
+  });
+});

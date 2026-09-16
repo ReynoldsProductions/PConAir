@@ -9,6 +9,7 @@ import type { TransportEngine, TransportVerb } from '../packages/transport';
 import type { DataOverridesStore } from '../packages/data-overrides';
 import type { DataSourcePoller } from '../packages/data-sources';
 import { requireOperator, requireAdmin } from './middleware';
+import { validateColorPatch } from '../packages/controls-validate';
 
 /**
  * Packages API + render/control/asset serving.
@@ -256,6 +257,17 @@ export function createPackagesRouter(deps: PackagesRouterDeps): Router {
     for (const [key, value] of Object.entries(raw)) {
       if (key.startsWith('_')) continue;
       patch[key] = value;
+    }
+    // A `color`-typed control's value ends up in a CSS custom property on a
+    // live render's <html style="...">, via client.applyStyle(). This is the
+    // gate: an unvalidated value reaching state here would be a CSS injection
+    // into every connected output, and every output would then have it before
+    // anyone noticed. Checked BEFORE hub.patchState so a rejected patch
+    // applies nothing at all. See spec 18 §3.3.
+    const colorError = validateColorPatch(hub.find(req.params.id)?.manifest.controls, patch);
+    if (colorError) {
+      res.status(400).json({ error: { code: 'INVALID_MODE', message: colorError } });
+      return;
     }
     const next = hub.patchState(req.params.id, patch);
     if (!next) {
