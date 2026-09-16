@@ -163,3 +163,36 @@ describe('T2 — Scaling', () => {
     expect(scale2).toBeCloseTo(1, 3);
   });
 });
+
+describe('T3 — Backgrounds', () => {
+  it('bg=checker adds .pc-bg-checker class', () => {
+    window.history.replaceState({}, '', '/packages/p/render/main?bg=checker');
+    const PConAir = loadRuntime();
+    loadDebugModule();
+    const wrapper = document.querySelector('.pc-bg-checker');
+    expect(wrapper).toBeTruthy();
+  });
+
+  it('bg=%23008000 sets the wrapper background to #008000', () => {
+    window.history.replaceState({}, '', '/packages/p/render/main?bg=%23008000');
+    const PConAir = loadRuntime();
+    loadDebugModule();
+    const wrapper = document.querySelector('.pc-stage-wrapper');
+    expect(wrapper).toBeTruthy();
+    const style = window.getComputedStyle(wrapper as Element);
+    // The background-color should be set to the color (might be in different format)
+    expect(wrapper as HTMLElement).toHaveProperty('style');
+    const elem = wrapper as HTMLElement;
+    expect(elem.style.backgroundColor).toMatch(/rgb\(0, 128, 0\)|008000|green|#008000/i);
+  });
+
+  it('invalid background values are ignored', () => {
+    window.history.replaceState({}, '', '/packages/p/render/main?bg=not_a_color');
+    const PConAir = loadRuntime();
+    loadDebugModule();
+    const wrapper = document.querySelector('.pc-stage-wrapper');
+    const elem = wrapper as HTMLElement;
+    // Should not have any background color set
+    expect(elem.style.backgroundColor).toBe('');
+  });
+});
