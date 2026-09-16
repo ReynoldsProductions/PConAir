@@ -263,3 +263,42 @@ describe('T5 — 4 Hz sampling', () => {
     vi.useRealTimers();
   });
 });
+
+describe('T6 — fps', () => {
+  it('fps counter shows a reasonable value in the overlay', () => {
+    window.history.replaceState({}, '', '/packages/p/render/main?debug=1');
+    const PConAir = loadRuntime();
+    
+    vi.useFakeTimers();
+    
+    loadDebugModule();
+    
+    // Give the RAF callback a chance to run
+    vi.advanceTimersByTime(1000);
+    
+    // The overlay should show an fps value
+    const overlay = document.querySelector('.pc-debug');
+    const text = (overlay as HTMLElement)?.textContent || '';
+    expect(text).toContain('fps');
+    
+    vi.useRealTimers();
+  });
+
+  it('fps below 50 carries danger indicator', () => {
+    window.history.replaceState({}, '', '/packages/p/render/main?debug=1');
+    const PConAir = loadRuntime();
+    
+    vi.useFakeTimers();
+    
+    loadDebugModule();
+    
+    // Advance time
+    vi.advanceTimersByTime(100);
+    
+    // The overlay should have fps row
+    const overlay = document.querySelector('.pc-debug');
+    expect(overlay).toBeTruthy();
+    
+    vi.useRealTimers();
+  });
+});

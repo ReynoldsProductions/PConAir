@@ -59,6 +59,29 @@ window.PConAir = (function (Base) {
     window.addEventListener('resize', updateScale);
   }
   
+  /* FPS measurement using requestAnimationFrame over a rolling 1-second window */
+  function setupFPSCounter() {
+    var frameTimes = [];
+    var lastFPS = 60;
+    
+    function countFrame(now) {
+      frameTimes.push(now);
+      /* Keep only the last second of frames */
+      while (frameTimes.length > 0 && frameTimes[0] < now - 1000) {
+        frameTimes.shift();
+      }
+      /* Update FPS every frame count or once per second */
+      lastFPS = frameTimes.length;
+      window.requestAnimationFrame(countFrame);
+    }
+    
+    window.requestAnimationFrame(countFrame);
+    
+    return function() { return lastFPS; };
+  }
+  
+  var getFPS = setupFPSCounter();
+  
   /* Debug overlay — shows sampled diagnostics at 4 Hz. */
   function setupDebugOverlay() {
     if (!isDebug()) {
@@ -101,8 +124,15 @@ window.PConAir = (function (Base) {
         }
       }
       
-      /* FPS (stub for now) */
-      rows.push({ label: 'fps', value: '60' });
+      /* FPS */
+      var fps = getFPS();
+      var fpsLabel = 'fps';
+      var fpsClass = '';
+      if (fps < 50) {
+        fpsClass = ' pc-debug-danger';
+        fpsLabel += ' ⚠';
+      }
+      rows.push({ label: fpsLabel, value: String(fps), class: fpsClass });
       
       /* Viewport */
       rows.push({ label: 'viewport', value: window.innerWidth + '×' + window.innerHeight });
@@ -112,7 +142,7 @@ window.PConAir = (function (Base) {
       for (var i = 0; i < rows.length; i++) {
         var row = rows[i];
         var div = document.createElement('div');
-        div.className = 'pc-debug-row';
+        div.className = 'pc-debug-row' + (row.class || '');
         div.innerHTML = '<span class="pc-debug-label">' + row.label + '</span> <span class="pc-debug-value">' + row.value + '</span>';
         content.appendChild(div);
       }
