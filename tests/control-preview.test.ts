@@ -136,3 +136,68 @@ describe('T7 — bundled control pages wire a live preview (spec 17 §3.6)', () 
     }
   });
 });
+
+describe('Acceptance — a preview is genuinely live while never counting as an output (spec 17 §5)', () => {
+  const PINS = { operatorPin: 'test1234', adminPin: 'adminpass8' };
+  const bundledRoot = path.join(__dirname, '..', 'bundled-packages');
+
+  it('a socket subscribed exactly as the preview iframe would be receives every state patch instantly, with no reload, while presence/delivered stay zero', async () => {
+    const store = createStateStore();
+    const server = createFullServer({ store, ...PINS, port: 0, packagesRoot: bundledRoot });
+    await server.listen();
+    const addr = server.httpServer.address();
+    const port = typeof addr === 'object' && addr ? addr.port : 0;
+    const login = await request(server.app).post('/auth/operator').send({ pin: PINS.operatorPin });
+    const cookie = (login.headers['set-cookie'] as unknown as string[])[0];
+    try {
+      // This is exactly the query string PConAir.preview()'s framed render
+      // page opens, per pconair.js's wsUrl() (?render=1&renderId=...) plus
+      // the preview=1 the outer page's own URL carries (spec 17 §3.3).
+      const messages: Array<Record<string, unknown>> = [];
+      const previewWs = await new Promise<WebSocket>((resolve, reject) => {
+        const ws = new WebSocket(`ws://localhost:${port}/ws?render=1&renderId=scorebug&preview=1`);
+        ws.on('message', (data) => {
+          const msg = JSON.parse(data.toString());
+          messages.push(msg);
+          if (msg.type === 'state' && msg.namespace === 'package:hoops') resolve(ws);
+        });
+        ws.on('open', () => ws.send(JSON.stringify({ type: 'subscribe', namespace: 'package:hoops' })));
+        ws.on('error', reject);
+      });
+
+      const countBeforePatch = messages.length;
+
+      // Change a field — the same patch an operator's control page would send.
+      const patchRes = await request(server.app).post('/api/packages/hoops/state').send({ scoreA: 7 });
+      expect(patchRes.status).toBe(200);
+      // Never counts as an output, even while it is demonstrably live below.
+      expect(patchRes.body.delivered).toBe(0);
+
+      // The very same socket receives the new state — no reload, no
+      // reconnect, just the next frame over the WS it already has open.
+      const sawUpdate = await new Promise<boolean>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('preview socket never received the patched state')), 3000);
+        const iv = setInterval(() => {
+          for (let i = countBeforePatch; i < messages.length; i++) {
+            const m = messages[i];
+            if (m.type === 'state' && m.namespace === 'package:hoops' && (m.state as { scoreA: number }).scoreA === 7) {
+              clearInterval(iv);
+              clearTimeout(timer);
+              resolve(true);
+              return;
+            }
+          }
+        }, 20);
+      });
+      expect(sawUpdate).toBe(true);
+
+      // And presence/GET still reports nothing listening throughout.
+      const presence = await request(server.app).get('/api/packages/hoops/presence').set('Cookie', cookie);
+      expect(presence.body).toEqual({ renders: 0, byRender: {}, controls: 0 });
+
+      previewWs.close();
+    } finally {
+      await server.close();
+    }
+  });
+});

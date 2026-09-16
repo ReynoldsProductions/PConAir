@@ -122,11 +122,22 @@ describe('T3 — PConAir.preview component: markup and scale', () => {
     expect(iframe.getAttribute('src')).toContain('preview=1');
     expect(iframe.getAttribute('src')).toContain('/packages/p/render/r');
     expect(iframe.style.transform).toBe('scale(0.25)');
+    // The frame itself is scaled — the page inside it always lays out at
+    // exactly 1920x1080, so nothing inside the framed render ever reflows
+    // or rewraps versus the full-size render (spec 17 §3.1, acceptance #5).
+    expect(iframe.style.width).toBe('1920px');
+    expect(iframe.style.height).toBe('1080px');
 
     const viewport = el.querySelector('.pc-preview-viewport') as HTMLElement;
     expect(viewport).toBeTruthy();
     expect(viewport.style.width).toBe('480px');
     expect(viewport.style.height).toBe('270px');
+
+    // All four backdrops are offered (spec 17 §3.4 / acceptance #4).
+    const backdropOptions = Array.from(
+      el.querySelectorAll('.pc-preview-backdrop-btn')
+    ).map((b) => b.getAttribute('data-backdrop-option'));
+    expect(backdropOptions).toEqual(['checker', 'black', 'white', 'green']);
   });
 
   it('defaults to width 480 when not given', () => {
