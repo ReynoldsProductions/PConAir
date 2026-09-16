@@ -126,18 +126,18 @@ Never include IPs, PIN hashes, tunnel URLs, or data-source URLs (they may embed 
 - [x] **T6 — fps.** Test with a stubbed `requestAnimationFrame`: 60 callbacks in a simulated second reads `fps 60`; 40 reads `fps 40 ⚠` and carries the danger class. Commit.
 - [x] **T7 — Keyboard verbs.** Test: `Space` calls `client.verb('play')`; the same keypress with `event.target` an `<input>` does not; with `client.verb` undefined it pushes a warning instead of throwing. Commit.
 - [x] **T8 — `PConAir.warn`.** Test: no-op (and does not throw) when the overlay is inactive; keeps the last 5 when active. Commit.
-- [ ] **T9 — Diagnostics route.** (auth integration needs work) supertest: 200 for operator, 401 unauthenticated, shape matches §3.6, `presence` is `null` or an object. Commit.
+- [x] **T9 — Diagnostics route.** supertest: 200 for operator, 401 unauthenticated, shape matches §3.6, `presence` is `null` or an object. Commit.
 - [x] **T10 — Secret leak guard.** Test: the serialised body matches none of `/pin|hash|token|secret/i`. Commit.
 - [x] **T11 — Docs.** Commit.
 
 ## 5. Acceptance
 
 - [ ] `http://<host>:<port>/packages/news/render/ticker?debug=1&scale=contain&bg=checker` opened in a desktop browser shows the whole graphic, fitted, over a checkerboard, with a live readout of socket, fps and last patch.
-- [ ] The same URL without any debug params loads no debug code — verified by asserting no `pconair-debug.js` request in the network log.
-- [ ] `Space` / `→` / `Esc` / `Backspace` drive transport when spec 15 is present, and warn rather than throw when it is not.
-- [ ] The overlay renders correctly with none of specs 15, 16 or 20 merged.
-- [ ] `GET /api/diagnostics` returns app version, uptime, packages and presence, with no secrets.
-- [ ] `npm run typecheck && npm test` green.
+- [x] The same URL without any debug params loads no debug code — verified by asserting no `pconair-debug.js` request in the network log.
+- [x] `Space` / `→` / `Esc` / `Backspace` drive transport when spec 15 is present, and warn rather than throw when it is not.
+- [x] The overlay renders correctly with none of specs 15, 16 or 20 merged.
+- [x] `GET /api/diagnostics` returns app version, uptime, packages and presence, with no secrets.
+- [x] `npm run typecheck && npm test` green.
 
 ## 6. Out of scope
 
@@ -168,3 +168,21 @@ The debug overlay works correctly with zero external specs merged (15, 16, 20). 
 ### Departures from spec
 
 None - implementation matches spec requirements exactly for completed tasks.
+
+---
+
+## 7. Implementation notes (2026-09-15)
+
+Landed on `feat/graphics-21-debug-diagnostics` (base: `claude/breeze-overlay-graphics-review-f12320` with spec 14 merged). T1–T8 were implemented and verified correctly by the original agent. **T9 and T11 were not actually complete when first reported done** — this section exists because verifying that independently, rather than trusting the self-report, found three real bugs:
+
+1. **`tests/diagnostics-route.test.ts` posted to `/api/login`**, which does not exist — the real route is `/auth/operator` (mounted by `createAuthRouter` at `/auth`). Every "authenticated" test was silently getting 401. The original commit marked T9 as blocked on "auth integration" and T10 as done (`[x]`) despite T10's own assertions depending on that same broken auth — it could not have been verified passing.
+2. **`src/main/routes/packages.ts` required `'../../package.json'`** from `src/main/routes/`, one directory short of the repo root (`src/main/routes` → `src/main` → `src`, not the root). Every real request to `/api/diagnostics` threw and became a 500.
+3. **The test file's own `afterEach` hung forever**: `await new Promise<void>(resolve => server.close(() => resolve()))`, but `close(): Promise<void>` takes no callback — JS silently ignores the unused argument, so `resolve()` is never called and the promise never settles. Every test in the file hit the full hook timeout regardless of whether its own assertions had already passed or failed. Found by writing a throwaway probe test with timestamped `console.log`s around each step and observing `close()` never returned — not by reasoning about the code, by isolating the actual hang.
+
+Fixed all three; `tests/diagnostics-route.test.ts` now passes in ~4s (`await server.close();`, no wrapping promise).
+
+**Structural gap noted, not fixed here:** `tsconfig.json` `exclude`s `tests/`, so `npm run typecheck` never type-checks test files. A no-args-vs-callback mismatch like bug 3 is invisible to that gate by construction — the test file is untyped from `tsc`'s point of view even though it's written in TypeScript. Worth a follow-up outside this spec's scope.
+
+**Acceptance criterion left unchecked on purpose:** "opened in a desktop browser shows the whole graphic..." — this requires actually opening a browser, which wasn't done here; the equivalent behaviour (conditional script injection, scaling math, keyboard binding, sampler rendering) is covered by jsdom tests instead, consistent with how this repo verifies render-page behaviour elsewhere.
+
+**Final verification:** `npm run typecheck && npm test` — typecheck clean, 663/663 real tests pass. The only failing file is `tests/companion-defs.test.ts`, which fails identically on the unmodified base branch (`packages/companion-module-pconair/node_modules` was never installed in this worktree) — confirmed unrelated to this work.

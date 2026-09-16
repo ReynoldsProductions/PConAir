@@ -226,6 +226,48 @@ Or use body classes: `body.obs { background: transparent }` vs `body { backgroun
 
 For luma key (black or white background), add `?key=black` / `?key=white` and apply accordingly. This lets hardware switchers key the graphic over video.
 
+### Checking a graphic before a show
+
+Every render page ships a debug mode for free — no code required in your package.
+
+Append params to any render URL:
+
+```
+/packages/my-package/render/main?debug=1&scale=contain&bg=checker
+```
+
+| Param | Effect |
+|---|---|
+| `debug=1` | Shows a live diagnostics overlay (top-left) and binds keyboard verbs. Nothing is loaded for this unless the param is present — a production browser source pays zero cost. |
+| `scale=contain` | Scales the 1920×1080 stage to fit the browser window, preserving aspect. Works with or without `debug=1`. |
+| `bg=checker` | Paints a checkerboard behind the stage so transparency is visible against a light or dark viewer. |
+| `bg=<hex>` | Paints a solid colour instead, e.g. `bg=%23008000` for chroma green. |
+
+The overlay shows: package/render id, socket status, fps (flagged if it drops below 50), viewport size, and a row for every diagnostic sampler your package (or a later spec — transport, presence, data sources) has registered via `_diagSource`. A package with none of those registered still gets the base rows — the overlay never assumes another spec is present.
+
+Keyboard, only when `debug=1` and focus isn't in a text input:
+
+| Key | Action |
+|---|---|
+| `Space` | play |
+| `→` | next |
+| `Esc` | stop |
+| `Backspace` | clear |
+| `d` | collapse/expand the overlay |
+| `r` | reload the page |
+
+The transport keys are no-ops (logged as a warning in the overlay) on a package that hasn't wired up transport verbs.
+
+Push a message into the overlay's own warnings row from anywhere in your page:
+
+```js
+window.PConAir.warn('Card name is 40px wider than its box');
+```
+
+It's a no-op when the overlay isn't active, so you never need to guard the call with `isDebug()` yourself.
+
+For app-wide diagnostics rather than one render, `GET /api/diagnostics` (operator auth) returns app version, uptime, memory, and the loaded package list. It never includes PINs, hashes, tokens or other secrets — the response is checked for those substrings in `tests/diagnostics-route.test.ts`.
+
 ### Handling teams and scores
 
 ```js
