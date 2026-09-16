@@ -139,20 +139,55 @@ A render page is a standard HTML file. It connects to PConAir's WebSocket on loa
     <!-- your graphics here -->
   </div>
 
-  <script src="/packages/my-package/assets/state.js"></script>
+  <script src="/packages/_runtime/pconair.js"></script>
   <script>
-    PConAirPackage.connect('my-package', function(state) {
-      document.getElementById('title').textContent = state.title;
-      document.getElementById('count').textContent = state.count;
+    window.PConAir.connect('my-package', {
+      role: 'render',
+      onState: function (state) {
+        document.getElementById('title').textContent = state.title;
+        document.getElementById('count').textContent = state.count;
+      },
     });
   </script>
 </body>
 </html>
 ```
 
-`state.js` is the PConAir WebSocket client. Copy it from the demo-scores package (`assets/state.js`) — it's the same file for every package, just referenced via your package's asset path.
+### The shared runtime
 
-**`PConAirPackage.connect(packageId, callback)`** connects over WebSocket, subscribes to your package's namespace, and calls `callback(state)` on every update including the initial hydration. It auto-reconnects if the connection drops. Returns a client object with a `patch(partialState)` method.
+`/packages/_runtime/pconair.js` is PConAir's WebSocket client and is served by
+the app. **Do not copy it into your package.** Packages used to each ship their
+own `assets/state.js`; those copies are gone and that path now 404s.
+
+**`window.PConAir.connect(packageId, opts)`** connects over WebSocket,
+subscribes to your package's namespace, and re-subscribes on every reconnect —
+so a browser-source reload rehydrates rather than waiting for the next change.
+Reconnects back off 1s → 2s → 4s → 8s → 15s and reset after a successful open.
+
+`opts`:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `role` | `'render'` | `'render'` for an output page, `'control'` for a panel. Get this right: PConAir counts render subscriptions as live outputs, so a panel claiming `'render'` makes the operator think something is on air when nothing is. |
+| `renderId` | `<html data-render-id>` | Which render this page is. Set the attribute on your render pages — a helper shared across several renders cannot hardcode one id. |
+| `onState` | — | Convenience; same as calling `.on(fn)` immediately. |
+
+The returned client:
+
+| Member | Meaning |
+|---|---|
+| `state` | Latest state, or `null` before the first frame |
+| `on(fn)` | Subscribe. Fires immediately if state is already known. Returns an unsubscribe |
+| `patch(partial)` | Shallow-merge write. Resolves to the **parsed response body**, rejects with the server's error message |
+| `connected` | Whether this page's own socket is up |
+| `onConnection(fn)` | Subscribe to connection edges. Returns an unsubscribe |
+| `close()` | Disconnect and stop reconnecting |
+
+Also on `window.PConAir`: `param(key, fallback)` reads the page query string,
+and `isDebug()` reports `?debug=1`.
+
+A `window.PConAirPackage.connect(id, cb)` shim remains for packages written
+against the old API, but new packages should not use it.
 
 ### Clock display
 
@@ -194,7 +229,7 @@ For luma key (black or white background), add `?key=black` / `?key=white` and ap
 ### Handling teams and scores
 
 ```js
-PConAirPackage.connect('my-package', function(s) {
+window.PConAir.connect('my-package', { role: 'render', onState: function (s) {
   const teams = s.teams || [];
   const scores = s.scores || [];
 
@@ -248,9 +283,10 @@ The control page is served at `/packages/my-package/control` and opened from `/r
   <button id="btn-show">SHOW</button>
   <button id="btn-hide">HIDE</button>
 
-  <script src="/packages/my-package/assets/state.js"></script>
+  <script src="/packages/_runtime/pconair.js"></script>
   <script>
-    const client = PConAirPackage.connect('my-package', function(state) {
+    const client = window.PConAir.connect('my-package', { role: 'control' });
+    client.on(function (state) {
       // update UI to reflect current state
       document.getElementById('btn-show').disabled = state.visible;
       document.getElementById('btn-hide').disabled = !state.visible;
@@ -434,9 +470,8 @@ If your package implements any of these common functions, use these exact IDs. T
 ## Quickstart checklist
 
 - [ ] Create `my-package/` in your user packages directory
-- [ ] Copy `assets/state.js` from the demo-scores package
 - [ ] Write `package.json` with your `id`, `name`, and `renders` list
-- [ ] Write your first render HTML (1920×1080, transparent body, includes state.js, calls `PConAirPackage.connect`)
+- [ ] Write your first render HTML (1920×1080, transparent body, `<html data-render-id="...">`, loads `/packages/_runtime/pconair.js`, calls `window.PConAir.connect(id, { role: 'render' })`)
 - [ ] Set `stateSchema` and `initialState` for the state you need
 - [ ] Write `control.html` with buttons that call `client.patch()`
 - [ ] Add `companionActions` for anything Companion should be able to trigger

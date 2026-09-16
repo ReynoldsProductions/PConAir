@@ -622,7 +622,8 @@ demo-scores/
   package.json          ← manifest with all standard fields + Companion wiring
   control.html          ← operator control page
   assets/
-    state.js            ← copy of PConAir's standard PConAirPackage client
+                        ← no state.js: every page loads the app-served
+                          /packages/_runtime/pconair.js instead
     style.css           ← shared tokens (dark bg, type scale, button styles)
   renders/
     scoreboard.html
