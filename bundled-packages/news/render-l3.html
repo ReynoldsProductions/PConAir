@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-render-id="l3">
 <head>
 <meta charset="UTF-8">
 <title>Faire Wire — lower thirds</title>
@@ -58,17 +58,13 @@
     transform:translateX(var(--off));opacity:0;}
   .l3 .accent{width:5px;height:104px;background:var(--accent);flex:none;}
   .l3 .text{padding:16px 0;min-width:0;}
-  /* the name never wraps: it shrinks toward 34px to fit, and ellipsis catches
-     anything still too long at that floor */
-  /* `overflow:hidden` is what makes the ellipsis work, and it clips at the
-     PADDING box — but line-height:1 gives a 1em box to hold Inter's 1.21em of
-     ink, so the box alone cuts descenders (3.3px off a "y" at 52px) and accented
-     caps. The padding grows the clip box; the matching negative margins take it
-     back out of the flow, so the 169px panel geometry is untouched. In em, so
-     the headroom survives the auto-shrink toward 34px. */
+  /* the name never wraps and never ellipsizes -- spec 22's data-fit engine
+     (pconair-fit.js) shrinks it toward a floor instead (data-fit-min below),
+     and leaves it visibly overflowing past that floor rather than clipping,
+     so a name that is still too long gets fixed before air instead of
+     quietly losing letters. */
   .l3 .name{font-weight:600;font-size:52px;line-height:1;color:var(--name-color);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    padding:.18em 0 .12em;margin:-.18em 0 -.12em;}
+    white-space:nowrap;}
   .l3 .title{font-size:32px;color:var(--title-color);margin-top:14px;line-height:1.15;}
   .l3 .subtitle{font-size:23px;font-weight:400;color:var(--title-color);opacity:.72;
     margin-top:10px;line-height:1.15;}
@@ -153,20 +149,19 @@
   <div class="l3" data-side="left" id="cardLeft">
     <div class="accent"></div>
     <div class="text">
-      <div class="name"></div><div class="title"></div><div class="subtitle"></div>
+      <div class="name" data-fit="name" data-fit-mode="shrink" data-fit-min="0.653846"></div><div class="title"></div><div class="subtitle"></div>
     </div>
   </div>
   <div class="l3" data-side="right" id="cardRight">
     <div class="accent"></div>
     <div class="text">
-      <div class="name"></div><div class="title"></div><div class="subtitle"></div>
+      <div class="name" data-fit="name" data-fit-mode="shrink" data-fit-min="0.653846"></div><div class="title"></div><div class="subtitle"></div>
     </div>
   </div>
 </div>
 
-<script src="/packages/news/assets/state.js"></script>
+<script src="/packages/_runtime/pconair.js"></script>
 <script>
-  var NAME_MIN = 34;
   var FONT_FAMILIES = {
     inter: "'Inter',-apple-system,sans-serif",
     chakra: "'Chakra Petch',sans-serif",
@@ -194,18 +189,6 @@
     var subEl = el.querySelector('.subtitle');
     var shown = false;
 
-    function fitName() {
-      nameEl.style.fontSize = '';
-      for (var i = 0; i < 3; i++) {
-        var avail = nameEl.clientWidth;
-        if (!avail || nameEl.scrollWidth <= avail + 1) return;
-        var size = parseFloat(getComputedStyle(nameEl).fontSize) * (avail / nameEl.scrollWidth);
-        size = Math.max(NAME_MIN, Math.floor(size));
-        nameEl.style.fontSize = size + 'px';
-        if (size === NAME_MIN) return;
-      }
-    }
-
     function apply(data) {
       data = data || {};
       var visible = !!data.visible;
@@ -213,10 +196,11 @@
       // Set copy before animating in, so the slide never shows stale text. While
       // the card is up, edits apply live.
       if (visible) {
+        // data-fit (pconair-fit.js) re-measures on its own MutationObserver
+        // the instant these change -- no explicit refit call needed.
         nameEl.textContent = data.name || '';
         titleEl.textContent = data.title || '';
         subEl.textContent = data.subtitle || '';
-        fitName();
       }
 
       if (visible === shown) return;
@@ -240,7 +224,7 @@
       }
     }
 
-    return { apply: apply, refit: fitName };
+    return { apply: apply };
   }
 
   var left = makeCard('cardLeft');
@@ -297,12 +281,10 @@
     right.apply(s.l3Right);
   }
 
-  // web-font metrics differ from the fallback — re-measure once they settle
-  if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(function () { left.refit(); right.refit(); });
-  }
-
-  client = PConAirPackage.connect('news', applyState);
+  // Web-font metrics differing from the fallback is exactly what spec 22's
+  // data-fit engine re-measures document.fonts.ready for on its own -- no
+  // page-specific hook needed any more.
+  client = window.PConAir.connect('news', { role: 'render', onState: applyState });
 </script>
 </body>
 </html>

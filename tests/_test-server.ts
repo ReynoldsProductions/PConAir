@@ -30,7 +30,14 @@ export interface FullServerTestOpts {
   stopTunnel?: () => void;
   saveTunnelSettings?: (patch: Record<string, unknown>) => void;
   packagesRoot?: string | string[];
+  /**
+   * Fetch stub for the data source poller (spec 20). Defaults to a stub that
+   * always rejects, so a test that forgets to pass one gets a loud, obvious
+   * failure instead of a silent real network call.
+   */
+  dataSourceFetchImpl?: typeof fetch;
   graphicsRoot?: string;
+  runtimeRoot?: string;
   stageTimer?: import('../src/main/routes/index').RouteServices['stageTimer'];
   getPrompterHost?: () => string;
   isPrompterEnabled?: () => boolean;
@@ -79,6 +86,13 @@ export function createFullServer(opts: FullServerTestOpts) {
   const l3Logos = createL3LogoStore({ l3FilesRoot });
 
   const slideshow = createSlideshowEngine({ store: opts.store, media: mediaLibrary });
+
+  // Set once createServer() below constructs the transport engine alongside
+  // the package hub — see src/main/index.ts's identical wiring and
+  // action-dispatch.ts's getTransportEngine doc for why this is a live
+  // binding read lazily rather than a value passed at construction time.
+  let transportEngineRef: import('../src/main/packages/transport').TransportEngine | null = null;
+
   const dispatchAction = createActionDispatcher({
     store: opts.store,
     auth,
@@ -89,6 +103,7 @@ export function createFullServer(opts: FullServerTestOpts) {
     slideshow,
     getPrompterHost: opts.getPrompterHost,
     isPrompterEnabled: opts.isPrompterEnabled,
+    getTransportEngine: () => transportEngineRef,
   });
 
   const server = createServer({
@@ -111,13 +126,26 @@ export function createFullServer(opts: FullServerTestOpts) {
     stopTunnel: opts.stopTunnel,
     saveTunnelSettings: opts.saveTunnelSettings,
     packagesRoot: opts.packagesRoot,
+    // Never let a test hit the real network through the data source poller —
+    // see the ServerDeps doc comment on dataSourceFetchImpl.
+    dataSourceFetchImpl:
+      opts.dataSourceFetchImpl ??
+      (async () => {
+        throw new Error(
+          'dataSourceFetchImpl was not stubbed for this test — a data source poll would otherwise hit the real network. ' +
+            'Pass dataSourceFetchImpl to createFullServer().'
+        );
+      }),
     graphicsRoot: opts.graphicsRoot,
+    // Default on: every package page depends on the runtime being served.
+    runtimeRoot: opts.runtimeRoot ?? path.join(process.cwd(), 'src', 'runtime'),
     stageTimer: opts.stageTimer,
     getPrompterHost: opts.getPrompterHost,
     isPrompterEnabled: opts.isPrompterEnabled,
     savePrompterSettings: opts.savePrompterSettings,
     prompterWindow: opts.prompterWindow,
   });
+  transportEngineRef = server.transportEngine ?? null;
 
   return {
     ...server,

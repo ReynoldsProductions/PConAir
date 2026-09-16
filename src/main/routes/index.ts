@@ -14,6 +14,8 @@ import { createStageTimerRouter, type StageTimerRouterDeps } from './stagetimer'
 import { createRenderRouter } from './render';
 import { createPackagesRouter } from './packages';
 import type { PackageHub } from '../packages/state-hub';
+import type { PresenceRegistry } from '../packages/presence';
+import type { TransportEngine } from '../packages/transport';
 import { createAdminRouter } from './admin';
 import { createPresetsRouter } from './presets';
 import { createL3Router } from './l3';
@@ -47,6 +49,13 @@ export interface RouteServices {
   l3Logos: L3LogoStore;
   l3FilesRoot: string;
   graphicsRoot?: string;
+  /**
+   * Serves the shared package runtime (src/runtime) at /packages/_runtime.
+   * Every package render and control page loads it instead of shipping its own
+   * copy of state.js. Resolved via app.isPackaged/resourcesPath in Electron
+   * main, exactly like `graphicsRoot` above.
+   */
+  runtimeRoot?: string;
   /**
    * Serves the vendored React + Slate design-system bundle at /vendor.
    * Omit to fall back to `VENDOR_ROOT_CANDIDATES`' self-resolving guess (works
@@ -99,6 +108,16 @@ export interface RouteServices {
   stageTimer?: Omit<StageTimerRouterDeps, 'store' | 'auth'>;
   /** Graphics packages hub; null when the packages system is disabled. */
   packageHub: PackageHub | null;
+  /** Output presence registry (spec 16) -- which render/control pages are subscribed to each package. */
+  presence: PresenceRegistry;
+  /** Transport engine for packageHub; null exactly when packageHub is null. */
+  transportEngine: TransportEngine | null;
+  /** Per-package data source overrides (spec 20); null when packages are disabled. */
+  dataOverrides: import('../packages/data-overrides').DataOverridesStore | null;
+  /** Data source poller (spec 20); null when packages are disabled. */
+  dataSourcePoller: import('../packages/data-sources').DataSourcePoller | null;
+  /** Live text-fit overflow warnings (spec 22). */
+  warningsStore: import('../packages/warnings').WarningsStore;
   /** Google Slides auth hooks (Electron main only). */
   openGoogleAuthWindow?: SlidesRouterDeps['openGoogleAuthWindow'];
   getGoogleAuthState?: SlidesRouterDeps['getGoogleAuthState'];
@@ -169,6 +188,15 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   if (s.graphicsRoot) {
     app.use('/graphics', express.static(s.graphicsRoot));
   }
+
+  // Shared package runtime — public, no auth, same trust level as /graphics.
+  // Mounted ahead of the packages router so `_runtime` can never be shadowed
+  // by a package id (validateManifest rejects a leading underscore anyway).
+  // fallthrough:false so a missing file 404s here rather than leaking into the
+  // package routes below.
+  if (s.runtimeRoot) {
+    app.use('/packages/_runtime', express.static(s.runtimeRoot, { index: false, fallthrough: false }));
+  }
   app.use(
     '/auth',
     createAuthRouter(s.auth, {
@@ -214,8 +242,18 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   // GSC Companion module compat — cookie-less, IP-allowlist-gated (see gsc-compat.ts)
   app.use('/api', createGscCompatRouter(s.store));
   app.use(createRenderRouter(s.store, s.auth));
-  if (s.packageHub) {
-    app.use(createPackagesRouter(s.packageHub));
+  if (s.packageHub && s.transportEngine) {
+    app.use(
+      createPackagesRouter({
+        hub: s.packageHub,
+        auth: s.auth,
+        transportEngine: s.transportEngine,
+        presence: s.presence,
+        dataOverrides: s.dataOverrides,
+        dataSourcePoller: s.dataSourcePoller,
+        warningsStore: s.warningsStore,
+      })
+    );
   }
   app.use(
     createTunnelRouter({

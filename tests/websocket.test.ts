@@ -280,6 +280,47 @@ describe('render WebSocket connections (cookie-less, read-only)', () => {
   });
 });
 
+/**
+ * Waits for a message matching `predicate`, buffering everything received in
+ * the meantime. Spec 16 made connectionStatus.webSocketClients accurate on
+ * connect (not just close) for every WS role, including ?graphics=1 — which
+ * means a graphics viewer now gets a connectionStatus state_patch right after
+ * its initial snapshot, ahead of whatever the test itself goes on to trigger.
+ * A plain `ws.once('message', ...)` chain assumed no such message existed;
+ * this scans forward instead, the same way `nextPatchWith` does above for
+ * the authenticated WS describe block.
+ */
+function waitForMessage(
+  ws: WebSocket,
+  predicate: (msg: WsServerMessage) => boolean,
+  timeoutMs = 3000
+): Promise<WsServerMessage> {
+  return new Promise((resolve, reject) => {
+    const onMessage = (data: unknown) => {
+      const msg = JSON.parse(String(data)) as WsServerMessage;
+      if (predicate(msg)) {
+        cleanup();
+        resolve(msg);
+      }
+    };
+    const onError = (err: Error) => {
+      cleanup();
+      reject(err);
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('timed out waiting for matching message'));
+    }, timeoutMs);
+    function cleanup() {
+      clearTimeout(timer);
+      ws.off('message', onMessage);
+      ws.off('error', onError);
+    }
+    ws.on('message', onMessage);
+    ws.on('error', onError);
+  });
+}
+
 describe('Graphics viewer WebSocket (?graphics=1)', () => {
   it('allows connection without auth and receives initial state', async () => {
     const store = createStateStore();
@@ -321,16 +362,16 @@ describe('Graphics viewer WebSocket (?graphics=1)', () => {
     const port = (srv.httpServer.address() as { port: number }).port;
 
     const ws = new WebSocket(`ws://localhost:${port}/ws?graphics=1`);
-    // skip initial 'state' message
     await new Promise<void>((resolve, reject) => {
       ws.once('message', () => resolve());
       ws.on('error', reject);
     });
 
-    const patchPromise = new Promise<WsServerMessage>((resolve, reject) => {
-      ws.once('message', (data) => resolve(JSON.parse(data.toString()) as WsServerMessage));
-      ws.on('error', reject);
-    });
+    const patchPromise = waitForMessage(
+      ws,
+      (m): m is Extract<WsServerMessage, { type: 'state_patch' }> =>
+        m.type === 'state_patch' && Boolean((m.payload as { graphics?: unknown }).graphics)
+    );
 
     // mutate state — should broadcast to all clients including graphics viewer
     store.setState({ graphics: { scoreboard: { teamA: 'BOS', teamB: 'LAL', scoreA: 10, scoreB: 8, quarter: 'Q2', gameClock: '5:00', gameClockRunning: true, shotClock: 24, shotClockRunning: true, possession: 'a', foulsA: 2, foulsB: 3, timeoutsA: 5, timeoutsB: 6 }, lowerThirds: { left: null, right: null } } });
@@ -360,16 +401,17 @@ describe('Graphics viewer WebSocket (?graphics=1)', () => {
     const opCookie = ((login.headers['set-cookie'] as unknown) as string[])[0];
 
     const ws = new WebSocket(`ws://localhost:${port}/ws?graphics=1`);
-    // skip initial 'state' message
     await new Promise<void>((resolve, reject) => {
       ws.once('message', () => resolve());
       ws.on('error', reject);
     });
 
-    const patchPromise = new Promise<WsServerMessage>((resolve, reject) => {
-      ws.once('message', (data) => resolve(JSON.parse(data.toString()) as WsServerMessage));
-      ws.on('error', reject);
-    });
+    const patchPromise = waitForMessage(
+      ws,
+      (m): m is Extract<WsServerMessage, { type: 'state_patch' }> =>
+        m.type === 'state_patch' &&
+        Boolean((m.payload as { graphics?: { lowerThirds?: { left?: unknown } } }).graphics?.lowerThirds?.left)
+    );
 
     // dispatch via the real action endpoint on an authenticated second connection
     await request(srv.app)

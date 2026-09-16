@@ -4,7 +4,19 @@
   "version": "1.0.0",
   "description": "Starter template — lower third, ticker, logo bug. Copy this folder, change the id, and restyle.",
   "renders": [
-    { "id": "overlay", "label": "Overlay", "file": "renders/overlay.html" }
+    {
+      "id": "overlay",
+      "label": "Overlay",
+      "file": "renders/overlay.html",
+      "transport": {
+        "stops": 2,
+        "inMs": [
+          500,
+          350
+        ],
+        "outMs": 400
+      }
+    }
   ],
   "stateSchema": {
     "bugVisible": "boolean",
@@ -20,6 +32,12 @@
       "messages": [],
       "label": "string",
       "speed": "number"
+    },
+    "style": {
+      "accent": "string",
+      "panelOpacity": "number",
+      "corner": "number",
+      "tickerHeight": "number"
     }
   },
   "initialState": {
@@ -40,6 +58,12 @@
       ],
       "label": "ON AIR",
       "speed": 80
+    },
+    "style": {
+      "accent": "#b5a998",
+      "panelOpacity": 0.94,
+      "corner": 4,
+      "tickerHeight": 80
     }
   },
   "companionActions": [
@@ -47,80 +71,378 @@
       "id": "l3_take",
       "label": "Take lower third",
       "options": [
-        { "id": "name",  "label": "Name",  "type": "textinput", "default": "" },
-        { "id": "title", "label": "Title", "type": "textinput", "default": "" }
+        {
+          "id": "name",
+          "label": "Name",
+          "type": "textinput",
+          "default": ""
+        },
+        {
+          "id": "title",
+          "label": "Title",
+          "type": "textinput",
+          "default": ""
+        }
       ],
       "ops": [
-        { "op": "set", "field": "l3.name",  "value": { "option": "name",  "orState": "l3.name"  } },
-        { "op": "set", "field": "l3.title", "value": { "option": "title", "orState": "l3.title" } },
-        { "op": "set", "field": "l3.visible", "value": true }
+        {
+          "op": "set",
+          "field": "l3.name",
+          "value": {
+            "option": "name",
+            "orState": "l3.name"
+          }
+        },
+        {
+          "op": "set",
+          "field": "l3.title",
+          "value": {
+            "option": "title",
+            "orState": "l3.title"
+          }
+        },
+        {
+          "op": "set",
+          "field": "l3.visible",
+          "value": true
+        }
       ]
     },
     {
       "id": "l3_clear",
       "label": "Clear lower third",
       "ops": [
-        { "op": "set", "field": "l3.visible", "value": false }
+        {
+          "op": "set",
+          "field": "l3.visible",
+          "value": false
+        }
       ]
     },
     {
       "id": "ticker_show",
       "label": "Show ticker",
-      "ops": [ { "op": "set", "field": "ticker.visible", "value": true } ]
+      "ops": [
+        {
+          "op": "set",
+          "field": "ticker.visible",
+          "value": true
+        }
+      ]
     },
     {
       "id": "ticker_hide",
       "label": "Hide ticker",
-      "ops": [ { "op": "set", "field": "ticker.visible", "value": false } ]
+      "ops": [
+        {
+          "op": "set",
+          "field": "ticker.visible",
+          "value": false
+        }
+      ]
     },
     {
       "id": "ticker_toggle",
       "label": "Toggle ticker",
-      "ops": [ { "op": "toggle", "field": "ticker.visible" } ]
+      "ops": [
+        {
+          "op": "toggle",
+          "field": "ticker.visible"
+        }
+      ]
     },
     {
       "id": "ticker_set",
       "label": "Set ticker content",
       "options": [
-        { "id": "messages", "label": "Messages (| separated)", "type": "textinput", "default": "" },
-        { "id": "label",    "label": "Label",                  "type": "textinput", "default": "" }
+        {
+          "id": "messages",
+          "label": "Messages (| separated)",
+          "type": "textinput",
+          "default": ""
+        },
+        {
+          "id": "label",
+          "label": "Label",
+          "type": "textinput",
+          "default": ""
+        }
       ],
       "ops": [
-        { "op": "set", "field": "ticker.messages", "value": { "option": "messages", "split": "|" } },
-        { "op": "set", "field": "ticker.label",    "value": { "option": "label", "orState": "ticker.label" } },
-        { "op": "set", "field": "ticker.visible",  "value": true }
+        {
+          "op": "set",
+          "field": "ticker.messages",
+          "value": {
+            "option": "messages",
+            "split": "|"
+          }
+        },
+        {
+          "op": "set",
+          "field": "ticker.label",
+          "value": {
+            "option": "label",
+            "orState": "ticker.label"
+          }
+        },
+        {
+          "op": "set",
+          "field": "ticker.visible",
+          "value": true
+        }
       ]
     },
     {
       "id": "bug_toggle",
       "label": "Toggle logo bug",
-      "ops": [ { "op": "toggle", "field": "bugVisible" } ]
+      "ops": [
+        {
+          "op": "toggle",
+          "field": "bugVisible"
+        }
+      ]
     },
     {
       "id": "live_show",
       "label": "Show LIVE indicator",
-      "ops": [ { "op": "set", "field": "liveVisible", "value": true } ]
+      "ops": [
+        {
+          "op": "set",
+          "field": "liveVisible",
+          "value": true
+        }
+      ]
     },
     {
       "id": "live_hide",
       "label": "Hide LIVE indicator",
-      "ops": [ { "op": "set", "field": "liveVisible", "value": false } ]
+      "ops": [
+        {
+          "op": "set",
+          "field": "liveVisible",
+          "value": false
+        }
+      ]
     },
     {
       "id": "theme_toggle",
       "label": "Toggle dark/light theme",
-      "ops": [ { "op": "toggle", "field": "theme" } ]
+      "ops": [
+        {
+          "op": "toggle",
+          "field": "theme"
+        }
+      ]
     }
   ],
   "companionFeedbacks": [
-    { "id": "l3_visible",    "label": "Lower third on air", "field": "l3.visible" },
-    { "id": "ticker_visible","label": "Ticker visible",     "field": "ticker.visible" },
-    { "id": "bug_visible",   "label": "Logo bug visible",   "field": "bugVisible" },
-    { "id": "live_visible",  "label": "LIVE indicator visible", "field": "liveVisible" }
+    {
+      "id": "l3_visible",
+      "label": "Lower third on air",
+      "field": "l3.visible"
+    },
+    {
+      "id": "ticker_visible",
+      "label": "Ticker visible",
+      "field": "ticker.visible"
+    },
+    {
+      "id": "bug_visible",
+      "label": "Logo bug visible",
+      "field": "bugVisible"
+    },
+    {
+      "id": "live_visible",
+      "label": "LIVE indicator visible",
+      "field": "liveVisible"
+    }
   ],
   "companionVariables": [
-    { "id": "l3_name",     "label": "Lower third name",  "field": "l3.name" },
-    { "id": "l3_title",    "label": "Lower third title", "field": "l3.title" },
-    { "id": "ticker_label","label": "Ticker label",      "field": "ticker.label" }
-  ]
+    {
+      "id": "l3_name",
+      "label": "Lower third name",
+      "field": "l3.name"
+    },
+    {
+      "id": "l3_title",
+      "label": "Lower third title",
+      "field": "l3.title"
+    },
+    {
+      "id": "ticker_label",
+      "label": "Ticker label",
+      "field": "ticker.label"
+    }
+  ],
+  "controls": {
+    "groups": [
+      {
+        "id": "lowerthird",
+        "label": "Lower Third",
+        "fields": [
+          {
+            "type": "text",
+            "field": "l3.name",
+            "label": "Name",
+            "span": "half",
+            "placeholder": "Jane Smith",
+            "maxLength": 60
+          },
+          {
+            "type": "text",
+            "field": "l3.title",
+            "label": "Title",
+            "span": "half",
+            "placeholder": "Chief Executive Officer",
+            "maxLength": 80
+          },
+          {
+            "type": "toggle",
+            "field": "l3.visible",
+            "label": "On air",
+            "help": "Drives the slide-in transition in the render."
+          }
+        ]
+      },
+      {
+        "id": "ticker",
+        "label": "Ticker",
+        "fields": [
+          {
+            "type": "text",
+            "field": "ticker.messages",
+            "label": "Messages",
+            "list": true,
+            "help": "One per line. Use \"Lead:: rest\" for a bold lead-in."
+          },
+          {
+            "type": "text",
+            "field": "ticker.label",
+            "label": "Tag",
+            "span": "half",
+            "placeholder": "ON AIR",
+            "maxLength": 24
+          },
+          {
+            "type": "slider",
+            "field": "ticker.speed",
+            "label": "Crawl speed",
+            "span": "half",
+            "min": 20,
+            "max": 200,
+            "step": 5
+          },
+          {
+            "type": "toggle",
+            "field": "ticker.visible",
+            "label": "Show ticker"
+          }
+        ]
+      },
+      {
+        "id": "bug",
+        "label": "Bug & Live",
+        "fields": [
+          {
+            "type": "toggle",
+            "field": "bugVisible",
+            "label": "Logo bug",
+            "span": "third"
+          },
+          {
+            "type": "toggle",
+            "field": "liveVisible",
+            "label": "LIVE indicator",
+            "span": "third"
+          },
+          {
+            "type": "select",
+            "field": "theme",
+            "label": "Theme",
+            "span": "third",
+            "choices": [
+              {
+                "id": "light",
+                "label": "Light"
+              },
+              {
+                "id": "dark",
+                "label": "Dark"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "playback",
+        "label": "Stat Card Playback",
+        "fields": [
+          {
+            "type": "static",
+            "label": "Two-stop transport",
+            "text": "Play brings the card in and holds at stop 1. Next reveals the detail line (stop 2). Stop animates it out; Clear snaps it away."
+          },
+          {
+            "type": "transport",
+            "label": "Stat card",
+            "renderId": "overlay"
+          }
+        ]
+      },
+      {
+        "id": "look",
+        "label": "Look",
+        "collapsed": true,
+        "fields": [
+          {
+            "type": "static",
+            "label": "Live restyling",
+            "text": "These drive CSS custom properties on the render via client.applyStyle() — the graphic restyles as you change them, with no reload and no file edited."
+          },
+          {
+            "type": "color",
+            "field": "style.accent",
+            "label": "Accent",
+            "span": "half",
+            "swatches": [
+              "#b5a998",
+              "#c8a24a",
+              "#3dd68c",
+              "#e5484d",
+              "#ffffff"
+            ]
+          },
+          {
+            "type": "slider",
+            "field": "style.panelOpacity",
+            "label": "Panel opacity",
+            "span": "half",
+            "min": 0.2,
+            "max": 1,
+            "step": 0.02
+          },
+          {
+            "type": "slider",
+            "field": "style.corner",
+            "label": "Corner radius",
+            "span": "half",
+            "min": 0,
+            "max": 32,
+            "step": 1,
+            "unit": "px"
+          },
+          {
+            "type": "slider",
+            "field": "style.tickerHeight",
+            "label": "Ticker height",
+            "span": "half",
+            "min": 48,
+            "max": 140,
+            "step": 2,
+            "unit": "px"
+          }
+        ]
+      }
+    ]
+  }
 }

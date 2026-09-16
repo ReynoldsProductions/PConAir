@@ -131,6 +131,14 @@ class PcOnAirInstance extends InstanceBase<Config> {
         if (!this.client) throw new Error('not connected')
         await this.client.patchPackageState(id, patch)
       },
+      postTransportVerb: async (id, renderId, verb) => {
+        if (!this.client) throw new Error('not connected')
+        await this.client.postTransportVerb(id, renderId, verb)
+      },
+      clearAllTransport: async (id) => {
+        if (!this.client) throw new Error('not connected')
+        await this.client.clearAllTransport(id)
+      },
       log: (level, msg) => this.log(level, msg),
     })
 

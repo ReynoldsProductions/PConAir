@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { validateControls } from './controls-validate';
 
 /**
  * A URL preset a render asks the app to keep. Use it for renders that are a
@@ -12,12 +13,30 @@ export interface PackageRenderPreset {
   description?: string;
 }
 
+/**
+ * Declares a render as transport-managed: it has a playback state machine
+ * (idle -> playing-in -> holding[n] -> playing-out -> finished) driven by the
+ * server, rather than a single `visible` boolean. See
+ * specs/15-graphics-transport.md.
+ */
+export interface PackageRenderTransport {
+  /** Number of hold points. 1 = classic in/hold/out. Max 16. */
+  stops: number;
+  /** Milliseconds of intro per segment. Segment i is durations[i], last repeats. */
+  inMs?: number[];
+  /** Milliseconds of outro. Default 400. */
+  outMs?: number;
+  /** Auto-advance a hold after N ms. 0 or absent = hold until told. */
+  autoAdvanceMs?: number[];
+}
+
 /** One render page declared by a package. */
 export interface PackageRenderDecl {
   id: string;
   label: string;
   file: string;
   preset?: PackageRenderPreset;
+  transport?: PackageRenderTransport;
 }
 
 /** Leaf types allowed in a package stateSchema. */
@@ -123,6 +142,233 @@ export interface PackageManifest {
   companionFeedbacks?: PkgCompanionFeedback[];
   companionVariables?: PkgCompanionVariable[];
   companionDerived?: PkgCompanionDerived[];
+  /** Polled, normalized data feeds — see data-sources.ts. */
+  dataSources?: PackageDataSource[];
+  /**
+   * Declarative operator panel — see the "Declarative controls" block below
+   * and src/runtime/pconair-controls.js. A package with `controls` and no
+   * control.html gets a generated panel; one with control.html keeps it.
+   */
+  controls?: PackageControls;
+}
+
+// ── Data sources (spec 20) ───────────────────────────────────────────────
+//
+// A package can declare polled, normalized data feeds (RSS, JSON, CSV) that
+// land in package state under the reserved `_data` key (see state-hub.ts).
+// See src/main/packages/data-sources.ts for the poller, parsers and safety
+// guard, and data-overrides.ts for operator/admin overrides.
+
+export type DataSourceKind = 'http-json' | 'http-csv' | 'rss';
+
+export type DataTransform =
+  | { op: 'sort'; column: string; direction?: 'asc' | 'desc'; numeric?: boolean }
+  | { op: 'filter'; column: string; test: 'eq' | 'neq' | 'contains' | 'gt' | 'lt'; value: string }
+  | { op: 'limit'; count: number }
+  | { op: 'offset'; count: number }
+  | { op: 'rank'; column: string };
+
+export interface PackageDataSource {
+  /** Key under `_data` in package state. Lowercase, no leading underscore. */
+  id: string;
+  label: string;
+  kind: DataSourceKind;
+  /** Default URL. Operator-overridable — see data-overrides.ts. */
+  url?: string;
+  /** http-json only: dotted path to the array, e.g. "data.standings". */
+  path?: string;
+  /** Seconds. Clamped to the floor in data-sources.ts. Default 300. */
+  pollSeconds?: number;
+  /** Applied in array order. */
+  transforms?: DataTransform[];
+}
+
+// ── Declarative controls (spec 18) ───────────────────────────────────────
+//
+// A package declares WHAT an operator may change; the shared runtime decides
+// HOW it is drawn (src/runtime/pconair-controls.js). A manifest with `controls`
+// and no control.html gets a generated operator panel for free — see
+// GET /packages/:id/control in src/main/routes/packages.ts.
+//
+// Field `type` names deliberately echo PkgCompanionOption's vocabulary above
+// where they overlap, so a package author learns one type system, not two.
+// Validation lives in ./controls-validate.ts to keep this file readable.
+
+/** Layout hint. The panel decides the actual widths. */
+export type ControlSpan = 'full' | 'half' | 'third';
+
+/** Every field type the panel can draw. */
+export type ControlFieldType =
+  | 'text'
+  | 'number'
+  | 'toggle'
+  | 'select'
+  | 'color'
+  | 'slider'
+  | 'asset'
+  | 'transport'
+  | 'data'
+  | 'action'
+  | 'static';
+
+export interface FieldBase {
+  /**
+   * Dotted path into the package's state, e.g. "home.score". Required for
+   * value-bearing fields (text/number/toggle/select/color/slider/asset),
+   * absent for transport/data/action/static. Array indices are supported
+   * ("scores.0"), the same dotted-path convention Companion field paths use.
+   */
+  field?: string;
+  label: string;
+  /** Operator-facing hint rendered under the input. */
+  help?: string;
+  /**
+   * Show only when another field's value matches — e.g. "logo position"
+   * appearing only once "show logo" is on. Re-evaluated on every state frame.
+   */
+  showIf?: { field: string; equals: string | number | boolean };
+  /** Width hint. Default 'full'. */
+  span?: ControlSpan;
+}
+
+export interface TextField extends FieldBase {
+  type: 'text';
+  multiline?: boolean;
+  maxLength?: number;
+  placeholder?: string;
+  /**
+   * Bind a textarea to an ARRAY-of-strings leaf, one item per line (blank
+   * lines dropped). Implies `multiline`. Not in spec 18 §3.2's original union
+   * — added because template-overlay's `ticker.messages` is an array leaf and
+   * the acceptance criterion is a complete panel with zero hand-written HTML.
+   * See §7 of the spec.
+   */
+  list?: boolean;
+}
+
+export interface NumberField extends FieldBase {
+  type: 'number';
+  min?: number;
+  max?: number;
+  step?: number;
+  /** Renders -/+ buttons beside the input, one pair per magnitude. */
+  bump?: number[];
+}
+
+export interface ToggleField extends FieldBase {
+  type: 'toggle';
+}
+
+export interface SelectField extends FieldBase {
+  type: 'select';
+  choices: Array<{ id: string | number; label: string }>;
+}
+
+export interface ColorField extends FieldBase {
+  type: 'color';
+  /** Also offered as one-click swatches. Each must pass isValidColorValue(). */
+  swatches?: string[];
+}
+
+export interface SliderField extends FieldBase {
+  type: 'slider';
+  min: number;
+  max: number;
+  step?: number;
+  /** Suffix for the value readout, e.g. "px" or "%". Display only. */
+  unit?: string;
+}
+
+export interface AssetField extends FieldBase {
+  type: 'asset';
+  accept?: 'image' | 'video' | 'any';
+}
+
+export interface TransportField extends FieldBase {
+  type: 'transport';
+  /** Must name a render that declares `transport` (spec 15). */
+  renderId: string;
+  field?: never;
+}
+
+export interface DataField extends FieldBase {
+  type: 'data';
+  /** Must name a declared dataSource (spec 20). */
+  sourceId: string;
+  field?: never;
+}
+
+/**
+ * A deadline-based countdown verb — the one thing a static `patch` provably
+ * cannot express, because starting a clock needs `Date.now()`.
+ *
+ * Semantics are lifted verbatim from `PkgCompanionOp`'s
+ * countdown_start/stop/reset above, so an author who has written the Companion
+ * half of a timer already knows this. Not in spec 18 §3.2's original union —
+ * added because §3.8 requires `demo-packages/template-timer` to ship with NO
+ * control.html, and a countdown is the entire point of that package. See §7 of
+ * the spec.
+ */
+export interface ControlCountdown {
+  verb: 'start' | 'stop' | 'reset';
+  /** Dotted path to the epoch-ms deadline. Must be a number leaf. */
+  deadlineField: string;
+  /** Dotted path to the seconds remaining. Must be a number leaf. */
+  valueField: string;
+  /** Optional boolean leaf kept in step with the clock. */
+  runningField?: string;
+  /**
+   * `start`: seconds to run when the clock is not already running.
+   * `reset`: seconds to restore.
+   * A literal; `secondsField` reads it from state instead.
+   */
+  seconds?: number;
+  /** Number leaf to read `seconds` from — e.g. an operator-set duration. */
+  secondsField?: string;
+}
+
+export interface ActionField extends FieldBase {
+  type: 'action';
+  /** Patch merged on click. Every dotted path in it must resolve. */
+  patch?: Record<string, unknown>;
+  /** Deadline-based clock verb. Mutually exclusive with `patch`. */
+  countdown?: ControlCountdown;
+  confirm?: string;
+  variant?: 'default' | 'danger';
+}
+
+export interface StaticField extends FieldBase {
+  type: 'static';
+  text: string;
+  field?: never;
+}
+
+export type ControlField =
+  | TextField
+  | NumberField
+  | ToggleField
+  | SelectField
+  | ColorField
+  | SliderField
+  | AssetField
+  | TransportField
+  | DataField
+  | ActionField
+  | StaticField;
+
+export interface ControlGroup {
+  id: string;
+  label: string;
+  /** Collapsed on first load. The operator's choice then persists per viewer. */
+  collapsed?: boolean;
+  /** Narrows this group to one render's panel. Absent = always shown. */
+  renderId?: string;
+  fields: ControlField[];
+}
+
+export interface PackageControls {
+  /** Ordered. Rendered as titled sections. */
+  groups: ControlGroup[];
 }
 
 export interface LoadedPackage {
@@ -133,6 +379,9 @@ export interface LoadedPackage {
 }
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9-_]*$/;
+const DATA_SOURCE_KINDS = new Set<DataSourceKind>(['http-json', 'http-csv', 'rss']);
+const DATA_TRANSFORM_OPS = new Set(['sort', 'filter', 'limit', 'offset', 'rank']);
+const DATA_TRANSFORM_TESTS = new Set(['eq', 'neq', 'contains', 'gt', 'lt']);
 
 export function validateManifest(raw: unknown): { ok: true; manifest: PackageManifest } | { ok: false; error: string } {
   if (typeof raw !== 'object' || raw === null) return { ok: false, error: 'manifest is not an object' };
@@ -164,13 +413,183 @@ export function validateManifest(raw: unknown): { ok: true; manifest: PackageMan
         }
       }
     }
+    if (rr.transport !== undefined) {
+      const t = rr.transport as Record<string, unknown>;
+      if (typeof t !== 'object' || t === null || Array.isArray(t)) {
+        return { ok: false, error: `render '${rr.id}' transport must be an object` };
+      }
+      if (typeof t.stops !== 'number' || !Number.isInteger(t.stops) || t.stops < 1 || t.stops > 16) {
+        return { ok: false, error: `render '${rr.id}' transport.stops must be an integer between 1 and 16` };
+      }
+      const stops = t.stops;
+      const isNonNegIntArray = (v: unknown): v is number[] =>
+        Array.isArray(v) && v.every((n) => typeof n === 'number' && Number.isInteger(n) && n >= 0);
+      if (t.inMs !== undefined) {
+        if (!isNonNegIntArray(t.inMs) || t.inMs.length > stops) {
+          return {
+            ok: false,
+            error: `render '${rr.id}' transport.inMs must be an array of up to ${stops} non-negative integers`,
+          };
+        }
+      }
+      if (t.outMs !== undefined) {
+        if (typeof t.outMs !== 'number' || !Number.isInteger(t.outMs) || t.outMs < 0) {
+          return { ok: false, error: `render '${rr.id}' transport.outMs must be a non-negative integer` };
+        }
+      }
+      if (t.autoAdvanceMs !== undefined) {
+        if (!isNonNegIntArray(t.autoAdvanceMs) || t.autoAdvanceMs.length > stops) {
+          return {
+            ok: false,
+            error: `render '${rr.id}' transport.autoAdvanceMs must be an array of up to ${stops} non-negative integers`,
+          };
+        }
+      }
+    }
+  }
+  if (m.stateSchema !== undefined) {
+    if (typeof m.stateSchema !== 'object' || m.stateSchema === null || Array.isArray(m.stateSchema)) {
+      return { ok: false, error: 'stateSchema must be an object' };
+    }
+    // Reserved namespace prefix (plan_approved.md "Global Constraints"): `_`-led
+    // top-level keys are engine-owned (spec 15's `_transport`, spec 20's
+    // `_data`, spec 19's `_meta`). A package cannot declare one. Originally
+    // added independently by both spec 15 and spec 20 (each wrote this exact
+    // check without seeing the other's concurrent branch, per each spec's own
+    // instructions); collapsed into one check while merging the two branches.
+    for (const key of Object.keys(m.stateSchema as Record<string, unknown>)) {
+      if (key.startsWith('_')) {
+        return {
+          ok: false,
+          error: `stateSchema key '${key}' is reserved — leading-underscore keys belong to the engine (_transport, _data, _meta)`,
+        };
+      }
+    }
   }
   if (m.transientFields !== undefined) {
     if (!Array.isArray(m.transientFields) || m.transientFields.some((f) => typeof f !== 'string' || f.length === 0)) {
       return { ok: false, error: 'transientFields must be an array of non-empty dotted state paths' };
     }
   }
+  if (m.dataSources !== undefined) {
+    if (!Array.isArray(m.dataSources)) {
+      return { ok: false, error: 'dataSources must be an array' };
+    }
+    const seenIds = new Set<string>();
+    for (const raw of m.dataSources) {
+      const err = validateDataSource(raw, seenIds);
+      if (err) return { ok: false, error: err };
+    }
+  }
+  if (m.controls !== undefined) {
+    // Runs last: it cross-references stateSchema paths, render transports and
+    // data source ids, all of which are validated above.
+    const err = validateControls(m.controls, {
+      stateSchema: m.stateSchema as PackageSchema | undefined,
+      renders: m.renders as PackageRenderDecl[],
+      dataSources: m.dataSources as PackageDataSource[] | undefined,
+    });
+    if (err) return { ok: false, error: err };
+  }
   return { ok: true, manifest: raw as PackageManifest };
+}
+
+function validateDataSource(raw: unknown, seenIds: Set<string>): string | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return 'each data source must be an object';
+  }
+  const ds = raw as Record<string, unknown>;
+  const idForMessage = typeof ds.id === 'string' && ds.id.length > 0 ? ds.id : '(missing id)';
+  if (typeof ds.id !== 'string' || !ID_PATTERN.test(ds.id)) {
+    return `data source '${idForMessage}': id must be lowercase alphanumeric (with - or _), and not start with '_'`;
+  }
+  if (seenIds.has(ds.id)) {
+    return `data source '${ds.id}': duplicate id`;
+  }
+  seenIds.add(ds.id);
+  if (typeof ds.label !== 'string' || ds.label.length === 0) {
+    return `data source '${ds.id}': label is required`;
+  }
+  if (!DATA_SOURCE_KINDS.has(ds.kind as DataSourceKind)) {
+    return `data source '${ds.id}': kind must be one of 'http-json', 'http-csv', 'rss'`;
+  }
+  if (ds.url !== undefined && typeof ds.url !== 'string') {
+    return `data source '${ds.id}': url must be a string`;
+  }
+  if (ds.path !== undefined) {
+    if (typeof ds.path !== 'string' || ds.path.length === 0) {
+      return `data source '${ds.id}': path must be a non-empty string`;
+    }
+    if (ds.kind !== 'http-json') {
+      return `data source '${ds.id}': path is only valid when kind is 'http-json'`;
+    }
+  }
+  if (ds.pollSeconds !== undefined) {
+    if (typeof ds.pollSeconds !== 'number' || !Number.isInteger(ds.pollSeconds) || ds.pollSeconds <= 0) {
+      return `data source '${ds.id}': pollSeconds must be a positive integer`;
+    }
+  }
+  if (ds.transforms !== undefined) {
+    if (!Array.isArray(ds.transforms)) {
+      return `data source '${ds.id}': transforms must be an array`;
+    }
+    for (const t of ds.transforms) {
+      const err = validateDataTransform(ds.id, t);
+      if (err) return err;
+    }
+  }
+  return null;
+}
+
+function validateDataTransform(sourceId: string, raw: unknown): string | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return `data source '${sourceId}': each transform must be an object`;
+  }
+  const t = raw as Record<string, unknown>;
+  if (typeof t.op !== 'string' || !DATA_TRANSFORM_OPS.has(t.op)) {
+    return `data source '${sourceId}': unknown transform op '${String(t.op)}'`;
+  }
+  switch (t.op) {
+    case 'sort':
+      if (typeof t.column !== 'string' || t.column.length === 0) {
+        return `data source '${sourceId}': sort transform requires a 'column'`;
+      }
+      if (t.direction !== undefined && t.direction !== 'asc' && t.direction !== 'desc') {
+        return `data source '${sourceId}': sort direction must be 'asc' or 'desc'`;
+      }
+      if (t.numeric !== undefined && typeof t.numeric !== 'boolean') {
+        return `data source '${sourceId}': sort numeric must be a boolean`;
+      }
+      return null;
+    case 'filter':
+      if (typeof t.column !== 'string' || t.column.length === 0) {
+        return `data source '${sourceId}': filter transform requires a 'column'`;
+      }
+      if (typeof t.test !== 'string' || !DATA_TRANSFORM_TESTS.has(t.test)) {
+        return `data source '${sourceId}': filter test must be one of eq, neq, contains, gt, lt`;
+      }
+      if (typeof t.value !== 'string') {
+        return `data source '${sourceId}': filter transform requires a string 'value'`;
+      }
+      return null;
+    case 'limit':
+      if (typeof t.count !== 'number' || !Number.isInteger(t.count) || t.count < 0) {
+        return `data source '${sourceId}': limit count must be a non-negative integer`;
+      }
+      return null;
+    case 'offset':
+      if (typeof t.count !== 'number' || !Number.isInteger(t.count) || t.count < 0) {
+        return `data source '${sourceId}': offset count must be a non-negative integer`;
+      }
+      return null;
+    case 'rank':
+      if (typeof t.column !== 'string' || t.column.length === 0) {
+        return `data source '${sourceId}': rank transform requires a 'column'`;
+      }
+      return null;
+    default:
+      return `data source '${sourceId}': unknown transform op`;
+  }
 }
 
 /** Derive an initial state object from a stateSchema (number→0, string→'', boolean→false). */

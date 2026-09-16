@@ -23,7 +23,7 @@ window.FFG = (function () {
 
   function start(buildFn, configKeyFn) {
     keyFn = configKeyFn || defaultKeyFn;
-    client = window.PConAirPackage.connect('ffg', (s) => {
+    client = window.PConAir.connect('ffg', { role: 'render', onState: (s) => {
       if (built && keyFn(s) !== configKey) {
         location.reload();
         return;
@@ -37,7 +37,7 @@ window.FFG = (function () {
         window.OverlayKit.autoScale();
       }
       for (const fn of updateHandlers) fn(s);
-    });
+    } });
   }
 
   function onUpdate(fn) {

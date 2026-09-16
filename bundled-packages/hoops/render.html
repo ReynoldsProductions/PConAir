@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-render-id="scorebug">
 <head>
 <meta charset="UTF-8">
 <title>COURTVISION — basketball scorebug</title>
@@ -185,7 +185,7 @@
   </div>
 </div>
 
-<script src="/packages/hoops/assets/state.js"></script>
+<script src="/packages/_runtime/pconair.js"></script>
 <script>
   const g = (id) => document.getElementById(id);
 
@@ -345,7 +345,7 @@
     requestAnimationFrame(loop);
   })();
 
-  PConAirPackage.connect('hoops', applyState);
+  window.PConAir.connect('hoops', { role: 'render', onState: applyState });
 </script>
 </body>
 </html>

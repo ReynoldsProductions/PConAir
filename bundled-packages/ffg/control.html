@@ -5,6 +5,7 @@
 <title>FFG Control</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;1,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/packages/_runtime/pconair.css">
 <style>
   :root {
     --kraft:#c9a574; --kraft-deep:#6b4a22; --ink:#2b2622; --cream:#fbf8f6;
@@ -149,7 +150,10 @@
 
 <div class="header">
   <h1>Faire Fulfillment Games</h1>
-  <div class="status-pill offline" id="status-pill">CONNECTING…</div>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <div id="presence" data-presence="none"></div>
+    <div class="status-pill offline" id="status-pill">CONNECTING…</div>
+  </div>
 </div>
 
 <div class="tabs">
@@ -159,6 +163,11 @@
 
 <!-- ── SCORES tab ─────────────────────────────────────────────── -->
 <div class="tab-page active" id="tab-scores">
+
+  <div class="section">
+    <div class="section-label">PREVIEW</div>
+    <div id="preview"></div>
+  </div>
 
   <div class="section">
     <div class="section-label">SHIP-BY TIMER</div>
@@ -232,7 +241,7 @@
   </div>
 </div>
 
-<script src="/packages/ffg/assets/state.js"></script>
+<script src="/packages/_runtime/pconair.js"></script>
 <script>
   const g = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
@@ -240,7 +249,10 @@
   let state = null;
   let teamsKey = '';
 
-  const client = window.PConAirPackage.connect('ffg', (s) => {
+  const client = window.PConAir.connect('ffg', { role: 'control' });
+  window.PConAir.presenceIndicator(g('presence'), client);
+  window.PConAir.preview(g('preview'), { packageId: 'ffg', renderId: 'four-up', width: 480 });
+  client.on((s) => {
     state = s;
     g('status-pill').className = 'status-pill live';
     g('status-pill').textContent = 'LIVE';

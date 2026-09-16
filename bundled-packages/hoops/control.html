@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>COURTVISION — control</title>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&family=Saira:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/packages/_runtime/pconair.css">
 <style>
   :root{
     --bg:#0c0f14; --bg2:#141a22; --panel:#1b232e; --ink:#eef3f7; --sub:#90a0b2;
@@ -57,7 +58,15 @@
 
 <div class="header">
   <h1>COURTVISION CONTROL</h1>
-  <div class="pill offline" id="pill">CONNECTING…</div>
+  <div class="row">
+    <div id="presence" data-presence="none"></div>
+    <div class="pill offline" id="pill">CONNECTING…</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lbl">Preview</div>
+  <div id="preview"></div>
 </div>
 
 <div class="section">
@@ -196,12 +205,15 @@
   <div class="small">Crawl speed in pixels/second — it now stays constant regardless of how many headlines are loaded, so the ticker no longer speeds up with more text. Drag to adjust live.</div>
 </div>
 
-<script src="/packages/hoops/assets/state.js"></script>
+<script src="/packages/_runtime/pconair.js"></script>
 <script>
   const g = (id) => document.getElementById(id);
   let state = null;
 
-  const client = PConAirPackage.connect('hoops', (s) => {
+  const client = window.PConAir.connect('hoops', { role: 'control' });
+  window.PConAir.presenceIndicator(g('presence'), client);
+  window.PConAir.preview(g('preview'), { packageId: 'hoops', renderId: 'scorebug', width: 480 });
+  client.on((s) => {
     state = s;
     g('pill').className = 'pill live';
     g('pill').textContent = 'LIVE';

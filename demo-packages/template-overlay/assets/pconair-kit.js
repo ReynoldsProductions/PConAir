@@ -3,7 +3,7 @@
    so you can focus on design rather than plumbing.
 
    Load AFTER state.js:
-     <script src="/packages/YOUR-ID/assets/state.js"></script>
+     <script src="/packages/_runtime/pconair.js"></script>
      <script src="/packages/YOUR-ID/assets/pconair-kit.js"></script>
 
    Usage:
@@ -13,7 +13,7 @@
         .gameClock({ deadline: 'clock.deadline', value: 'clock.value', el: '#clock' })
         .shotClock({ deadline: 'shotEndsAt', value: 'shotClock', el: '#shot', dangerAt: 5 })
         .ticker({ messages: 'ticker.messages', speed: 'ticker.speed', track: '#track' })
-        .onState(s => { /* custom logic */ });
+        .onState(s => { ... your custom logic ... });
 
    All methods are chainable. */
 
@@ -55,9 +55,12 @@ window.PConAirKit = (function () {
       for (i = 0; i < stateHandlers.length; i++) stateHandlers[i](s);
     }
 
-    client = window.PConAirPackage.connect(packageId, function (s) {
-      state = s;
-      applyAll(s);
+    client = window.PConAir.connect(packageId, {
+      role: 'render',
+      onState: function (s) {
+        state = s;
+        applyAll(s);
+      },
     });
 
     var kit = {};
@@ -110,6 +113,22 @@ window.PConAirKit = (function () {
 
     /* kit.patch({ field: value }) — shallow-merge state patch. */
     kit.patch = function (obj) { return client.patch(obj); };
+
+    /* kit.client — the underlying PConAir client, for anything the kit does
+       not wrap (client.verb, client.onTransport, client.onPresence). */
+    kit.client = client;
+
+    /* kit.applyStyle([subtree], [prefix]) — mirror a state subtree onto :root
+       as CSS custom properties, so a manifest's "Look" controls restyle this
+       render live. Defaults to state.style -> --pc-*:
+         { accent: '#c8a24a', panelOpacity: .9 }
+           -> --pc-accent: #c8a24a; --pc-panel-opacity: .9
+       Author your CSS against var(--pc-accent, <fallback>) and you are done.
+       See specs/18-declarative-controls.md 3.3. */
+    kit.applyStyle = function (subtree, prefix) {
+      client.applyStyle(subtree, prefix);
+      return kit;
+    };
 
     // ── Game Clock ────────────────────────────────────────────────────────────
 

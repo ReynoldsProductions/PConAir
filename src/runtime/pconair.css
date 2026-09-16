@@ -1,0 +1,533 @@
+/* PConAir shared package runtime - base stylesheet.
+   Served at /packages/_runtime/pconair.css. See specs/14-package-control-runtime.md.
+
+   Ships the design tokens now so specs 16-23 style against one set rather than
+   each negotiating its own. Control panels are operated in dim rooms next to a
+   switcher, so the default is dark; a package can override any token. */
+:root {
+  --pc-bg: #14161a;
+  --pc-fg: #e8eaed;
+  --pc-accent: #c8a24a;
+  --pc-danger: #e5484d;
+  --pc-ok: #3dd68c;
+  --pc-gap: 12px;
+}
+
+/* Presence indicator (spec 16 renders into this). Red means an operator is
+   about to push a graphic at nothing; green means an output is listening. */
+[data-presence] {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--pc-gap) / 2);
+  color: var(--pc-fg);
+}
+
+[data-presence]::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pc-danger);
+}
+
+[data-presence='ok']::before {
+  background: var(--pc-ok);
+}
+
+/* Debug overlay stage wrapper — applies scaling and background when ?scale= or
+   ?bg= params are present. Spec 21. */
+.pc-stage-wrapper {
+  display: contents;
+}
+
+.pc-stage-scale {
+  display: block;
+}
+
+/* Checkerboard background for transparent graphics. */
+.pc-bg-checker {
+  background-image:
+    linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
+    linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
+    linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
+}
+
+/* Debug overlay — spec 21. Fixed panel, top-left, only visible with ?debug=1. */
+.pc-debug {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2147483647;
+  background: rgba(var(--pc-bg-rgb, 20, 22, 26), 0.9);
+  color: var(--pc-fg);
+  font: 12px/1.4 ui-monospace, monospace;
+  max-width: 380px;
+  max-height: 420px;
+  overflow: auto;
+  pointer-events: none;
+  padding: 12px;
+  gap: var(--pc-gap);
+}
+
+.pc-debug-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pc-debug-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pc-debug-label {
+  flex: 0 0 auto;
+  font-weight: bold;
+}
+
+.pc-debug-value {
+  flex: 1 1 auto;
+  text-align: right;
+  color: var(--pc-accent);
+}
+
+/* Text-fit overflow warnings (spec 22). Hidden entirely when empty --
+   warningsPanel sets [hidden] rather than leaving an empty shell in the
+   layout. */
+.pc-warning {
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--pc-danger) 16%, transparent);
+  border: 1px solid var(--pc-danger);
+  color: var(--pc-fg);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.pc-warning:last-child {
+  margin-bottom: 0;
+}
+/* Control-page live preview (spec 17). The iframe always lays out its
+   content at exactly 1920x1080 — the viewport just clips a scaled-down
+   view of it, so nothing inside the framed render ever reflows. */
+.pc-preview {
+/* ── Generated control panel — spec 18 ─────────────────────────────────────
+   Styles the panel that src/runtime/pconair-controls.js builds from a
+   manifest's `controls`. Everything here is expressed in the --pc-* tokens
+   declared at the top of this file, so a package can restyle its panel by
+   overriding a token rather than by overriding rules. Dark by default,
+   because these panels are operated in dim rooms next to a switcher.
+
+   A render page never loads the panel renderer, so these rules cost it
+   nothing but the bytes. */
+
+.pc-panel-body {
+  margin: 0;
+  padding: var(--pc-gap);
+  background: var(--pc-bg);
+  color: var(--pc-fg);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.pc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-gap);
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+/* ── Header ── */
+
+.pc-panel-header {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-gap);
+  flex-wrap: wrap;
+  padding-bottom: calc(var(--pc-gap) / 2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pc-panel-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.pc-panel-presence {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.pc-panel-conn {
+  margin-left: auto;
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+/* ── Status lines. Three distinct meanings, three distinct weights:
+      banner  = you cannot act right now
+      notice  = it worked, but nothing was listening
+      error   = it was refused
+   None of them is a modal; an operator mid-show must never have to dismiss
+   a dialog to keep working. ── */
+
+.pc-panel-banner,
+.pc-panel-notice,
+.pc-panel-error,
+.pc-panel-load-error {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  border-left: 3px solid transparent;
+}
+
+.pc-panel-banner {
+  background: rgba(229, 72, 77, 0.12);
+  border-left-color: var(--pc-danger);
+}
+
+.pc-panel-notice {
+  background: rgba(255, 255, 255, 0.06);
+  border-left-color: var(--pc-accent);
+  opacity: 0.9;
+}
+
+.pc-panel-error,
+.pc-panel-load-error {
+  background: rgba(229, 72, 77, 0.12);
+  border-left-color: var(--pc-danger);
+  color: var(--pc-fg);
+}
+
+/* ── Preview (spec 17 renders into this) and warnings (spec 22) ── */
+
+.pc-panel-preview:empty,
+.pc-panel-warnings:empty {
+  display: none;
+}
+
+.pc-panel-preview {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pc-gap) / 2);
+}
+
+.pc-preview-viewport {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #000;
+}
+
+.pc-preview-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 0;
+  display: block;
+}
+
+.pc-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--pc-gap);
+  font-size: 12px;
+}
+
+.pc-preview-backdrops {
+  display: flex;
+  gap: 4px;
+}
+
+/* Small swatch buttons — one per backdrop choice. The checker swatch uses a
+   conic-gradient rather than a linear-gradient stack or an image asset, so a
+   crisp 2x2 check reads at 18px without extra markup. */
+.pc-preview-backdrop-btn {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+}
+
+.pc-preview-backdrop-btn[data-backdrop-option='checker'] {
+  background-image: conic-gradient(#bbb 90deg, #fff 90deg 180deg, #bbb 180deg 270deg, #fff 270deg);
+  background-size: 8px 8px;
+}
+
+.pc-preview-backdrop-btn[data-backdrop-option='black'] { background: #000; }
+.pc-preview-backdrop-btn[data-backdrop-option='white'] { background: #fff; }
+.pc-preview-backdrop-btn[data-backdrop-option='green'] { background: #00b140; }
+
+.pc-preview-backdrop-btn.pc-preview-backdrop-active {
+.pc-render-label {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* ── Groups ── */
+
+.pc-group {
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.pc-group-legend {
+  padding: 0;
+  margin-left: 10px;
+}
+
+.pc-group-toggle {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 2px 6px;
+  color: var(--pc-fg);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+.pc-group-toggle:hover {
+  opacity: 1;
+}
+
+.pc-group-toggle::before {
+  content: '▾ ';
+  font-size: 10px;
+}
+
+.pc-group[data-collapsed] > .pc-group-legend .pc-group-toggle::before {
+  content: '▸ ';
+}
+
+.pc-group[data-collapsed] > .pc-group-fields {
+  display: none;
+}
+
+.pc-group-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pc-gap);
+  padding: var(--pc-gap);
+}
+
+/* ── Fields. `span` is a hint from the manifest; the panel decides the
+      actual widths, and everything collapses to one column on a narrow
+      window so a phone in an operator's hand still works. ── */
+
+.pc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.pc-field[data-span='half'] { flex: 1 1 calc(50% - var(--pc-gap)); }
+.pc-field[data-span='third'] { flex: 1 1 calc(33.333% - var(--pc-gap)); }
+
+@media (max-width: 560px) {
+  .pc-field[data-span='half'],
+  .pc-field[data-span='third'] { flex: 1 1 100%; }
+}
+
+.pc-label {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.pc-help {
+  margin: 0;
+  font-size: 11px;
+  opacity: 0.55;
+}
+
+.pc-field-error {
+  margin: 0;
+  font-size: 11px;
+  color: var(--pc-danger);
+}
+
+/* Visually hidden but still focusable and still announced — used for the
+   file input behind an asset field's "Choose…" button. */
+.pc-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Inputs ── */
+
+.pc-input {
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--pc-fg);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  padding: 7px 9px;
+  font: inherit;
+  min-width: 0;
+}
+
+.pc-input:focus-visible,
+.pc-panel button:focus-visible {
+  outline: 2px solid var(--pc-accent);
+  outline-offset: 1px;
+}
+
+.pc-preview-reload {
+  margin-left: auto;
+  cursor: pointer;
+  background: transparent;
+  color: var(--pc-fg);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 13px;
+  line-height: 1.4;
+.pc-textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.pc-toggle {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--pc-accent);
+}
+
+.pc-number-row,
+.pc-color-row,
+.pc-slider-row,
+.pc-asset-row,
+.pc-transport-row,
+.pc-data-row {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--pc-gap) / 2);
+  flex-wrap: wrap;
+}
+
+.pc-number { flex: 0 1 8ch; text-align: center; }
+.pc-slider { flex: 1 1 140px; accent-color: var(--pc-accent); }
+.pc-asset-path { flex: 1 1 200px; }
+
+.pc-slider-value {
+  flex: 0 0 auto;
+  min-width: 5ch;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+/* ── Buttons ── */
+
+.pc-panel button {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--pc-fg);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pc-panel button:hover { background: rgba(255, 255, 255, 0.14); }
+
+.pc-bump {
+  min-width: 3.5ch;
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-action-danger {
+  border-color: var(--pc-danger);
+  color: var(--pc-danger);
+}
+
+.pc-color {
+  /* A colour input insists on its own chrome; strip the padding so the
+     swatch beside it is the same height. */
+  padding: 2px;
+  width: 44px;
+  height: 32px;
+  flex: 0 0 auto;
+}
+
+.pc-swatch {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+/* ── Transport and data ── */
+
+.pc-verb-play { border-color: rgba(61, 214, 140, 0.5); }
+.pc-verb-clear,
+.pc-verb-stop { border-color: rgba(229, 72, 77, 0.5); }
+
+.pc-transport-phase,
+.pc-data-summary {
+  font-size: 12px;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-transport-row[data-phase='holding'] .pc-transport-phase { color: var(--pc-ok); opacity: 1; }
+.pc-data-row[data-state='error'] .pc-data-summary { color: var(--pc-danger); opacity: 1; }
+.pc-data-row[data-state='disabled'] .pc-data-summary { font-style: italic; }
+
+/* ── Static text ── */
+
+.pc-static-label {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.pc-static {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+/* ── Disconnected. aria-disabled, not `disabled`: the control keeps its
+      place in the tab order and an edit is refused out loud, rather than
+      the panel going inert and silently eating an operator's input. ── */
+
+.pc-panel[data-pc-disconnected] .pc-group-fields {
+  opacity: 0.55;
+}
+
+.pc-panel [aria-disabled='true'] {
+  cursor: not-allowed;
+}
