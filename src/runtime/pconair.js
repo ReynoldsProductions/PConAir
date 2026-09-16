@@ -199,6 +199,21 @@ window.PConAir = (function () {
   };
 })();
 
+/* Conditionally load the debug overlay when query params are present.
+   Spec 21's overlay is loaded only when needed (debug=1, scale=contain, or bg=...)
+   so production browser sources with no debug params pay zero cost. */
+(function () {
+  'use strict';
+  var debug = window.PConAir.param('debug') === '1';
+  var scale = window.PConAir.param('scale');
+  var bg = window.PConAir.param('bg');
+  if (debug || scale || bg) {
+    var script = document.createElement('script');
+    script.src = '/packages/_runtime/pconair-debug.js';
+    document.head.appendChild(script);
+  }
+})();
+
 /* Compatibility shim for packages installed from outside this repo that still
    call the old API. The old *path* (/packages/<id>/assets/state.js) is gone and
    will 404 — see docs/designing-packages.md. Keep until a major version. */
