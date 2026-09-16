@@ -151,6 +151,11 @@ function fire(el: Element, type: string): void {
   el.dispatchEvent(new window.Event(type, { bubbles: true }));
 }
 
+/** Let the microtask queue drain — patch() is two chained promises deep. */
+async function flush(): Promise<void> {
+  for (let i = 0; i < 6; i++) await Promise.resolve();
+}
+
 beforeEach(() => {
   installStubWebSocket();
   installStubFetch();
@@ -281,5 +286,287 @@ describe('T7 — text, number, toggle and select render and patch', () => {
     expect(groups.map((g) => g.querySelector('legend')!.textContent)).toEqual(
       expect.arrayContaining(['First', 'Second'].map((s) => expect.stringContaining(s)))
     );
+  });
+});
+
+const BASIC_STATE = {
+  home: { name: 'Lions', score: 12, bonus: true },
+  live: false,
+  style: { font: 'serif', accent: '#c8a24a', panelOpacity: 0.9 },
+};
+
+describe('T8 — focus is never clobbered', () => {
+  it('a state frame does not overwrite the value of a focused input', () => {
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const input = inputFor(el, 'home.name');
+    input.focus();
+    expect(document.activeElement).toBe(input);
+
+    pushState({ ...BASIC_STATE, home: { ...BASIC_STATE.home, name: 'Tigers' } });
+    expect(input.value).toBe('Lions');
+  });
+
+  it('but an unfocused sibling in the same frame does update', () => {
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    inputFor(el, 'home.name').focus();
+    pushState({ ...BASIC_STATE, home: { name: 'Tigers', score: 44, bonus: true } });
+    expect(inputFor(el, 'home.name').value).toBe('Lions');
+    expect(inputFor(el, 'home.score').value).toBe('44');
+  });
+
+  it('reconciles on blur when the operator had not typed anything', () => {
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const input = inputFor(el, 'home.name');
+    input.focus();
+    pushState({ ...BASIC_STATE, home: { ...BASIC_STATE.home, name: 'Tigers' } });
+    expect(input.value).toBe('Lions');
+
+    fire(input, 'blur');
+    expect(input.value).toBe('Tigers');
+  });
+
+  it('does NOT wipe the operator\'s own typing on blur — it commits it', async () => {
+    vi.useFakeTimers();
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const input = inputFor(el, 'home.name');
+    input.focus();
+    input.value = 'Bears';
+    fire(input, 'input');
+    // A frame arrives mid-typing carrying the old value.
+    pushState({ ...BASIC_STATE, home: { ...BASIC_STATE.home, name: 'Lions' } });
+    expect(input.value).toBe('Bears');
+
+    fire(input, 'blur');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(input.value).toBe('Bears');
+    expect(patchBodies()[0]).toEqual({ home: { name: 'Bears', score: 12, bonus: true } });
+  });
+
+  it('a focused checkbox and select are protected too', () => {
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const toggle = inputFor(el, 'live');
+    toggle.focus();
+    pushState({ ...BASIC_STATE, live: true });
+    expect(toggle.checked).toBe(false);
+    fire(toggle, 'blur');
+    expect(toggle.checked).toBe(true);
+  });
+});
+
+describe('T9 — debounce', () => {
+  it('five input events inside 100 ms emit one patch, 150 ms after the last', async () => {
+    vi.useFakeTimers();
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const input = inputFor(el, 'home.name');
+    for (let i = 0; i < 5; i++) {
+      input.value = 'Tiger'.slice(0, i + 1);
+      fire(input, 'input');
+      await vi.advanceTimersByTimeAsync(20);
+    }
+    expect(patchBodies()).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(130);
+    expect(patchBodies()).toHaveLength(1);
+    expect(patchBodies()[0]).toEqual({ home: { name: 'Tiger', score: 12, bonus: true } });
+  });
+
+  it('a change event emits immediately, without waiting for the debounce', async () => {
+    vi.useFakeTimers();
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const input = inputFor(el, 'home.name');
+    input.value = 'Tigers';
+    fire(input, 'change');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(patchBodies()).toHaveLength(1);
+  });
+
+  it('a change immediately after typing does not double-send the same value', async () => {
+    vi.useFakeTimers();
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const input = inputFor(el, 'home.name');
+    input.value = 'Tigers';
+    fire(input, 'input');
+    await vi.advanceTimersByTimeAsync(200);
+    expect(patchBodies()).toHaveLength(1);
+    // Browsers fire `change` after typing then blurring. Same value → no
+    // second patch.
+    fire(input, 'change');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(patchBodies()).toHaveLength(1);
+  });
+
+  it('a toggle does not debounce — one click, one patch', async () => {
+    vi.useFakeTimers();
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const toggle = inputFor(el, 'live');
+    toggle.checked = true;
+    fire(toggle, 'change');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(patchBodies()).toHaveLength(1);
+  });
+});
+
+describe('T10 — optimistic then reconciled', () => {
+  it('the input shows the new value before the response arrives', async () => {
+    let release: (v: unknown) => void = () => {};
+    fetchHandler = () => new Promise((resolve) => { release = resolve; });
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const input = inputFor(el, 'home.name');
+    input.value = 'Tigers';
+    fire(input, 'change');
+    await Promise.resolve();
+    // Response still in flight…
+    expect(input.value).toBe('Tigers');
+    release(jsonResponse({ state: {}, delivered: 1 }));
+  });
+
+  it('a rejected patch reverts the input to the last known state', async () => {
+    fetchHandler = () => Promise.resolve(jsonResponse({ error: { message: 'nope' } }, 400));
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const input = inputFor(el, 'home.name');
+    input.value = 'Tigers';
+    fire(input, 'change');
+    await flush();
+    expect(input.value).toBe('Lions');
+    const err = field(el, 'home.name').querySelector('.pc-field-error') as HTMLElement;
+    expect(err.hidden).toBe(false);
+    expect(err.textContent).toContain('nope');
+  });
+
+  it('a second attempt at the same value is retried after a rejection', async () => {
+    fetchHandler = () => Promise.resolve(jsonResponse({ error: { message: 'nope' } }, 400));
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const input = inputFor(el, 'home.name');
+    input.value = 'Tigers';
+    fire(input, 'change');
+    await flush();
+    expect(patchBodies()).toHaveLength(1);
+    // The dedupe guard must not swallow a retry of a value that failed.
+    input.value = 'Tigers';
+    fire(input, 'change');
+    await flush();
+    expect(patchBodies()).toHaveLength(2);
+  });
+
+  it('accepts the server echo as truth once the input is no longer focused', async () => {
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const input = inputFor(el, 'home.name');
+    input.value = 'Tigers';
+    fire(input, 'change');
+    await flush();
+    // Server normalised it.
+    pushState({ ...BASIC_STATE, home: { ...BASIC_STATE.home, name: 'TIGERS' } });
+    expect(input.value).toBe('TIGERS');
+  });
+});
+
+describe('T11 — the delivered: 0 notice', () => {
+  function notice(el: HTMLElement): HTMLElement {
+    return el.querySelector('.pc-panel-notice') as HTMLElement;
+  }
+
+  it('is hidden before anything is sent', () => {
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    expect(notice(el).hidden).toBe(true);
+  });
+
+  it('appears on delivered: 0, informational and non-blocking', async () => {
+    fetchHandler = () => Promise.resolve(jsonResponse({ state: {}, delivered: 0 }));
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const input = inputFor(el, 'home.name');
+    input.value = 'Tigers';
+    fire(input, 'change');
+    await flush();
+
+    const n = notice(el);
+    expect(n.hidden).toBe(false);
+    expect(n.textContent).toMatch(/no output is connected/i);
+    // Not an error: role=status, and neither the element nor the panel is
+    // error-styled or modal.
+    expect(n.getAttribute('role')).toBe('status');
+    expect(n.className).not.toMatch(/error/);
+    expect(n.getAttribute('aria-modal')).toBeNull();
+    // The field itself is not marked as failed — the patch succeeded.
+    expect((field(el, 'home.name').querySelector('.pc-field-error') as HTMLElement).hidden).toBe(true);
+  });
+
+  it('renders no notice when delivered is 1, and clears a stale one', async () => {
+    let delivered = 0;
+    fetchHandler = () => Promise.resolve(jsonResponse({ state: {}, delivered }));
+    const { el } = mount(SCHEMA_CONTROLS, {}, BASIC_STATE);
+    const input = inputFor(el, 'home.name');
+    input.value = 'Tigers';
+    fire(input, 'change');
+    await flush();
+    expect(notice(el).hidden).toBe(false);
+
+    delivered = 1;
+    input.value = 'Bears';
+    fire(input, 'change');
+    await flush();
+    expect(notice(el).hidden).toBe(true);
+  });
+});
+
+describe('T12 — disconnected state', () => {
+  function banner(el: HTMLElement): HTMLElement {
+    return el.querySelector('.pc-panel-banner') as HTMLElement;
+  }
+
+  /** Mount without firing open, so the socket is still connecting. */
+  function mountDisconnected(): MountResult {
+    const PConAir = loadRuntime();
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    const handle = PConAir.controlPanel(el, {
+      packageId: 'widget',
+      name: 'Widget',
+      controls: SCHEMA_CONTROLS,
+      renders: [{ id: 'main', label: 'Main', transport: null }],
+    });
+    return { PConAir, el, handle };
+  }
+
+  it('marks every input aria-disabled and shows the banner while disconnected', () => {
+    const { el } = mountDisconnected();
+    expect(banner(el).hidden).toBe(false);
+    expect(banner(el).textContent).toMatch(/not connected/i);
+    const inputs = Array.from(el.querySelectorAll('input, select, textarea, button'));
+    expect(inputs.length).toBeGreaterThan(0);
+    for (const i of inputs) expect(i.getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('clears both on reconnect', () => {
+    const { el } = mountDisconnected();
+    last().fireOpen();
+    expect(banner(el).hidden).toBe(true);
+    for (const i of Array.from(el.querySelectorAll('input, select, textarea, button'))) {
+      expect(i.getAttribute('aria-disabled')).toBeNull();
+    }
+  });
+
+  it('re-marks them when the connection drops again', () => {
+    const { el } = mountDisconnected();
+    last().fireOpen();
+    last().fireClose();
+    expect(banner(el).hidden).toBe(false);
+    expect(inputFor(el, 'home.name').getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('refuses an edit made while disconnected rather than swallowing it', async () => {
+    const { el } = mountDisconnected();
+    pushState(BASIC_STATE);
+    const input = inputFor(el, 'home.name');
+    input.value = 'Tigers';
+    fire(input, 'change');
+    await flush();
+    // Nothing sent…
+    expect(patchBodies()).toHaveLength(0);
+    // …and the operator is told, not left thinking it worked.
+    const err = field(el, 'home.name').querySelector('.pc-field-error') as HTMLElement;
+    expect(err.hidden).toBe(false);
+    expect(err.textContent).toMatch(/not connected/i);
+    // The edit visibly reverts, so the panel never shows a value the server
+    // does not have.
+    expect(input.value).toBe('Lions');
   });
 });

@@ -419,6 +419,15 @@
 
     // ── value events ──────────────────────────────────────────────────────
 
+    /* The interaction rules of §3.4, in one place, because getting them
+       wrong per-field is exactly what every hand-written panel did.
+
+       - Typing debounces at 150 ms, so naming a player does not emit a patch
+         per keystroke; `change`, `blur` and Enter commit immediately.
+       - A focused input is never overwritten by an incoming state frame
+         (syncAll marks it `needsSync` instead); it reconciles on blur, but
+         only if the operator was not mid-edit — otherwise blur commits their
+         work rather than throwing it away. */
     function wireValueEvents(entry, input, cfg) {
       if (cfg.debounce) {
         input.addEventListener('input', function () {
@@ -429,6 +438,31 @@
       input.addEventListener('change', function () {
         commitImmediate(entry);
       });
+      input.addEventListener('blur', function () {
+        if (entry.localDirty) {
+          commitPending(entry);
+          return;
+        }
+        if (entry.needsSync) {
+          entry.needsSync = false;
+          reconcile(entry);
+        }
+      });
+      if (input.tagName !== 'TEXTAREA') {
+        input.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.keyCode === 13) commitPending(entry);
+        });
+      }
+    }
+
+    /* Flush a debounce early (blur, Enter) without forcing a resend of a
+       value already in flight. */
+    function commitPending(entry) {
+      if (entry.timer) {
+        window.clearTimeout(entry.timer);
+        entry.timer = null;
+      }
+      commitValue(entry, entry.readValue());
     }
 
     function scheduleCommit(entry) {
@@ -452,6 +486,10 @@
       var f = entry.field;
       if (!f.field) return;
       if (!ensureConnected(entry)) return;
+      /* Dedupe: browsers fire `change` after typing then blurring, so the
+         debounced patch and the change event would otherwise send the same
+         value twice. `lastSent` is cleared on rejection so a retry is never
+         swallowed. */
       if (sameValue(value, entry.lastSent)) return;
       entry.lastSent = value;
       var patch = P.buildPatch(client.state, f.field, value);
@@ -460,7 +498,15 @@
         function (body) {
           entry.localDirty = false;
           showDelivered(body && body.delivered);
-          if (document.activeElement !== entry.input) reconcile(entry);
+          /* Only reconcile if a NEWER frame actually arrived while the
+             operator held focus. Re-applying the same client.state the patch
+             was built from would put the pre-edit value back — and then the
+             `change` that follows a blur would send it to the server as if
+             the operator had asked for it. */
+          if (entry.needsSync && document.activeElement !== entry.input) {
+            entry.needsSync = false;
+            reconcile(entry);
+          }
         },
         function (err) {
           entry.localDirty = false;
@@ -473,7 +519,16 @@
       );
     }
 
-    function ensureConnected() { return true; }
+    /* Silently swallowing an operator's edit during a dropout is worse than
+       refusing it (§3.4): they would carry on believing the graphic changed.
+       So an edit made while disconnected is refused out loud and the input
+       snaps back to the last value the server confirmed. */
+    function ensureConnected(entry) {
+      if (client.connected) return true;
+      setFieldError(entry, 'Not connected — this edit was refused, not applied.');
+      reconcile(entry);
+      return false;
+    }
 
     function reconcile(entry) {
       if (!entry.field.field) return;
@@ -501,6 +556,14 @@
       for (var i = 0; i < entries.length; i++) {
         var entry = entries[i];
         if (!entry.field.field) continue;
+        /* Never clobber a focused input (§3.4). hoops/control.html's syncInput
+           is the reference for this rule; here it is applied once for every
+           field type instead of being re-hand-written per input. The frame is
+           remembered and applied on blur. */
+        if (entry.input && document.activeElement === entry.input) {
+          entry.needsSync = true;
+          continue;
+        }
         entry.applyValue(P.getPath(state, entry.field.field));
       }
     }
