@@ -1,5 +1,6 @@
 import type { StateStore } from './state';
 import type { AuthManager } from './auth';
+import type { TransportEngine } from './packages/transport';
 import type { PresetsStore } from './presets';
 import type { L3CueStore } from './l3/cue-store';
 import type { L3LogoStore } from './l3/logo-store';
@@ -98,8 +99,20 @@ export function createActionDispatcher(deps: {
   isPrompterEnabled?: () => boolean;
   /** Returns the current backup fan-out settings (primary mode only). */
   getBackupSettings?: () => { operationMode: AppSettings['operationMode']; backupIps: string[]; port: number };
+  /**
+   * Returns the live graphics-transport engine, or null when packages are
+   * disabled. A thunk rather than a value: server.ts constructs the engine
+   * (alongside the package hub) only inside createServer(), which in both
+   * index.ts and tests/_test-server.ts runs AFTER this dispatcher is built.
+   * Reading through a closure lets the caller wire the real engine in once
+   * it exists, without reordering construction. Used by `panic`, which must
+   * reach the *same* engine instance the HTTP transport routes use — a
+   * second engine over the same hub would leave its pending setTimeouts
+   * uncancelled and able to resurrect a "cleared" render later.
+   */
+  getTransportEngine?: () => TransportEngine | null;
 }) {
-  const { store, presets, cues, logos, media, slideshow, windowManager, getPrompterHost, isPrompterEnabled, getBackupSettings } = deps;
+  const { store, presets, cues, logos, media, slideshow, windowManager, getPrompterHost, isPrompterEnabled, getBackupSettings, getTransportEngine } = deps;
 
   const reloadTimers = new Map<'A' | 'B', ReturnType<typeof setTimeout>>();
 
@@ -444,6 +457,12 @@ export function createActionDispatcher(deps: {
         const rel = store.getState().reliability;
         const next = action === 'toggle' ? !rel.panicActive : action === 'on';
         store.setState({ reliability: { panicActive: next, panicSlate: rel.panicSlate } });
+        if (next) {
+          // Panic that blanks the program window but leaves a graphic in
+          // `holding` is a lie the operator will act on — clear every
+          // transport-managed render in every loaded package.
+          getTransportEngine?.()?.clearAllPackages();
+        }
         return {
           ok: true,
           body: {

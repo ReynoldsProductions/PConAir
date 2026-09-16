@@ -145,6 +145,12 @@ async function main() {
   const slidesManager = createSlidesWindowManager({ store, getDisplayPreference });
   slidesManager.initialize();
 
+  // Set once createServer() below constructs the transport engine alongside
+  // the package hub. `panic` reads this lazily (it is a live binding, not a
+  // snapshot) so construction order — dispatcher built before the server —
+  // does not matter; see action-dispatch.ts's getTransportEngine doc.
+  let transportEngineRef: import('./packages/transport').TransportEngine | null = null;
+
   const dispatchAction = createActionDispatcher({
     store,
     auth,
@@ -160,6 +166,7 @@ async function main() {
       const s = loadAppSettings(settingsFile);
       return { operationMode: s.operationMode, backupIps: s.backupIps, port };
     },
+    getTransportEngine: () => transportEngineRef,
   });
 
   const urlManager = createUrlWindowManager({ store, getDisplayPreference });
@@ -306,6 +313,7 @@ async function main() {
     },
     openDirectorWindow: () => openDirectorWindow(),
   });
+  transportEngineRef = server.transportEngine ?? null;
   let serverError: string | null = null;
   try {
     await server.listen();

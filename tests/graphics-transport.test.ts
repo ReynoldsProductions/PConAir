@@ -410,3 +410,77 @@ describe('T8 — HTTP routes', () => {
     }
   });
 });
+
+describe('T9 — clear-all + panic', () => {
+  const PINS9 = { operatorPin: '1234', adminPin: 'supersecret' };
+
+  function writeTwoRenderFixture(root: string): void {
+    const dir = path.join(root, 'txp2');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, 'package.json'),
+      JSON.stringify({
+        id: 'txp2',
+        name: 'Two Render Transport Fixture',
+        version: '1.0.0',
+        renders: [
+          { id: 'card-a', label: 'Card A', file: 'render.html', transport: { stops: 2, inMs: [50, 50] } },
+          { id: 'card-b', label: 'Card B', file: 'render.html', transport: { stops: 2, inMs: [50, 50] } },
+        ],
+      })
+    );
+    fs.writeFileSync(path.join(dir, 'render.html'), '<html></html>');
+  }
+
+  async function operatorCookie9(app: Express) {
+    const res = await request(app).post('/auth/operator').send({ pin: PINS9.operatorPin });
+    return (res.headers['set-cookie'] as unknown as string[])[0];
+  }
+
+  it('clear-all returns both ids and both are idle', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pconair-transport-clearall-'));
+    writeTwoRenderFixture(root);
+    const store = createStateStore();
+    const server = createFullServer({ store, ...PINS9, port: 0, packagesRoot: root });
+    try {
+      const cookie = await operatorCookie9(server.app);
+      await request(server.app).post('/api/packages/txp2/transport/card-a/play').set('Cookie', cookie);
+      await request(server.app).post('/api/packages/txp2/transport/card-b/play').set('Cookie', cookie);
+
+      const res = await request(server.app).post('/api/packages/txp2/transport/clear-all').set('Cookie', cookie);
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(res.body.cleared.sort()).toEqual(['card-a', 'card-b']);
+
+      const snap = await request(server.app).get('/api/packages/txp2/transport').set('Cookie', cookie);
+      expect(snap.body['card-a'].phase).toBe('idle');
+      expect(snap.body['card-b'].phase).toBe('idle');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('POST /api/action panic leaves every transport-managed render idle', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pconair-transport-panic-'));
+    writeTwoRenderFixture(root);
+    const store = createStateStore();
+    const server = createFullServer({ store, ...PINS9, port: 0, packagesRoot: root });
+    try {
+      const cookie = await operatorCookie9(server.app);
+      await request(server.app).post('/api/packages/txp2/transport/card-a/play').set('Cookie', cookie);
+      await request(server.app).post('/api/packages/txp2/transport/card-b/play').set('Cookie', cookie);
+
+      const panic = await request(server.app)
+        .post('/api/action')
+        .set('Cookie', cookie)
+        .send({ action_id: 'panic', params: { action: 'on' } });
+      expect(panic.status).toBe(200);
+
+      const snap = await request(server.app).get('/api/packages/txp2/transport').set('Cookie', cookie);
+      expect(snap.body['card-a'].phase).toBe('idle');
+      expect(snap.body['card-b'].phase).toBe('idle');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
