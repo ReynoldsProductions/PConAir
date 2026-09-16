@@ -694,7 +694,9 @@
           title: f.title,
           subtitle: f.subtitle,
           theme: f.theme,
-          logoAssetId: f.logoEnabled ? f.logoAssetId : null
+          logoAssetId: f.logoEnabled ? f.logoAssetId : null,
+          // The still is a full frame, so it has to carry this panel's side.
+          side
         });
         const dims = saved.width && saved.height ? `${saved.width}\xD7${saved.height}, ` : "";
         const kb = Math.max(1, Math.round(saved.bytes / 1024));

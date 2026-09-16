@@ -50,6 +50,7 @@ export interface FullServerTestOpts {
     subtitle?: string | null;
     theme?: string | null;
     logoDataUrl?: string | null;
+    side?: 'left' | 'right' | null;
   }) => Promise<Buffer>;
 }
 

@@ -463,6 +463,8 @@ function bindLowerThirdSide(side: api.LowerThirdSide): void {
         subtitle: f.subtitle,
         theme: f.theme,
         logoAssetId: f.logoEnabled ? f.logoAssetId : null,
+        // The still is a full frame, so it has to carry this panel's side.
+        side,
       });
       // Name the file and its real size: the download is silent and goes to the
       // browser's own folder, so without this the operator cannot tell a

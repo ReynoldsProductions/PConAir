@@ -96,6 +96,7 @@ export function createL3Router(
     subtitle?: string | null;
     theme?: string | null;
     logoDataUrl?: string | null;
+    side?: 'left' | 'right' | null;
   }) => Promise<Buffer>,
 ): Router {
   const router = Router();
@@ -455,15 +456,20 @@ export function createL3Router(
       res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'PNG rendering not available in this build' } });
       return;
     }
-    const { name, title, subtitle, theme, logoAssetId } = req.body as {
+    const { name, title, subtitle, theme, logoAssetId, side } = req.body as {
       name?: string;
       title?: string;
       subtitle?: string;
       theme?: string;
       logoAssetId?: string;
+      side?: string;
     };
     if (!name || !name.trim()) {
       res.status(400).json({ error: { code: 'INVALID_MODE', message: 'name is required' } });
+      return;
+    }
+    if (side !== undefined && side !== 'left' && side !== 'right') {
+      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'side must be "left" or "right"' } });
       return;
     }
 
@@ -481,7 +487,7 @@ export function createL3Router(
     }
 
     try {
-      const pngBuffer = await renderAdHocCard({ name, title, subtitle, theme, logoDataUrl });
+      const pngBuffer = await renderAdHocCard({ name, title, subtitle, theme, logoDataUrl, side });
       // An empty buffer used to be sent as a 200, so the operator got a 0-byte
       // download that looked like a success. Treat it as the failure it is.
       if (!pngBuffer || pngBuffer.length === 0) {

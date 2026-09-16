@@ -135,6 +135,7 @@ export async function l3ExportPng(body: {
   subtitle?: string;
   theme?: string;
   logoAssetId?: string | null;
+  side?: LowerThirdSide;
 }): Promise<L3ExportResult> {
   const res = await fetch('/api/l3/export', {
     credentials: 'include',

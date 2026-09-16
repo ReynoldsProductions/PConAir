@@ -60,6 +60,7 @@ export interface ServerDeps {
     subtitle?: string | null;
     theme?: string | null;
     logoDataUrl?: string | null;
+    side?: 'left' | 'right' | null;
   }) => Promise<Buffer>;
   /** Tunnel PIN gate: bcrypt hash getter; null/omitted = tunnel access not PIN-gated. */
   getTunnelPinHash?: () => string | null;
