@@ -30,7 +30,8 @@ these override state on that display only:
 |---|---|
 | `?mirror=x` / `y` / `xy` / `none` | Flip for beam-splitter glass or a ceiling mount |
 | `?font=90` | Script size in px (24–200) |
-| `?line=30` | Reading-rule height, as a percent of the screen; `0` hides it |
+| `?line=30` | Reading-marker position, as a percent of the screen; `0` hides it and reads from the top |
+| `?indicator=0` | Hide the marker but keep the reading position where it is |
 | `?width=1200` | Maximum line width in px |
 | `?theme=white` / `amber` / `green` | Text colour |
 
@@ -45,7 +46,8 @@ never drops the reader into the middle of the previous script.
 ## Control
 
 Admin → Prompter has the script box, transport (start/pause, rewind, jump ±200
-px), speed and font steps, line height, and the mirror toggles.
+px), speed and font steps, line height, max line width, the reading-marker
+controls (up/down in 2% steps, show/hide), and the mirror toggles.
 
 HTTP (operator session; `/api/prompter/…`):
 
@@ -57,6 +59,8 @@ HTTP (operator session; `/api/prompter/…`):
 | `POST /speed` | `{ speed }` 0–200 px/sec |
 | `POST /font-size` | `{ direction: "in" \| "out" }` or `{ fontSize }` 24–200 |
 | `POST /line-height` | `{ lineHeight }` 1–3 |
+| `POST /max-width` | `{ maxWidth }` 320–10000 px, or `0` to fill the screen |
+| `POST /marker` | `{ position? }` or `{ delta? }` in percent, and/or `{ visible? }` |
 | `POST /mirror` | `{ x?, y? }` |
 | `POST /script` | `{ text }` |
 | `POST /window` | `{ open, displayId? }` — desktop app only |
@@ -66,7 +70,15 @@ HTTP (operator session; `/api/prompter/…`):
 
 Companion actions: `prompter_start`, `_stop`, `_toggle`, `_rewind`, `_jump`,
 `_scroll_faster`, `_scroll_slower`, `_font_size_in`, `_font_size_out`,
-`_set_speed`, `_set_font_size`, `_load_script`, `_mirror`.
+`_set_speed`, `_set_font_size`, `_load_script`, `_mirror`, `_marker_up`,
+`_marker_down`, `_set_marker`, `_marker_toggle`, `_set_max_width`.
+
+### The reading marker
+
+The marker is the rule the talent reads from, so moving it moves the reading
+line: the script's blank leader tracks it. Hiding the marker deliberately leaves
+that leader alone, so the script does not jump when an operator toggles it
+mid-show — use `?line=0` on a display that really should read from the top.
 
 ## Third-party prompter services
 

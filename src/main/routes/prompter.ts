@@ -20,6 +20,10 @@ import {
   setLineHeight,
   setScript,
   setMirror,
+  setMaxWidth,
+  setMarkerPosition,
+  nudgeMarkerPosition,
+  setMarkerVisible,
   SPEED_STEP,
   FONT_SIZE_STEP,
 } from '../prompter/transport';
@@ -52,6 +56,9 @@ function viewState(s: PrompterState) {
     startedAt: s.startedAt,
     mirrorX: s.mirrorX,
     mirrorY: s.mirrorY,
+    maxWidth: s.maxWidth,
+    markerPosition: s.markerPosition,
+    markerVisible: s.markerVisible,
   };
 }
 
@@ -227,6 +234,42 @@ export function createPrompterRouter(deps: PrompterRouterDeps): Router {
       return;
     }
     await apply(setLineHeight(current(), lineHeight), null, res);
+  });
+
+  router.post('/api/prompter/max-width', opGuard, async (req: Request, res: Response) => {
+    const { maxWidth } = req.body as { maxWidth?: unknown };
+    if (typeof maxWidth !== 'number' || !Number.isFinite(maxWidth)) {
+      badRequest(res, 'maxWidth must be a number (0 for uncapped)');
+      return;
+    }
+    const next = setMaxWidth(current(), maxWidth);
+    await apply(next, { max_width: next.maxWidth }, res);
+  });
+
+  /**
+   * Position and visibility share one endpoint, the way `/mirror` takes either
+   * axis, so a single button can move the marker and another can hide it.
+   */
+  router.post('/api/prompter/marker', opGuard, async (req: Request, res: Response) => {
+    const { position, delta, visible } = req.body as {
+      position?: unknown;
+      delta?: unknown;
+      visible?: unknown;
+    };
+    const hasPosition = typeof position === 'number' && Number.isFinite(position);
+    const hasDelta = typeof delta === 'number' && Number.isFinite(delta);
+    const hasVisible = typeof visible === 'boolean';
+    if (!hasPosition && !hasDelta && !hasVisible) {
+      badRequest(res, 'position or delta must be a number, and/or visible must be a boolean');
+      return;
+    }
+
+    let next = current();
+    if (hasPosition) next = setMarkerPosition(next, position as number);
+    else if (hasDelta) next = nudgeMarkerPosition(next, delta as number);
+    if (hasVisible) next = setMarkerVisible(next, visible as boolean);
+
+    await apply(next, { marker_position: next.markerPosition, marker_visible: next.markerVisible }, res);
   });
 
   router.post('/api/prompter/mirror', opGuard, async (req: Request, res: Response) => {

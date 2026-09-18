@@ -9,10 +9,18 @@ export const FONT_SIZE_MAX = 200;
 /** Line height bounds, as a multiple of the font size. */
 export const LINE_HEIGHT_MIN = 1;
 export const LINE_HEIGHT_MAX = 3;
+/** Max line width bounds in px, for a non-zero (capped) width. */
+export const MAX_WIDTH_MIN = 320;
+export const MAX_WIDTH_MAX = 10000;
+/** Reading marker bounds, as a percent of screen height. */
+export const MARKER_POSITION_MIN = 0;
+export const MARKER_POSITION_MAX = 100;
 
 /** Step used by the "faster/slower" and "A+/A−" transport buttons. */
 export const SPEED_STEP = 10;
 export const FONT_SIZE_STEP = 4;
+/** Step used by the marker up/down buttons, in percent of screen height. */
+export const MARKER_POSITION_STEP = 2;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -113,4 +121,34 @@ export function setMirror(state: PrompterState, axes: { x?: boolean; y?: boolean
     mirrorX: axes.x ?? state.mirrorX,
     mirrorY: axes.y ?? state.mirrorY,
   };
+}
+
+/**
+ * Cap the line length in px. `0` is passed through untouched as "uncapped" —
+ * it is the off switch, not a width, so it must not be clamped up to the
+ * minimum.
+ */
+export function setMaxWidth(state: PrompterState, maxWidth: number): PrompterState {
+  const rounded = Math.round(maxWidth);
+  return { ...state, maxWidth: rounded <= 0 ? 0 : clamp(rounded, MAX_WIDTH_MIN, MAX_WIDTH_MAX) };
+}
+
+export function setMarkerPosition(state: PrompterState, markerPosition: number): PrompterState {
+  return {
+    ...state,
+    markerPosition: clamp(markerPosition, MARKER_POSITION_MIN, MARKER_POSITION_MAX),
+  };
+}
+
+/** Move the marker down (+) or up (−) the screen. */
+export function nudgeMarkerPosition(state: PrompterState, delta: number): PrompterState {
+  return setMarkerPosition(state, state.markerPosition + delta);
+}
+
+export function setMarkerVisible(state: PrompterState, markerVisible: boolean): PrompterState {
+  return { ...state, markerVisible };
+}
+
+export function toggleMarker(state: PrompterState): PrompterState {
+  return setMarkerVisible(state, !state.markerVisible);
 }

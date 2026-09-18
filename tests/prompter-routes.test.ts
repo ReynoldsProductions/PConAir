@@ -100,6 +100,38 @@ describe('prompter routes', () => {
       expect(store.getState().prompter).toMatchObject({ mirrorX: true, mirrorY: false });
     });
 
+    it('sets the max line width, and takes 0 as uncapped', async () => {
+      await request(srv.app).post('/api/prompter/max-width').set('Cookie', op).send({ maxWidth: 1200 });
+      expect(store.getState().prompter.maxWidth).toBe(1200);
+
+      await request(srv.app).post('/api/prompter/max-width').set('Cookie', op).send({ maxWidth: 0 });
+      expect(store.getState().prompter.maxWidth).toBe(0);
+    });
+
+    it('rejects a non-numeric max width', async () => {
+      const res = await request(srv.app).post('/api/prompter/max-width').set('Cookie', op).send({ maxWidth: 'wide' });
+      expect(res.status).toBe(400);
+    });
+
+    it('moves the marker to an absolute position and by a delta', async () => {
+      await request(srv.app).post('/api/prompter/marker').set('Cookie', op).send({ position: 50 });
+      expect(store.getState().prompter.markerPosition).toBe(50);
+
+      await request(srv.app).post('/api/prompter/marker').set('Cookie', op).send({ delta: -10 });
+      expect(store.getState().prompter.markerPosition).toBe(40);
+    });
+
+    it('hides the marker without moving the reading position', async () => {
+      await request(srv.app).post('/api/prompter/marker').set('Cookie', op).send({ position: 45 });
+      await request(srv.app).post('/api/prompter/marker').set('Cookie', op).send({ visible: false });
+      expect(store.getState().prompter).toMatchObject({ markerVisible: false, markerPosition: 45 });
+    });
+
+    it('rejects a marker request with nothing to change', async () => {
+      const res = await request(srv.app).post('/api/prompter/marker').set('Cookie', op).send({});
+      expect(res.status).toBe(400);
+    });
+
     it('stores the script and parks it at the top', async () => {
       await request(srv.app).post('/api/prompter/start').set('Cookie', op);
       const res = await request(srv.app).post('/api/prompter/script').set('Cookie', op).send({ text: 'Good evening.' });
@@ -220,6 +252,9 @@ describe('prompter routes', () => {
         offset: 0,
         mirrorX: false,
         mirrorY: false,
+        maxWidth: 0,
+        markerPosition: 38,
+        markerVisible: true,
       });
       expect(res.body.serverNow).toBeGreaterThanOrEqual(before);
       // The talent view never needs the external service credentials/URL.

@@ -241,6 +241,18 @@ export interface PrompterState {
   mirrorX: boolean;
   /** Flip top-to-bottom for a ceiling-mounted display. */
   mirrorY: boolean;
+  /**
+   * Longest a line of script may run, in px; `0` leaves it uncapped. Keeps eye
+   * travel short on a wide monitor without moving the reading line.
+   */
+  maxWidth: number;
+  /** Reading marker's distance from the top of the screen, as a percent (0–100). */
+  markerPosition: number;
+  /**
+   * Draw the reading marker. Hiding it leaves `markerPosition` alone, so the
+   * script keeps sitting where it did and nothing jumps mid-show.
+   */
+  markerVisible: boolean;
 }
 
 export function makePrompterState(): PrompterState {
@@ -256,6 +268,9 @@ export function makePrompterState(): PrompterState {
     startedAt: null,
     mirrorX: false,
     mirrorY: false,
+    maxWidth: 0,
+    markerPosition: 38,
+    markerVisible: true,
   };
 }
 

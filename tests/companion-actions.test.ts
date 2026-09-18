@@ -258,6 +258,46 @@ describe('action dispatcher — phase 9 Companion actions', () => {
       const bad = await act('prompter_mirror', { axis: 'z' });
       expect(bad.status).toBe(400);
     });
+
+    it('prompter_marker_up and _down step the marker by 2%', async () => {
+      await act('prompter_marker_up');
+      expect(store.getState().prompter.markerPosition).toBe(36);
+      await act('prompter_marker_down');
+      await act('prompter_marker_down');
+      expect(store.getState().prompter.markerPosition).toBe(40);
+    });
+
+    it('prompter_set_marker jumps to an absolute percent', async () => {
+      await act('prompter_set_marker', { position: 55 });
+      expect(store.getState().prompter.markerPosition).toBe(55);
+
+      const bad = await act('prompter_set_marker', {});
+      expect(bad.status).toBe(400);
+    });
+
+    it('prompter_marker_toggle hides and shows the marker, leaving position alone', async () => {
+      await act('prompter_set_marker', { position: 45 });
+      await act('prompter_marker_toggle');
+      expect(store.getState().prompter).toMatchObject({ markerVisible: false, markerPosition: 45 });
+
+      await act('prompter_marker_toggle', { mode: 'on' });
+      expect(store.getState().prompter.markerVisible).toBe(true);
+      await act('prompter_marker_toggle', { mode: 'off' });
+      expect(store.getState().prompter.markerVisible).toBe(false);
+
+      const bad = await act('prompter_marker_toggle', { mode: 'sideways' });
+      expect(bad.status).toBe(400);
+    });
+
+    it('prompter_set_max_width caps the line width, with 0 meaning uncapped', async () => {
+      await act('prompter_set_max_width', { max_width: 1200 });
+      expect(store.getState().prompter.maxWidth).toBe(1200);
+      await act('prompter_set_max_width', { max_width: 0 });
+      expect(store.getState().prompter.maxWidth).toBe(0);
+
+      const bad = await act('prompter_set_max_width', {});
+      expect(bad.status).toBe(400);
+    });
   });
 });
 
