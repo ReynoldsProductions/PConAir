@@ -23,13 +23,40 @@ jobs:
         run: npm ci
 
       - name: Download cloudflared binary
+        env:
+          # Unauthenticated api.github.com is rate limited per runner IP. When it
+          # trips, `jq -r .tag_name` yields "null", the download 404s, and curl
+          # writes "Not Found" to the file — which only surfaces as a confusing
+          # "tar: Unrecognized archive format" several lines later.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          version=$(curl -sL https://api.github.com/repos/cloudflare/cloudflared/releases/latest | jq -r .tag_name)
+          set -euo pipefail
+
+          version=$(curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/cloudflare/cloudflared/releases/latest \
+            | jq -r .tag_name)
+
+          if [ -z "$version" ] || [ "$version" = "null" ]; then
+            echo "::error::could not resolve the latest cloudflared release tag"
+            exit 1
+          fi
+          echo "cloudflared version: $version"
+
           mkdir -p cloudflared
-          curl -L "https://github.com/cloudflare/cloudflared/releases/download/${version}/cloudflared-darwin-arm64.tgz" -o /tmp/cloudflared.tgz
+          # -f so an HTTP error is a failure here rather than a corrupt file later.
+          curl -fL --retry 3 --retry-delay 5 --retry-all-errors \
+            "https://github.com/cloudflare/cloudflared/releases/download/${version}/cloudflared-darwin-arm64.tgz" \
+            -o /tmp/cloudflared.tgz
+
           tar -xzf /tmp/cloudflared.tgz -C cloudflared
           mv cloudflared/cloudflared cloudflared/cloudflared-darwin-arm64
           chmod +x cloudflared/cloudflared-darwin-arm64
+
+          # Fail here, not three steps later inside electron-forge, if it is not usable.
+          file cloudflared/cloudflared-darwin-arm64
+          cloudflared/cloudflared-darwin-arm64 --version
 
       - name: Build DMG
         run: npx electron-forge make --platform darwin --arch arm64
