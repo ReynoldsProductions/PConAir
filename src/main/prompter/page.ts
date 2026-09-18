@@ -101,6 +101,8 @@ export const PROMPTER_PAGE_HTML = `<!DOCTYPE html>
   var fontOverride = clampNum(qs.get('font'), 24, 200, null);
   var widthOverride = clampNum(qs.get('width'), 320, 10000, null);
   var padOverride = clampNum(qs.get('pad'), 0, 30, null);
+  var ALIGNS = ['left', 'center', 'right', 'justify'];
+  var alignOverride = ALIGNS.indexOf(qs.get('align')) >= 0 ? qs.get('align') : null;
   var mirrorParam = qs.get('mirror');
 
   // Park the rule before the first state arrives so it does not flash at the
@@ -148,6 +150,7 @@ export const PROMPTER_PAGE_HTML = `<!DOCTYPE html>
     scriptEl.style.paddingLeft = pad + 'vw';
     scriptEl.style.paddingRight = pad + 'vw';
     scriptEl.style.maxWidth = widthOverride !== null ? widthOverride + 'px' : 'none';
+    scriptEl.style.textAlign = alignOverride !== null ? alignOverride : (prompter.textAlign || 'left');
 
     // The rule and the script's leader share one number, so moving the marker
     // moves the line the talent reads from, not just the graphic.

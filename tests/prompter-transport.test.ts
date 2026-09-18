@@ -15,6 +15,7 @@ import {
   nudgePosition,
   setMirror,
   setSidePadding,
+  setTextAlign,
   nudgeSidePadding,
   setMarkerPosition,
   nudgeMarkerPosition,
@@ -141,6 +142,20 @@ describe('prompter transport ops', () => {
     expect(s.sidePadding).toBe(6);
     expect(s.markerPosition).toBe(38);
     expect(s.markerVisible).toBe(true);
+  });
+
+  it('starts left-aligned, the way the prompter has always read', () => {
+    expect(makePrompterState().textAlign).toBe('left');
+  });
+
+  it('accepts the four alignments and ignores anything else', () => {
+    const s = makePrompterState();
+    expect(setTextAlign(s, 'center').textAlign).toBe('center');
+    expect(setTextAlign(s, 'right').textAlign).toBe('right');
+    expect(setTextAlign(s, 'justify').textAlign).toBe('justify');
+    expect(setTextAlign(s, 'left').textAlign).toBe('left');
+    // An unknown value must not blank the display mid-show.
+    expect(setTextAlign({ ...s, textAlign: 'center' }, 'sideways' as never).textAlign).toBe('center');
   });
 
   it('clamps the side padding to the screen', () => {

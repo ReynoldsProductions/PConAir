@@ -208,6 +208,10 @@ export interface StageTimerState {
   configured: boolean;
 }
 
+export type PrompterTextAlign = 'left' | 'center' | 'right' | 'justify';
+
+export const PROMPTER_TEXT_ALIGNS: PrompterTextAlign[] = ['left', 'center', 'right', 'justify'];
+
 /**
  * Built-in prompter. PConAir serves the talent-facing view itself (see
  * `/prompter`), so this state is the source of truth for what that display
@@ -247,6 +251,12 @@ export interface PrompterState {
    * the operator gets fine control at any font size.
    */
   sidePadding: number;
+  /**
+   * How each line sits within the margins. `left` is how the prompter has
+   * always read; `center` gives symmetric whitespace on a wide rig, at the
+   * cost of a left edge that moves line to line.
+   */
+  textAlign: PrompterTextAlign;
   /** Reading marker's distance from the top of the screen, as a percent (0–100). */
   markerPosition: number;
   /**
@@ -270,6 +280,7 @@ export function makePrompterState(): PrompterState {
     mirrorX: false,
     mirrorY: false,
     sidePadding: 6,
+    textAlign: 'left',
     markerPosition: 38,
     markerVisible: true,
   };
