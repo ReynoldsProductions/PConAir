@@ -7,7 +7,7 @@ import type { L3CueStore } from '../l3/cue-store';
 import type { L3ThemeStore } from '../l3/theme-store';
 import type { L3LogoStore } from '../l3/logo-store';
 import { requireOperator, requireAdmin } from './middleware';
-import { sniffImageMime } from '../media-library/image-meta';
+import { sniffImageMime, pngDimensions } from '../media-library/image-meta';
 
 const MIME_TO_EXT: Record<string, string> = {
   'image/png': 'png',
@@ -96,6 +96,7 @@ export function createL3Router(
     subtitle?: string | null;
     theme?: string | null;
     logoDataUrl?: string | null;
+    side?: 'left' | 'right' | null;
   }) => Promise<Buffer>,
 ): Router {
   const router = Router();
@@ -455,15 +456,20 @@ export function createL3Router(
       res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'PNG rendering not available in this build' } });
       return;
     }
-    const { name, title, subtitle, theme, logoAssetId } = req.body as {
+    const { name, title, subtitle, theme, logoAssetId, side } = req.body as {
       name?: string;
       title?: string;
       subtitle?: string;
       theme?: string;
       logoAssetId?: string;
+      side?: string;
     };
     if (!name || !name.trim()) {
       res.status(400).json({ error: { code: 'INVALID_MODE', message: 'name is required' } });
+      return;
+    }
+    if (side !== undefined && side !== 'left' && side !== 'right') {
+      res.status(400).json({ error: { code: 'INVALID_MODE', message: 'side must be "left" or "right"' } });
       return;
     }
 
@@ -481,15 +487,31 @@ export function createL3Router(
     }
 
     try {
-      const pngBuffer = await renderAdHocCard({ name, title, subtitle, theme, logoDataUrl });
+      const pngBuffer = await renderAdHocCard({ name, title, subtitle, theme, logoDataUrl, side });
+      // An empty buffer used to be sent as a 200, so the operator got a 0-byte
+      // download that looked like a success. Treat it as the failure it is.
+      if (!pngBuffer || pngBuffer.length === 0) {
+        res.status(500).json({
+          error: { code: 'RENDER_ERROR', message: 'Renderer produced an empty PNG' },
+        });
+        return;
+      }
       res.setHeader('Content-Type', 'image/png');
       const safeName = name.replace(/[^\w\s-]/g, '_');
       const encodedName = encodeURIComponent(name);
       res.setHeader('Content-Disposition', `attachment; filename="${safeName}.png"; filename*=UTF-8''${encodedName}.png`);
+      // Surfaced by the operator UI so a still's real size is confirmed on screen
+      // rather than assumed.
+      const dims = pngDimensions(pngBuffer);
+      if (dims) {
+        res.setHeader('X-Export-Width', String(dims.width));
+        res.setHeader('X-Export-Height', String(dims.height));
+      }
       res.send(pngBuffer);
-    } catch {
+    } catch (e) {
       if (!res.headersSent) {
-        res.status(500).json({ error: { code: 'RENDER_ERROR', message: 'Failed to render PNG' } });
+        const message = e instanceof Error && e.message ? e.message : 'Failed to render PNG';
+        res.status(500).json({ error: { code: 'RENDER_ERROR', message } });
       }
     }
   });
