@@ -1,6 +1,6 @@
 {
   "name": "pc-on-air",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Controlled browser for live event playout",
   "main": ".webpack/main",
   "scripts": {

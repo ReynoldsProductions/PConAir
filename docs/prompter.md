@@ -33,6 +33,7 @@ these override state on that display only:
 | `?line=30` | Reading-marker position, as a percent of the screen; `0` hides it and reads from the top |
 | `?indicator=0` | Hide the marker but keep the reading position where it is |
 | `?pad=10` | Side margin, as a percent of screen width (0–30) |
+| `?align=center` | Text alignment: `left`, `center`, `right`, `justify` |
 | `?width=1200` | Older per-display cap on line length, in px |
 | `?theme=white` / `amber` / `green` | Text colour |
 
@@ -47,7 +48,8 @@ never drops the reader into the middle of the previous script.
 ## Control
 
 Admin → Prompter has the script box, transport (start/pause, rewind, jump ±200
-px), speed and font steps, line height, the side margin (±1vw steps), the
+px), speed and font steps, line height, text alignment, the side margin
+(±1vw steps), the
 reading-marker controls (up/down in 2% steps, show/hide), and the mirror
 toggles.
 
@@ -62,6 +64,7 @@ HTTP (operator session; `/api/prompter/…`):
 | `POST /font-size` | `{ direction: "in" \| "out" }` or `{ fontSize }` 24–200 |
 | `POST /line-height` | `{ lineHeight }` 1–3 |
 | `POST /side-padding` | `{ sidePadding }` 0–30 vw, or `{ delta }` to nudge a step |
+| `POST /text-align` | `{ align }` — `left`, `center`, `right` or `justify` |
 | `POST /marker` | `{ position? }` or `{ delta? }` in percent, and/or `{ visible? }` |
 | `POST /mirror` | `{ x?, y? }` |
 | `POST /script` | `{ text }` |
@@ -74,7 +77,19 @@ Companion actions: `prompter_start`, `_stop`, `_toggle`, `_rewind`, `_jump`,
 `_scroll_faster`, `_scroll_slower`, `_font_size_in`, `_font_size_out`,
 `_set_speed`, `_set_font_size`, `_load_script`, `_mirror`, `_marker_up`,
 `_marker_down`, `_set_marker`, `_marker_toggle`, `_margin_wider`,
-`_margin_narrower`, `_set_margin`.
+`_margin_narrower`, `_set_margin`, `_set_text_align`, `_text_align_cycle`.
+
+### Alignment and margins
+
+The margin is symmetric — the same gap goes on both sides — but the script
+reads `left`-aligned by default, so lines end wherever they end. On a wide rig
+with a big margin that ragged right edge can read as though the text has been
+pushed left. `center` is usually what is wanted there; it costs the talent a
+fixed left edge to return to, so try it on the real glass before a show.
+
+`justify` forces both edges flush by stretching the spaces between words, which
+makes the gaps jump line to line. It is offered for completeness and is rarely
+the right choice on a prompter.
 
 ### The reading marker
 

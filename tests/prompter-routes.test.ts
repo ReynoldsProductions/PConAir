@@ -113,6 +113,18 @@ describe('prompter routes', () => {
       expect(res.status).toBe(400);
     });
 
+    it('sets the text alignment', async () => {
+      await request(srv.app).post('/api/prompter/text-align').set('Cookie', op).send({ align: 'center' });
+      expect(store.getState().prompter.textAlign).toBe('center');
+    });
+
+    it('rejects an unknown alignment rather than blanking the display', async () => {
+      await request(srv.app).post('/api/prompter/text-align').set('Cookie', op).send({ align: 'center' });
+      const res = await request(srv.app).post('/api/prompter/text-align').set('Cookie', op).send({ align: 'sideways' });
+      expect(res.status).toBe(400);
+      expect(store.getState().prompter.textAlign).toBe('center');
+    });
+
     it('moves the marker to an absolute position and by a delta', async () => {
       await request(srv.app).post('/api/prompter/marker').set('Cookie', op).send({ position: 50 });
       expect(store.getState().prompter.markerPosition).toBe(50);
@@ -253,6 +265,7 @@ describe('prompter routes', () => {
         mirrorX: false,
         mirrorY: false,
         sidePadding: 6,
+        textAlign: 'left',
         markerPosition: 38,
         markerVisible: true,
       });

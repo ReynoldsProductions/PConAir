@@ -216,6 +216,25 @@ export function buildSystemActions(deps: ActionDeps): Record<string, CompanionAc
       ],
       callback: async (event) => dispatch('prompter_marker_toggle', { mode: event.options.mode }),
     },
+    prompter_text_align_cycle: simpleDispatch(deps, 'Prompter: Cycle Text Alignment', 'prompter_text_align_cycle'),
+    prompter_set_text_align: {
+      name: 'Prompter: Set Text Alignment',
+      options: [
+        {
+          type: 'dropdown',
+          id: 'align',
+          label: 'Alignment',
+          default: 'left',
+          choices: [
+            { id: 'left', label: 'Left' },
+            { id: 'center', label: 'Center' },
+            { id: 'right', label: 'Right' },
+            { id: 'justify', label: 'Justify (uneven word spacing)' },
+          ],
+        },
+      ],
+      callback: async (event) => dispatch('prompter_set_text_align', { align: event.options.align }),
+    },
     prompter_margin_wider: simpleDispatch(deps, 'Prompter: Margin +', 'prompter_margin_wider'),
     prompter_margin_narrower: simpleDispatch(deps, 'Prompter: Margin −', 'prompter_margin_narrower'),
     prompter_set_margin: {

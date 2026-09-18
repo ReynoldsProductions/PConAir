@@ -7,7 +7,8 @@ import type { L3LogoStore } from './l3/logo-store';
 import type { MediaLibraryStore } from './media-library/item-store';
 import type { SlideshowEngine } from './media-library/slideshow';
 import type { SlidesWindowManager } from './slides/window-manager';
-import type { Mode, SlideshowTransition, ScoreboardState, LowerThirdState, LowerThirdsState, LowerThirdTheme, LowerThirdAnimationStyle, PrompterState } from '../shared/types';
+import type { Mode, SlideshowTransition, ScoreboardState, LowerThirdState, LowerThirdsState, LowerThirdTheme, LowerThirdAnimationStyle, PrompterState, PrompterTextAlign } from '../shared/types';
+import { PROMPTER_TEXT_ALIGNS } from '../shared/types';
 import { slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideLoadOp, slideOfflineModeOp } from './services/slide-ops';
 import { urlLoadOp, urlReloadOp, setDisplayTargetOp } from './services/url-ops';
 import { fanOutSlideCommand } from './services/backup-fanout';
@@ -27,6 +28,7 @@ import {
   setScript as prompterSetScript,
   setMirror as prompterSetMirror,
   setSidePadding as prompterSetSidePadding,
+  setTextAlign as prompterSetTextAlign,
   nudgeSidePadding as prompterNudgeSidePadding,
   setMarkerPosition as prompterSetMarkerPosition,
   nudgeMarkerPosition as prompterNudgeMarkerPosition,
@@ -482,6 +484,23 @@ export function createActionDispatcher(deps: {
         const visible = mode === 'toggle' ? !tp.markerVisible : mode === 'on';
         const next = prompterSetMarkerVisible(tp, visible);
         return prompterApply(next, { marker_visible: next.markerVisible });
+      }
+      case 'prompter_set_text_align': {
+        const align = str(p.align) ?? str(p.text_align);
+        if (align === undefined || !PROMPTER_TEXT_ALIGNS.includes(align as PrompterTextAlign)) {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: `align must be one of ${PROMPTER_TEXT_ALIGNS.join(', ')}` } };
+        }
+        const next = prompterSetTextAlign(store.getState().prompter, align as PrompterTextAlign);
+        return prompterApply(next, { text_align: next.textAlign });
+      }
+      case 'prompter_text_align_cycle': {
+        // Cycles the three readable alignments; justify is deliberately left out
+        // of the rotation, being a setting you pick rather than step through.
+        const ROTATION: PrompterTextAlign[] = ['left', 'center', 'right'];
+        const tp = store.getState().prompter;
+        const idx = ROTATION.indexOf(tp.textAlign);
+        const next = prompterSetTextAlign(tp, ROTATION[(idx + 1) % ROTATION.length]);
+        return prompterApply(next, { text_align: next.textAlign });
       }
       case 'prompter_margin_wider':
       case 'prompter_margin_narrower': {

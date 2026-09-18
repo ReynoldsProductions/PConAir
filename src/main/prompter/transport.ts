@@ -1,4 +1,4 @@
-import type { PrompterState } from '../../shared/types';
+import { PROMPTER_TEXT_ALIGNS, type PrompterState, type PrompterTextAlign } from '../../shared/types';
 
 /** Scroll rate bounds in px/sec. */
 export const SPEED_MIN = 0;
@@ -123,6 +123,16 @@ export function setMirror(state: PrompterState, axes: { x?: boolean; y?: boolean
     mirrorX: axes.x ?? state.mirrorX,
     mirrorY: axes.y ?? state.mirrorY,
   };
+}
+
+/**
+ * Set how lines sit within the margins. An unrecognised value is ignored
+ * rather than applied: a bad command must never blank the talent's display
+ * mid-show.
+ */
+export function setTextAlign(state: PrompterState, textAlign: PrompterTextAlign): PrompterState {
+  if (!PROMPTER_TEXT_ALIGNS.includes(textAlign)) return state;
+  return { ...state, textAlign };
 }
 
 export function setSidePadding(state: PrompterState, sidePadding: number): PrompterState {

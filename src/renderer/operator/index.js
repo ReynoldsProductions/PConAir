@@ -61,6 +61,7 @@
       mirrorX: false,
       mirrorY: false,
       sidePadding: 6,
+      textAlign: "left",
       markerPosition: 38,
       markerVisible: true
     };

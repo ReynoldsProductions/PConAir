@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
-import type { PrompterState } from '../../shared/types';
+import { PROMPTER_TEXT_ALIGNS, type PrompterState, type PrompterTextAlign } from '../../shared/types';
 import { requireOperator, requireAdmin } from './middleware';
 import { PROMPTER_PAGE_HTML, PROMPTER_CSP } from '../prompter/page';
 import { forwardToExternalPrompter, type ForwardResult } from '../prompter/forward';
@@ -21,6 +21,7 @@ import {
   setScript,
   setMirror,
   setSidePadding,
+  setTextAlign,
   nudgeSidePadding,
   setMarkerPosition,
   nudgeMarkerPosition,
@@ -58,6 +59,7 @@ function viewState(s: PrompterState) {
     mirrorX: s.mirrorX,
     mirrorY: s.mirrorY,
     sidePadding: s.sidePadding,
+    textAlign: s.textAlign,
     markerPosition: s.markerPosition,
     markerVisible: s.markerVisible,
   };
@@ -235,6 +237,16 @@ export function createPrompterRouter(deps: PrompterRouterDeps): Router {
       return;
     }
     await apply(setLineHeight(current(), lineHeight), null, res);
+  });
+
+  router.post('/api/prompter/text-align', opGuard, async (req: Request, res: Response) => {
+    const { align } = req.body as { align?: unknown };
+    if (typeof align !== 'string' || !PROMPTER_TEXT_ALIGNS.includes(align as PrompterTextAlign)) {
+      badRequest(res, `align must be one of ${PROMPTER_TEXT_ALIGNS.join(', ')}`);
+      return;
+    }
+    const next = setTextAlign(current(), align as PrompterTextAlign);
+    await apply(next, { text_align: next.textAlign }, res);
   });
 
   /** Absolute vw, or a delta so a button can nudge the margin a step at a time. */

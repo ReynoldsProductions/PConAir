@@ -289,6 +289,25 @@ describe('action dispatcher — phase 9 Companion actions', () => {
       expect(bad.status).toBe(400);
     });
 
+    it('prompter_set_text_align sets alignment and rejects junk', async () => {
+      await act('prompter_set_text_align', { align: 'right' });
+      expect(store.getState().prompter.textAlign).toBe('right');
+
+      const bad = await act('prompter_set_text_align', { align: 'sideways' });
+      expect(bad.status).toBe(400);
+      expect(store.getState().prompter.textAlign).toBe('right');
+    });
+
+    it('prompter_text_align_cycle rotates left -> center -> right and wraps', async () => {
+      expect(store.getState().prompter.textAlign).toBe('left');
+      await act('prompter_text_align_cycle');
+      expect(store.getState().prompter.textAlign).toBe('center');
+      await act('prompter_text_align_cycle');
+      expect(store.getState().prompter.textAlign).toBe('right');
+      await act('prompter_text_align_cycle');
+      expect(store.getState().prompter.textAlign).toBe('left');
+    });
+
     it('prompter_margin_wider and _narrower step the side padding by 1vw', async () => {
       await act('prompter_margin_wider');
       expect(store.getState().prompter.sidePadding).toBe(7);

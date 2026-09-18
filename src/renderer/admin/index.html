@@ -2043,6 +2043,14 @@ async function renderPrompter() {
         <span class="field-label" style="margin:0">Mirror vertically (ceiling mount)</span>
       </label>
       <div class="field">
+        <div class="field-label">Text alignment</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          ${['left', 'center', 'right', 'justify'].map(a =>
+            `<button class="btn tp-align${(p.textAlign || 'left') === a ? ' btn-primary' : ''}" data-align="${a}">${a[0].toUpperCase()}${a.slice(1)}</button>`
+          ).join('')}
+        </div>
+      </div>
+      <div class="field">
         <div class="field-label">Side margin</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <button id="tp-margin-narrower" class="btn">Margin −</button>
@@ -2093,6 +2101,9 @@ async function renderPrompter() {
     document.getElementById('tp-marker-pos').textContent = Math.round(next.markerPosition) + '%';
     document.getElementById('tp-marker-visible').checked = next.markerVisible !== false;
     document.getElementById('tp-margin').textContent = next.sidePadding + 'vw';
+    document.querySelectorAll('.tp-align').forEach((b) =>
+      b.classList.toggle('btn-primary', b.dataset.align === (next.textAlign || 'left'))
+    );
   }
 
   async function post(path, body) {
@@ -2165,6 +2176,9 @@ async function renderPrompter() {
   );
   document.getElementById('tp-marker-visible').addEventListener('change', (ev) =>
     post('/api/prompter/marker', { visible: ev.target.checked })
+  );
+  document.querySelectorAll('.tp-align').forEach((btn) =>
+    btn.addEventListener('click', () => post('/api/prompter/text-align', { align: btn.dataset.align }))
   );
   document.getElementById('tp-margin-narrower').addEventListener('click', () =>
     post('/api/prompter/side-padding', { delta: -1 })
