@@ -101,10 +101,39 @@ jobs:
 
       - name: Download cloudflared binary
         shell: bash
+        env:
+          # Same rate-limit trap as the macOS job, but worse here: there is no
+          # tar to choke on a bad file, so an unguarded 404 would be written
+          # straight into the zip as a 9-byte "cloudflared.exe" and the build
+          # would report success.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          version=$(curl -sL https://api.github.com/repos/cloudflare/cloudflared/releases/latest | jq -r .tag_name)
+          set -euo pipefail
+
+          version=$(curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/cloudflare/cloudflared/releases/latest \
+            | jq -r .tag_name)
+
+          if [ -z "$version" ] || [ "$version" = "null" ]; then
+            echo "::error::could not resolve the latest cloudflared release tag"
+            exit 1
+          fi
+          echo "cloudflared version: $version"
+
           mkdir -p cloudflared
-          curl -L "https://github.com/cloudflare/cloudflared/releases/download/${version}/cloudflared-windows-amd64.exe" -o cloudflared/cloudflared-windows-amd64.exe
+          curl -fL --retry 3 --retry-delay 5 --retry-all-errors \
+            "https://github.com/cloudflare/cloudflared/releases/download/${version}/cloudflared-windows-amd64.exe" \
+            -o cloudflared/cloudflared-windows-amd64.exe
+
+          # A real cloudflared.exe is tens of MB; anything tiny is an error page.
+          size=$(wc -c < cloudflared/cloudflared-windows-amd64.exe)
+          echo "cloudflared-windows-amd64.exe: $size bytes"
+          if [ "$size" -lt 1000000 ]; then
+            echo "::error::cloudflared download looks wrong ($size bytes)"
+            exit 1
+          fi
 
       - name: Build Windows ZIP
         run: npx electron-forge make --platform win32 --arch x64
