@@ -100,6 +100,7 @@ export const PROMPTER_PAGE_HTML = `<!DOCTYPE html>
 
   var fontOverride = clampNum(qs.get('font'), 24, 200, null);
   var widthOverride = clampNum(qs.get('width'), 320, 10000, null);
+  var padOverride = clampNum(qs.get('pad'), 0, 30, null);
   var mirrorParam = qs.get('mirror');
 
   // Park the rule before the first state arrives so it does not flash at the
@@ -140,9 +141,13 @@ export const PROMPTER_PAGE_HTML = `<!DOCTYPE html>
     scriptEl.style.fontSize = size + 'px';
     scriptEl.style.lineHeight = String(prompter.lineHeight || 1.4);
 
-    // maxWidth of 0 means uncapped.
-    var width = widthOverride !== null ? widthOverride : prompter.maxWidth;
-    scriptEl.style.maxWidth = width ? width + 'px' : 'none';
+    // The margin is the gap at each side, in vw, so a step stays proportional
+    // to the display instead of drifting with font size. ?width= is the older
+    // per-display line-length cap and still wins where it is set.
+    var pad = padOverride !== null ? padOverride : prompter.sidePadding;
+    scriptEl.style.paddingLeft = pad + 'vw';
+    scriptEl.style.paddingRight = pad + 'vw';
+    scriptEl.style.maxWidth = widthOverride !== null ? widthOverride + 'px' : 'none';
 
     // The rule and the script's leader share one number, so moving the marker
     // moves the line the talent reads from, not just the graphic.

@@ -26,13 +26,15 @@ import {
   nudgeFontSize as prompterNudgeFontSize,
   setScript as prompterSetScript,
   setMirror as prompterSetMirror,
-  setMaxWidth as prompterSetMaxWidth,
+  setSidePadding as prompterSetSidePadding,
+  nudgeSidePadding as prompterNudgeSidePadding,
   setMarkerPosition as prompterSetMarkerPosition,
   nudgeMarkerPosition as prompterNudgeMarkerPosition,
   setMarkerVisible as prompterSetMarkerVisible,
   SPEED_STEP as PROMPTER_SPEED_STEP,
   FONT_SIZE_STEP as PROMPTER_FONT_SIZE_STEP,
   MARKER_POSITION_STEP as PROMPTER_MARKER_POSITION_STEP,
+  SIDE_PADDING_STEP as PROMPTER_SIDE_PADDING_STEP,
 } from './prompter/transport';
 
 const LOWER_THIRD_THEMES: LowerThirdTheme[] = [
@@ -481,13 +483,21 @@ export function createActionDispatcher(deps: {
         const next = prompterSetMarkerVisible(tp, visible);
         return prompterApply(next, { marker_visible: next.markerVisible });
       }
-      case 'prompter_set_max_width': {
-        const maxWidth = num(p.max_width) ?? num(p.maxWidth);
-        if (maxWidth === undefined) {
-          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'max_width must be a number' } };
+      case 'prompter_margin_wider':
+      case 'prompter_margin_narrower': {
+        const delta = actionId === 'prompter_margin_wider'
+          ? PROMPTER_SIDE_PADDING_STEP
+          : -PROMPTER_SIDE_PADDING_STEP;
+        const next = prompterNudgeSidePadding(store.getState().prompter, delta);
+        return prompterApply(next, { side_padding: next.sidePadding });
+      }
+      case 'prompter_set_margin': {
+        const sidePadding = num(p.side_padding) ?? num(p.sidePadding);
+        if (sidePadding === undefined) {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'side_padding must be a number' } };
         }
-        const next = prompterSetMaxWidth(store.getState().prompter, maxWidth);
-        return prompterApply(next, { max_width: next.maxWidth });
+        const next = prompterSetSidePadding(store.getState().prompter, sidePadding);
+        return prompterApply(next, { side_padding: next.sidePadding });
       }
       case 'panic': {
         const action = str(p.action) ?? 'toggle';

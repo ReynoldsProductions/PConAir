@@ -289,13 +289,24 @@ describe('action dispatcher — phase 9 Companion actions', () => {
       expect(bad.status).toBe(400);
     });
 
-    it('prompter_set_max_width caps the line width, with 0 meaning uncapped', async () => {
-      await act('prompter_set_max_width', { max_width: 1200 });
-      expect(store.getState().prompter.maxWidth).toBe(1200);
-      await act('prompter_set_max_width', { max_width: 0 });
-      expect(store.getState().prompter.maxWidth).toBe(0);
+    it('prompter_margin_wider and _narrower step the side padding by 1vw', async () => {
+      await act('prompter_margin_wider');
+      expect(store.getState().prompter.sidePadding).toBe(7);
+      await act('prompter_margin_narrower');
+      await act('prompter_margin_narrower');
+      expect(store.getState().prompter.sidePadding).toBe(5);
+    });
 
-      const bad = await act('prompter_set_max_width', {});
+    it('prompter_margin_narrower stops at zero rather than going negative', async () => {
+      for (let i = 0; i < 10; i++) await act('prompter_margin_narrower');
+      expect(store.getState().prompter.sidePadding).toBe(0);
+    });
+
+    it('prompter_set_margin sets the side padding outright', async () => {
+      await act('prompter_set_margin', { side_padding: 14 });
+      expect(store.getState().prompter.sidePadding).toBe(14);
+
+      const bad = await act('prompter_set_margin', {});
       expect(bad.status).toBe(400);
     });
   });

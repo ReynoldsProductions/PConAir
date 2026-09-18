@@ -216,13 +216,15 @@ export function buildSystemActions(deps: ActionDeps): Record<string, CompanionAc
       ],
       callback: async (event) => dispatch('prompter_marker_toggle', { mode: event.options.mode }),
     },
-    prompter_set_max_width: {
-      name: 'Prompter: Set Max Line Width',
+    prompter_margin_wider: simpleDispatch(deps, 'Prompter: Margin +', 'prompter_margin_wider'),
+    prompter_margin_narrower: simpleDispatch(deps, 'Prompter: Margin −', 'prompter_margin_narrower'),
+    prompter_set_margin: {
+      name: 'Prompter: Set Margin',
       options: [
-        { type: 'textinput', id: 'max_width', label: 'Width in px (0 fills the screen)', default: '0', required: true, useVariables: true },
+        { type: 'textinput', id: 'side_padding', label: 'Side margin (0-30% of screen width)', default: '6', required: true, useVariables: true },
       ],
       callback: async (event, context) =>
-        dispatch('prompter_set_max_width', { max_width: await parsedNum(context, event, 'max_width', 0) }),
+        dispatch('prompter_set_margin', { side_padding: await parsedNum(context, event, 'side_padding', 6) }),
     },
     prompter_load_script: {
       name: 'Prompter: Load Script',

@@ -9,9 +9,9 @@ export const FONT_SIZE_MAX = 200;
 /** Line height bounds, as a multiple of the font size. */
 export const LINE_HEIGHT_MIN = 1;
 export const LINE_HEIGHT_MAX = 3;
-/** Max line width bounds in px, for a non-zero (capped) width. */
-export const MAX_WIDTH_MIN = 320;
-export const MAX_WIDTH_MAX = 10000;
+/** Side padding bounds, as a percent of viewport width (vw). */
+export const SIDE_PADDING_MIN = 0;
+export const SIDE_PADDING_MAX = 30;
 /** Reading marker bounds, as a percent of screen height. */
 export const MARKER_POSITION_MIN = 0;
 export const MARKER_POSITION_MAX = 100;
@@ -21,6 +21,8 @@ export const SPEED_STEP = 10;
 export const FONT_SIZE_STEP = 4;
 /** Step used by the marker up/down buttons, in percent of screen height. */
 export const MARKER_POSITION_STEP = 2;
+/** Step used by the margin +/− buttons, in vw. */
+export const SIDE_PADDING_STEP = 1;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -123,14 +125,13 @@ export function setMirror(state: PrompterState, axes: { x?: boolean; y?: boolean
   };
 }
 
-/**
- * Cap the line length in px. `0` is passed through untouched as "uncapped" —
- * it is the off switch, not a width, so it must not be clamped up to the
- * minimum.
- */
-export function setMaxWidth(state: PrompterState, maxWidth: number): PrompterState {
-  const rounded = Math.round(maxWidth);
-  return { ...state, maxWidth: rounded <= 0 ? 0 : clamp(rounded, MAX_WIDTH_MIN, MAX_WIDTH_MAX) };
+export function setSidePadding(state: PrompterState, sidePadding: number): PrompterState {
+  return { ...state, sidePadding: clamp(sidePadding, SIDE_PADDING_MIN, SIDE_PADDING_MAX) };
+}
+
+/** Widen (+) or narrow (−) the gap at each side of the script. */
+export function nudgeSidePadding(state: PrompterState, delta: number): PrompterState {
+  return setSidePadding(state, state.sidePadding + delta);
 }
 
 export function setMarkerPosition(state: PrompterState, markerPosition: number): PrompterState {

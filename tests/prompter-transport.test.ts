@@ -14,13 +14,15 @@ import {
   seek,
   nudgePosition,
   setMirror,
-  setMaxWidth,
+  setSidePadding,
+  nudgeSidePadding,
   setMarkerPosition,
   nudgeMarkerPosition,
   setMarkerVisible,
   toggleMarker,
-  MAX_WIDTH_MIN,
-  MAX_WIDTH_MAX,
+  SIDE_PADDING_MIN,
+  SIDE_PADDING_MAX,
+  SIDE_PADDING_STEP,
   MARKER_POSITION_MIN,
   MARKER_POSITION_MAX,
   MARKER_POSITION_STEP,
@@ -134,19 +136,26 @@ describe('prompter transport ops', () => {
     expect(setMirror({ ...s, mirrorX: true }, { y: true })).toMatchObject({ mirrorX: true, mirrorY: true });
   });
 
-  it('starts with an uncapped line width and a visible marker at 38%', () => {
+  it('starts at the long-standing 6vw side padding and a visible marker at 38%', () => {
     const s = makePrompterState();
-    expect(s.maxWidth).toBe(0);
+    expect(s.sidePadding).toBe(6);
     expect(s.markerPosition).toBe(38);
     expect(s.markerVisible).toBe(true);
   });
 
-  it('clamps the max line width, keeping 0 as "uncapped"', () => {
+  it('clamps the side padding to the screen', () => {
     const s = makePrompterState();
-    expect(setMaxWidth(s, 0).maxWidth).toBe(0);
-    expect(setMaxWidth(s, 1200).maxWidth).toBe(1200);
-    expect(setMaxWidth(s, 10).maxWidth).toBe(MAX_WIDTH_MIN);
-    expect(setMaxWidth(s, 99_999).maxWidth).toBe(MAX_WIDTH_MAX);
+    expect(setSidePadding(s, 0).sidePadding).toBe(0);
+    expect(setSidePadding(s, 12).sidePadding).toBe(12);
+    expect(setSidePadding(s, -5).sidePadding).toBe(SIDE_PADDING_MIN);
+    expect(setSidePadding(s, 500).sidePadding).toBe(SIDE_PADDING_MAX);
+  });
+
+  it('nudges the side padding in fine steps', () => {
+    const s = makePrompterState();
+    expect(nudgeSidePadding(s, SIDE_PADDING_STEP).sidePadding).toBe(6 + SIDE_PADDING_STEP);
+    expect(nudgeSidePadding(s, -SIDE_PADDING_STEP).sidePadding).toBe(6 - SIDE_PADDING_STEP);
+    expect(nudgeSidePadding({ ...s, sidePadding: 0 }, -SIDE_PADDING_STEP).sidePadding).toBe(SIDE_PADDING_MIN);
   });
 
   it('clamps the marker position to the screen', () => {

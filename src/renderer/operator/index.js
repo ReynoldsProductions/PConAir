@@ -60,7 +60,7 @@
       startedAt: null,
       mirrorX: false,
       mirrorY: false,
-      maxWidth: 0,
+      sidePadding: 6,
       markerPosition: 38,
       markerVisible: true
     };
