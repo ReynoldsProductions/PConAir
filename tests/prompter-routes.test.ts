@@ -100,16 +100,16 @@ describe('prompter routes', () => {
       expect(store.getState().prompter).toMatchObject({ mirrorX: true, mirrorY: false });
     });
 
-    it('sets the max line width, and takes 0 as uncapped', async () => {
-      await request(srv.app).post('/api/prompter/max-width').set('Cookie', op).send({ maxWidth: 1200 });
-      expect(store.getState().prompter.maxWidth).toBe(1200);
+    it('sets the side padding absolutely and by a delta', async () => {
+      await request(srv.app).post('/api/prompter/side-padding').set('Cookie', op).send({ sidePadding: 12 });
+      expect(store.getState().prompter.sidePadding).toBe(12);
 
-      await request(srv.app).post('/api/prompter/max-width').set('Cookie', op).send({ maxWidth: 0 });
-      expect(store.getState().prompter.maxWidth).toBe(0);
+      await request(srv.app).post('/api/prompter/side-padding').set('Cookie', op).send({ delta: -3 });
+      expect(store.getState().prompter.sidePadding).toBe(9);
     });
 
-    it('rejects a non-numeric max width', async () => {
-      const res = await request(srv.app).post('/api/prompter/max-width').set('Cookie', op).send({ maxWidth: 'wide' });
+    it('rejects a side-padding body with neither value nor delta', async () => {
+      const res = await request(srv.app).post('/api/prompter/side-padding').set('Cookie', op).send({ sidePadding: 'wide' });
       expect(res.status).toBe(400);
     });
 
@@ -252,7 +252,7 @@ describe('prompter routes', () => {
         offset: 0,
         mirrorX: false,
         mirrorY: false,
-        maxWidth: 0,
+        sidePadding: 6,
         markerPosition: 38,
         markerVisible: true,
       });

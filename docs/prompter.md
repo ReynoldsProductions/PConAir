@@ -32,7 +32,8 @@ these override state on that display only:
 | `?font=90` | Script size in px (24–200) |
 | `?line=30` | Reading-marker position, as a percent of the screen; `0` hides it and reads from the top |
 | `?indicator=0` | Hide the marker but keep the reading position where it is |
-| `?width=1200` | Maximum line width in px |
+| `?pad=10` | Side margin, as a percent of screen width (0–30) |
+| `?width=1200` | Older per-display cap on line length, in px |
 | `?theme=white` / `amber` / `green` | Text colour |
 
 ## Script formatting
@@ -46,8 +47,9 @@ never drops the reader into the middle of the previous script.
 ## Control
 
 Admin → Prompter has the script box, transport (start/pause, rewind, jump ±200
-px), speed and font steps, line height, max line width, the reading-marker
-controls (up/down in 2% steps, show/hide), and the mirror toggles.
+px), speed and font steps, line height, the side margin (±1vw steps), the
+reading-marker controls (up/down in 2% steps, show/hide), and the mirror
+toggles.
 
 HTTP (operator session; `/api/prompter/…`):
 
@@ -59,7 +61,7 @@ HTTP (operator session; `/api/prompter/…`):
 | `POST /speed` | `{ speed }` 0–200 px/sec |
 | `POST /font-size` | `{ direction: "in" \| "out" }` or `{ fontSize }` 24–200 |
 | `POST /line-height` | `{ lineHeight }` 1–3 |
-| `POST /max-width` | `{ maxWidth }` 320–10000 px, or `0` to fill the screen |
+| `POST /side-padding` | `{ sidePadding }` 0–30 vw, or `{ delta }` to nudge a step |
 | `POST /marker` | `{ position? }` or `{ delta? }` in percent, and/or `{ visible? }` |
 | `POST /mirror` | `{ x?, y? }` |
 | `POST /script` | `{ text }` |
@@ -71,7 +73,8 @@ HTTP (operator session; `/api/prompter/…`):
 Companion actions: `prompter_start`, `_stop`, `_toggle`, `_rewind`, `_jump`,
 `_scroll_faster`, `_scroll_slower`, `_font_size_in`, `_font_size_out`,
 `_set_speed`, `_set_font_size`, `_load_script`, `_mirror`, `_marker_up`,
-`_marker_down`, `_set_marker`, `_marker_toggle`, `_set_max_width`.
+`_marker_down`, `_set_marker`, `_marker_toggle`, `_margin_wider`,
+`_margin_narrower`, `_set_margin`.
 
 ### The reading marker
 

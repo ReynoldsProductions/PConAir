@@ -20,7 +20,8 @@ import {
   setLineHeight,
   setScript,
   setMirror,
-  setMaxWidth,
+  setSidePadding,
+  nudgeSidePadding,
   setMarkerPosition,
   nudgeMarkerPosition,
   setMarkerVisible,
@@ -56,7 +57,7 @@ function viewState(s: PrompterState) {
     startedAt: s.startedAt,
     mirrorX: s.mirrorX,
     mirrorY: s.mirrorY,
-    maxWidth: s.maxWidth,
+    sidePadding: s.sidePadding,
     markerPosition: s.markerPosition,
     markerVisible: s.markerVisible,
   };
@@ -236,14 +237,19 @@ export function createPrompterRouter(deps: PrompterRouterDeps): Router {
     await apply(setLineHeight(current(), lineHeight), null, res);
   });
 
-  router.post('/api/prompter/max-width', opGuard, async (req: Request, res: Response) => {
-    const { maxWidth } = req.body as { maxWidth?: unknown };
-    if (typeof maxWidth !== 'number' || !Number.isFinite(maxWidth)) {
-      badRequest(res, 'maxWidth must be a number (0 for uncapped)');
+  /** Absolute vw, or a delta so a button can nudge the margin a step at a time. */
+  router.post('/api/prompter/side-padding', opGuard, async (req: Request, res: Response) => {
+    const { sidePadding, delta } = req.body as { sidePadding?: unknown; delta?: unknown };
+    const hasValue = typeof sidePadding === 'number' && Number.isFinite(sidePadding);
+    const hasDelta = typeof delta === 'number' && Number.isFinite(delta);
+    if (!hasValue && !hasDelta) {
+      badRequest(res, 'sidePadding or delta must be a number');
       return;
     }
-    const next = setMaxWidth(current(), maxWidth);
-    await apply(next, { max_width: next.maxWidth }, res);
+    const next = hasValue
+      ? setSidePadding(current(), sidePadding as number)
+      : nudgeSidePadding(current(), delta as number);
+    await apply(next, { side_padding: next.sidePadding }, res);
   });
 
   /**
