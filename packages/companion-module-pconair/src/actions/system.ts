@@ -189,6 +189,41 @@ export function buildSystemActions(deps: ActionDeps): Record<string, CompanionAc
       callback: async (event) =>
         dispatch('prompter_mirror', { axis: event.options.axis, mode: event.options.mode }),
     },
+    prompter_marker_up: simpleDispatch(deps, 'Prompter: Marker Up', 'prompter_marker_up'),
+    prompter_marker_down: simpleDispatch(deps, 'Prompter: Marker Down', 'prompter_marker_down'),
+    prompter_set_marker: {
+      name: 'Prompter: Set Marker Position',
+      options: [
+        { type: 'textinput', id: 'position', label: 'Position (0-100% from top)', default: '38', required: true, useVariables: true },
+      ],
+      callback: async (event, context) =>
+        dispatch('prompter_set_marker', { position: await parsedNum(context, event, 'position', 38) }),
+    },
+    prompter_marker_toggle: {
+      name: 'Prompter: Show/Hide Marker',
+      options: [
+        {
+          type: 'dropdown',
+          id: 'mode',
+          label: 'Mode',
+          default: 'toggle',
+          choices: [
+            { id: 'toggle', label: 'Toggle' },
+            { id: 'on', label: 'Show' },
+            { id: 'off', label: 'Hide' },
+          ],
+        },
+      ],
+      callback: async (event) => dispatch('prompter_marker_toggle', { mode: event.options.mode }),
+    },
+    prompter_set_max_width: {
+      name: 'Prompter: Set Max Line Width',
+      options: [
+        { type: 'textinput', id: 'max_width', label: 'Width in px (0 fills the screen)', default: '0', required: true, useVariables: true },
+      ],
+      callback: async (event, context) =>
+        dispatch('prompter_set_max_width', { max_width: await parsedNum(context, event, 'max_width', 0) }),
+    },
     prompter_load_script: {
       name: 'Prompter: Load Script',
       options: [

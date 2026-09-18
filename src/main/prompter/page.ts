@@ -8,8 +8,10 @@
  * accumulated locally, so a reload, a dropped Wi-Fi link, or a second display
  * joining halfway through all land on the same line.
  *
- * Per-display overrides come from the query string, because one rig's glass
- * needs mirroring while the confidence monitor beside it does not:
+ * Marker position, marker visibility and max line width follow app state, so
+ * Admin and Companion can drive them live. Per-display overrides come from the
+ * query string and win over state, because one rig's glass needs mirroring
+ * while the confidence monitor beside it does not:
  *   ?mirror=x|y|xy|none  ?font=<px>  ?line=<0-100>  ?theme=white|amber|green
  *   ?width=<px>          ?indicator=0
  */
@@ -89,16 +91,21 @@ export const PROMPTER_PAGE_HTML = `<!DOCTYPE html>
   var theme = THEMES[qs.get('theme')];
   if (theme) document.documentElement.style.setProperty('--ink', theme);
 
-  var linePct = clampNum(qs.get('line'), 0, 100, 38);
-  if (qs.get('line') === '0' || qs.get('indicator') === '0') {
-    ruleEl.classList.add('hidden');
-  } else {
-    ruleEl.style.top = linePct + '%';
-  }
+  // Per-display overrides. Each is null when absent, which hands the decision
+  // back to app state so Admin and Companion can drive it live.
+  var lineOverride = clampNum(qs.get('line'), 0, 100, null);
+  // ?line=0 is the long-standing "no rule, read from the top" shorthand, and
+  // ?indicator=0 hides the rule but keeps the reading position where it is.
+  var markerHiddenOverride = qs.get('line') === '0' || qs.get('indicator') === '0' ? true : null;
 
   var fontOverride = clampNum(qs.get('font'), 24, 200, null);
   var widthOverride = clampNum(qs.get('width'), 320, 10000, null);
   var mirrorParam = qs.get('mirror');
+
+  // Park the rule before the first state arrives so it does not flash at the
+  // top of the screen on load; applyLayout takes over from here.
+  ruleEl.style.top = (lineOverride !== null ? lineOverride : 38) + '%';
+  if (markerHiddenOverride) ruleEl.classList.add('hidden');
 
   function clampNum(raw, min, max, fallback) {
     var n = parseFloat(raw);
@@ -120,15 +127,34 @@ export const PROMPTER_PAGE_HTML = `<!DOCTYPE html>
     return Math.max(0, (s.offset || 0) + ((now - s.startedAt) / 1000) * (s.speed || 0));
   }
 
+  /** Where the reading line sits, in percent of screen height. */
+  function markerPct() {
+    if (lineOverride !== null) return lineOverride;
+    var fromState = prompter && prompter.markerPosition;
+    return typeof fromState === 'number' ? fromState : 38;
+  }
+
   function applyLayout() {
     if (!prompter) return;
     var size = fontOverride !== null ? fontOverride : prompter.fontSize;
     scriptEl.style.fontSize = size + 'px';
     scriptEl.style.lineHeight = String(prompter.lineHeight || 1.4);
-    scriptEl.style.maxWidth = widthOverride !== null ? widthOverride + 'px' : 'none';
+
+    // maxWidth of 0 means uncapped.
+    var width = widthOverride !== null ? widthOverride : prompter.maxWidth;
+    scriptEl.style.maxWidth = width ? width + 'px' : 'none';
+
+    // The rule and the script's leader share one number, so moving the marker
+    // moves the line the talent reads from, not just the graphic.
+    var pct = markerPct();
+    ruleEl.style.top = pct + '%';
+    var hidden = markerHiddenOverride !== null ? markerHiddenOverride : prompter.markerVisible === false;
+    ruleEl.classList.toggle('hidden', hidden);
+
     // Blank leader/trailer so the first line can sit on the reading rule and
-    // the last line can still scroll past it.
-    scriptEl.style.paddingTop = linePct + 'vh';
+    // the last line can still scroll past it. Kept at the marker position even
+    // while the rule is hidden, so toggling it does not shift the script.
+    scriptEl.style.paddingTop = pct + 'vh';
     scriptEl.style.paddingBottom = '90vh';
 
     var flips = [];

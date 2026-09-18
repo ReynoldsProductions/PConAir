@@ -26,8 +26,13 @@ import {
   nudgeFontSize as prompterNudgeFontSize,
   setScript as prompterSetScript,
   setMirror as prompterSetMirror,
+  setMaxWidth as prompterSetMaxWidth,
+  setMarkerPosition as prompterSetMarkerPosition,
+  nudgeMarkerPosition as prompterNudgeMarkerPosition,
+  setMarkerVisible as prompterSetMarkerVisible,
   SPEED_STEP as PROMPTER_SPEED_STEP,
   FONT_SIZE_STEP as PROMPTER_FONT_SIZE_STEP,
+  MARKER_POSITION_STEP as PROMPTER_MARKER_POSITION_STEP,
 } from './prompter/transport';
 
 const LOWER_THIRD_THEMES: LowerThirdTheme[] = [
@@ -448,6 +453,41 @@ export function createActionDispatcher(deps: {
         const currentAxis = axis === 'x' ? tp.mirrorX : tp.mirrorY;
         const value = mode === 'toggle' ? !currentAxis : mode === 'on';
         return prompterApply(prompterSetMirror(tp, { [axis]: value }), null);
+      }
+      case 'prompter_marker_up':
+      case 'prompter_marker_down': {
+        // "Up" is towards the top of the screen, so it subtracts percent.
+        const delta = actionId === 'prompter_marker_down'
+          ? PROMPTER_MARKER_POSITION_STEP
+          : -PROMPTER_MARKER_POSITION_STEP;
+        const next = prompterNudgeMarkerPosition(store.getState().prompter, delta);
+        return prompterApply(next, { marker_position: next.markerPosition });
+      }
+      case 'prompter_set_marker': {
+        const position = num(p.position) ?? num(p.marker_position);
+        if (position === undefined) {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'position must be a number' } };
+        }
+        const next = prompterSetMarkerPosition(store.getState().prompter, position);
+        return prompterApply(next, { marker_position: next.markerPosition });
+      }
+      case 'prompter_marker_toggle': {
+        const mode = str(p.mode) ?? 'toggle';
+        if (mode !== 'toggle' && mode !== 'on' && mode !== 'off') {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'mode must be "toggle", "on", or "off"' } };
+        }
+        const tp = store.getState().prompter;
+        const visible = mode === 'toggle' ? !tp.markerVisible : mode === 'on';
+        const next = prompterSetMarkerVisible(tp, visible);
+        return prompterApply(next, { marker_visible: next.markerVisible });
+      }
+      case 'prompter_set_max_width': {
+        const maxWidth = num(p.max_width) ?? num(p.maxWidth);
+        if (maxWidth === undefined) {
+          return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'max_width must be a number' } };
+        }
+        const next = prompterSetMaxWidth(store.getState().prompter, maxWidth);
+        return prompterApply(next, { max_width: next.maxWidth });
       }
       case 'panic': {
         const action = str(p.action) ?? 'toggle';

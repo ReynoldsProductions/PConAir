@@ -14,6 +14,16 @@ import {
   seek,
   nudgePosition,
   setMirror,
+  setMaxWidth,
+  setMarkerPosition,
+  nudgeMarkerPosition,
+  setMarkerVisible,
+  toggleMarker,
+  MAX_WIDTH_MIN,
+  MAX_WIDTH_MAX,
+  MARKER_POSITION_MIN,
+  MARKER_POSITION_MAX,
+  MARKER_POSITION_STEP,
 } from '../src/main/prompter/transport';
 
 const T0 = 1_700_000_000_000;
@@ -122,5 +132,48 @@ describe('prompter transport ops', () => {
     expect(setMirror(s, { x: true }).mirrorX).toBe(true);
     expect(setMirror(s, { x: true }).mirrorY).toBe(false);
     expect(setMirror({ ...s, mirrorX: true }, { y: true })).toMatchObject({ mirrorX: true, mirrorY: true });
+  });
+
+  it('starts with an uncapped line width and a visible marker at 38%', () => {
+    const s = makePrompterState();
+    expect(s.maxWidth).toBe(0);
+    expect(s.markerPosition).toBe(38);
+    expect(s.markerVisible).toBe(true);
+  });
+
+  it('clamps the max line width, keeping 0 as "uncapped"', () => {
+    const s = makePrompterState();
+    expect(setMaxWidth(s, 0).maxWidth).toBe(0);
+    expect(setMaxWidth(s, 1200).maxWidth).toBe(1200);
+    expect(setMaxWidth(s, 10).maxWidth).toBe(MAX_WIDTH_MIN);
+    expect(setMaxWidth(s, 99_999).maxWidth).toBe(MAX_WIDTH_MAX);
+  });
+
+  it('clamps the marker position to the screen', () => {
+    const s = makePrompterState();
+    expect(setMarkerPosition(s, 10).markerPosition).toBe(10);
+    expect(setMarkerPosition(s, -20).markerPosition).toBe(MARKER_POSITION_MIN);
+    expect(setMarkerPosition(s, 140).markerPosition).toBe(MARKER_POSITION_MAX);
+  });
+
+  it('nudges the marker up and down by a delta', () => {
+    const s = makePrompterState();
+    expect(nudgeMarkerPosition(s, MARKER_POSITION_STEP).markerPosition).toBe(38 + MARKER_POSITION_STEP);
+    expect(nudgeMarkerPosition(s, -MARKER_POSITION_STEP).markerPosition).toBe(38 - MARKER_POSITION_STEP);
+    expect(nudgeMarkerPosition({ ...s, markerPosition: 1 }, -10).markerPosition).toBe(MARKER_POSITION_MIN);
+  });
+
+  it('hides and shows the marker without moving the reading position', () => {
+    const s = { ...makePrompterState(), markerPosition: 45 };
+    const hidden = setMarkerVisible(s, false);
+    expect(hidden.markerVisible).toBe(false);
+    expect(hidden.markerPosition).toBe(45);
+    expect(setMarkerVisible(hidden, true).markerVisible).toBe(true);
+  });
+
+  it('toggles marker visibility', () => {
+    const s = makePrompterState();
+    expect(toggleMarker(s).markerVisible).toBe(false);
+    expect(toggleMarker(toggleMarker(s)).markerVisible).toBe(true);
   });
 });

@@ -59,7 +59,10 @@
       offset: 0,
       startedAt: null,
       mirrorX: false,
-      mirrorY: false
+      mirrorY: false,
+      maxWidth: 0,
+      markerPosition: 38,
+      markerVisible: true
     };
   }
 

@@ -2042,6 +2042,26 @@ async function renderPrompter() {
         <input id="tp-mirror-y" type="checkbox" style="width:auto" ${p.mirrorY ? 'checked' : ''} />
         <span class="field-label" style="margin:0">Mirror vertically (ceiling mount)</span>
       </label>
+      <div class="field">
+        <div class="field-label">Max line width</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input id="tp-max-width" class="input" type="number" min="0" max="10000" step="20"
+                 style="max-width:140px" value="${Number(p.maxWidth) || 0}" />
+          <span class="field-label" style="margin:0">px — 0 fills the screen</span>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">Reading marker</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button id="tp-marker-up" class="btn">↑ Up</button>
+          <span id="tp-marker-pos" class="field-label" style="margin:0;min-width:64px">${Math.round(Number(p.markerPosition))}%</span>
+          <button id="tp-marker-down" class="btn">↓ Down</button>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-left:8px">
+            <input id="tp-marker-visible" type="checkbox" style="width:auto" ${p.markerVisible === false ? '' : 'checked'} />
+            <span class="field-label" style="margin:0">Show marker</span>
+          </label>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -2069,6 +2089,9 @@ async function renderPrompter() {
     document.getElementById('tp-speed').textContent = next.speed + ' px/sec';
     document.getElementById('tp-font').textContent = next.fontSize + ' px';
     document.getElementById('tp-toggle').textContent = next.scrolling ? '⏸ Pause' : '▶ Start';
+    document.getElementById('tp-marker-pos').textContent = Math.round(next.markerPosition) + '%';
+    document.getElementById('tp-marker-visible').checked = next.markerVisible !== false;
+    document.getElementById('tp-max-width').value = String(next.maxWidth || 0);
   }
 
   async function post(path, body) {
@@ -2130,6 +2153,20 @@ async function renderPrompter() {
   );
   document.getElementById('tp-mirror-y').addEventListener('change', (ev) =>
     post('/api/prompter/mirror', { y: ev.target.checked })
+  );
+
+  // Up is towards the top of the screen, so it steps the percentage down.
+  document.getElementById('tp-marker-up').addEventListener('click', () =>
+    post('/api/prompter/marker', { delta: -2 })
+  );
+  document.getElementById('tp-marker-down').addEventListener('click', () =>
+    post('/api/prompter/marker', { delta: 2 })
+  );
+  document.getElementById('tp-marker-visible').addEventListener('change', (ev) =>
+    post('/api/prompter/marker', { visible: ev.target.checked })
+  );
+  document.getElementById('tp-max-width').addEventListener('change', (ev) =>
+    post('/api/prompter/max-width', { maxWidth: parseInt(ev.target.value, 10) || 0 })
   );
 
   document.getElementById('tp-save-cfg').addEventListener('click', async () => {
