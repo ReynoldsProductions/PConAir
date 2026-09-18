@@ -37,4 +37,19 @@ if (!fs.existsSync(entrypoint)) {
   process.exit(1)
 }
 
+// `runtime.apiVersion` is the module API we were built against, and Companion checks it against
+// its own supported range (`isModuleApiVersionCompatible`) before offering the module in the
+// connection list. The schema validator above does not police the value, so a wrong one — the
+// `0.0.0` placeholder in particular — installs and loads without complaint and then silently
+// never shows up. Pin it to the base library we actually bundle.
+const baseVersion = require('@companion-module/base/package.json').version
+if (manifest.runtime.apiVersion !== baseVersion) {
+  console.error(
+    `✗ runtime.apiVersion is ${manifest.runtime.apiVersion}, but @companion-module/base is ${baseVersion}.\n` +
+      `  Companion filters out modules whose apiVersion it does not support — the module would install\n` +
+      `  successfully and then never appear in "Add Connection". Set apiVersion to ${baseVersion}.`
+  )
+  process.exit(1)
+}
+
 console.log(`✓ companion/manifest.json valid — ${manifest.id} v${manifest.version}`)
