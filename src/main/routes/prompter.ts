@@ -13,6 +13,7 @@ import {
   rewind,
   seek,
   nudgePosition,
+  scrollLines,
   setSpeed,
   nudgeSpeed,
   setFontSize,
@@ -182,8 +183,9 @@ export function createPrompterRouter(deps: PrompterRouterDeps): Router {
     await apply(rewind(current(), Date.now()), null, res);
   });
 
+  /** Absolute px, a px delta, or a delta in whole lines of the current type. */
   router.post('/api/prompter/position', opGuard, async (req: Request, res: Response) => {
-    const { position, delta } = req.body as { position?: unknown; delta?: unknown };
+    const { position, delta, lines } = req.body as { position?: unknown; delta?: unknown; lines?: unknown };
     const now = Date.now();
     if (typeof position === 'number' && Number.isFinite(position)) {
       await apply(seek(current(), position, now), null, res);
@@ -193,7 +195,11 @@ export function createPrompterRouter(deps: PrompterRouterDeps): Router {
       await apply(nudgePosition(current(), delta, now), null, res);
       return;
     }
-    badRequest(res, 'position or delta must be a number');
+    if (typeof lines === 'number' && Number.isFinite(lines)) {
+      await apply(scrollLines(current(), lines, now), null, res);
+      return;
+    }
+    badRequest(res, 'position, delta, or lines must be a number');
   });
 
   router.post('/api/prompter/scroll', opGuard, async (req: Request, res: Response) => {

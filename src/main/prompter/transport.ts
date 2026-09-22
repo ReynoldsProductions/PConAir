@@ -1,8 +1,5 @@
 import { PROMPTER_TEXT_ALIGNS, type PrompterState, type PrompterTextAlign } from '../../shared/types';
 
-/** Scroll rate bounds in px/sec. */
-export const SPEED_MIN = 0;
-export const SPEED_MAX = 200;
 /** Script size bounds in px. */
 export const FONT_SIZE_MIN = 24;
 export const FONT_SIZE_MAX = 200;
@@ -28,8 +25,15 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function clampSpeed(speed: number): number {
-  return clamp(Math.round(speed), SPEED_MIN, SPEED_MAX);
+/**
+ * Scroll rate is deliberately unbounded in px/sec, in both directions: an
+ * operator on a jog wheel may want to race through a script far faster than
+ * anyone reads aloud, and a negative rate crawls back up. `positionAt` floors
+ * at 0, so reversing past the top parks there rather than running negative.
+ * Whole pixels only, to keep the value readable on a Companion button.
+ */
+function roundSpeed(speed: number): number {
+  return Math.round(speed);
 }
 
 function clampFontSize(fontSize: number): number {
@@ -71,7 +75,7 @@ export function toggle(state: PrompterState, now: number): PrompterState {
 }
 
 export function setSpeed(state: PrompterState, speed: number, now: number): PrompterState {
-  return reanchor(state, now, { speed: clampSpeed(speed) });
+  return reanchor(state, now, { speed: roundSpeed(speed) });
 }
 
 export function nudgeSpeed(state: PrompterState, delta: number, now: number): PrompterState {
@@ -115,6 +119,20 @@ export function nudgePosition(state: PrompterState, deltaPx: number, now: number
 /** Park the script back at the top without changing the run state. */
 export function rewind(state: PrompterState, now: number): PrompterState {
   return seek(state, 0, now);
+}
+
+/** Height of one rendered line in px — the natural unit for a jog step. */
+export function lineHeightPx(state: PrompterState): number {
+  return state.fontSize * state.lineHeight;
+}
+
+/**
+ * Jog the script forwards (+) or backwards (−) by whole lines. Sized off the
+ * current type rather than a fixed pixel step, so one click of a rotary moves
+ * one line whether the talent is reading 24px or 200px.
+ */
+export function scrollLines(state: PrompterState, lines: number, now: number): PrompterState {
+  return nudgePosition(state, lines * lineHeightPx(state), now);
 }
 
 export function setMirror(state: PrompterState, axes: { x?: boolean; y?: boolean }): PrompterState {

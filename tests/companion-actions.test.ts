@@ -244,6 +244,35 @@ describe('action dispatcher — phase 9 Companion actions', () => {
       expect(res.status).toBe(400);
     });
 
+    it('prompter line actions jog by one line, sized off the current type', async () => {
+      store.setState({
+        prompter: { ...store.getState().prompter, fontSize: 100, lineHeight: 1.4, offset: 1000 },
+      });
+
+      await act('prompter_line_forward');
+      expect(store.getState().prompter.offset).toBeCloseTo(1140, 5);
+      await act('prompter_line_back');
+      expect(store.getState().prompter.offset).toBeCloseTo(1000, 5);
+
+      // A bigger font means a bigger step, so a rotary click always moves one line.
+      store.setState({ prompter: { ...store.getState().prompter, fontSize: 200 } });
+      await act('prompter_line_forward');
+      expect(store.getState().prompter.offset).toBeCloseTo(1280, 5);
+    });
+
+    it('prompter_line_back floors at the top of the script', async () => {
+      store.setState({ prompter: { ...store.getState().prompter, offset: 10 } });
+      await act('prompter_line_back');
+      expect(store.getState().prompter.offset).toBe(0);
+    });
+
+    it('prompter_set_speed accepts rates beyond the old 0-200 range', async () => {
+      await act('prompter_set_speed', { speed: 4000 });
+      expect(store.getState().prompter.speed).toBe(4000);
+      await act('prompter_set_speed', { speed: -250 });
+      expect(store.getState().prompter.speed).toBe(-250);
+    });
+
     it('prompter_mirror toggles an axis, or sets it outright', async () => {
       await act('prompter_mirror', { axis: 'x' });
       expect(store.getState().prompter.mirrorX).toBe(true);
@@ -377,15 +406,16 @@ describe('action dispatcher — prompter with a configured host', () => {
     await new Promise((r) => tpServer.close(r));
   });
 
-  it('prompter_set_speed clamps to 0-200 and patches the remote + store', async () => {
-    let res = await act('prompter_set_speed', { speed: 500 });
+  it('prompter_set_speed passes any rate through to the remote + store', async () => {
+    const res = await act('prompter_set_speed', { speed: 500 });
     expect(res.status).toBe(200);
-    expect(store.getState().prompter.speed).toBe(200);
-    expect(received.at(-1)).toEqual({ speed: 200 });
+    expect(store.getState().prompter.speed).toBe(500);
+    expect(received.at(-1)).toEqual({ speed: 500 });
 
-    res = await act('prompter_set_speed', { speed: -10 });
-    expect(store.getState().prompter.speed).toBe(0);
-    expect(received.at(-1)).toEqual({ speed: 0 });
+    // Negative rates crawl the script backwards, and forward to the remote as-is.
+    await act('prompter_set_speed', { speed: -10 });
+    expect(store.getState().prompter.speed).toBe(-10);
+    expect(received.at(-1)).toEqual({ speed: -10 });
   });
 
   it('prompter_set_speed rejects a missing/non-numeric speed', async () => {

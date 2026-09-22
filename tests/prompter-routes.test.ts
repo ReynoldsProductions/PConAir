@@ -69,12 +69,23 @@ describe('prompter routes', () => {
       expect(store.getState().prompter.offset).toBe(300);
     });
 
-    it('rejects a position body with neither position nor delta', async () => {
+    it('scrolls the position by whole lines, sized off the current type', async () => {
+      await request(srv.app).post('/api/prompter/font-size').set('Cookie', op).send({ fontSize: 100 });
+      await request(srv.app).post('/api/prompter/line-height').set('Cookie', op).send({ lineHeight: 1.5 });
+      await request(srv.app).post('/api/prompter/position').set('Cookie', op).send({ position: 1000 });
+
+      await request(srv.app).post('/api/prompter/position').set('Cookie', op).send({ lines: 2 });
+      expect(store.getState().prompter.offset).toBe(1300);
+      await request(srv.app).post('/api/prompter/position').set('Cookie', op).send({ lines: -1 });
+      expect(store.getState().prompter.offset).toBe(1150);
+    });
+
+    it('rejects a position body with neither position, delta, nor lines', async () => {
       const res = await request(srv.app).post('/api/prompter/position').set('Cookie', op).send({});
       expect(res.status).toBe(400);
     });
 
-    it('steps and clamps speed and font size', async () => {
+    it('steps speed without an upper bound, and clamps font size', async () => {
       await request(srv.app).post('/api/prompter/scroll').set('Cookie', op).send({ direction: 'faster' });
       expect(store.getState().prompter.speed).toBe(50);
       await request(srv.app).post('/api/prompter/scroll').set('Cookie', op).send({ direction: 'slower' });
@@ -84,7 +95,12 @@ describe('prompter routes', () => {
       expect(bad.status).toBe(400);
 
       await request(srv.app).post('/api/prompter/speed').set('Cookie', op).send({ speed: 999 });
-      expect(store.getState().prompter.speed).toBe(200);
+      expect(store.getState().prompter.speed).toBe(999);
+      await request(srv.app).post('/api/prompter/speed').set('Cookie', op).send({ speed: -400 });
+      expect(store.getState().prompter.speed).toBe(-400);
+
+      const nonsense = await request(srv.app).post('/api/prompter/speed').set('Cookie', op).send({ speed: 'fast' });
+      expect(nonsense.status).toBe(400);
 
       await request(srv.app).post('/api/prompter/font-size').set('Cookie', op).send({ direction: 'in' });
       expect(store.getState().prompter.fontSize).toBe(76);

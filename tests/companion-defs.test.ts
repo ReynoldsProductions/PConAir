@@ -179,6 +179,15 @@ describe('companion module definitions', () => {
       ]);
     });
 
+    it('prompter line jog actions dispatch with no options, for a rotary', async () => {
+      await run(actions, 'prompter_line_forward', {});
+      await run(actions, 'prompter_line_back', {});
+      expect(h.dispatched).toEqual([
+        { actionId: 'prompter_line_forward', params: {} },
+        { actionId: 'prompter_line_back', params: {} },
+      ]);
+    });
+
     it('GSC notes scroll/zoom actions are rewired to native dispatch', async () => {
       await run(actions, 'scroll_notes_down', {});
       await run(actions, 'zoom_in_notes', {});
