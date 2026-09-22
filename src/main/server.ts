@@ -30,6 +30,8 @@ import { ensurePackageRenderPresets } from './packages/render-presets';
 import { createReliabilityStore } from './reliability-store';
 import { createDataSourcePoller, type DataSourcePoller } from './packages/data-sources';
 import { createDataOverridesStore, type DataOverridesStore } from './packages/data-overrides';
+import type { ScriptDocsStore } from './prompter/script-docs';
+import type { DocFetchResult } from './prompter/doc-source';
 
 export interface ServerDeps {
   store: StateStore;
@@ -112,6 +114,15 @@ export interface ServerDeps {
   savePrompterSettings?: (patch: { host?: string; enabled?: boolean }) => void;
   /** Fullscreen prompter output window (Electron main only); absent in tests. */
   prompterWindow?: RouteServices['prompterWindow'];
+  /** Saved Google Doc script library — pure JS, always required (no Electron dependency). */
+  scriptDocsStore: ScriptDocsStore;
+  /**
+   * Fetches a Google Doc's plain text (wraps `fetchDocText` with a real or
+   * fake `DocTransport`). Tests MUST supply a stub here, same posture as
+   * `dataSourceFetchImpl` — the default rejects so a forgotten stub fails
+   * loudly instead of making a real request to Google Docs.
+   */
+  fetchDoc?: (docId: string) => Promise<DocFetchResult>;
   /** Returns backup settings for fan-out and GSC status. */
   getBackupSettings?: RouteServices['getBackupSettings'];
   /** Returns all app settings (GET /api/app-settings). */
@@ -362,6 +373,15 @@ export function createServer(deps: ServerDeps) {
     isPrompterEnabled: deps.isPrompterEnabled ?? (() => false),
     savePrompterSettings: deps.savePrompterSettings ?? (() => { /* no-op in tests */ }),
     prompterWindow: deps.prompterWindow,
+    scriptDocsStore: deps.scriptDocsStore,
+    fetchDoc:
+      deps.fetchDoc ??
+      (async () => {
+        throw new Error(
+          'fetchDoc was not stubbed for this test — a prompter doc fetch would otherwise hit the real network. ' +
+            'Pass fetchDoc to createServer()/createFullServer().'
+        );
+      }),
     getBackupSettings: deps.getBackupSettings,
     getAppSettings: deps.getAppSettings,
     saveAppSettingsPatch: deps.saveAppSettingsPatch,
