@@ -8,6 +8,7 @@ import { createSlidesRouter, type SlidesRouterDeps } from './slides';
 import { createUrlRouter } from './url';
 import { createOperatorRouter } from './operator';
 import { createRemoteRouter } from './remote';
+import { createPrompterControlRouter } from './prompter-control';
 import { createGscCompatRouter } from './gsc-compat';
 import { createTunnelRouter } from './tunnel';
 import { createStageTimerRouter, type StageTimerRouterDeps } from './stagetimer';
@@ -213,6 +214,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   );
   app.use('/operator', createOperatorRouter(s.auth));
   app.use('/remote', createRemoteRouter(s.auth));
+  app.use('/prompter-control', createPrompterControlRouter(s.auth));
   app.use(
     '/branding',
     createBrandingRouter({

@@ -56,6 +56,13 @@ const config: ForgeConfig = {
             js: './src/renderer/remote/index.ts',
           },
           {
+            // Standalone prompter operator page — served by Express at
+            // /prompter-control (design doc section 7 / prompter-control.ts).
+            name: 'prompter-control',
+            html: './src/renderer/prompter-control/index.html',
+            js: './src/renderer/prompter-control/index.ts',
+          },
+          {
             // Settings window loads directly from the webpack entry (not HTTP) so it
             // still opens when the server failed to start (e.g. port conflict).
             name: 'settings',
