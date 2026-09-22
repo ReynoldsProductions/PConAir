@@ -1,5 +1,5 @@
 import type { CompanionActionDefinition, CompanionActionContext, CompanionActionEvent } from '@companion-module/base'
-import type { PcoState } from '../client.js'
+import type { PcoState, ScriptDocInfo } from '../client.js'
 
 export type SendAction = (actionId: string, params: Record<string, unknown>) => Promise<void>
 export type GscPost = (path: string, body: Record<string, unknown>) => Promise<Record<string, unknown>>
@@ -12,6 +12,13 @@ export interface ActionDeps {
   gscPost: GscPost
   getApp: () => Partial<PcoState>
   log: Log
+  /**
+   * The saved Google Doc script library, as last fetched by the periodic
+   * poll in index.ts (mirroring refreshPackages()'s dynamic-list pattern).
+   * Read synchronously at `buildActions()` time to populate the
+   * `prompter_load_doc_preset` dropdown; empty until the first poll lands.
+   */
+  getScriptDocs: () => ScriptDocInfo[]
 }
 
 /** Parse a text option through Companion's variable expansion. */

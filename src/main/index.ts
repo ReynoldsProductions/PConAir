@@ -192,6 +192,8 @@ async function main() {
       return { operationMode: s.operationMode, backupIps: s.backupIps, port };
     },
     getTransportEngine: () => transportEngineRef,
+    scriptDocsStore: scriptDocs,
+    fetchDoc,
   });
 
   const urlManager = createUrlWindowManager({ store, getDisplayPreference });
