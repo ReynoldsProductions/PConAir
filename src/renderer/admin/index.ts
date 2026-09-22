@@ -33,6 +33,8 @@
  */
 
 import type { PrompterState } from '../../shared/types';
+import { makePrompterState } from '../../shared/types';
+import { renderPrompterControls, wirePrompterControls } from '../shared/prompter-controls';
 
 // ── Bridge to the inline script ──────────────────────────────────────────────
 
@@ -48,6 +50,13 @@ interface AdminInlineGlobals {
   content: () => HTMLElement;
   escHtml: (s: unknown) => string;
   showSuccess: (msg: string) => void;
+  /**
+   * Set by this bundle, called by the inline script's WebSocket handler on
+   * every `state`/`state_patch` frame that carries a `prompter` payload. The
+   * inline script owns the page's only socket; this is how bundle-side
+   * sections get live state without opening a second one.
+   */
+  __pconairAdminPrompterState?: (state: PrompterState) => void;
   showError: (msg: string) => void;
   /** Section renderers this bundle registers for the inline dispatch shims. */
   __pconairAdminSections?: Record<string, () => void>;
@@ -117,6 +126,64 @@ function prompterReadTime(text: string): string {
   return words + ' words · about ' + mm + ':' + String(ss).padStart(2, '0') + ' to read aloud';
 }
 
+// ── Script Source (design doc section 7 / shared/prompter-controls.ts) ───────
+// Additive mount alongside the transport/slider controls ported above — see
+// the scope note at the top of src/renderer/shared/prompter-controls.ts for
+// why that module doesn't subsume them.
+//
+// Same `post`/`onState` contract `/remote/` and `/prompter-control/` use. Two
+// differences forced by this page:
+//
+//  - `post` is a raw `fetch` rather than the inline `api()`, because the
+//    shared module reads `Response.ok`/`Response.json()` itself and renders
+//    failures into its own message line; routing it through `api()` would
+//    also fire a red toast for errors the block already displays inline.
+//    `credentials: 'include'` matches what `api()` sends, since Admin is
+//    behind a session cookie.
+//  - `onState` is fed from the inline script's existing WebSocket via
+//    `window.__pconairAdminPrompterState` instead of a socket of this
+//    bundle's own, plus a one-shot hydrate from the `/api/prompter/status`
+//    response `renderPrompter()` already has in hand.
+
+let scriptSourceUpdate: ((state: PrompterState) => void) | null = null;
+
+async function rawPost(path: string, body?: object): Promise<Response> {
+  return fetch(path, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+/**
+ * Mounts the shared Script Source block into the card `renderPrompter()` just
+ * rendered, and hydrates it from the status payload that render already
+ * fetched. Called on every re-render, so the previous mount's callback is
+ * replaced rather than accumulating.
+ */
+function mountScriptSource(prompter: PrompterState | undefined): void {
+  const mount = document.getElementById('tp-doc-mount');
+  if (!mount) return;
+  scriptSourceUpdate = null;
+  mount.innerHTML = renderPrompterControls(makePrompterState());
+  wirePrompterControls(mount, {
+    post: rawPost,
+    onState: (cb) => {
+      scriptSourceUpdate = cb;
+      // Hydrate from the status payload `renderPrompter()` already fetched,
+      // so the block is correct before the first WS frame arrives. Server
+      // state predating phase 1 has no `doc` field and the block reads it
+      // unconditionally, so skip rather than throw in that case.
+      if (prompter && prompter.doc) cb(prompter);
+    },
+  });
+}
+
+w.__pconairAdminPrompterState = (state: PrompterState): void => {
+  scriptSourceUpdate?.(state);
+};
+
 async function renderPrompter(): Promise<void> {
   const c = content();
   c.innerHTML = '<div class="section-title">Prompter</div><div class="card"><div class="card-title">Loading…</div></div>';
@@ -179,6 +246,8 @@ async function renderPrompter(): Promise<void> {
         <span class="field-label" style="margin:0">${windowAvailable ? (windowState.open ? 'Output is open' : 'Output is closed') : 'Desktop app only'}</span>
       </div>
     </div>
+
+    <div class="card" id="tp-doc-mount"></div>
 
     <div class="card">
       <div class="card-title">Script</div>
@@ -293,6 +362,8 @@ async function renderPrompter(): Promise<void> {
       applyPrompter(await api('POST', path, body));
     } catch { /* showError handled in api() */ }
   }
+
+  mountScriptSource(status.prompter);
 
   must('tp-copy-url').addEventListener('click', async () => {
     const field = must<HTMLInputElement>('tp-url');

@@ -545,6 +545,12 @@ function connectWS(delay) {
         updateTopBar();
         if (section === 'dashboard') renderDashboard();
       }
+      // This page has exactly one WebSocket; sections that live in the
+      // /admin/index.js bundle subscribe to prompter state through here
+      // rather than opening a second one.
+      if (msg.payload && msg.payload.prompter && window.__pconairAdminPrompterState) {
+        window.__pconairAdminPrompterState(msg.payload.prompter);
+      }
     } catch (_) { /* ignore non-JSON */ }
   };
 
