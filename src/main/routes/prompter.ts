@@ -1,10 +1,18 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
-import { PROMPTER_TEXT_ALIGNS, type PrompterState, type PrompterTextAlign } from '../../shared/types';
+import {
+  PROMPTER_TEXT_ALIGNS,
+  makePrompterState,
+  type DocErrorCode,
+  type PrompterState,
+  type PrompterTextAlign,
+} from '../../shared/types';
 import { requireOperator, requireAdmin } from './middleware';
 import { PROMPTER_PAGE_HTML, PROMPTER_CSP } from '../prompter/page';
 import { forwardToExternalPrompter, type ForwardResult } from '../prompter/forward';
+import { extractDocId, type DocFetchResult } from '../prompter/doc-source';
+import { ScriptDocValidationError, type ScriptDocsStore } from '../prompter/script-docs';
 import {
   positionAt,
   start,
@@ -45,9 +53,20 @@ export interface PrompterRouterDeps {
     close: () => void;
     status: () => { open: boolean; displayId: string | null };
   };
+  /** Saved Google Doc script library (`script-docs.ts`). Pure JS, no Electron dependency — always available. */
+  scriptDocsStore: ScriptDocsStore;
+  /** `fetchDocText` with a real (or, in tests, fake) `DocTransport` already bound. */
+  fetchDoc: (docId: string) => Promise<DocFetchResult>;
 }
 
-/** The subset of prompter state the talent display needs — no service config. */
+/**
+ * The subset of prompter state the talent display needs — no service config.
+ *
+ * `doc` is deliberately omitted entirely, not just `doc.staged`: the talent
+ * display has no use for any part of the Google Doc source, and every field
+ * left out here is a field that can never leak un-taken copy, present or
+ * future. See design doc section 2 / `PrompterDocState`'s doc comment.
+ */
 function viewState(s: PrompterState) {
   return {
     script: s.script,
@@ -70,10 +89,56 @@ function badRequest(res: Response, message: string): void {
   res.status(400).json({ error: { code: 'INVALID_MODE', message } });
 }
 
+/** 400 for a bad request that never reached the network; 422 for a fetch that succeeded but the content is unusable; 502 for anything that failed to reach or read Google Docs. */
+function docErrorStatus(code: DocErrorCode): number {
+  switch (code) {
+    case 'INVALID_DOC_URL':
+      return 400;
+    case 'DOC_EMPTY':
+    case 'DOC_TOO_LARGE':
+      return 422;
+    case 'DOC_UNREACHABLE':
+    case 'DOC_NOT_READABLE':
+      return 502;
+    default:
+      return 502;
+  }
+}
+
+/**
+ * Operator auth for the one route the Companion module polls cookie-less: a
+ * valid operator/admin session cookie, OR the `operator_pin` query param
+ * verified against the operator PIN. Same fallback `packages.ts` gives its
+ * transport routes and `POST /api/action` already gives every other
+ * Companion action, because Companion never carries a session cookie.
+ * `requireOperator()` (middleware.ts) is cookie-only, which is right for the
+ * admin web GUI's other operator-gated routes but would make this route
+ * uncallable from Companion's library dropdown/preset refresh.
+ */
+function requireOperatorOrPin(auth: AuthManager) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const pinQ = typeof req.query.operator_pin === 'string' ? req.query.operator_pin : undefined;
+    const opCookie = req.cookies?.pconair_operator_session as string | undefined;
+    const admCookie = req.cookies?.pconair_admin_session as string | undefined;
+    const sid = opCookie ?? admCookie;
+    let authed = Boolean(sid && auth.getSession(sid));
+    if (!authed && pinQ) {
+      authed = await auth.verifyOperatorPin(pinQ);
+    }
+    if (!authed) {
+      res.status(401).json({ error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } });
+      return;
+    }
+    next();
+  };
+}
+
 export function createPrompterRouter(deps: PrompterRouterDeps): Router {
-  const { store, auth, getPrompterHost, isPrompterEnabled, savePrompterSettings, prompterWindow } = deps;
+  const { store, auth, getPrompterHost, isPrompterEnabled, savePrompterSettings, prompterWindow, scriptDocsStore, fetchDoc } = deps;
   const router = Router();
   const opGuard = requireOperator(auth);
+  const adminGuard = requireAdmin(auth);
+  const opOrPinGuard = requireOperatorOrPin(auth);
 
   function current(): PrompterState {
     return store.getState().prompter;
@@ -316,6 +381,177 @@ export function createPrompterRouter(deps: PrompterRouterDeps): Router {
       return;
     }
     await apply(setScript(current(), text, Date.now()), { script: text }, res);
+  });
+
+  // ---- Google Doc script source ------------------------------------------
+  // See design doc section 5 ("Routes") and "Error handling". Every route
+  // here must preserve the safety invariant: a failed load/refresh, or a
+  // staged-but-untaken refresh, never touches `script` or `doc.loadedHash`.
+
+  function patchDoc(fields: Partial<PrompterState['doc']>): PrompterState {
+    const next: PrompterState = { ...current(), doc: { ...current().doc, ...fields } };
+    store.setState({ prompter: next });
+    return next;
+  }
+
+  function sendDocError(res: Response, outcome: Extract<DocFetchResult, { ok: false }>): void {
+    res.status(docErrorStatus(outcome.code)).json({ error: { code: outcome.code, message: outcome.message } });
+  }
+
+  router.post('/api/prompter/doc/load', opGuard, async (req: Request, res: Response) => {
+    const { url, presetId } = req.body as { url?: unknown; presetId?: unknown };
+
+    let docId: string | null = null;
+    let name: string | null = null;
+    let sourceUrl: string | null = null;
+
+    if (typeof presetId === 'string' && presetId) {
+      const entry = scriptDocsStore.findById(presetId);
+      if (!entry) {
+        res.status(400).json({ error: { code: 'INVALID_DOC_URL', message: `No saved script matches id '${presetId}'.` } });
+        return;
+      }
+      docId = extractDocId(entry.docUrl);
+      name = entry.name;
+      sourceUrl = entry.docUrl;
+    } else if (typeof url === 'string' && url) {
+      docId = extractDocId(url);
+      sourceUrl = url;
+    }
+
+    if (!docId || !sourceUrl) {
+      res.status(400).json({ error: { code: 'INVALID_DOC_URL', message: 'A url or presetId resolving to a Google Docs document is required.' } });
+      return;
+    }
+
+    const outcome = await fetchDoc(docId);
+    if (!outcome.ok) {
+      patchDoc({ status: 'error', error: { code: outcome.code, message: outcome.message } });
+      sendDocError(res, outcome);
+      return;
+    }
+
+    const now = Date.now();
+    const next: PrompterState = {
+      ...setScript(current(), outcome.text, now),
+      doc: {
+        ...current().doc,
+        url: sourceUrl,
+        docId,
+        name,
+        loadedAt: now,
+        loadedHash: outcome.hash,
+        staged: null,
+        status: 'ready',
+        error: null,
+      },
+    };
+    await apply(next, { script: outcome.text }, res);
+  });
+
+  router.post('/api/prompter/doc/refresh', opGuard, async (_req: Request, res: Response) => {
+    const doc = current().doc;
+    if (!doc.docId) {
+      res.status(409).json({ error: { code: 'NO_DOC_CONFIGURED', message: 'No Google Doc is loaded. Load one before refreshing.' } });
+      return;
+    }
+
+    const outcome = await fetchDoc(doc.docId);
+    if (!outcome.ok) {
+      const next = patchDoc({ status: 'error', error: { code: outcome.code, message: outcome.message } });
+      res.status(docErrorStatus(outcome.code)).json({ error: { code: outcome.code, message: outcome.message }, prompter: next });
+      return;
+    }
+
+    const now = Date.now();
+    const next = patchDoc({
+      staged: { text: outcome.text, hash: outcome.hash, words: outcome.words, fetchedAt: now },
+      status: 'ready',
+      error: null,
+    });
+    res.json({ ok: true, prompter: next });
+  });
+
+  router.post('/api/prompter/doc/take', opGuard, async (_req: Request, res: Response) => {
+    const staged = current().doc.staged;
+    if (!staged) {
+      res.status(409).json({ error: { code: 'NOTHING_STAGED', message: 'No refreshed text is staged to take.' } });
+      return;
+    }
+
+    const now = Date.now();
+    const next: PrompterState = {
+      ...setScript(current(), staged.text, now),
+      doc: {
+        ...current().doc,
+        loadedHash: staged.hash,
+        loadedAt: now,
+        staged: null,
+      },
+    };
+    await apply(next, { script: staged.text }, res);
+  });
+
+  router.post('/api/prompter/doc/clear', opGuard, async (_req: Request, res: Response) => {
+    // Detaches the source only. The text currently on the glass (`script`)
+    // is left exactly as it is — this is not a Take-back or a blank.
+    const next = patchDoc(makePrompterState().doc);
+    res.json({ ok: true, prompter: next });
+  });
+
+  router.get('/api/prompter/docs', opOrPinGuard, (_req: Request, res: Response) => {
+    res.json({ docs: scriptDocsStore.list() });
+  });
+
+  router.post('/api/prompter/docs', adminGuard, (req: Request, res: Response) => {
+    const { name, docUrl, description } = req.body as { name?: unknown; docUrl?: unknown; description?: unknown };
+    try {
+      const created = scriptDocsStore.create({
+        name: name as string,
+        docUrl: docUrl as string,
+        description: typeof description === 'string' ? description : '',
+      });
+      res.status(201).json(created);
+    } catch (err) {
+      if (err instanceof ScriptDocValidationError) {
+        res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: err.message } });
+        return;
+      }
+      throw err;
+    }
+  });
+
+  router.patch('/api/prompter/docs/:id', adminGuard, (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { name, docUrl, description } = req.body as { name?: unknown; docUrl?: unknown; description?: unknown };
+    try {
+      const updated = scriptDocsStore.update(id, {
+        ...(typeof name === 'string' ? { name } : {}),
+        ...(typeof docUrl === 'string' ? { docUrl } : {}),
+        ...(typeof description === 'string' ? { description } : {}),
+      });
+      if (!updated) {
+        res.status(404).json({ error: { code: 'SCRIPT_DOC_NOT_FOUND', message: `No saved script matches id '${id}'.` } });
+        return;
+      }
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof ScriptDocValidationError) {
+        res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: err.message } });
+        return;
+      }
+      throw err;
+    }
+  });
+
+  router.delete('/api/prompter/docs/:id', adminGuard, (req: Request, res: Response) => {
+    const { id } = req.params;
+    if (!scriptDocsStore.findById(id)) {
+      res.status(404).json({ error: { code: 'SCRIPT_DOC_NOT_FOUND', message: `No saved script matches id '${id}'.` } });
+      return;
+    }
+    scriptDocsStore.remove(id);
+    res.status(204).end();
   });
 
   // ---- admin config -----------------------------------------------------

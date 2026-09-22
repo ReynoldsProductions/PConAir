@@ -4,7 +4,7 @@ import {
   InstanceStatus,
   type SomeCompanionConfigField,
 } from '@companion-module/base'
-import { PcoClient, type PcoState, type Transport } from './client.js'
+import { PcoClient, type PcoState, type Transport, type ScriptDocInfo } from './client.js'
 import { VARIABLE_DEFINITIONS, stateToVariables } from './variables.js'
 import { buildActions } from './actions.js'
 import { buildFeedbacks } from './feedbacks.js'
@@ -21,6 +21,9 @@ export interface Config {
 }
 
 const PACKAGE_REFRESH_MS = 30_000
+// Same cadence as the package list — the saved script library changes about
+// as often as packages do (an admin editing it in Admin), never mid-cue.
+const SCRIPT_DOCS_REFRESH_MS = 30_000
 
 class PcOnAirInstance extends InstanceBase<Config> {
   private client: PcoClient | null = null
@@ -32,6 +35,13 @@ class PcOnAirInstance extends InstanceBase<Config> {
   private pkgDefs: ReturnType<typeof buildPackageDefinitions> | null = null
   private pkgRefreshTimer: NodeJS.Timeout | null = null
   private tickTimer: NodeJS.Timeout | null = null
+  // Saved Google Doc script library (design doc
+  // 2026-09-21-prompter-drive-scripts-design.md, section 6), for the
+  // prompter_load_doc_preset dropdown — refreshed on the same
+  // poll-diff-reregister pattern as refreshPackages() below.
+  private scriptDocs: ScriptDocInfo[] = []
+  private scriptDocsSnapshot = ''
+  private scriptDocsRefreshTimer: NodeJS.Timeout | null = null
 
   async init(config: Config): Promise<void> {
     this.registerDefinitions()
@@ -41,6 +51,10 @@ class PcOnAirInstance extends InstanceBase<Config> {
     this.pkgRefreshTimer = setInterval(() => {
       void this.refreshPackages()
     }, PACKAGE_REFRESH_MS)
+    this.scriptDocsRefreshTimer = setInterval(() => {
+      void this.refreshScriptDocs()
+    }, SCRIPT_DOCS_REFRESH_MS)
+    void this.refreshScriptDocs()
     // 1 s display tick for running package countdowns (game clocks, timers).
     this.tickTimer = setInterval(() => {
       if (this.pkgDefs?.needsTick()) {
@@ -52,8 +66,10 @@ class PcOnAirInstance extends InstanceBase<Config> {
   async destroy(): Promise<void> {
     if (this.pkgRefreshTimer) clearInterval(this.pkgRefreshTimer)
     if (this.tickTimer) clearInterval(this.tickTimer)
+    if (this.scriptDocsRefreshTimer) clearInterval(this.scriptDocsRefreshTimer)
     this.pkgRefreshTimer = null
     this.tickTimer = null
+    this.scriptDocsRefreshTimer = null
     this.client?.destroy()
     this.client = null
   }
@@ -151,6 +167,7 @@ class PcOnAirInstance extends InstanceBase<Config> {
         },
         getApp: () => this.state,
         log: (level, msg) => this.log(level, msg),
+        getScriptDocs: () => this.scriptDocs,
       }),
       ...this.pkgDefs.actions,
     })
@@ -162,7 +179,7 @@ class PcOnAirInstance extends InstanceBase<Config> {
       ...this.pkgDefs.feedbacks,
     })
     this.setVariableDefinitions([...VARIABLE_DEFINITIONS, ...this.pkgDefs.variableDefs])
-    this.setPresetDefinitions(buildPresets())
+    this.setPresetDefinitions(buildPresets(this.scriptDocs))
     this.pushAllVariables()
   }
 
@@ -195,7 +212,10 @@ class PcOnAirInstance extends InstanceBase<Config> {
         }
         this.pushAllVariables()
         this.checkFeedbacks()
-        if (transport !== null) void this.refreshPackages()
+        if (transport !== null) {
+          void this.refreshPackages()
+          void this.refreshScriptDocs()
+        }
       },
       log: (level, msg) => this.log(level, msg),
     })
@@ -224,6 +244,33 @@ class PcOnAirInstance extends InstanceBase<Config> {
       this.log('info', `Loaded ${packages.length} package interface(s): ${packages.map((p) => p.id).join(', ') || '(none)'}`)
     } catch (err) {
       this.log('debug', `Package refresh failed: ${(err as Error).message}`)
+    }
+  }
+
+  /**
+   * Load the saved Google Doc script library and re-register action
+   * definitions when it changed, so `prompter_load_doc_preset`'s dropdown
+   * tracks the library without a Companion restart — same poll-diff-
+   * reregister shape as refreshPackages() above.
+   *
+   * `GET /api/prompter/docs` accepts the operator PIN (`requireOperatorOrPin`,
+   * `src/main/routes/prompter.ts`), same as the transport routes, so this
+   * poll works cookie-less. A 401 would still mean a stale/wrong PIN — logged
+   * at debug level like any other unreachable poll rather than surfaced as a
+   * connection error.
+   */
+  private async refreshScriptDocs(): Promise<void> {
+    if (!this.client || this.transport === null) return
+    try {
+      const docs = await this.client.getScriptDocs()
+      const snapshot = JSON.stringify(docs)
+      if (snapshot === this.scriptDocsSnapshot) return
+      this.scriptDocsSnapshot = snapshot
+      this.scriptDocs = docs
+      this.registerDefinitions()
+      this.log('info', `Loaded ${docs.length} saved script(s): ${docs.map((d) => d.name).join(', ') || '(none)'}`)
+    } catch (err) {
+      this.log('debug', `Script doc library refresh failed: ${(err as Error).message}`)
     }
   }
 

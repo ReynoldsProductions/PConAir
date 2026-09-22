@@ -15,6 +15,10 @@ import { getStore } from './state';
 import { makePrompterState } from '../shared/types';
 import { createAuthManager } from './auth';
 import { createPresetsStore } from './presets';
+import { createScriptDocsStore } from './prompter/script-docs';
+import { fetchDocText } from './prompter/doc-source';
+import { createElectronDocTransport } from './prompter/doc-transport';
+import { createDocWatcher } from './prompter/doc-watcher';
 import { createSlidesWindowManager } from './slides/window-manager';
 import { createUrlWindowManager } from './url/window-manager';
 import { createPrompterWindowManager } from './prompter/window-manager';
@@ -28,7 +32,7 @@ import { createActionDispatcher } from './action-dispatch';
 import { renderCueToPng, renderLowerThirdCardToPng } from './l3/cue-renderer';
 import { wireRuntimePersistence } from './runtime-persistence';
 import { snapshotDisplays } from './displays';
-import { bootstrapProfiles, parseProfileCliArg, getActiveMarker, loadProfile, syncActiveProfileUrlPresets, clearIpAllowlistForActiveProfile } from './profiles/bootstrap';
+import { bootstrapProfiles, parseProfileCliArg, getActiveMarker, loadProfile, syncActiveProfileUrlPresets, syncActiveProfileScriptDocs, clearIpAllowlistForActiveProfile } from './profiles/bootstrap';
 import { bootstrapGraphicsPresets } from './graphics/bootstrap-presets';
 import { profileRuntimeStatePath } from './profiles/paths';
 import { parsePconairCli } from './cli-options';
@@ -116,10 +120,31 @@ async function main() {
     const id = getActiveMarker(boot.paths)?.id ?? boot.activeId;
     syncActiveProfileUrlPresets(boot.paths, id, presets.list());
   };
+  const scriptDocsChain = () => {
+    const id = getActiveMarker(boot.paths)?.id ?? boot.activeId;
+    syncActiveProfileScriptDocs(boot.paths, id, scriptDocs.list());
+  };
 
   const presets = createPresetsStore(chain);
   presets.replaceAll(boot.profile.urlPresets);
+  const scriptDocs = createScriptDocsStore(scriptDocsChain);
+  scriptDocs.replaceAll(boot.profile.scriptDocs);
   const l3Cues = createL3CueStore(chain);
+
+  // Google Doc script source (design doc 2026-09-21-prompter-drive-scripts-design.md).
+  // `fetchDoc` binds the pure fetch layer to the real, Electron-only transport;
+  // the watcher polls it against the shared store every 60s so a producer's
+  // edits show up as a staged, amber "update ready" without anyone coordinating
+  // over comms. Stopped alongside the other long-lived resources on quit.
+  const fetchDoc = (docId: string) => fetchDocText(docId, createElectronDocTransport());
+  const docWatcher = createDocWatcher({
+    store,
+    fetchDoc,
+    now: Date.now,
+    setIntervalFn: setInterval,
+    clearIntervalFn: (handle) => clearInterval(handle as NodeJS.Timeout),
+  });
+  app.on('before-quit', () => docWatcher.stop());
   const persistPath = profileRuntimeStatePath(boot.paths, boot.activeId);
   markRuntimeFlush = wireRuntimePersistence(persistPath, { presets, cues: l3Cues }).markDirty;
 
@@ -167,6 +192,8 @@ async function main() {
       return { operationMode: s.operationMode, backupIps: s.backupIps, port };
     },
     getTransportEngine: () => transportEngineRef,
+    scriptDocsStore: scriptDocs,
+    fetchDoc,
   });
 
   const urlManager = createUrlWindowManager({ store, getDisplayPreference });
@@ -294,6 +321,8 @@ async function main() {
     getPrompterHost: () => loadAppSettings(settingsFile).prompterHost,
     isPrompterEnabled: () => loadAppSettings(settingsFile).prompterEnabled,
     prompterWindow: prompterManager,
+    scriptDocsStore: scriptDocs,
+    fetchDoc,
     savePrompterSettings: (patch) => {
       saveAppSettings(settingsFile, {
         ...(patch.host !== undefined ? { prompterHost: patch.host } : {}),

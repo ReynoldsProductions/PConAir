@@ -492,6 +492,18 @@
       </div>
 
       <div class="card">
+        <h3>Google Account</h3>
+        <p class="hint-line" style="margin-bottom:10px">Script Source below reads Google Docs through this sign-in — the same one Slides mode uses. A link-shared doc works without signing in.</p>
+        <p id="pt-google-status" class="hint-line" style="margin-bottom:10px">Checking…</p>
+        <div class="loader-buttons">
+          <button id="pt-google-signin" class="small-btn primary">Sign in to Google</button>
+          <button id="pt-google-refresh" class="small-btn">Refresh</button>
+        </div>
+      </div>
+
+      <div class="card" id="pt-doc-mount"></div>
+
+      <div class="card">
         <div class="slider-row">
           <label for="pt-font">Font size</label>
           <input id="pt-font" type="range" min="24" max="200" step="2" value="56" />

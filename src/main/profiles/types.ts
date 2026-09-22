@@ -1,4 +1,5 @@
 import type { BackgroundType, UrlPreset } from '../../shared/types';
+import type { ScriptDoc } from '../prompter/script-docs';
 
 export type ProfileSchemaVersion = '1.0';
 
@@ -51,6 +52,7 @@ export interface ShowProfile {
   createdAt: string;
   updatedAt: string;
   urlPresets: UrlPreset[];
+  scriptDocs: ScriptDoc[];
   backgroundPresets: BackgroundPreset[];
   displayPreference: string | null;
   companionSettings: CompanionSettings;

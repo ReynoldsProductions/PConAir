@@ -5,6 +5,7 @@ import type { Express } from 'express';
 import { createStateStore, type StateStore } from '../src/main/state';
 import { createFullServer } from './_test-server';
 import { makeSlidesState } from '../src/shared/types';
+import type { DocFetchResult } from '../src/main/prompter/doc-source';
 
 const PINS = { operatorPin: '1234', adminPin: 'supersecret' };
 
@@ -357,6 +358,119 @@ describe('action dispatcher — phase 9 Companion actions', () => {
       const bad = await act('prompter_set_margin', {});
       expect(bad.status).toBe(400);
     });
+  });
+});
+
+// Design doc 2026-09-21-prompter-drive-scripts-design.md, section 6: the
+// Companion actions for the Google Doc script source dispatch through this
+// same /api/action path (action-dispatch.ts), not the session-gated
+// src/main/routes/prompter.ts HTTP routes — so this is the coverage that
+// exercises what a real Companion instance actually calls.
+describe('action dispatcher — Google Doc script source (Companion)', () => {
+  let srv: ReturnType<typeof createFullServer>;
+  let store: StateStore;
+  let app: Express;
+  let fetchImpl: (docId: string) => Promise<DocFetchResult>;
+
+  function act(actionId: string, params: Record<string, unknown> = {}) {
+    return request(app)
+      .post(`/api/action?operator_pin=${PINS.operatorPin}`)
+      .send({ action_id: actionId, params });
+  }
+
+  function ok(text: string): DocFetchResult {
+    return { ok: true, text, hash: `hash:${text}`, words: text.trim().split(/\s+/).filter(Boolean).length };
+  }
+
+  beforeEach(async () => {
+    fetchImpl = async () => ok('Good evening.');
+    store = createStateStore();
+    srv = createFullServer({ store, ...PINS, port: 0, fetchDoc: (docId) => fetchImpl(docId) });
+    await srv.listen();
+    app = srv.app;
+  });
+
+  afterEach(() => srv.close());
+
+  const DOC_URL = 'https://docs.google.com/document/d/DOC123/edit';
+
+  it('prompter_load_doc applies the fetched text immediately (decision 6: no staging on first load)', async () => {
+    const res = await act('prompter_load_doc', { url: DOC_URL });
+    expect(res.status).toBe(200);
+    const prompter = store.getState().prompter;
+    expect(prompter.script).toBe('Good evening.');
+    expect(prompter.doc).toMatchObject({ url: DOC_URL, docId: 'DOC123', status: 'ready', staged: null });
+  });
+
+  it('prompter_load_doc rejects a non-Docs URL without touching the glass', async () => {
+    const before = store.getState().prompter.script;
+    const res = await act('prompter_load_doc', { url: 'https://example.com/not-a-doc' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_DOC_URL');
+    expect(store.getState().prompter.script).toBe(before);
+  });
+
+  it('prompter_load_doc loads by presetId from the saved library', async () => {
+    const entry = srv.scriptDocs.create({ name: 'Cold Open', docUrl: DOC_URL, description: '' });
+    const res = await act('prompter_load_doc', { presetId: entry.id });
+    expect(res.status).toBe(200);
+    expect(store.getState().prompter.doc.name).toBe('Cold Open');
+  });
+
+  it('prompter_load_doc with an unknown presetId is a 400, glass untouched', async () => {
+    const before = store.getState().prompter.script;
+    const res = await act('prompter_load_doc', { presetId: 'nope' });
+    expect(res.status).toBe(400);
+    expect(store.getState().prompter.script).toBe(before);
+  });
+
+  it('a failed load leaves the glass untouched and marks the doc errored', async () => {
+    fetchImpl = async () => ({ ok: false, code: 'DOC_NOT_READABLE', message: 'sign in to Google' });
+    const before = store.getState().prompter.script;
+    const res = await act('prompter_load_doc', { url: DOC_URL });
+    expect(res.status).toBe(502);
+    expect(store.getState().prompter.script).toBe(before);
+    expect(store.getState().prompter.doc.status).toBe('error');
+  });
+
+  it('prompter_refresh_doc stages a change without touching the glass; take applies it', async () => {
+    await act('prompter_load_doc', { url: DOC_URL });
+
+    fetchImpl = async () => ok('Good evening, revised.');
+    const viewBefore = await request(app).get('/api/prompter/view');
+    const refreshRes = await act('prompter_refresh_doc');
+    expect(refreshRes.status).toBe(200);
+    expect(store.getState().prompter.script).toBe('Good evening.');
+    expect(store.getState().prompter.doc.staged?.text).toBe('Good evening, revised.');
+    // The safety invariant: a staged-but-untaken refresh is byte-identical on the talent view.
+    const viewAfterRefresh = await request(app).get('/api/prompter/view');
+    expect(viewAfterRefresh.body.prompter).toEqual(viewBefore.body.prompter);
+
+    const takeRes = await act('prompter_take_doc');
+    expect(takeRes.status).toBe(200);
+    expect(store.getState().prompter.script).toBe('Good evening, revised.');
+    expect(store.getState().prompter.doc.staged).toBeNull();
+  });
+
+  it('prompter_refresh_doc with no doc configured is a 409', async () => {
+    const res = await act('prompter_refresh_doc');
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('NO_DOC_CONFIGURED');
+  });
+
+  it('prompter_take_doc with nothing staged is a 409', async () => {
+    await act('prompter_load_doc', { url: DOC_URL });
+    const res = await act('prompter_take_doc');
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('NOTHING_STAGED');
+  });
+
+  it('prompter_clear_doc detaches the source but leaves the glass text alone', async () => {
+    await act('prompter_load_doc', { url: DOC_URL });
+    const res = await act('prompter_clear_doc');
+    expect(res.status).toBe(200);
+    expect(store.getState().prompter.script).toBe('Good evening.');
+    expect(store.getState().prompter.doc.docId).toBe('');
   });
 });
 

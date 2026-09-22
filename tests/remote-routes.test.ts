@@ -40,6 +40,15 @@ describe('GET /remote', () => {
     }
   });
 
+  it('gives the Prompter page a Script Source mount point for the shared doc-controls module', async () => {
+    const res = await request(app).get('/remote/').set('Cookie', operatorCookie);
+    // The block's own markup (select/inputs/buttons) is injected client-side by
+    // src/renderer/shared/prompter-controls.ts — mirrors the rest of this page,
+    // which is also built up by JS rather than server-rendered. Assert the mount
+    // point exists in the served shell.
+    expect(res.text).toContain('id="pt-doc-mount"');
+  });
+
   it('gives the URLs page a display picker that defaults to the Admin → Monitors setting', async () => {
     const res = await request(app).get('/remote/').set('Cookie', operatorCookie);
     expect(res.text).toContain('id="url-display"');

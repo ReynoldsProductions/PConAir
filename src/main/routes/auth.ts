@@ -68,7 +68,8 @@ export function createAuthRouter(auth: AuthManager, opts: AuthRouterOpts): Route
     const raw = req.body as { pin?: unknown; next?: unknown };
     const pin = typeof raw.pin === 'string' ? raw.pin : undefined;
     // Fixed allowlist — never redirect to a caller-supplied path (open redirect).
-    const next = raw.next === '/remote/' ? '/remote/' : '/operator/';
+    const next =
+      raw.next === '/remote/' ? '/remote/' : raw.next === '/prompter-control/' ? '/prompter-control/' : '/operator/';
     const ip = clientIp(req);
 
     if (!pin) {

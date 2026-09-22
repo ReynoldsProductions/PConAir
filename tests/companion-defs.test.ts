@@ -3,7 +3,7 @@ import { buildActions, type ActionDeps } from '../packages/companion-module-pcon
 import { buildFeedbacks } from '../packages/companion-module-pconair/src/feedbacks';
 import { buildPresets } from '../packages/companion-module-pconair/src/presets';
 import { VARIABLE_DEFINITIONS, stateToVariables } from '../packages/companion-module-pconair/src/variables';
-import type { PcoState } from '../packages/companion-module-pconair/src/client';
+import type { PcoState, ScriptDocInfo } from '../packages/companion-module-pconair/src/client';
 
 /** Fake Companion context: expands $(test:n) → 7 and $(test:name) → Alice. */
 const fakeContext = {
@@ -11,10 +11,16 @@ const fakeContext = {
     s.replaceAll('$(test:n)', '7').replaceAll('$(test:name)', 'Alice'),
 } as never;
 
+const SAMPLE_SCRIPT_DOCS: ScriptDocInfo[] = [
+  { id: 'doc-1', name: 'Cold Open', docUrl: 'https://docs.google.com/document/d/AAA/edit', description: '' },
+  { id: 'doc-2', name: 'Closing Remarks', docUrl: 'https://docs.google.com/document/d/BBB/edit', description: '' },
+];
+
 function makeDeps() {
   const dispatched: Array<{ actionId: string; params: Record<string, unknown> }> = [];
   const posted: Array<{ path: string; body: Record<string, unknown> }> = [];
   let app: Partial<PcoState> = {};
+  let scriptDocs: ScriptDocInfo[] = [];
   const deps: ActionDeps = {
     dispatch: async (actionId, params) => {
       dispatched.push({ actionId, params });
@@ -25,8 +31,15 @@ function makeDeps() {
     },
     getApp: () => app,
     log: () => {},
+    getScriptDocs: () => scriptDocs,
   };
-  return { deps, dispatched, posted, setApp: (a: Partial<PcoState>) => (app = a) };
+  return {
+    deps,
+    dispatched,
+    posted,
+    setApp: (a: Partial<PcoState>) => (app = a),
+    setScriptDocs: (docs: ScriptDocInfo[]) => (scriptDocs = docs),
+  };
 }
 
 async function run(defs: ReturnType<typeof buildActions>, actionId: string, options: Record<string, unknown>) {
@@ -201,6 +214,42 @@ describe('companion module definitions', () => {
     });
   });
 
+  // Design doc 2026-09-21-prompter-drive-scripts-design.md, section 6.
+  describe('prompter Google Doc actions', () => {
+    it('prompter_load_doc parses the URL variable and dispatches prompter_load_doc', async () => {
+      await run(actions, 'prompter_load_doc', { url: 'https://docs.google.com/document/d/$(test:n)$(test:n)/edit' });
+      expect(h.dispatched).toEqual([
+        { actionId: 'prompter_load_doc', params: { url: 'https://docs.google.com/document/d/77/edit' } },
+      ]);
+    });
+
+    it('prompter_load_doc_preset dispatches prompter_load_doc with a presetId', async () => {
+      await run(actions, 'prompter_load_doc_preset', { presetId: 'doc-1' });
+      expect(h.dispatched).toEqual([{ actionId: 'prompter_load_doc', params: { presetId: 'doc-1' } }]);
+    });
+
+    it('prompter_load_doc_preset dropdown lists the saved library at build time', () => {
+      h.setScriptDocs(SAMPLE_SCRIPT_DOCS);
+      const withLibrary = buildActions(h.deps);
+      const opt = withLibrary['prompter_load_doc_preset'].options?.[0] as { choices: Array<{ id: string; label: string }> };
+      expect(opt.choices).toEqual([
+        { id: 'doc-1', label: 'Cold Open' },
+        { id: 'doc-2', label: 'Closing Remarks' },
+      ]);
+    });
+
+    it('prompter_refresh_doc, prompter_take_doc, and prompter_clear_doc dispatch with no options', async () => {
+      await run(actions, 'prompter_refresh_doc', {});
+      await run(actions, 'prompter_take_doc', {});
+      await run(actions, 'prompter_clear_doc', {});
+      expect(h.dispatched).toEqual([
+        { actionId: 'prompter_refresh_doc', params: {} },
+        { actionId: 'prompter_take_doc', params: {} },
+        { actionId: 'prompter_clear_doc', params: {} },
+      ]);
+    });
+  });
+
   describe('feedbacks', () => {
     it('slide_at parses variables and matches the 1-based slide', async () => {
       const feedbacks = buildFeedbacks(
@@ -239,6 +288,47 @@ describe('companion module definitions', () => {
       expect(check('gfx_lower_third_visible')).toBe(true);
       expect(check('tunnel_enabled')).toBe(true);
       expect(check('tunnel_pin_required')).toBe(true);
+    });
+
+    describe('prompter_doc_update_ready — the core UX of the feature', () => {
+      const cb = (id: string, doc: unknown) =>
+        (buildFeedbacks(() => ({ prompter: { doc } as never }), () => true)[id].callback as (f: never) => boolean)(
+          { options: {} } as never
+        );
+
+      it('is true only when ready AND something is staged', () => {
+        expect(cb('prompter_doc_update_ready', { status: 'ready', staged: { words: 12 } })).toBe(true);
+      });
+
+      it('is false when ready but nothing is staged (fresh load, or already taken)', () => {
+        expect(cb('prompter_doc_update_ready', { status: 'ready', staged: null })).toBe(false);
+      });
+
+      it('is false while fetching, even if something was staged before', () => {
+        expect(cb('prompter_doc_update_ready', { status: 'fetching', staged: { words: 12 } })).toBe(false);
+      });
+
+      it('is false on error', () => {
+        expect(cb('prompter_doc_update_ready', { status: 'error', staged: null })).toBe(false);
+      });
+
+      it('is false with no doc at all', () => {
+        expect(
+          (buildFeedbacks(() => ({}), () => true)['prompter_doc_update_ready'].callback as (f: never) => boolean)({
+            options: {},
+          } as never)
+        ).toBe(false);
+      });
+    });
+
+    it('prompter_doc_error is true only when status is error', () => {
+      const feedbacks = buildFeedbacks(() => ({ prompter: { doc: { status: 'error', staged: null } } as never }), () => true);
+      const cb = feedbacks['prompter_doc_error'].callback as (f: never) => boolean;
+      expect(cb({ options: {} } as never)).toBe(true);
+
+      const okFeedbacks = buildFeedbacks(() => ({ prompter: { doc: { status: 'ready', staged: null } } as never }), () => true);
+      const okCb = okFeedbacks['prompter_doc_error'].callback as (f: never) => boolean;
+      expect(okCb({ options: {} } as never)).toBe(false);
     });
   });
 
@@ -296,12 +386,49 @@ describe('companion module definitions', () => {
       expect(values['instance_a_url']).toBe('https://a.example');
       expect(values['instance_a_ready']).toBe('Yes');
     });
+
+    it('prompter_doc_* variables reflect the doc state and the on-glass word count', () => {
+      const values = stateToVariables(
+        {
+          prompter: {
+            enabled: false,
+            scrolling: false,
+            speed: 40,
+            fontSize: 72,
+            script: 'Good evening, and welcome to the show.',
+            doc: {
+              name: 'Cold Open',
+              status: 'ready',
+              staged: { words: 12 },
+              loadedAt: Date.UTC(2026, 0, 1, 12, 0, 0),
+              error: null,
+            },
+          },
+        },
+        true
+      );
+      expect(values['prompter_doc_name']).toBe('Cold Open');
+      expect(values['prompter_doc_status']).toBe('ready');
+      expect(values['prompter_doc_words']).toBe('7');
+      expect(values['prompter_doc_staged']).toBe('Yes');
+      expect(typeof values['prompter_doc_loaded_at']).toBe('string');
+      expect(values['prompter_doc_loaded_at']).not.toBe('');
+    });
+
+    it('prompter_doc_* variables are blank/No with no doc attached', () => {
+      const values = stateToVariables({ prompter: { enabled: false, scrolling: false, speed: 40, fontSize: 72 } }, true);
+      expect(values['prompter_doc_name']).toBe('');
+      expect(values['prompter_doc_status']).toBe('');
+      expect(values['prompter_doc_words']).toBe('');
+      expect(values['prompter_doc_loaded_at']).toBe('');
+      expect(values['prompter_doc_staged']).toBe('No');
+    });
   });
 
   describe('presets', () => {
     it('every preset references existing action and feedback ids', () => {
       const feedbacks = buildFeedbacks(() => ({}), () => true);
-      const presets = buildPresets();
+      const presets = buildPresets(SAMPLE_SCRIPT_DOCS);
       for (const [presetId, preset] of Object.entries(presets)) {
         for (const step of preset.steps) {
           for (const a of [...step.down, ...step.up]) {
@@ -311,6 +438,31 @@ describe('companion module definitions', () => {
         for (const f of preset.feedbacks) {
           expect(feedbacks[f.feedbackId], `preset ${presetId} feedback ${f.feedbackId} exists`).toBeTruthy();
         }
+      }
+    });
+
+    it('has a Script page: Refresh, Take (carrying prompter_doc_update_ready), and Clear', () => {
+      const presets = buildPresets();
+      expect(presets['script_refresh'].category).toBe('Script');
+      expect(presets['script_refresh'].steps[0].down[0].actionId).toBe('prompter_refresh_doc');
+
+      expect(presets['script_take'].category).toBe('Script');
+      expect(presets['script_take'].steps[0].down[0].actionId).toBe('prompter_take_doc');
+      expect(presets['script_take'].feedbacks.map((f) => f.feedbackId)).toContain('prompter_doc_update_ready');
+
+      expect(presets['script_clear'].category).toBe('Script');
+      expect(presets['script_clear'].steps[0].down[0].actionId).toBe('prompter_clear_doc');
+    });
+
+    it('generates one named Load preset per saved script, and none with an empty library', () => {
+      expect(Object.keys(buildPresets()).some((id) => id.startsWith('script_load_'))).toBe(false);
+
+      const withLibrary = buildPresets(SAMPLE_SCRIPT_DOCS);
+      const loadPresets = Object.entries(withLibrary).filter(([id]) => id.startsWith('script_load_'));
+      expect(loadPresets).toHaveLength(2);
+      for (const [, preset] of loadPresets) {
+        expect(preset.category).toBe('Script');
+        expect(preset.steps[0].down[0].actionId).toBe('prompter_load_doc_preset');
       }
     });
   });

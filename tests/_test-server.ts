@@ -11,7 +11,9 @@ import { createMediaLibraryStore } from '../src/main/media-library/item-store';
 import { createSlideshowEngine } from '../src/main/media-library/slideshow';
 import { createAuthManager } from '../src/main/auth';
 import { createPresetsStore } from '../src/main/presets';
-import { bootstrapProfiles, syncActiveProfileUrlPresets, getActiveMarker } from '../src/main/profiles/bootstrap';
+import { createScriptDocsStore } from '../src/main/prompter/script-docs';
+import type { DocFetchResult } from '../src/main/prompter/doc-source';
+import { bootstrapProfiles, syncActiveProfileUrlPresets, syncActiveProfileScriptDocs, getActiveMarker } from '../src/main/profiles/bootstrap';
 import { profileRuntimeStatePath } from '../src/main/profiles/paths';
 import { wireRuntimePersistence } from '../src/main/runtime-persistence';
 import type { StateStore } from '../src/main/state';
@@ -43,6 +45,13 @@ export interface FullServerTestOpts {
   isPrompterEnabled?: () => boolean;
   savePrompterSettings?: (patch: { host?: string; enabled?: boolean }) => void;
   prompterWindow?: import('../src/main/routes/index').RouteServices['prompterWindow'];
+  /**
+   * Fetch stub for the Google Doc source (design doc section 5). Defaults to
+   * a stub that always rejects, matching `dataSourceFetchImpl` — a test that
+   * forgets to pass one gets a loud, obvious failure instead of a silent
+   * real network call to Google Docs.
+   */
+  fetchDoc?: (docId: string) => Promise<DocFetchResult>;
   /** Ad-hoc L3 PNG render stub; omitted means the export route reports 501. */
   renderAdHocCard?: (input: {
     name: string;
@@ -77,9 +86,15 @@ export function createFullServer(opts: FullServerTestOpts) {
     const id = getActiveMarker(boot.paths)?.id ?? boot.activeId;
     syncActiveProfileUrlPresets(boot.paths, id, presets.list());
   };
+  const scriptDocsChain = () => {
+    const id = getActiveMarker(boot.paths)?.id ?? boot.activeId;
+    syncActiveProfileScriptDocs(boot.paths, id, scriptDocs.list());
+  };
 
   const presets = createPresetsStore(chain);
   presets.replaceAll(boot.profile.urlPresets);
+  const scriptDocs = createScriptDocsStore(scriptDocsChain);
+  scriptDocs.replaceAll(boot.profile.scriptDocs);
   const l3Cues = createL3CueStore(chain);
 
   const persistPath = profileRuntimeStatePath(boot.paths, boot.activeId);
@@ -113,6 +128,8 @@ export function createFullServer(opts: FullServerTestOpts) {
     getPrompterHost: opts.getPrompterHost,
     isPrompterEnabled: opts.isPrompterEnabled,
     getTransportEngine: () => transportEngineRef,
+    scriptDocsStore: scriptDocs,
+    fetchDoc: opts.fetchDoc,
   });
 
   const server = createServer({
@@ -153,6 +170,8 @@ export function createFullServer(opts: FullServerTestOpts) {
     isPrompterEnabled: opts.isPrompterEnabled,
     savePrompterSettings: opts.savePrompterSettings,
     prompterWindow: opts.prompterWindow,
+    scriptDocsStore: scriptDocs,
+    fetchDoc: opts.fetchDoc,
     renderAdHocCard: opts.renderAdHocCard,
   });
   transportEngineRef = server.transportEngine ?? null;
@@ -160,6 +179,7 @@ export function createFullServer(opts: FullServerTestOpts) {
   return {
     ...server,
     presets,
+    scriptDocs,
     l3Cues,
     l3ThemeStore,
     l3Logos,

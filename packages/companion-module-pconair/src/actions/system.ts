@@ -1,4 +1,4 @@
-import type { CompanionActionDefinition } from '@companion-module/base'
+import type { CompanionActionDefinition, DropdownChoice } from '@companion-module/base'
 import { type ActionDeps, makeGscAction, parsed, parsedNum, parsedChoice, simpleDispatch } from './helpers.js'
 
 const MODES = ['slides', 'url', 'media-library', 'idle'] as const
@@ -7,7 +7,7 @@ const RENDER_BG = ['transparent', 'black', 'white', 'chroma', 'opaque'] as const
 const STAGETIMER_POSITIONS = ['bottom-left', 'bottom-right', 'top-left', 'top-right'] as const
 
 export function buildSystemActions(deps: ActionDeps): Record<string, CompanionActionDefinition> {
-  const { dispatch, gscPost, getApp, log } = deps
+  const { dispatch, gscPost, getApp, log, getScriptDocs } = deps
   const gscAction = makeGscAction(deps)
 
   return {
@@ -256,6 +256,59 @@ export function buildSystemActions(deps: ActionDeps): Record<string, CompanionAc
       ],
       callback: async (event, context) =>
         dispatch('prompter_load_script', { text: await parsed(context, event, 'text') }),
+    },
+
+    // ── Prompter: Google Doc script source (design doc
+    //    2026-09-21-prompter-drive-scripts-design.md, section 6) ──
+    // Refresh always arms; the operator always takes — no text reaches the
+    // glass without a deliberate action. `prompter_doc_update_ready`
+    // (feedbacks.ts) is the amber "something's staged" indicator that makes
+    // Take meaningful.
+    prompter_load_doc: {
+      name: 'Prompter: Load Google Doc (URL)',
+      description: 'Fetches the doc and applies it immediately — there is nothing on the glass to protect on a fresh load',
+      options: [
+        { type: 'textinput', id: 'url', label: 'Google Doc URL', default: '', required: true, useVariables: true },
+      ],
+      callback: async (event, context) =>
+        dispatch('prompter_load_doc', { url: await parsed(context, event, 'url') }),
+    },
+    prompter_load_doc_preset: {
+      name: 'Prompter: Load Google Doc (Saved)',
+      description: 'Fetches a saved library entry and applies it immediately',
+      options: [
+        (() => {
+          const choices = getScriptDocs().map((d) => ({ id: d.id, label: d.name }) as DropdownChoice)
+          return {
+            type: 'dropdown',
+            id: 'presetId',
+            label: 'Saved Script',
+            default: choices[0]?.id ?? '',
+            allowCustom: true,
+            choices,
+          }
+        })(),
+      ],
+      callback: async (event, context) =>
+        dispatch('prompter_load_doc', { presetId: await parsed(context, event, 'presetId') }),
+    },
+    prompter_refresh_doc: {
+      name: 'Prompter: Refresh Google Doc',
+      description: 'Fetches the latest text and stages it — never touches the glass; Take applies it',
+      options: [],
+      callback: async () => dispatch('prompter_refresh_doc', {}),
+    },
+    prompter_take_doc: {
+      name: 'Prompter: Take Staged Doc',
+      description: 'Applies the staged refresh to the glass and parks at the top',
+      options: [],
+      callback: async () => dispatch('prompter_take_doc', {}),
+    },
+    prompter_clear_doc: {
+      name: 'Prompter: Clear Google Doc Source',
+      description: 'Detaches the Google Doc source; leaves the current script on the glass untouched',
+      options: [],
+      callback: async () => dispatch('prompter_clear_doc', {}),
     },
 
     // ════ Reliability ════

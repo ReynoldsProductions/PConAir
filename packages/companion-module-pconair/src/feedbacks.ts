@@ -439,6 +439,34 @@ export function buildFeedbacks(getApp: GetAppState, isConnected: () => boolean):
       showInvert: true,
     },
 
+    // ── prompter: Google Doc script source ──
+    // This is the core UX of the feature (design doc section 6): amber means
+    // "a producer edited the doc and there's a newer version waiting" — it
+    // must NOT light up merely because the last load/refresh succeeded.
+    // status === 'ready' also covers "just loaded, nothing staged", so the
+    // trigger checks staged !== null explicitly rather than status alone.
+    prompter_doc_update_ready: {
+      type: 'boolean',
+      name: 'Prompter Doc: Update Ready (amber)',
+      description: "Active when a refreshed Google Doc version is staged and waiting for Take — not merely when the doc loaded successfully",
+      defaultStyle: { bgcolor: orange, color: white },
+      options: [],
+      callback: () => {
+        const doc = getApp().prompter?.doc
+        return doc?.status === 'ready' && doc?.staged !== null && doc?.staged !== undefined
+      },
+      showInvert: true,
+    },
+    prompter_doc_error: {
+      type: 'boolean',
+      name: 'Prompter Doc: Error',
+      description: 'Active when the last Google Doc fetch (load or refresh) failed',
+      defaultStyle: { bgcolor: red, color: white },
+      options: [],
+      callback: () => getApp().prompter?.doc?.status === 'error',
+      showInvert: true,
+    },
+
     // ── graphics: lower thirds (left/right are independent) ──
     gfx_lower_third_visible: {
       type: 'boolean',

@@ -8,6 +8,7 @@ import { createSlidesRouter, type SlidesRouterDeps } from './slides';
 import { createUrlRouter } from './url';
 import { createOperatorRouter } from './operator';
 import { createRemoteRouter } from './remote';
+import { createPrompterControlRouter } from './prompter-control';
 import { createGscCompatRouter } from './gsc-compat';
 import { createTunnelRouter } from './tunnel';
 import { createStageTimerRouter, type StageTimerRouterDeps } from './stagetimer';
@@ -26,6 +27,8 @@ import { createProfilesRouter } from './profiles';
 import { loadProfile } from '../profiles/bootstrap';
 import { createBrandingRouter } from './branding';
 import { createPrompterRouter, type PrompterRouterDeps } from './prompter';
+import type { ScriptDocsStore } from '../prompter/script-docs';
+import type { DocFetchResult } from '../prompter/doc-source';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import type { PresetsStore } from '../presets';
@@ -138,6 +141,10 @@ export interface RouteServices {
   savePrompterSettings: (patch: { host?: string; enabled?: boolean }) => void;
   /** Fullscreen prompter output window (Electron main only); absent in tests. */
   prompterWindow?: PrompterRouterDeps['prompterWindow'];
+  /** Saved Google Doc script library — pure JS, always available. */
+  scriptDocsStore: ScriptDocsStore;
+  /** Fetches a Google Doc's plain text; wraps `fetchDocText` with a real or fake `DocTransport`. */
+  fetchDoc: (docId: string) => Promise<DocFetchResult>;
   /** Returns all app settings for GET /api/app-settings. */
   getAppSettings?: () => import('../app-settings').AppSettings;
   /** Persists a patch to app settings for PATCH /api/app-settings. */
@@ -208,6 +215,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   );
   app.use('/operator', createOperatorRouter(s.auth));
   app.use('/remote', createRemoteRouter(s.auth));
+  app.use('/prompter-control', createPrompterControlRouter(s.auth));
   app.use(
     '/branding',
     createBrandingRouter({
@@ -233,6 +241,8 @@ export function mountRoutes(app: Express, s: RouteServices): void {
     isPrompterEnabled: s.isPrompterEnabled,
     savePrompterSettings: s.savePrompterSettings,
     prompterWindow: s.prompterWindow,
+    scriptDocsStore: s.scriptDocsStore,
+    fetchDoc: s.fetchDoc,
   }));
   app.use('/api/slides', createSlidesRouter(s.store, s.auth, {
     openGoogleAuthWindow: s.openGoogleAuthWindow,

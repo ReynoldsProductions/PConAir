@@ -63,7 +63,18 @@
       sidePadding: 6,
       textAlign: "left",
       markerPosition: 38,
-      markerVisible: true
+      markerVisible: true,
+      doc: {
+        url: "",
+        docId: "",
+        name: null,
+        loadedAt: null,
+        loadedHash: "",
+        staged: null,
+        status: "idle",
+        error: null,
+        lastCheckedAt: null
+      }
     };
   }
 
