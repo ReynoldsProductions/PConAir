@@ -87,9 +87,9 @@ describe('prompter routes', () => {
 
     it('steps speed without an upper bound, and clamps font size', async () => {
       await request(srv.app).post('/api/prompter/scroll').set('Cookie', op).send({ direction: 'faster' });
-      expect(store.getState().prompter.speed).toBe(50);
+      expect(store.getState().prompter.speed).toBe(58);
       await request(srv.app).post('/api/prompter/scroll').set('Cookie', op).send({ direction: 'slower' });
-      expect(store.getState().prompter.speed).toBe(40);
+      expect(store.getState().prompter.speed).toBe(48);
 
       const bad = await request(srv.app).post('/api/prompter/scroll').set('Cookie', op).send({ direction: 'sideways' });
       expect(bad.status).toBe(400);
@@ -103,7 +103,7 @@ describe('prompter routes', () => {
       expect(nonsense.status).toBe(400);
 
       await request(srv.app).post('/api/prompter/font-size').set('Cookie', op).send({ direction: 'in' });
-      expect(store.getState().prompter.fontSize).toBe(76);
+      expect(store.getState().prompter.fontSize).toBe(60);
       await request(srv.app).post('/api/prompter/font-size').set('Cookie', op).send({ fontSize: 1 });
       expect(store.getState().prompter.fontSize).toBe(24);
     });
@@ -273,9 +273,9 @@ describe('prompter routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.prompter).toMatchObject({
         script: 'Good evening.',
-        fontSize: 72,
+        fontSize: 56,
         lineHeight: 1.4,
-        speed: 40,
+        speed: 48,
         scrolling: false,
         offset: 0,
         mirrorX: false,
