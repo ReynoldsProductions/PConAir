@@ -15,6 +15,7 @@ import { getStore } from './state';
 import { makePrompterState } from '../shared/types';
 import { createAuthManager } from './auth';
 import { createPresetsStore } from './presets';
+import { createScriptDocsStore } from './prompter/script-docs';
 import { createSlidesWindowManager } from './slides/window-manager';
 import { createUrlWindowManager } from './url/window-manager';
 import { createPrompterWindowManager } from './prompter/window-manager';
@@ -28,7 +29,7 @@ import { createActionDispatcher } from './action-dispatch';
 import { renderCueToPng, renderLowerThirdCardToPng } from './l3/cue-renderer';
 import { wireRuntimePersistence } from './runtime-persistence';
 import { snapshotDisplays } from './displays';
-import { bootstrapProfiles, parseProfileCliArg, getActiveMarker, loadProfile, syncActiveProfileUrlPresets, clearIpAllowlistForActiveProfile } from './profiles/bootstrap';
+import { bootstrapProfiles, parseProfileCliArg, getActiveMarker, loadProfile, syncActiveProfileUrlPresets, syncActiveProfileScriptDocs, clearIpAllowlistForActiveProfile } from './profiles/bootstrap';
 import { bootstrapGraphicsPresets } from './graphics/bootstrap-presets';
 import { profileRuntimeStatePath } from './profiles/paths';
 import { parsePconairCli } from './cli-options';
@@ -116,9 +117,15 @@ async function main() {
     const id = getActiveMarker(boot.paths)?.id ?? boot.activeId;
     syncActiveProfileUrlPresets(boot.paths, id, presets.list());
   };
+  const scriptDocsChain = () => {
+    const id = getActiveMarker(boot.paths)?.id ?? boot.activeId;
+    syncActiveProfileScriptDocs(boot.paths, id, scriptDocs.list());
+  };
 
   const presets = createPresetsStore(chain);
   presets.replaceAll(boot.profile.urlPresets);
+  const scriptDocs = createScriptDocsStore(scriptDocsChain);
+  scriptDocs.replaceAll(boot.profile.scriptDocs);
   const l3Cues = createL3CueStore(chain);
   const persistPath = profileRuntimeStatePath(boot.paths, boot.activeId);
   markRuntimeFlush = wireRuntimePersistence(persistPath, { presets, cues: l3Cues }).markDirty;
