@@ -16,6 +16,9 @@ import { makePrompterState } from '../shared/types';
 import { createAuthManager } from './auth';
 import { createPresetsStore } from './presets';
 import { createScriptDocsStore } from './prompter/script-docs';
+import { fetchDocText } from './prompter/doc-source';
+import { createElectronDocTransport } from './prompter/doc-transport';
+import { createDocWatcher } from './prompter/doc-watcher';
 import { createSlidesWindowManager } from './slides/window-manager';
 import { createUrlWindowManager } from './url/window-manager';
 import { createPrompterWindowManager } from './prompter/window-manager';
@@ -127,6 +130,21 @@ async function main() {
   const scriptDocs = createScriptDocsStore(scriptDocsChain);
   scriptDocs.replaceAll(boot.profile.scriptDocs);
   const l3Cues = createL3CueStore(chain);
+
+  // Google Doc script source (design doc 2026-09-21-prompter-drive-scripts-design.md).
+  // `fetchDoc` binds the pure fetch layer to the real, Electron-only transport;
+  // the watcher polls it against the shared store every 60s so a producer's
+  // edits show up as a staged, amber "update ready" without anyone coordinating
+  // over comms. Stopped alongside the other long-lived resources on quit.
+  const fetchDoc = (docId: string) => fetchDocText(docId, createElectronDocTransport());
+  const docWatcher = createDocWatcher({
+    store,
+    fetchDoc,
+    now: Date.now,
+    setIntervalFn: setInterval,
+    clearIntervalFn: (handle) => clearInterval(handle as NodeJS.Timeout),
+  });
+  app.on('before-quit', () => docWatcher.stop());
   const persistPath = profileRuntimeStatePath(boot.paths, boot.activeId);
   markRuntimeFlush = wireRuntimePersistence(persistPath, { presets, cues: l3Cues }).markDirty;
 
@@ -301,6 +319,8 @@ async function main() {
     getPrompterHost: () => loadAppSettings(settingsFile).prompterHost,
     isPrompterEnabled: () => loadAppSettings(settingsFile).prompterEnabled,
     prompterWindow: prompterManager,
+    scriptDocsStore: scriptDocs,
+    fetchDoc,
     savePrompterSettings: (patch) => {
       saveAppSettings(settingsFile, {
         ...(patch.host !== undefined ? { prompterHost: patch.host } : {}),
