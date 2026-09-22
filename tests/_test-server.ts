@@ -52,6 +52,15 @@ export interface FullServerTestOpts {
    * real network call to Google Docs.
    */
   fetchDoc?: (docId: string) => Promise<DocFetchResult>;
+  /** Ad-hoc L3 PNG render stub; omitted means the export route reports 501. */
+  renderAdHocCard?: (input: {
+    name: string;
+    title?: string | null;
+    subtitle?: string | null;
+    theme?: string | null;
+    logoDataUrl?: string | null;
+    side?: 'left' | 'right' | null;
+  }) => Promise<Buffer>;
 }
 
 export function createFullServer(opts: FullServerTestOpts) {
@@ -163,6 +172,7 @@ export function createFullServer(opts: FullServerTestOpts) {
     prompterWindow: opts.prompterWindow,
     scriptDocsStore: scriptDocs,
     fetchDoc: opts.fetchDoc,
+    renderAdHocCard: opts.renderAdHocCard,
   });
   transportEngineRef = server.transportEngine ?? null;
 

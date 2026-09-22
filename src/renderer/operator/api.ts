@@ -120,6 +120,14 @@ export const l3DeleteLogo = async (id: string): Promise<void> => {
   if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
 };
 
+/** What actually landed on disk, so the UI can confirm it instead of assuming. */
+export interface L3ExportResult {
+  filename: string;
+  bytes: number;
+  width?: number;
+  height?: number;
+}
+
 /** Ad-hoc PNG export of whatever is currently composed — triggers a browser download. */
 export async function l3ExportPng(body: {
   name: string;
@@ -127,7 +135,8 @@ export async function l3ExportPng(body: {
   subtitle?: string;
   theme?: string;
   logoAssetId?: string | null;
-}): Promise<void> {
+  side?: LowerThirdSide;
+}): Promise<L3ExportResult> {
   const res = await fetch('/api/l3/export', {
     credentials: 'include',
     method: 'POST',
@@ -143,14 +152,23 @@ export async function l3ExportPng(body: {
     throw new Error(msg);
   }
   const blob = await res.blob();
+  if (blob.size === 0) {
+    throw new Error('Export came back empty — nothing was saved');
+  }
+  const filename = `${(body.name || 'lower-third').replace(/[^\w\s-]/g, '_')}.png`;
+  const width = Number(res.headers.get('X-Export-Width')) || undefined;
+  const height = Number(res.headers.get('X-Export-Height')) || undefined;
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${(body.name || 'lower-third').replace(/[^\w\s-]/g, '_')}.png`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+
+  return { filename, bytes: blob.size, width, height };
 }
 
 export interface MediaLibraryListItem {

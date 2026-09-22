@@ -52,8 +52,8 @@
       enabled: false,
       host: "",
       scrolling: false,
-      speed: 40,
-      fontSize: 72,
+      speed: 48,
+      fontSize: 56,
       lineHeight: 1.4,
       script: "",
       offset: 0,
@@ -233,14 +233,21 @@
       throw new Error(msg);
     }
     const blob = await res.blob();
+    if (blob.size === 0) {
+      throw new Error("Export came back empty \u2014 nothing was saved");
+    }
+    const filename = `${(body.name || "lower-third").replace(/[^\w\s-]/g, "_")}.png`;
+    const width = Number(res.headers.get("X-Export-Width")) || void 0;
+    const height = Number(res.headers.get("X-Export-Height")) || void 0;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${(body.name || "lower-third").replace(/[^\w\s-]/g, "_")}.png`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    return { filename, bytes: blob.size, width, height };
   }
   var mediaLibraryList = () => apiGet("/api/media-library");
   var mediaLibraryTake = (itemId) => apiPost("/api/media-library/take", { itemId });
@@ -695,15 +702,20 @@
         return;
       }
       const msgEl = g("msg");
+      msgEl.textContent = "Rendering PNG\u2026";
       try {
-        await l3ExportPng({
+        const saved = await l3ExportPng({
           name: f.name,
           title: f.title,
           subtitle: f.subtitle,
           theme: f.theme,
-          logoAssetId: f.logoEnabled ? f.logoAssetId : null
+          logoAssetId: f.logoEnabled ? f.logoAssetId : null,
+          // The still is a full frame, so it has to carry this panel's side.
+          side
         });
-        msgEl.textContent = "PNG exported.";
+        const dims = saved.width && saved.height ? `${saved.width}\xD7${saved.height}, ` : "";
+        const kb = Math.max(1, Math.round(saved.bytes / 1024));
+        msgEl.textContent = `Saved ${saved.filename} (${dims}${kb} KB) to your browser's Downloads folder.`;
       } catch (e) {
         msgEl.textContent = e.message;
       }

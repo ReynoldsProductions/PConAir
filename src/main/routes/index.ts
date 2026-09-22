@@ -95,6 +95,7 @@ export interface RouteServices {
     subtitle?: string | null;
     theme?: string | null;
     logoDataUrl?: string | null;
+    side?: 'left' | 'right' | null;
   }) => Promise<Buffer>;
   /** Tunnel control hooks (Electron main); absent in tests. */
   startTunnel?: () => void;

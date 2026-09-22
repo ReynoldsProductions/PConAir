@@ -3,7 +3,9 @@ import request from 'supertest';
 import type { Express } from 'express';
 import { createStateStore } from '../src/main/state';
 import { createFullServer } from './_test-server';
-import { renderLowerThirdCardHtml } from '../src/main/l3/cue-renderer';
+import { renderLowerThirdCardHtml, EXPORT_WIDTH, EXPORT_HEIGHT } from '../src/main/l3/cue-renderer';
+
+type FullServerRenderStub = Parameters<typeof createFullServer>[0]['renderAdHocCard'];
 
 /** Minimal valid 1×1 PNG */
 const PNG_1PX = Buffer.from(
@@ -402,5 +404,181 @@ describe('L3 cue export — manual type', () => {
     expect(html).toContain('&lt;script&gt;');
     // Title ampersand should be double-escaped: & → &amp; then &amp; → &amp;amp;
     expect(html).toContain('&amp;amp;');
+  });
+});
+
+describe('L3 ad-hoc export — POST /api/l3/export', () => {
+  let app: Express;
+  let srv: ReturnType<typeof createFullServer>;
+  let op: string;
+
+  function boot(renderAdHocCard?: (input: { name: string }) => Promise<Buffer>) {
+    srv = createFullServer({
+      store: createStateStore(),
+      operatorPin: AUTH.operatorPin,
+      adminPin: AUTH.adminPin,
+      operatorSessionMs: AUTH.operatorSessionMs,
+      adminSessionMs: AUTH.adminSessionMs,
+      port: 0,
+      renderAdHocCard: renderAdHocCard as FullServerRenderStub,
+    });
+    return srv;
+  }
+
+  afterEach(() => srv.close());
+
+  it('returns the PNG with a filename and its real dimensions', async () => {
+    boot(async () => PNG_1PX);
+    await srv.listen();
+    app = srv.app;
+    op = await opCookie(app);
+
+    const res = await request(app)
+      .post('/api/l3/export')
+      .set('Cookie', op)
+      .send({ name: 'Jane Doe', title: 'CEO', theme: 'default' });
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toBe('image/png');
+    expect(res.headers['content-disposition']).toContain('Jane Doe.png');
+    // Lets the operator UI confirm the still's size instead of assuming it.
+    expect(res.headers['x-export-width']).toBe('1');
+    expect(res.headers['x-export-height']).toBe('1');
+    expect(res.body.length).toBeGreaterThan(0);
+  });
+
+  it('reports 500 rather than a 0-byte success when the render comes back empty', async () => {
+    boot(async () => Buffer.alloc(0));
+    await srv.listen();
+    app = srv.app;
+    op = await opCookie(app);
+
+    const res = await request(app)
+      .post('/api/l3/export')
+      .set('Cookie', op)
+      .send({ name: 'Jane Doe' });
+
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('RENDER_ERROR');
+  });
+
+  it('surfaces the renderer failure reason instead of a generic message', async () => {
+    boot(async () => {
+      throw new Error('Offscreen capture came back empty after 10 attempts');
+    });
+    await srv.listen();
+    app = srv.app;
+    op = await opCookie(app);
+
+    const res = await request(app)
+      .post('/api/l3/export')
+      .set('Cookie', op)
+      .send({ name: 'Jane Doe' });
+
+    expect(res.status).toBe(500);
+    expect(res.body.error.message).toContain('Offscreen capture came back empty');
+  });
+
+  it('returns 501 when no renderer is injected', async () => {
+    boot(undefined);
+    await srv.listen();
+    app = srv.app;
+    op = await opCookie(app);
+
+    const res = await request(app)
+      .post('/api/l3/export')
+      .set('Cookie', op)
+      .send({ name: 'Jane Doe' });
+
+    expect(res.status).toBe(501);
+    expect(res.body.error.code).toBe('NOT_IMPLEMENTED');
+  });
+
+  it('rejects a side that is neither left nor right', async () => {
+    boot(async () => PNG_1PX);
+    await srv.listen();
+    app = srv.app;
+    op = await opCookie(app);
+
+    const res = await request(app)
+      .post('/api/l3/export')
+      .set('Cookie', op)
+      .send({ name: 'Jane Doe', side: 'middle' });
+    expect(res.status).toBe(400);
+  });
+
+  it('passes the requested side through to the renderer', async () => {
+    let seen: string | null | undefined = 'unset';
+    boot((async (input: { side?: string | null }) => {
+      seen = input.side;
+      return PNG_1PX;
+    }) as never);
+    await srv.listen();
+    app = srv.app;
+    op = await opCookie(app);
+
+    const res = await request(app)
+      .post('/api/l3/export')
+      .set('Cookie', op)
+      .send({ name: 'Jane Doe', side: 'right' });
+    expect(res.status).toBe(200);
+    expect(seen).toBe('right');
+  });
+
+  it('requires a name', async () => {
+    boot(async () => PNG_1PX);
+    await srv.listen();
+    app = srv.app;
+    op = await opCookie(app);
+
+    const res = await request(app).post('/api/l3/export').set('Cookie', op).send({ title: 'CEO' });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 401 without auth', async () => {
+    boot(async () => PNG_1PX);
+    await srv.listen();
+    app = srv.app;
+
+    const res = await request(app).post('/api/l3/export').send({ name: 'Jane Doe' });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('L3 export geometry — full frame, correct side', () => {
+  it('builds a full 1920x1080 canvas, not a card-sized one', () => {
+    expect(EXPORT_WIDTH).toBe(1920);
+    expect(EXPORT_HEIGHT).toBe(1080);
+    const html = renderLowerThirdCardHtml({ name: 'Jane Doe' });
+    expect(html).toContain('width:1920px;height:1080px');
+    // Transparent so the frame keys over a camera.
+    expect(html).toContain('background:transparent');
+  });
+
+  it('places the card where the live graphic does, not in the top-left corner', () => {
+    const html = renderLowerThirdCardHtml({ name: 'Jane Doe' });
+    // graphics/lower-third-live/index.html: .l3{bottom:96px} with a 96px side margin.
+    expect(html).toContain('bottom:96px');
+    expect(html).toContain('#card[data-side="left"]{left:96px;}');
+    expect(html).toContain('#card[data-side="right"]{right:96px');
+    // The old export parked the card at the top-left and cropped to it.
+    expect(html).not.toContain('left:24px;top:24px');
+  });
+
+  it('defaults to the left side', () => {
+    expect(renderLowerThirdCardHtml({ name: 'Jane Doe' })).toContain('data-side="left"');
+    expect(renderLowerThirdCardHtml({ name: 'Jane Doe', side: null })).toContain('data-side="left"');
+  });
+
+  it('marks the frame for the requested side', () => {
+    expect(renderLowerThirdCardHtml({ name: 'Jane Doe', side: 'right' })).toContain('data-side="right"');
+    expect(renderLowerThirdCardHtml({ name: 'Jane Doe', side: 'left' })).toContain('data-side="left"');
+  });
+
+  it('mirrors the right-hand layout the way the live graphic does', () => {
+    const html = renderLowerThirdCardHtml({ name: 'Jane Doe', side: 'right' });
+    expect(html).toContain('#card[data-side="right"]{right:96px;flex-direction:row-reverse;}');
+    expect(html).toContain('#card[data-side="right"] .text{text-align:right;}');
+    expect(html).toContain('#card[data-side="right"] .logo{margin:0 24px 0 0;}');
   });
 });
