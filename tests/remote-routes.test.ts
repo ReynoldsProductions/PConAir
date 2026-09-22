@@ -33,9 +33,9 @@ describe('GET /remote', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
     expect(res.text).toContain('PConAir');
-    // All six nav pages exist in the shell (Lower Thirds was removed — that's
+    // All seven nav pages exist in the shell (Lower Thirds was removed — that's
     // an operator-level task now, out of scope for Remote).
-    for (const page of ['page-slides', 'page-stills', 'page-packages', 'page-urls', 'page-timer', 'page-settings']) {
+    for (const page of ['page-slides', 'page-stills', 'page-packages', 'page-urls', 'page-timer', 'page-prompter', 'page-settings']) {
       expect(res.text).toContain(page);
     }
   });

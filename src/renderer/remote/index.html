@@ -197,6 +197,26 @@
     .still-card.live { border-color: var(--live); box-shadow: 0 0 0 1px var(--live); }
     .still-card .ss-badge { position: absolute; top: 4px; right: 4px; background: var(--accent); color: var(--on-accent); font-size: 10px; font-weight: 700; border-radius: 999px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
 
+    /* ---- Prompter page ---- */
+    .pt-status-chip { font-size: 10px; font-weight: 700; letter-spacing: 0.6px; border-radius: 999px; padding: 3px 10px; border: 1px solid var(--text-dim); color: var(--text-dim); }
+    .pt-status-chip.live { border-color: var(--live); color: var(--live); }
+    .pt-follow { position: relative; height: 34vh; min-height: 220px; overflow: hidden; background: #000; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 12px; }
+    .pt-follow-script { position: absolute; left: 0; right: 0; top: 0; padding: 0 6vw; color: #fff; font-family: 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif; font-weight: 600; will-change: transform; }
+    .pt-follow-script p { margin: 0 0 0.55em; white-space: pre-wrap; overflow-wrap: break-word; }
+    .pt-follow-script p.note { color: rgba(255,255,255,0.45); font-style: italic; font-weight: 500; }
+    .pt-follow-rule { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid rgba(255,140,0,0.85); opacity: 0.8; pointer-events: none; }
+    .pt-follow-fade-top, .pt-follow-fade-bottom { position: absolute; left: 0; right: 0; height: 18%; pointer-events: none; }
+    .pt-follow-fade-top { top: 0; background: linear-gradient(#000, rgba(0,0,0,0)); }
+    .pt-follow-fade-bottom { bottom: 0; background: linear-gradient(rgba(0,0,0,0), #000); }
+    .pt-follow-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.35); font-size: 14px; text-align: center; padding: 0 10%; }
+    .pt-follow-empty.hidden { display: none; }
+    .pt-transport { display: flex; gap: 10px; margin-bottom: 4px; }
+    .pt-transport .nav-btn { height: 56px; }
+    .slider-row { display: flex; align-items: center; gap: 10px; margin: 12px 0; }
+    .slider-row label { flex: 0 0 84px; font-size: 12px; color: var(--text-dim); }
+    .slider-row input[type="range"] { flex: 1; }
+    .slider-row .slider-val { flex: 0 0 56px; text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; }
+
     /* ---- Settings page tunnel section ---- */
     .settings-field { display: block; font-size: 12px; color: var(--text-dim); margin: 10px 0 4px; }
     .settings-input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 9px 10px; font-size: 13px; box-sizing: border-box; }
@@ -448,6 +468,49 @@
           <span id="st-configured" class="haptic-label"></span>
         </div>
         <p class="hint-line" id="st-config-msg"></p>
+      </details>
+    </section>
+
+    <section class="page" id="page-prompter">
+      <div class="slides-header">
+        <span class="deck-title">Prompter</span>
+        <span id="pt-chip" class="pt-status-chip">PAUSED</span>
+      </div>
+      <p class="sub">Follow along here — no need to see the output display to keep pace</p>
+
+      <div id="pt-follow" class="pt-follow">
+        <div class="pt-follow-fade-top"></div>
+        <div id="pt-follow-script" class="pt-follow-script"></div>
+        <div id="pt-follow-rule" class="pt-follow-rule"></div>
+        <div class="pt-follow-fade-bottom"></div>
+        <div id="pt-follow-empty" class="pt-follow-empty">No script loaded yet.</div>
+      </div>
+
+      <div class="pt-transport">
+        <button id="pt-toggle" class="nav-btn nav-next">Start</button>
+        <button id="pt-rewind" class="nav-btn nav-prev">Rewind</button>
+      </div>
+
+      <div class="card">
+        <div class="slider-row">
+          <label for="pt-font">Font size</label>
+          <input id="pt-font" type="range" min="24" max="200" step="2" value="72" />
+          <span id="pt-font-val" class="slider-val">72px</span>
+        </div>
+        <div class="slider-row">
+          <label for="pt-speed">Scroll speed</label>
+          <input id="pt-speed" type="range" min="0" max="200" step="2" value="40" />
+          <span id="pt-speed-val" class="slider-val">40px/s</span>
+        </div>
+      </div>
+
+      <details class="card loader-card">
+        <summary>Edit script</summary>
+        <textarea id="pt-script" class="settings-input" style="width:100%;min-height:140px;font-family:ui-monospace,monospace;resize:vertical;" placeholder="Paste script text…"></textarea>
+        <div class="loader-buttons">
+          <button id="pt-script-save" class="small-btn primary">Load script</button>
+        </div>
+        <p class="hint-line" id="pt-script-msg"></p>
       </details>
     </section>
 
