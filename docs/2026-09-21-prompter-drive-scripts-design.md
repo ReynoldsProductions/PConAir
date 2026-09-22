@@ -103,6 +103,39 @@ parser, and the second is a genuine safety question.
 
 Record the answers in the implementation plan before writing the parser.
 
+## Phase 0 — spike findings (deferred to live verification)
+
+**Status: NOT ANSWERED. All three questions remain open and must be verified
+manually against a real Google Doc before this feature ships.**
+
+The spike could not be run during Phase 1. Answering any of these requires a
+live, signed-in Electron session pointed at a real Google Doc — there is no
+browser, no Google session, and no network path to a user's document from the
+build environment, and reaching an arbitrary doc is not something to attempt
+blind. Phase 1 therefore coded each question **defensively**, choosing the
+assumption that fails safe, and left a `// TODO(live-verify):` marker in
+`src/main/prompter/doc-source.ts` at the exact point each answer would change.
+
+| # | Question | Assumption coded against | Where it lives | If the live check disagrees |
+|---|---|---|---|---|
+| 1 | Does `format=txt` prepend the document title? | **No** — the export is understood to return the body only. Nothing strips a title line. | `normalizeScriptText`, `doc-source.ts` | Add a title-strip pass at the marked point, before the CRLF pass: drop a leading line equal to the doc title plus its following blank line. Contained to that one function; nothing downstream changes. |
+| 2 | Do suggested edits export as accepted text? | **No** — the export is understood to reflect the accepted/base text, with pending suggestions excluded. No filtering, no UI warning. | `fetchDocText`, `doc-source.ts` | **Ship blocker.** This is "Known risks" #3: a producer in *Suggesting* mode would push unapproved copy to the talent. Requires, at minimum, a prominent "review in Editing mode" warning on every doc-source surface and in `docs/prompter.md`. |
+| 3 | What does a multi-tab doc export? | **All tabs concatenated, no separator** — the operator silently gets every tab. No tab handling of any kind. | `normalizeScriptText`, `doc-source.ts` | If confirmed: a documentation callout in `docs/prompter.md` (multi-tab selection stays out of scope). If instead a separator or tab heading appears in the text, strip it at the marked point. |
+
+**How to verify (≈10 minutes, once the app runs signed in):**
+
+1. *Title* — load a doc whose first body line is known and distinct from its
+   title; check whether the title appears on the glass.
+2. *Suggestions* — in the same doc, switch to *Suggesting* mode, make an
+   obvious insertion, leave it pending, and refresh. If the insertion reaches
+   the staged text, question 2 is answered "yes" and the ship blocker applies.
+3. *Tabs* — add a second tab with distinct content and refresh; note whether
+   both tabs appear and whether anything separates them.
+
+Question 2 is the one that matters. Questions 1 and 3 are cosmetic or
+documentation-level; 2 is a safety property, and its assumption must be
+confirmed rather than inherited.
+
 ## Architecture
 
 ```
