@@ -795,9 +795,10 @@ Everything in this section shipped in module **0.3.0** on top of the v1 spec abo
 `src/main/action-dispatch.ts` gained operator-level actions so Companion can
 reach them over the cookie-less WebSocket: `panic` (`action: on|off|toggle`),
 `reload_instance` (`instance: A|B`, on-air instance rejected),
-`prompter_set_speed` (0–200), `prompter_set_font_size` (24–200),
+`prompter_set_speed` (any px/sec, negative crawls back), `prompter_set_font_size` (24–200),
 `prompter_load_script` (`text`), `prompter_toggle`, `prompter_rewind`,
-`prompter_jump` (`delta` px), `prompter_mirror` (`axis`, `mode`).
+`prompter_jump` (`delta` px), `prompter_line_forward` / `prompter_line_back`
+(one line of the current type, for a jog rotary), `prompter_mirror` (`axis`, `mode`).
 
 ### 13.3 New module actions
 
@@ -811,7 +812,8 @@ reach them over the cookie-less WebSocket: `panic` (`action: on|off|toggle`),
   compat endpoints to these dispatcher ids.
 - **Prompter:** `prompter_set_speed`, `prompter_set_font_size`,
   `prompter_load_script`, `prompter_toggle`, `prompter_rewind`,
-  `prompter_jump`, `prompter_mirror`. These drive PConAir's own prompter
+  `prompter_jump`, `prompter_line_forward`, `prompter_line_back`,
+  `prompter_mirror`. These drive PConAir's own prompter
   display at `/prompter`; a third-party prompter service is mirrored on top
   when one is configured in Admin → Prompter.
 - **System:** `panic_on/off/toggle`, `reload_instance`.

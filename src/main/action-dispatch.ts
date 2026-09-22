@@ -21,6 +21,7 @@ import {
   toggle as prompterToggle,
   rewind as prompterRewind,
   nudgePosition as prompterNudgePosition,
+  scrollLines as prompterScrollLines,
   setSpeed as prompterSetSpeed,
   nudgeSpeed as prompterNudgeSpeed,
   setFontSize as prompterSetFontSize,
@@ -443,6 +444,15 @@ export function createActionDispatcher(deps: {
           return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: 'delta must be a number' } };
         }
         return prompterApply(prompterNudgePosition(store.getState().prompter, delta, Date.now()), null);
+      }
+      // A jog step, for a rotary that scrolls the script while it is parked.
+      // One line rather than a fixed pixel count, so the feel holds at any
+      // type size. Playing-vs-stopped routing lives in the Companion button.
+      case 'prompter_line_forward':
+      case 'prompter_line_back': {
+        const lines = actionId === 'prompter_line_forward' ? 1 : -1;
+        const next = prompterScrollLines(store.getState().prompter, lines, Date.now());
+        return prompterApply(next, null);
       }
       case 'prompter_mirror': {
         const axis = str(p.axis) ?? 'x';

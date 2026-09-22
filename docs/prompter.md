@@ -58,9 +58,9 @@ HTTP (operator session; `/api/prompter/…`):
 | Endpoint | Body |
 |---|---|
 | `POST /start`, `/stop`, `/toggle`, `/rewind` | — |
-| `POST /position` | `{ position }` or `{ delta }` in px |
+| `POST /position` | `{ position }` or `{ delta }` in px, or `{ lines }` in whole lines of the current type |
 | `POST /scroll` | `{ direction: "faster" \| "slower" }` (±10 px/sec) |
-| `POST /speed` | `{ speed }` 0–200 px/sec |
+| `POST /speed` | `{ speed }` px/sec, unbounded; negative crawls backwards |
 | `POST /font-size` | `{ direction: "in" \| "out" }` or `{ fontSize }` 24–200 |
 | `POST /line-height` | `{ lineHeight }` 1–3 |
 | `POST /side-padding` | `{ sidePadding }` 0–30 vw, or `{ delta }` to nudge a step |

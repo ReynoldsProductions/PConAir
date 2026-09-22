@@ -229,7 +229,7 @@ export interface PrompterState {
   /** Base URL of that external service; empty when there isn't one. */
   host: string;
   scrolling: boolean;
-  /** Scroll rate in px/sec (0–200). */
+  /** Scroll rate in px/sec, unbounded; negative crawls the script backwards. */
   speed: number;
   /** Script text size in px (24–200). */
   fontSize: number;

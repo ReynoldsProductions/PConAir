@@ -139,7 +139,7 @@ export function buildSystemActions(deps: ActionDeps): Record<string, CompanionAc
     prompter_set_speed: {
       name: 'Prompter: Set Scroll Speed',
       options: [
-        { type: 'textinput', id: 'speed', label: 'Speed (0-200)', default: '40', required: true, useVariables: true },
+        { type: 'textinput', id: 'speed', label: 'Speed (px/sec; negative crawls backwards)', default: '40', required: true, useVariables: true },
       ],
       callback: async (event, context) =>
         dispatch('prompter_set_speed', { speed: await parsedNum(context, event, 'speed', 40) }),
@@ -153,6 +153,10 @@ export function buildSystemActions(deps: ActionDeps): Record<string, CompanionAc
         dispatch('prompter_set_font_size', { font_size: await parsedNum(context, event, 'font_size', 72) }),
     },
     prompter_rewind: simpleDispatch(deps, 'Prompter: Rewind to Top', 'prompter_rewind'),
+    // Pair these on a rotary's turn-left/turn-right to jog a parked script;
+    // one step is one line, so the feel holds at any font size.
+    prompter_line_forward: simpleDispatch(deps, 'Prompter: Scroll Forward One Line', 'prompter_line_forward'),
+    prompter_line_back: simpleDispatch(deps, 'Prompter: Scroll Back One Line', 'prompter_line_back'),
     prompter_jump: {
       name: 'Prompter: Jump By Pixels',
       options: [

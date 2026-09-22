@@ -13,6 +13,8 @@ import {
   setScript,
   seek,
   nudgePosition,
+  lineHeightPx,
+  scrollLines,
   setMirror,
   setSidePadding,
   setTextAlign,
@@ -86,15 +88,28 @@ describe('prompter transport ops', () => {
     expect(positionAt(faster, T0 + 3000)).toBe(180);
   });
 
-  it('clamps speed to 0-200 and font size to 24-200', () => {
+  it('leaves speed unbounded in both directions, rounded to whole px/sec', () => {
     const s = makePrompterState();
-    expect(setSpeed(s, 500, T0).speed).toBe(200);
-    expect(setSpeed(s, -20, T0).speed).toBe(0);
+    expect(setSpeed(s, 5000, T0).speed).toBe(5000);
+    expect(setSpeed(s, -320, T0).speed).toBe(-320);
     expect(setSpeed(s, 41.6, T0).speed).toBe(42);
+    expect(nudgeSpeed({ ...s, speed: 195 }, 10, T0).speed).toBe(205);
+    expect(nudgeSpeed({ ...s, speed: 5 }, -10, T0).speed).toBe(-5);
+  });
+
+  it('clamps font size to 24-200', () => {
+    const s = makePrompterState();
     expect(setFontSize(s, 10).fontSize).toBe(24);
     expect(setFontSize(s, 900).fontSize).toBe(200);
-    expect(nudgeSpeed({ ...s, speed: 195 }, 10, T0).speed).toBe(200);
     expect(nudgeFontSize({ ...s, fontSize: 26 }, -4).fontSize).toBe(24);
+  });
+
+  it('crawls backwards at a negative speed, parking at the top', () => {
+    const running = start({ ...makePrompterState(), speed: -100 }, T0);
+    const off = seek(running, 500, T0);
+    expect(positionAt(off, T0 + 2000)).toBe(300);
+    // Reversing past the top floors at 0 rather than running into negative space.
+    expect(positionAt(off, T0 + 60_000)).toBe(0);
   });
 
   it('clamps line height to 1-3', () => {
@@ -128,6 +143,26 @@ describe('prompter transport ops', () => {
     expect(positionAt(back, T0 + 5000)).toBe(100);
     const floored = nudgePosition(running, -10_000, T0 + 1000);
     expect(positionAt(floored, T0 + 1000)).toBe(0);
+  });
+
+  it('scrolls by whole lines, so a step tracks the current type size', () => {
+    const small = { ...makePrompterState(), fontSize: 24, lineHeight: 1.5, offset: 1000 };
+    expect(lineHeightPx(small)).toBe(36);
+    expect(positionAt(scrollLines(small, 1, T0), T0)).toBe(1036);
+    expect(positionAt(scrollLines(small, -2, T0), T0)).toBe(928);
+
+    // Same one-line step at a much larger font moves proportionally further.
+    const large = { ...small, fontSize: 200 };
+    expect(lineHeightPx(large)).toBe(300);
+    expect(positionAt(scrollLines(large, 1, T0), T0)).toBe(1300);
+  });
+
+  it('keeps running while scrolling a line, and floors at the top', () => {
+    const running = start({ ...makePrompterState(), speed: 40, fontSize: 100, lineHeight: 1.4 }, T0);
+    const back = scrollLines(running, -1, T0 + 5000);
+    expect(back.scrolling).toBe(true);
+    expect(positionAt(back, T0 + 5000)).toBe(60); // 200px in, less one 140px line
+    expect(positionAt(scrollLines(running, -50, T0 + 1000), T0 + 1000)).toBe(0);
   });
 
   it('flips the mirror axes independently', () => {
