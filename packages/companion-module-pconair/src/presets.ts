@@ -1,6 +1,38 @@
 import { combineRgb, type CompanionPresetDefinition } from '@companion-module/base'
+import type { ScriptDocInfo } from './client.js'
 
-export function buildPresets(): Record<string, CompanionPresetDefinition> {
+/** Preset id-safe slug from a saved script's id (already a server-assigned uuid, but non-alnum chars are stripped defensively). */
+function scriptPresetId(docId: string): string {
+  return `script_load_${docId.replace(/[^a-zA-Z0-9_-]/g, '_')}`
+}
+
+/**
+ * Dynamic per-entry Load presets, one per saved script (design doc section 6
+ * — "named load buttons"). Empty until the library has been fetched at least
+ * once; `index.ts` re-calls `buildPresets(this.scriptDocs)` on the same
+ * poll-diff-reregister cycle as refreshScriptDocs(), so this list tracks the
+ * library the way `prompter_load_doc_preset`'s dropdown does.
+ */
+function scriptLoadPresets(
+  scriptDocs: ScriptDocInfo[],
+  white: ReturnType<typeof combineRgb>,
+  cyan: ReturnType<typeof combineRgb>
+): Record<string, CompanionPresetDefinition> {
+  const out: Record<string, CompanionPresetDefinition> = {}
+  for (const doc of scriptDocs) {
+    out[scriptPresetId(doc.id)] = {
+      type: 'button',
+      category: 'Script',
+      name: `Load Script: ${doc.name}`,
+      style: { text: doc.name, size: '14', color: white, bgcolor: cyan },
+      feedbacks: [],
+      steps: [{ down: [{ actionId: 'prompter_load_doc_preset', options: { presetId: doc.id } }], up: [] }],
+    }
+  }
+  return out
+}
+
+export function buildPresets(scriptDocs: ScriptDocInfo[] = []): Record<string, CompanionPresetDefinition> {
   const gray = combineRgb(80, 80, 80)
   const white = combineRgb(255, 255, 255)
   const cyan = combineRgb(0, 180, 200)
@@ -482,6 +514,51 @@ export function buildPresets(): Record<string, CompanionPresetDefinition> {
       feedbacks: [],
       steps: [{ down: [{ actionId: 'prompter_font_size_out', options: {} }], up: [] }],
     },
+
+    // 7.17 Script (design doc 2026-09-21-prompter-drive-scripts-design.md,
+    // section 6) — a dedicated page: refresh always arms, take always applies
+    // deliberately, and the amber feedback is the whole point of the button.
+    script_refresh: {
+      type: 'button',
+      category: 'Script',
+      name: 'Refresh Google Doc',
+      style: { text: 'Script\nRefresh', size: '14', color: white, bgcolor: gray },
+      feedbacks: [{ feedbackId: 'prompter_doc_error', options: {}, style: { bgcolor: red } }],
+      steps: [{ down: [{ actionId: 'prompter_refresh_doc', options: {} }], up: [] }],
+    },
+    script_take: {
+      type: 'button',
+      category: 'Script',
+      name: 'Take Staged Script',
+      style: { text: 'Script\nTAKE', size: '14', color: white, bgcolor: gray },
+      feedbacks: [{ feedbackId: 'prompter_doc_update_ready', options: {}, style: { bgcolor: orange } }],
+      steps: [{ down: [{ actionId: 'prompter_take_doc', options: {} }], up: [] }],
+    },
+    script_clear: {
+      type: 'button',
+      category: 'Script',
+      name: 'Clear Google Doc Source',
+      style: { text: 'Script\nClear', size: '14', color: white, bgcolor: red },
+      feedbacks: [],
+      steps: [{ down: [{ actionId: 'prompter_clear_doc', options: {} }], up: [] }],
+    },
+    script_status: {
+      type: 'button',
+      category: 'Script',
+      name: 'Script Status',
+      style: {
+        text: '$(pconair:prompter_doc_name)\n$(pconair:prompter_doc_status)',
+        size: '14',
+        color: white,
+        bgcolor: gray,
+      },
+      feedbacks: [
+        { feedbackId: 'prompter_doc_update_ready', options: {}, style: { bgcolor: orange } },
+        { feedbackId: 'prompter_doc_error', options: {}, style: { bgcolor: red } },
+      ],
+      steps: [{ down: [], up: [] }],
+    },
+    ...scriptLoadPresets(scriptDocs, white, cyan),
 
     // 7.16 Reliability / system
     panic_toggle: {

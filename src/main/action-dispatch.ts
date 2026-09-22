@@ -7,8 +7,11 @@ import type { L3LogoStore } from './l3/logo-store';
 import type { MediaLibraryStore } from './media-library/item-store';
 import type { SlideshowEngine } from './media-library/slideshow';
 import type { SlidesWindowManager } from './slides/window-manager';
-import type { Mode, SlideshowTransition, ScoreboardState, LowerThirdState, LowerThirdsState, LowerThirdTheme, LowerThirdAnimationStyle, PrompterState, PrompterTextAlign } from '../shared/types';
-import { PROMPTER_TEXT_ALIGNS } from '../shared/types';
+import type { Mode, SlideshowTransition, ScoreboardState, LowerThirdState, LowerThirdsState, LowerThirdTheme, LowerThirdAnimationStyle, PrompterState, PrompterTextAlign, DocErrorCode } from '../shared/types';
+import { PROMPTER_TEXT_ALIGNS, makePrompterState } from '../shared/types';
+import { extractDocId } from './prompter/doc-source';
+import type { DocFetchResult } from './prompter/doc-source';
+import type { ScriptDocsStore } from './prompter/script-docs';
 import { slideNextOp, slidePrevOp, slideGotoOp, slideReloadOp, slideLoadOp, slideOfflineModeOp } from './services/slide-ops';
 import { urlLoadOp, urlReloadOp, setDisplayTargetOp } from './services/url-ops';
 import { fanOutSlideCommand } from './services/backup-fanout';
@@ -121,8 +124,17 @@ export function createActionDispatcher(deps: {
    * uncancelled and able to resurrect a "cleared" render later.
    */
   getTransportEngine?: () => TransportEngine | null;
+  /**
+   * Saved Google Doc script library (design doc
+   * 2026-09-21-prompter-drive-scripts-design.md, section 6). Absent in a
+   * context that never wires up script docs; the doc actions become
+   * `unavailable()` rather than throwing.
+   */
+  scriptDocsStore?: ScriptDocsStore;
+  /** `fetchDocText` bound to a real (or, in tests, fake) `DocTransport`. */
+  fetchDoc?: (docId: string) => Promise<DocFetchResult>;
 }) {
-  const { store, presets, cues, logos, media, slideshow, windowManager, getPrompterHost, isPrompterEnabled, getBackupSettings, getTransportEngine } = deps;
+  const { store, presets, cues, logos, media, slideshow, windowManager, getPrompterHost, isPrompterEnabled, getBackupSettings, getTransportEngine, scriptDocsStore, fetchDoc } = deps;
 
   const reloadTimers = new Map<'A' | 'B', ReturnType<typeof setTimeout>>();
 
@@ -154,6 +166,36 @@ export function createActionDispatcher(deps: {
 
   function unavailable(what: string): ActionResult {
     return { ok: false, status: 501, error: { code: 'INVALID_MODE', message: `${what} is not available on this server` } };
+  }
+
+  // ---- Google Doc script source (design doc section 6 — Companion) --------
+  // Mirrors `src/main/routes/prompter.ts`'s `/api/prompter/doc/*` handlers
+  // exactly (same safety invariant: a failed load/refresh, or a
+  // staged-but-untaken refresh, never touches `script` or `doc.loadedHash`).
+  // Companion reaches this dispatcher over the cookie-less WS/`/api/action`
+  // path rather than those HTTP routes, which stay session-gated for the
+  // Admin SPA.
+
+  /** 400 for a bad request that never reached the network; 422 for a fetch that succeeded but the content is unusable; 502 for anything that failed to reach or read Google Docs. */
+  function docErrorStatus(code: DocErrorCode): number {
+    switch (code) {
+      case 'INVALID_DOC_URL':
+        return 400;
+      case 'DOC_EMPTY':
+      case 'DOC_TOO_LARGE':
+        return 422;
+      case 'DOC_UNREACHABLE':
+      case 'DOC_NOT_READABLE':
+        return 502;
+      default:
+        return 502;
+    }
+  }
+
+  function patchDoc(fields: Partial<PrompterState['doc']>): PrompterState {
+    const next: PrompterState = { ...store.getState().prompter, doc: { ...store.getState().prompter.doc, ...fields } };
+    store.setState({ prompter: next });
+    return next;
   }
 
   return async function executeAction(actionId: string, params: Record<string, unknown>): Promise<ActionResult> {
@@ -527,6 +569,94 @@ export function createActionDispatcher(deps: {
         }
         const next = prompterSetSidePadding(store.getState().prompter, sidePadding);
         return prompterApply(next, { side_padding: next.sidePadding });
+      }
+      case 'prompter_load_doc': {
+        if (!scriptDocsStore || !fetchDoc) return unavailable('Google Doc script loading');
+        const url = str(p.url);
+        const presetId = str(p.presetId);
+        let docId: string | null = null;
+        let name: string | null = null;
+        let sourceUrl: string | null = null;
+
+        if (presetId) {
+          const entry = scriptDocsStore.findById(presetId);
+          if (!entry) {
+            return { ok: false, status: 400, error: { code: 'INVALID_DOC_URL', message: `No saved script matches id '${presetId}'.` } };
+          }
+          docId = extractDocId(entry.docUrl);
+          name = entry.name;
+          sourceUrl = entry.docUrl;
+        } else if (url) {
+          docId = extractDocId(url);
+          sourceUrl = url;
+        }
+
+        if (!docId || !sourceUrl) {
+          return { ok: false, status: 400, error: { code: 'INVALID_DOC_URL', message: 'A url or presetId resolving to a Google Docs document is required.' } };
+        }
+
+        const outcome = await fetchDoc(docId);
+        if (!outcome.ok) {
+          patchDoc({ status: 'error', error: { code: outcome.code, message: outcome.message } });
+          return { ok: false, status: docErrorStatus(outcome.code), error: { code: outcome.code, message: outcome.message } };
+        }
+
+        const now = Date.now();
+        const next: PrompterState = {
+          ...prompterSetScript(store.getState().prompter, outcome.text, now),
+          doc: {
+            ...store.getState().prompter.doc,
+            url: sourceUrl,
+            docId,
+            name,
+            loadedAt: now,
+            loadedHash: outcome.hash,
+            staged: null,
+            status: 'ready',
+            error: null,
+          },
+        };
+        return prompterApply(next, { script: outcome.text });
+      }
+      case 'prompter_refresh_doc': {
+        if (!fetchDoc) return unavailable('Google Doc script loading');
+        const doc = store.getState().prompter.doc;
+        if (!doc.docId) {
+          return { ok: false, status: 409, error: { code: 'NO_DOC_CONFIGURED', message: 'No Google Doc is loaded. Load one before refreshing.' } };
+        }
+
+        const outcome = await fetchDoc(doc.docId);
+        if (!outcome.ok) {
+          patchDoc({ status: 'error', error: { code: outcome.code, message: outcome.message } });
+          return { ok: false, status: docErrorStatus(outcome.code), error: { code: outcome.code, message: outcome.message } };
+        }
+
+        const now = Date.now();
+        const next = patchDoc({
+          staged: { text: outcome.text, hash: outcome.hash, words: outcome.words, fetchedAt: now },
+          status: 'ready',
+          error: null,
+        });
+        return { ok: true, body: { prompter: next } };
+      }
+      case 'prompter_take_doc': {
+        const staged = store.getState().prompter.doc.staged;
+        if (!staged) {
+          return { ok: false, status: 409, error: { code: 'NOTHING_STAGED', message: 'No refreshed text is staged to take.' } };
+        }
+
+        const now = Date.now();
+        const next: PrompterState = {
+          ...prompterSetScript(store.getState().prompter, staged.text, now),
+          doc: { ...store.getState().prompter.doc, loadedHash: staged.hash, loadedAt: now, staged: null },
+        };
+        return prompterApply(next, { script: staged.text });
+      }
+      case 'prompter_clear_doc': {
+        // Detaches the source only. The text currently on the glass
+        // (`script`) is left exactly as it is.
+        const next = patchDoc(makePrompterState().doc);
+        return { ok: true, body: { prompter: next } };
       }
       case 'panic': {
         const action = str(p.action) ?? 'toggle';

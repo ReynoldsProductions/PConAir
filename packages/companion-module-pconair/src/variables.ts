@@ -101,6 +101,13 @@ export const VARIABLE_DEFINITIONS: CompanionVariableDefinition[] = [
   { variableId: 'prompter_script_loaded', name: 'Prompter Script Loaded (Yes/No)' },
   { variableId: 'prompter_mirrored', name: 'Prompter Mirrored (Yes/No)' },
 
+  // ── prompter: Google Doc script source ──
+  { variableId: 'prompter_doc_name', name: 'Prompter Doc: Library Name' },
+  { variableId: 'prompter_doc_status', name: 'Prompter Doc: Status (idle/fetching/ready/error)' },
+  { variableId: 'prompter_doc_words', name: 'Prompter Doc: Word Count (on glass)' },
+  { variableId: 'prompter_doc_loaded_at', name: 'Prompter Doc: Loaded At (local time)' },
+  { variableId: 'prompter_doc_staged', name: 'Prompter Doc: Update Staged (Yes/No)' },
+
   // ── graphics: scoreboard ──
   { variableId: 'score_team_a_name', name: 'Scoreboard Team A Name' },
   { variableId: 'score_team_b_name', name: 'Scoreboard Team B Name' },
@@ -271,6 +278,16 @@ export function stateToVariables(
     prompter_font_size: tp ? String(tp.fontSize) : '',
     prompter_script_loaded: yn(Boolean(tp?.script)),
     prompter_mirrored: yn(Boolean(tp?.mirrorX || tp?.mirrorY)),
+
+    // Word count of the text currently on the glass — not the staged count,
+    // which is never surfaced here (see prompter_doc_staged for that signal;
+    // the staged text itself never leaves the server, same invariant as the
+    // talent display).
+    prompter_doc_name: tp?.doc?.name ?? '',
+    prompter_doc_status: tp?.doc?.status ?? '',
+    prompter_doc_words: tp?.script ? String(tp.script.trim().split(/\s+/).filter(Boolean).length) : '',
+    prompter_doc_loaded_at: tp?.doc?.loadedAt ? new Date(tp.doc.loadedAt).toLocaleTimeString() : '',
+    prompter_doc_staged: yn(Boolean(tp?.doc?.staged)),
 
     score_team_a_name: sb?.teamA ?? '',
     score_team_b_name: sb?.teamB ?? '',

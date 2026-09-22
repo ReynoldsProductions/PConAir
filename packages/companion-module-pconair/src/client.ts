@@ -70,6 +70,21 @@ export interface PcoState {
     script?: string
     mirrorX?: boolean
     mirrorY?: boolean
+    /**
+     * Google Doc script source (design doc
+     * 2026-09-21-prompter-drive-scripts-design.md, section 2). Superset of
+     * `PrompterDocState` (`src/shared/types.ts`) — only the fields the
+     * Companion module's variables/feedbacks need. `staged` is carried only
+     * as presence, never as text: un-taken copy must never reach Companion
+     * any more than it reaches the talent display.
+     */
+    doc?: {
+      name: string | null
+      status: 'idle' | 'fetching' | 'ready' | 'error'
+      staged: { words: number } | null
+      loadedAt: number | null
+      error: { code: string; message: string } | null
+    } | null
   } | null
   graphics: {
     scoreboard: {
@@ -119,6 +134,27 @@ export interface PcoState {
   } | null
   background: { presetId: string | null; presetName: string | null; type: string; value: string } | null
   displays: Array<{ id: string; name: string; isPrimary: boolean }> | null
+}
+
+/** One saved script as served by GET /api/prompter/docs. */
+export interface ScriptDocInfo {
+  id: string
+  name: string
+  docUrl: string
+  description: string
+}
+
+/** Parse the GET /api/prompter/docs response defensively, mirroring parsePackageList (packages.ts). */
+export function parseScriptDocList(body: Record<string, unknown>): ScriptDocInfo[] {
+  const raw = Array.isArray(body.docs) ? (body.docs as Array<Record<string, unknown>>) : []
+  return raw
+    .filter((d) => typeof d.id === 'string')
+    .map((d) => ({
+      id: String(d.id),
+      name: typeof d.name === 'string' ? d.name : String(d.id),
+      docUrl: typeof d.docUrl === 'string' ? d.docUrl : '',
+      description: typeof d.description === 'string' ? d.description : '',
+    }))
 }
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
@@ -252,6 +288,21 @@ export class PcoClient {
     const res = await fetch(`${this.httpBase()}${path}`)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return (await res.json()) as Record<string, unknown>
+  }
+
+  /**
+   * The saved Google Doc script library (design doc section 6), for the
+   * `prompter_load_doc_preset` dropdown. `GET /api/prompter/docs` is
+   * operator-session-gated today (`requireOperator`, cookie-only) rather than
+   * the `requireOperatorOrPin` pattern the transport routes use
+   * (`src/main/routes/packages.ts`) — the PIN is attached here so this call
+   * starts working the moment that route is updated to accept it, but until
+   * then it will 401 from a real cookie-less Companion connection.
+   */
+  async getScriptDocs(): Promise<ScriptDocInfo[]> {
+    const pinQ = this.config.operatorPin ? `?operator_pin=${encodeURIComponent(this.config.operatorPin)}` : ''
+    const body = await this.httpGet(`/api/prompter/docs${pinQ}`)
+    return parseScriptDocList(body)
   }
 
   /** Patch a package's state (cookie-less, shared path with control UIs). */

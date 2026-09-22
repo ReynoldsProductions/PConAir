@@ -119,6 +119,8 @@ export function createFullServer(opts: FullServerTestOpts) {
     getPrompterHost: opts.getPrompterHost,
     isPrompterEnabled: opts.isPrompterEnabled,
     getTransportEngine: () => transportEngineRef,
+    scriptDocsStore: scriptDocs,
+    fetchDoc: opts.fetchDoc,
   });
 
   const server = createServer({
