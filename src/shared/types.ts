@@ -213,6 +213,64 @@ export type PrompterTextAlign = 'left' | 'center' | 'right' | 'justify';
 export const PROMPTER_TEXT_ALIGNS: PrompterTextAlign[] = ['left', 'center', 'right', 'justify'];
 
 /**
+ * Why a Google Doc script fetch failed. Defined here rather than in the
+ * fetch layer (`src/main/prompter/doc-source.ts`, which re-exports it) purely
+ * to keep the dependency arrow pointing one way: `src/shared` is bundled into
+ * the renderer, and importing a main-process module that pulls in node's
+ * `crypto` would drag it across that boundary. The fetch layer owns the
+ * semantics; this file only owns the names.
+ */
+export type DocErrorCode =
+  | 'INVALID_DOC_URL'
+  | 'DOC_UNREACHABLE'
+  | 'DOC_NOT_READABLE'
+  | 'DOC_EMPTY'
+  | 'DOC_TOO_LARGE';
+
+export const DOC_ERROR_CODES: DocErrorCode[] = [
+  'INVALID_DOC_URL',
+  'DOC_UNREACHABLE',
+  'DOC_NOT_READABLE',
+  'DOC_EMPTY',
+  'DOC_TOO_LARGE',
+];
+
+/** Text fetched from the doc but not yet put on the glass. */
+export interface PrompterStagedDoc {
+  text: string;
+  hash: string;
+  words: number;
+  fetchedAt: number;
+}
+
+/**
+ * The Google Doc (if any) backing the prompter script.
+ *
+ * `staged` is deliberately separate from `PrompterState.script`: nothing a
+ * producer types reaches the talent display until an operator takes it, and
+ * `viewState()` omits `staged` entirely so that property is structural rather
+ * than a matter of remembering to check a flag.
+ */
+export interface PrompterDocState {
+  /** Source doc URL as entered; '' when no doc source is attached. */
+  url: string;
+  /** Doc id parsed out of `url`; '' when no doc source is attached. */
+  docId: string;
+  /** Library entry name when loaded from the saved library; null for ad-hoc URLs. */
+  name: string | null;
+  /** Epoch ms the text currently on the glass was fetched; null when none. */
+  loadedAt: number | null;
+  /** Content hash of the text currently on the glass. Change detection compares hashes. */
+  loadedHash: string;
+  /** A newer fetch awaiting a deliberate Take. Never exposed to the talent view. */
+  staged: PrompterStagedDoc | null;
+  status: 'idle' | 'fetching' | 'ready' | 'error';
+  error: { code: DocErrorCode; message: string } | null;
+  /** Epoch ms of the last poll, successful or not; null before the first. */
+  lastCheckedAt: number | null;
+}
+
+/**
  * Built-in prompter. PConAir serves the talent-facing view itself (see
  * `/prompter`), so this state is the source of truth for what that display
  * shows; `enabled`/`host` only add optional forwarding to a third-party
@@ -264,6 +322,8 @@ export interface PrompterState {
    * script keeps sitting where it did and nothing jumps mid-show.
    */
   markerVisible: boolean;
+  /** Google Doc source backing the script, when one is attached. */
+  doc: PrompterDocState;
 }
 
 export function makePrompterState(): PrompterState {
@@ -283,6 +343,17 @@ export function makePrompterState(): PrompterState {
     textAlign: 'left',
     markerPosition: 38,
     markerVisible: true,
+    doc: {
+      url: '',
+      docId: '',
+      name: null,
+      loadedAt: null,
+      loadedHash: '',
+      staged: null,
+      status: 'idle',
+      error: null,
+      lastCheckedAt: null,
+    },
   };
 }
 
