@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>PConAir — Prompter</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --surface: #fbf8f6;
+      --border: #dfe0e1;
+      --text: #333333;
+      --text-dim: #757575;
+      --accent: #1a6dd4;
+      --on-accent: #ffffff;
+      --warn: #9a6100;
+      --err: #b3261e;
+    }
+    [data-theme="dark"] {
+      --bg: #111315;
+      --surface: #1c1f22;
+      --border: #33383d;
+      --text: #e8eaec;
+      --text-dim: #9aa0a6;
+      --accent: #4da3ff;
+      --on-accent: #08111c;
+      --warn: #e5a53a;
+      --err: #e53935;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 16px;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    header h1 { font-size: 18px; margin: 0; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Prompter</h1>
+  </header>
+  <div class="card" id="pcp-mount"></div>
+</body>
+</html>

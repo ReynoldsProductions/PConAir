@@ -4,6 +4,10 @@
  * Connects to the server WebSocket for live state and shows connection status.
  */
 
+import type { PrompterState } from '../../shared/types';
+import { makePrompterState } from '../../shared/types';
+import { renderPrompterControls, wirePrompterControls } from '../shared/prompter-controls';
+
 // ── Theme ────────────────────────────────────────────────────────────────────
 // Light is the CSS default. A per-device override wins over the show-wide
 // default set in Admin → Appearance. Applied at module top-level rather than
@@ -268,6 +272,7 @@ function connectWs(): void {
         renderUrlState(msg.payload);
         renderStageTimer((msg.payload.stageTimer as StageTimerSlice | undefined) ?? null);
         renderPrompter((msg.payload.prompter as PrompterSlice | undefined) ?? null);
+        if (msg.payload.prompter) promptControlsUpdate?.(msg.payload.prompter as unknown as PrompterState);
       } else if (msg.type === 'state_patch' && msg.payload) {
         if ('slides' in msg.payload) {
           renderSlides((msg.payload.slides as SlidesSlice | null) ?? null);
@@ -297,6 +302,7 @@ function connectWs(): void {
         }
         if ('prompter' in msg.payload) {
           renderPrompter((msg.payload.prompter as PrompterSlice | undefined) ?? null);
+          if (msg.payload.prompter) promptControlsUpdate?.(msg.payload.prompter as unknown as PrompterState);
         }
       }
     } catch {
@@ -1284,6 +1290,33 @@ let ptClockSkewMs = 0;
 let ptLastScript = '';
 let ptLastTransform: string | null = null;
 
+// ---- Script Source (design doc section 7 / shared/prompter-controls.ts) ----
+// Additive mount alongside the hand-built transport/slider controls above —
+// see the scope note at the top of src/renderer/shared/prompter-controls.ts
+// for why that module doesn't (yet) subsume this page's existing controls.
+
+let promptControlsUpdate: ((state: PrompterState) => void) | null = null;
+
+async function rawPost(path: string, body?: object): Promise<Response> {
+  return fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+function mountPrompterControls(): void {
+  const mount = document.getElementById('pt-doc-mount');
+  if (!mount) return;
+  mount.innerHTML = renderPrompterControls(makePrompterState());
+  wirePrompterControls(mount, {
+    post: rawPost,
+    onState: (cb) => {
+      promptControlsUpdate = cb;
+    },
+  });
+}
+
 function ptPositionAt(s: PrompterSlice, now: number): number {
   if (s.startedAt === null) return Math.max(0, s.offset);
   return Math.max(0, s.offset + ((now - s.startedAt) / 1000) * s.speed);
@@ -1369,6 +1402,7 @@ async function hydratePrompter(): Promise<void> {
     const rttHalf = (Date.now() - sentAt) / 2;
     ptClockSkewMs = data.serverNow - (Date.now() - rttHalf);
     renderPrompter(data.prompter);
+    promptControlsUpdate?.(data.prompter as unknown as PrompterState);
   } catch {
     /* the next ws state broadcast will catch us up */
   }
@@ -1511,6 +1545,7 @@ wirePackagesPage();
 wireUrlsPage();
 wireTimerPage();
 wirePrompterPage();
+mountPrompterControls();
 wireOutputCards();
 wireQrAndTunnel();
 void refreshStillsData();
