@@ -43,6 +43,7 @@ const PAGES: NavPage[] = [
   { id: 'packages', label: 'Packages', glyph: '◳' },
   { id: 'urls', label: 'URLs', glyph: '⌘' },
   { id: 'timer', label: 'Timer', glyph: '◷' },
+  { id: 'prompter', label: 'Prompter', glyph: '▤' },
   { id: 'settings', label: 'Settings', glyph: '⚙' },
 ];
 
@@ -266,6 +267,7 @@ function connectWs(): void {
         renderLiveStatus(msg.payload);
         renderUrlState(msg.payload);
         renderStageTimer((msg.payload.stageTimer as StageTimerSlice | undefined) ?? null);
+        renderPrompter((msg.payload.prompter as PrompterSlice | undefined) ?? null);
       } else if (msg.type === 'state_patch' && msg.payload) {
         if ('slides' in msg.payload) {
           renderSlides((msg.payload.slides as SlidesSlice | null) ?? null);
@@ -292,6 +294,9 @@ function connectWs(): void {
         }
         if ('stageTimer' in msg.payload) {
           renderStageTimer((msg.payload.stageTimer as StageTimerSlice | undefined) ?? null);
+        }
+        if ('prompter' in msg.payload) {
+          renderPrompter((msg.payload.prompter as PrompterSlice | undefined) ?? null);
         }
       }
     } catch {
@@ -1253,6 +1258,158 @@ function wireTimerPage(): void {
   });
 }
 
+// ---- Prompter page ----
+// A follow-along window, not a mirror of the output display: it renders the
+// same script at the same font size/line height/margins and derives its
+// scroll offset with the same anchor math the talent display uses, so an
+// operator on a tablet can track the reading line without needing line-for-
+// line eyes on the actual output. The tablet's narrower width still wraps
+// text differently than a wide rig, so treat this as "keep pace with", not
+// pixel-identical to, what the talent sees.
+
+interface PrompterSlice {
+  scrolling: boolean;
+  speed: number;
+  fontSize: number;
+  lineHeight: number;
+  script: string;
+  offset: number;
+  startedAt: number | null;
+  sidePadding: number;
+  textAlign: 'left' | 'center' | 'right' | 'justify';
+}
+
+let lastPrompter: PrompterSlice | null = null;
+let ptClockSkewMs = 0;
+let ptLastScript = '';
+let ptLastTransform: string | null = null;
+
+function ptPositionAt(s: PrompterSlice, now: number): number {
+  if (s.startedAt === null) return Math.max(0, s.offset);
+  return Math.max(0, s.offset + ((now - s.startedAt) / 1000) * s.speed);
+}
+
+function ptServerNow(): number {
+  return Date.now() + ptClockSkewMs;
+}
+
+function renderPrompterScript(text: string): void {
+  if (text === ptLastScript) return;
+  ptLastScript = text;
+  const el = $('pt-follow-script');
+  el.textContent = '';
+  for (const block of text.split(/\n{2,}/)) {
+    if (block.trim() === '') continue;
+    const p = document.createElement('p');
+    if (/^\s*[[(]/.test(block)) p.className = 'note';
+    p.textContent = block;
+    el.appendChild(p);
+  }
+  $('pt-follow-empty').classList.toggle('hidden', text.trim() !== '');
+  ptLastTransform = null;
+}
+
+function applyPrompterLayout(s: PrompterSlice): void {
+  const script = $('pt-follow-script');
+  script.style.fontSize = `${s.fontSize}px`;
+  script.style.lineHeight = String(s.lineHeight || 1.4);
+  script.style.textAlign = s.textAlign || 'left';
+  const pad = `${s.sidePadding ?? 6}vw`;
+  script.style.paddingLeft = pad;
+  script.style.paddingRight = pad;
+  script.style.paddingTop = '30%';
+  script.style.paddingBottom = '90%';
+  $('pt-follow-rule').style.top = '30%';
+}
+
+function renderPrompter(p: PrompterSlice | null): void {
+  lastPrompter = p;
+  if (!p) return;
+  $('pt-chip').textContent = p.scrolling ? 'LIVE' : 'PAUSED';
+  $('pt-chip').classList.toggle('live', p.scrolling);
+  $('pt-toggle').textContent = p.scrolling ? 'Pause' : 'Start';
+  applyPrompterLayout(p);
+  renderPrompterScript(p.script || '');
+
+  const fontEl = $('pt-font') as HTMLInputElement;
+  if (document.activeElement !== fontEl) {
+    fontEl.value = String(p.fontSize);
+    $('pt-font-val').textContent = `${p.fontSize}px`;
+  }
+  const speedEl = $('pt-speed') as HTMLInputElement;
+  if (document.activeElement !== speedEl) {
+    speedEl.value = String(p.speed);
+    $('pt-speed-val').textContent = `${p.speed}px/s`;
+  }
+  const scriptBox = $('pt-script') as HTMLTextAreaElement;
+  if (document.activeElement !== scriptBox) scriptBox.value = p.script || '';
+}
+
+function ptFrame(): void {
+  if (lastPrompter && currentPageId() === 'prompter') {
+    const scriptEl = $('pt-follow-script');
+    const box = $('pt-follow');
+    const maxScroll = Math.max(0, scriptEl.scrollHeight - box.clientHeight);
+    const pos = Math.min(ptPositionAt(lastPrompter, ptServerNow()), maxScroll);
+    const transform = `translate3d(0,${(-pos).toFixed(1)}px,0)`;
+    if (transform !== ptLastTransform) {
+      scriptEl.style.transform = transform;
+      ptLastTransform = transform;
+    }
+  }
+  requestAnimationFrame(ptFrame);
+}
+
+async function hydratePrompter(): Promise<void> {
+  const sentAt = Date.now();
+  try {
+    const res = await fetch('/api/prompter/status');
+    if (!res.ok) return;
+    const data = (await res.json()) as { prompter: PrompterSlice; serverNow: number };
+    const rttHalf = (Date.now() - sentAt) / 2;
+    ptClockSkewMs = data.serverNow - (Date.now() - rttHalf);
+    renderPrompter(data.prompter);
+  } catch {
+    /* the next ws state broadcast will catch us up */
+  }
+}
+
+function wirePrompterPage(): void {
+  $('pt-toggle').addEventListener('click', () => {
+    haptic();
+    void api('/api/prompter/toggle');
+  });
+  $('pt-rewind').addEventListener('click', () => {
+    haptic();
+    void api('/api/prompter/rewind');
+  });
+
+  const fontEl = $('pt-font') as HTMLInputElement;
+  fontEl.addEventListener('input', () => {
+    $('pt-font-val').textContent = `${fontEl.value}px`;
+  });
+  fontEl.addEventListener('change', () => {
+    void api('/api/prompter/font-size', { fontSize: Number(fontEl.value) });
+  });
+
+  const speedEl = $('pt-speed') as HTMLInputElement;
+  speedEl.addEventListener('input', () => {
+    $('pt-speed-val').textContent = `${speedEl.value}px/s`;
+  });
+  speedEl.addEventListener('change', () => {
+    void api('/api/prompter/speed', { speed: Number(speedEl.value) });
+  });
+
+  $('pt-script-save').addEventListener('click', async () => {
+    const text = ($('pt-script') as HTMLTextAreaElement).value;
+    const r = await api('/api/prompter/script', { text });
+    $('pt-script-msg').textContent = r.ok ? 'Loaded.' : (r.error ?? 'Failed');
+  });
+
+  void hydratePrompter();
+  requestAnimationFrame(ptFrame);
+}
+
 // ---- QR modal + tunnel settings ----
 
 interface TunnelSlice {
@@ -1353,6 +1510,7 @@ wireStillsPage();
 wirePackagesPage();
 wireUrlsPage();
 wireTimerPage();
+wirePrompterPage();
 wireOutputCards();
 wireQrAndTunnel();
 void refreshStillsData();
