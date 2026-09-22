@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
 import type { UrlPreset } from '../../shared/types';
+import type { ScriptDoc } from '../prompter/script-docs';
 import type { ProfilePaths } from './paths';
 import { getProfilePaths, profileFilePath, profileRuntimeStatePath } from './paths';
 import type {
@@ -46,7 +47,8 @@ export function createDefaultShowProfile(
   name: string,
   operatorPinHash: string,
   adminPinHash: string,
-  urlPresets: UrlPreset[] = []
+  urlPresets: UrlPreset[] = [],
+  scriptDocs: ScriptDoc[] = []
 ): ShowProfile {
   const now = new Date().toISOString();
   return {
@@ -56,6 +58,7 @@ export function createDefaultShowProfile(
     createdAt: now,
     updatedAt: now,
     urlPresets,
+    scriptDocs,
     backgroundPresets: [],
     displayPreference: null,
     companionSettings: { enabled: false, listenPort: 8080 },
@@ -100,6 +103,10 @@ export function tryParseShowProfile(raw: unknown): ShowProfile | null {
   if (typeof raw.id !== 'string' || typeof raw.name !== 'string') return null;
   if (typeof raw.operatorPinHash !== 'string' || typeof raw.adminPinHash !== 'string') return null;
   if (!Array.isArray(raw.urlPresets)) return null;
+  // Deliberately NOT `if (!Array.isArray(raw.scriptDocs)) return null;` — a
+  // profile written before this field existed has no `scriptDocs` key at
+  // all, and its absence must default to `[]` (see `loadProfile`) rather
+  // than fail validation and reject the whole profile.
   return raw as unknown as ShowProfile;
 }
 
@@ -222,6 +229,10 @@ export function loadProfile(paths: ProfilePaths, id: string): ShowProfile | null
   if (!p) return null;
   return {
     ...p,
+    // Migration hazard: a profile saved before this field existed has no
+    // `scriptDocs` key. Default to `[]` here rather than in
+    // `tryParseShowProfile`, so an old profile still validates.
+    scriptDocs: Array.isArray(p.scriptDocs) ? p.scriptDocs : [],
     appPreferences: {
       ...defaultAppPreferences(),
       ...p.appPreferences,
@@ -414,6 +425,7 @@ export function patchShowProfile(existing: ShowProfile, patch: Partial<ShowProfi
     operatorPinHash: existing.operatorPinHash,
     adminPinHash: existing.adminPinHash,
     urlPresets: patch.urlPresets ?? existing.urlPresets,
+    scriptDocs: patch.scriptDocs ?? existing.scriptDocs,
     backgroundPresets: patch.backgroundPresets ?? existing.backgroundPresets,
     companionSettings: patch.companionSettings
       ? { ...existing.companionSettings, ...patch.companionSettings }
@@ -430,6 +442,12 @@ export function syncActiveProfileUrlPresets(paths: ProfilePaths, activeId: strin
   const p = loadProfile(paths, activeId);
   if (!p) return;
   writeProfile(paths, { ...p, urlPresets }, 'automatic');
+}
+
+export function syncActiveProfileScriptDocs(paths: ProfilePaths, activeId: string, scriptDocs: ScriptDoc[]): void {
+  const p = loadProfile(paths, activeId);
+  if (!p) return;
+  writeProfile(paths, { ...p, scriptDocs }, 'automatic');
 }
 
 export function deleteProfileFiles(paths: ProfilePaths, profileId: string): void {

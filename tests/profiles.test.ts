@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import request from 'supertest';
 import type { Express } from 'express';
 import { createStateStore } from '../src/main/state';
 import { createFullServer } from './_test-server';
 import { buildProfileExportZip } from '../src/main/profiles/bundle-zip';
-import { loadProfile } from '../src/main/profiles/bootstrap';
+import { loadProfile, tryParseShowProfile, bootstrapProfiles } from '../src/main/profiles/bootstrap';
+import { getProfilePaths, profileFilePath } from '../src/main/profiles/paths';
 
 function makeServer() {
   const store = createStateStore();
@@ -153,5 +157,97 @@ describe('Profiles display preference', () => {
 
     const after = await request(app).get('/api/profiles/display-preference').set('Cookie', adm);
     expect(after.body.displayPreference).toBe('2');
+  });
+});
+
+// Migration hazard (2026-09-21 prompter Drive-scripts design, "Library"
+// phase): a profile written before `scriptDocs` existed has no such key on
+// disk. tryParseShowProfile must not require it, and loadProfile must
+// default it to `[]`, or every pre-existing profile would fail to load.
+describe('Profile bootstrap — scriptDocs migration', () => {
+  it('loads a profile fixture with no scriptDocs key, defaulting it to []', () => {
+    const userData = fs.mkdtempSync(path.join(os.tmpdir(), `pconair-scriptdocs-migrate-`));
+    const paths = getProfilePaths(userData);
+    fs.mkdirSync(paths.profilesDir, { recursive: true });
+
+    const id = 'legacy-profile-id';
+    // A profile shape from before scriptDocs was introduced: urlPresets is
+    // present (already-required field), scriptDocs is simply absent.
+    const legacyProfileOnDisk = {
+      schemaVersion: '1.0',
+      id,
+      name: 'Legacy Show',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      urlPresets: [],
+      backgroundPresets: [],
+      displayPreference: null,
+      companionSettings: { enabled: false, listenPort: 8080 },
+      tunnelSettings: { provider: 'none', token: '', region: 'us' },
+      appPreferences: {
+        defaultStackingEnabled: true,
+        operatorSessionDurationMinutes: 480,
+        adminSessionDurationMinutes: 240,
+        ipAllowlist: null,
+        ipAllowlistEnabled: false,
+        dataSourceAllowedHosts: [],
+        adminLockOnShow: false,
+        operatorUiScale: 1.0,
+      },
+      operatorPinHash: 'hash-op',
+      adminPinHash: 'hash-admin',
+      stillStoreIncluded: true,
+      themesIncluded: false,
+      // scriptDocs: intentionally absent
+    };
+    fs.writeFileSync(profileFilePath(paths, id), JSON.stringify(legacyProfileOnDisk, null, 2), 'utf8');
+
+    const parsed = tryParseShowProfile(legacyProfileOnDisk);
+    expect(parsed).not.toBeNull();
+
+    const loaded = loadProfile(paths, id);
+    expect(loaded).not.toBeNull();
+    expect(loaded!.scriptDocs).toEqual([]);
+    expect(loaded!.name).toBe('Legacy Show');
+  });
+
+  it('bootstrapProfiles boots successfully from a profiles dir containing only a pre-scriptDocs profile', () => {
+    const userData = fs.mkdtempSync(path.join(os.tmpdir(), `pconair-scriptdocs-boot-`));
+    const paths = getProfilePaths(userData);
+    fs.mkdirSync(paths.profilesDir, { recursive: true });
+
+    const id = 'legacy-profile-id-2';
+    const legacyProfileOnDisk = {
+      schemaVersion: '1.0',
+      id,
+      name: 'Legacy Show 2',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      urlPresets: [],
+      backgroundPresets: [],
+      displayPreference: null,
+      companionSettings: { enabled: false, listenPort: 8080 },
+      tunnelSettings: { provider: 'none', token: '', region: 'us' },
+      appPreferences: {
+        defaultStackingEnabled: true,
+        operatorSessionDurationMinutes: 480,
+        adminSessionDurationMinutes: 240,
+        ipAllowlist: null,
+        ipAllowlistEnabled: false,
+        dataSourceAllowedHosts: [],
+        adminLockOnShow: false,
+        operatorUiScale: 1.0,
+      },
+      operatorPinHash: 'hash-op',
+      adminPinHash: 'hash-admin',
+      stillStoreIncluded: true,
+      themesIncluded: false,
+    };
+    fs.writeFileSync(profileFilePath(paths, id), JSON.stringify(legacyProfileOnDisk, null, 2), 'utf8');
+    fs.writeFileSync(paths.activeProfileFile, JSON.stringify({ id, name: 'Legacy Show 2' }), 'utf8');
+
+    const boot = bootstrapProfiles(userData, { operatorPin: 'test1234', adminPin: 'adminpass8' });
+    expect(boot.profile.id).toBe(id);
+    expect(boot.profile.scriptDocs).toEqual([]);
   });
 });
