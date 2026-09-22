@@ -1305,6 +1305,42 @@ async function rawPost(path: string, body?: object): Promise<Response> {
   });
 }
 
+/**
+ * Google sign-in status/trigger for Script Source's fetch layer
+ * (`src/main/prompter/doc-transport.ts`), which reuses Slides mode's
+ * `persist:google-slides` session. `GET /api/slides/auth` /
+ * `POST /api/slides/auth/open` already exist for the operator app's Slides
+ * tab — this mounts the same pair here, since Script Source had no way to
+ * reach it from `/remote/` before now.
+ */
+async function mountGoogleAuth(): Promise<void> {
+  const statusEl = document.getElementById('pt-google-status');
+  const signinBtn = document.getElementById('pt-google-signin');
+  const refreshBtn = document.getElementById('pt-google-refresh');
+  if (!statusEl || !signinBtn || !refreshBtn) return;
+
+  async function refresh(): Promise<void> {
+    statusEl!.textContent = 'Checking…';
+    try {
+      const res = await fetch('/api/slides/auth');
+      const state = (await res.json()) as { loggedIn: boolean; email: string | null };
+      statusEl!.textContent = state.loggedIn
+        ? `Signed in${state.email ? ' as ' + state.email : ''}`
+        : 'Not signed in';
+    } catch {
+      statusEl!.textContent = 'Could not check sign-in status.';
+    }
+  }
+
+  signinBtn.addEventListener('click', async () => {
+    const r = await rawPost('/api/slides/auth/open');
+    statusEl!.textContent = r.ok ? 'Sign-in window opened on the host machine' : 'Could not open sign-in.';
+  });
+  refreshBtn.addEventListener('click', () => void refresh());
+
+  await refresh();
+}
+
 function mountPrompterControls(): void {
   const mount = document.getElementById('pt-doc-mount');
   if (!mount) return;
@@ -1545,6 +1581,7 @@ wirePackagesPage();
 wireUrlsPage();
 wireTimerPage();
 wirePrompterPage();
+void mountGoogleAuth();
 mountPrompterControls();
 wireOutputCards();
 wireQrAndTunnel();

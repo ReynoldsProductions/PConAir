@@ -145,6 +145,46 @@ function prompterReadTime(text: string): string {
 //    bundle's own, plus a one-shot hydrate from the `/api/prompter/status`
 //    response `renderPrompter()` already has in hand.
 
+/**
+ * Google sign-in status/trigger for Script Source's fetch layer
+ * (`src/main/prompter/doc-transport.ts`), which reuses Slides mode's
+ * `persist:google-slides` session. `GET /api/slides/auth` /
+ * `POST /api/slides/auth/open` already exist for the operator app's Slides
+ * tab (`src/renderer/operator/index.html`) — this just mounts the same pair
+ * here, since Script Source is the other consumer of that sign-in and had no
+ * way to reach it from Admin or `/remote/` before now.
+ */
+async function mountGoogleAuth(): Promise<void> {
+  const statusEl = document.getElementById('tp-google-status');
+  const signinBtn = document.getElementById('tp-google-signin');
+  const refreshBtn = document.getElementById('tp-google-refresh');
+  if (!statusEl || !signinBtn || !refreshBtn) return;
+
+  async function refresh(): Promise<void> {
+    statusEl!.textContent = 'Checking…';
+    try {
+      const state = (await api('GET', '/api/slides/auth')) as { loggedIn: boolean; email: string | null } | null;
+      statusEl!.textContent = state?.loggedIn
+        ? `Signed in${state.email ? ' as ' + state.email : ''}`
+        : 'Not signed in';
+    } catch {
+      statusEl!.textContent = 'Could not check sign-in status.';
+    }
+  }
+
+  signinBtn.addEventListener('click', async () => {
+    try {
+      await api('POST', '/api/slides/auth/open');
+      showSuccess('Sign-in window opened on the host machine');
+    } catch {
+      /* showError handled in api() */
+    }
+  });
+  refreshBtn.addEventListener('click', () => void refresh());
+
+  await refresh();
+}
+
 let scriptSourceUpdate: ((state: PrompterState) => void) | null = null;
 
 async function rawPost(path: string, body?: object): Promise<Response> {
@@ -244,6 +284,19 @@ async function renderPrompter(): Promise<void> {
         <button id="tp-window-open" class="btn btn-primary" ${windowAvailable ? '' : 'disabled'}>Open output</button>
         <button id="tp-window-close" class="btn" ${windowAvailable ? '' : 'disabled'}>Close output</button>
         <span class="field-label" style="margin:0">${windowAvailable ? (windowState.open ? 'Output is open' : 'Output is closed') : 'Desktop app only'}</span>
+      </div>
+    </div>
+
+    <div class="card" id="tp-google-mount">
+      <div class="card-title">Google Account</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;">
+        Script Source below reads Google Docs through this sign-in — the same one Slides mode
+        uses. A link-shared doc ("Anyone with the link can view") works without signing in at all.
+      </p>
+      <p id="tp-google-status" class="field-label" style="margin-bottom:12px">Checking…</p>
+      <div class="btn-row" style="display:flex;gap:8px">
+        <button id="tp-google-signin" class="btn btn-primary">Sign in to Google</button>
+        <button id="tp-google-refresh" class="btn">Refresh</button>
       </div>
     </div>
 
@@ -363,6 +416,7 @@ async function renderPrompter(): Promise<void> {
     } catch { /* showError handled in api() */ }
   }
 
+  void mountGoogleAuth();
   mountScriptSource(status.prompter);
 
   must('tp-copy-url').addEventListener('click', async () => {
