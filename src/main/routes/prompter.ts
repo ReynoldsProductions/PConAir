@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
 import {
@@ -105,11 +105,40 @@ function docErrorStatus(code: DocErrorCode): number {
   }
 }
 
+/**
+ * Operator auth for the one route the Companion module polls cookie-less: a
+ * valid operator/admin session cookie, OR the `operator_pin` query param
+ * verified against the operator PIN. Same fallback `packages.ts` gives its
+ * transport routes and `POST /api/action` already gives every other
+ * Companion action, because Companion never carries a session cookie.
+ * `requireOperator()` (middleware.ts) is cookie-only, which is right for the
+ * admin web GUI's other operator-gated routes but would make this route
+ * uncallable from Companion's library dropdown/preset refresh.
+ */
+function requireOperatorOrPin(auth: AuthManager) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const pinQ = typeof req.query.operator_pin === 'string' ? req.query.operator_pin : undefined;
+    const opCookie = req.cookies?.pconair_operator_session as string | undefined;
+    const admCookie = req.cookies?.pconair_admin_session as string | undefined;
+    const sid = opCookie ?? admCookie;
+    let authed = Boolean(sid && auth.getSession(sid));
+    if (!authed && pinQ) {
+      authed = await auth.verifyOperatorPin(pinQ);
+    }
+    if (!authed) {
+      res.status(401).json({ error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } });
+      return;
+    }
+    next();
+  };
+}
+
 export function createPrompterRouter(deps: PrompterRouterDeps): Router {
   const { store, auth, getPrompterHost, isPrompterEnabled, savePrompterSettings, prompterWindow, scriptDocsStore, fetchDoc } = deps;
   const router = Router();
   const opGuard = requireOperator(auth);
   const adminGuard = requireAdmin(auth);
+  const opOrPinGuard = requireOperatorOrPin(auth);
 
   function current(): PrompterState {
     return store.getState().prompter;
@@ -470,7 +499,7 @@ export function createPrompterRouter(deps: PrompterRouterDeps): Router {
     res.json({ ok: true, prompter: next });
   });
 
-  router.get('/api/prompter/docs', opGuard, (_req: Request, res: Response) => {
+  router.get('/api/prompter/docs', opOrPinGuard, (_req: Request, res: Response) => {
     res.json({ docs: scriptDocsStore.list() });
   });
 

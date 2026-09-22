@@ -292,12 +292,10 @@ export class PcoClient {
 
   /**
    * The saved Google Doc script library (design doc section 6), for the
-   * `prompter_load_doc_preset` dropdown. `GET /api/prompter/docs` is
-   * operator-session-gated today (`requireOperator`, cookie-only) rather than
-   * the `requireOperatorOrPin` pattern the transport routes use
-   * (`src/main/routes/packages.ts`) — the PIN is attached here so this call
-   * starts working the moment that route is updated to accept it, but until
-   * then it will 401 from a real cookie-less Companion connection.
+   * `prompter_load_doc_preset` dropdown. `GET /api/prompter/docs` uses the
+   * same `requireOperatorOrPin` pattern as the transport routes
+   * (`src/main/routes/packages.ts`, `src/main/routes/prompter.ts`), so the
+   * PIN attached here is honoured cookie-less.
    */
   async getScriptDocs(): Promise<ScriptDocInfo[]> {
     const pinQ = this.config.operatorPin ? `?operator_pin=${encodeURIComponent(this.config.operatorPin)}` : ''

@@ -253,10 +253,11 @@ class PcOnAirInstance extends InstanceBase<Config> {
    * tracks the library without a Companion restart — same poll-diff-
    * reregister shape as refreshPackages() above.
    *
-   * `GET /api/prompter/docs` is session-gated today (see
-   * `PcoClient.getScriptDocs`'s doc comment); a 401 here is expected until
-   * that route accepts the operator PIN, and is logged at debug level like
-   * any other unreachable poll rather than surfaced as a connection error.
+   * `GET /api/prompter/docs` accepts the operator PIN (`requireOperatorOrPin`,
+   * `src/main/routes/prompter.ts`), same as the transport routes, so this
+   * poll works cookie-less. A 401 would still mean a stale/wrong PIN — logged
+   * at debug level like any other unreachable poll rather than surfaced as a
+   * connection error.
    */
   private async refreshScriptDocs(): Promise<void> {
     if (!this.client || this.transport === null) return
