@@ -1,48 +1,105 @@
 # PC On Air
 
-> **Status: Beta — all planned v1 features implemented; not yet production-tested**
+> **Status: Beta — in live use.** v0.5.0 ran the prompter for a live show in September 2026; not every feature has been through a full show yet.
 
-PC On Air is an Electron-based browser playout application for live events. It unifies Google Slides, lower thirds graphics, and arbitrary live URLs into a single operator-friendly interface with HDMI output, a web-based control panel, and Bitfocus Companion integration.
+PC On Air (PConAir) is an Electron playout app for live events. One machine drives Google Slides, live URLs, a still store, lower thirds, HTML graphics packages and a talent prompter, all controllable from a browser, a tablet or Bitfocus Companion.
 
-It is the successor to [Google Slides Controller](https://github.com/TomsFaire/google-slides-controller), generalising that tool into a full live graphics system.
+It is the successor to [Google Slides Controller](https://github.com/TomsFaire/google-slides-controller) (GSC), and still answers GSC's HTTP API so existing Companion buttons keep working.
+
+![The talent-facing prompter display](docs/screenshots/prompter.png)
 
 ---
 
 ## What it does
 
-**Three content modes**, all controllable from a web UI or Bitfocus Companion:
+| Area | What you get |
+|------|--------------|
+| **Slides** | Load Google Slides decks with next/prev/goto/reload, A/B primary–backup failover, speaker notes window, thumbnails, offline mode |
+| **URL** | Any live URL fullscreen (Slido, dashboards, web apps). A/B instances with independent reload, per-display routing, URL preset library |
+| **Media Library** | Still store with operator uploads (incl. HEIC and video), take/clear, cut/fade transitions, slideshows with shuffle |
+| **Lower thirds** | Independent left and right lower thirds, a cue library with CSV import, CSS themes, a logo library, and transparent PNG export for ATEM/vMix still stores |
+| **Graphics packages** | Drop-in HTML graphics (bundled: Faire Wire news, FFG, Hoops scorebug) with their own control pages, render pages for OBS/vMix browser sources, and auto-generated Companion controls. See [docs/designing-packages.md](docs/designing-packages.md) |
+| **Prompter** | Talent display at `/prompter/` for tablets, glass rigs or a fullscreen output, with mirroring, markers and signed speed. Scripts can be typed in or pulled from a **Google Doc**; new doc versions wait for an explicit operator **Take**. See [docs/prompter.md](docs/prompter.md) |
+| **Stagetimer** | stagetimer.io overlay pinned over a corner of the speaker notes |
+| **Remote access** | Built-in Cloudflare tunnel (quick or named) with an optional access PIN and an on-screen QR code |
 
-| Mode | Description |
-|------|-------------|
-| **Slides** | Load and navigate Google Slides decks. Full next/prev/goto/reload controls with A/B failover for seamless deck switching. |
-| **URL** | Display any live URL fullscreen — Slido, custom dashboards, web apps. A/B dual-instance model with independent reload so you can refresh the off-air instance without interrupting program. |
-| **Lower Thirds** | CSS-templated lower thirds with cue library, playlist management, stacking toggle, and arm/take/clear workflow. PNG export of manual cues via Electron offscreen render. |
-| **Media Library** | Still-image playout from an in-app media library. |
+**Show-safety and operations:**
+- Operator/admin PIN split, session lockout and rate limiting, IP allowlist, security headers
+- Show Lock (freeze admin changes mid-show) and a Panic toggle (blank everything)
+- Keyed output for every render page: transparent, luma black/white, chroma or opaque
+- Primary/backup mode: a primary machine fans every command out to backup machines
+- **Director:** one app controlling several PConAir machines ("offices")
+- Show profiles: presets, cues, themes and settings as a portable zip with backups and restore
+- Health dashboard, watchdog, and a tray menu showing the PINs and quick links
 
-**Key features:**
-- A/B primary/backup switching for Slides and URL modes — flip between instances with zero interruption
-- Luma key / solid background colour with preset library
-- URL preset library — save and recall frequently used URLs
-- Show profiles — bundle presets, cues, themes, and settings as a portable zip; export/import/backup/restore
-- PIN-based operator/admin split — operators get show-time controls only; admin access is for configuration
-- Show Lock arm/take pattern — operator can freeze admin changes mid-show
-- Panic toggle — broadcast blank to all connected clients instantly
-- Rate limiting and session lockout to protect against brute-force attacks
-- WebSocket state sync — all connected clients (operator panels, Companion) stay in sync in real time
-- Bitfocus Companion integration — 111 actions, 158 variables, 45 feedbacks, 54+ presets (plus one dynamic Load preset per saved prompter script)
-- Multi-display routing — route URL instances to specific Electron displays via `set_display`
-- IP allowlist, security headers, health dashboard
+### Screenshots
+
+| | |
+|---|---|
+| ![Tablet remote, Prompter tab](docs/screenshots/remote-prompter.png) | ![Admin, Prompter section](docs/screenshots/admin-prompter.png) |
+| **Remote** (`/remote/`): phone and tablet control. The Prompter tab follows the script live | **Admin → Prompter**: talent display link, fullscreen output, Google Doc script source |
+| ![Operator, Lower Thirds](docs/screenshots/operator-l3.png) | ![Lower thirds render on chroma](docs/screenshots/render-l3.png) |
+| **Operator → Lower Thirds**: left and right cards fired independently | **Render output** (`/render/l3?bg=chroma`), ready to key |
+
+![Faire Wire package control page](docs/screenshots/news-control.png)
+
+*Package control page (`/packages/news/control`) for the bundled Faire Wire news graphics.*
 
 ---
 
-## Tech stack
+## Web surfaces
 
-- **Electron 32** — main process manages BrowserWindows for program output
-- **TypeScript** — strict mode throughout
-- **Express 4** — HTTP API server embedded in the main process
-- **`ws`** — WebSocket server for real-time state push and Companion integration
-- **Vitest + supertest** — 167 tests across 14 test files
-- macOS-first; Windows support is not a current goal
+All served by the app on port `8080`, reachable from any device on the network.
+
+| Path | Who it's for | Auth |
+|------|--------------|------|
+| `/operator/` | Show operator: live control, slides, URL, lower thirds, media | Operator PIN |
+| `/remote/` | Phone and tablet remote: slides, stills, packages, URLs, timer, prompter | Operator PIN |
+| `/prompter-control/` | Tablet-focused prompter control | Operator PIN |
+| `/admin/` | Setup and configuration: network, monitors, presets, themes, profiles, packages, prompter, director | Admin PIN |
+| `/admin/health` | Health dashboard | Admin PIN |
+| `/prompter/` | The talent's read display | None on the local network |
+| `/render/:type`, `/packages/:id/render/:renderId` | Browser sources for OBS/vMix | None |
+| `/packages/:id/control` | Per-package control page | Page is open; its actions need an operator session |
+
+---
+
+## Download
+
+Releases are built by GitHub Actions whenever a `v*` tag is pushed. Each [release](https://github.com/ReynoldsProductions/PConAir/releases) has:
+
+- `PConAir-<version>-arm64.dmg`: macOS, Apple Silicon (the primary target)
+- `PConAir-win32-x64-<version>.zip`: Windows x64
+
+Both bundle `cloudflared` for the tunnel.
+
+---
+
+## Running from source
+
+```bash
+npm install
+npm start          # electron-forge start (dev build + launch)
+npm test           # vitest run (1,206 tests across 78 files)
+npm run typecheck  # tsc --noEmit
+npm run build      # electron-forge make (packaged installers in out/make/)
+```
+
+### PINs and startup options
+
+PINs come from CLI flags or environment variables. There is no `.env` file.
+
+| Setting | CLI flag | Env var | Default |
+|---------|----------|---------|---------|
+| Operator PIN (≥4 chars) | `--operator-pin` | `PCONAIR_OPERATOR_PIN` | `0000` |
+| Admin PIN (≥8 chars, must differ) | `--admin-pin` | `PCONAIR_ADMIN_PIN` | `00000000` |
+| HTTP/WS port | — | `PCONAIR_PORT` | `8080` (also settable in Settings) |
+
+**Change the default PINs before a show.** The tray menu shows the active PINs.
+
+Other flags: `--operator-session-timeout`, `--admin-session-timeout`, `--clear-allowlist` (recovery if the IP allowlist locks you out), `--trust-forwarded-for`.
+
+App settings (tunnel, stagetimer, branding, prompter host, primary/backup mode, director offices) are stored in the Electron user-data folder and edited from **Settings…** in the tray or from Admin.
 
 ---
 
@@ -50,131 +107,89 @@ It is the successor to [Google Slides Controller](https://github.com/TomsFaire/g
 
 ```
 src/
-  main/                 # Electron main process
-    routes/             # Express route handlers (one file per resource group)
-    l3/                 # Lower thirds: cue store, playlist store, theme store, cue renderer
-    url/                # URL mode: A/B BrowserWindow manager
-    media-library/      # Media Library: item store, BrowserWindow manager
-    profiles/           # Show profiles: schema, bootstrap, zip export/import, path helpers
-    security/           # IP allowlist middleware
-    slides/             # Slides BrowserWindow manager
-    action-dispatch.ts  # WebSocket action dispatcher
-    auth.ts             # Session management (operator + admin, rate limiting)
-    reliability-store.ts # Panic + show-lock state
+  main/                   Electron main process
+    routes/               Express routers, one per resource group (incl. gsc-compat.ts)
+    slides/  url/  media-library/  l3/      Content modes and their window managers
+    prompter/             Prompter state, Google Doc source, doc watcher, script library
+    packages/             Graphics package loader, state hub, transport, data sources
+    graphics/             Built-in graphics presets
+    profiles/             Show profiles: schema, zip export/import, backups
+    director/             Multi-machine Director (office clients)
+    stagetimer/  tunnel/  security/  services/
+    action-dispatch.ts    Shared action dispatcher (WebSocket, /api/action, Companion)
+    auth.ts               PIN sessions, rate limiting, lockout
   renderer/
-    operator/           # Operator web UI (HTML + vanilla JS)
-    admin/              # Admin SPA (HTML + vanilla JS) — presets, L3, profiles, show lock
-  shared/
-    types.ts            # Shared TypeScript types (AppState, API contracts)
-tests/                  # Vitest integration tests (167 tests)
-specs/                  # Product and API specifications (source of truth)
-packages/
-  companion-module-pconair/  # Bitfocus Companion module
-docs/
-  latency-benchmark.md  # Latency benchmark results and methodology
+    operator/  remote/  admin/  prompter-control/  settings/  director/
+  runtime/                Runtime served to graphics packages
+  shared/types.ts         Shared state and API types
+bundled-packages/         Graphics packages shipped with the app (news, ffg, hoops)
+demo-packages/            Example and template packages
+graphics/                 Standalone query-param HTML templates (see graphics/README.md)
+packages/companion-module-pconair/   Bitfocus Companion module
+specs/                    Design specs 00–23 (source of truth)
+docs/                     Guides: prompter, designing packages, exporting graphics, latency
+tests/                    Vitest suites
 ```
 
-The `specs/` directory contains the authoritative design documents — read these before making changes. [`specs/02-api-state-contract.md`](specs/02-api-state-contract.md) is the canonical HTTP API and state reference. [`specs/11-implementation-status.md`](specs/11-implementation-status.md) is the detailed per-spec completion tracker.
-
----
-
-## Current development status
-
-**Beta.** All planned v1 features are implemented and covered by integration tests. Not yet production-tested in a live event environment.
-
-### Complete
-
-| Area | Notes |
-|------|-------|
-| HTTP API — all endpoints | Slides, URL, L3, presets, background, displays, auth, health, profiles, media library |
-| WebSocket server | Full state push, action dispatch, Companion detection, broadcast |
-| A/B URL mode | Persistent browser sessions, independent reload, display routing |
-| L3 cue + playlist CRUD | Take/clear/stacking, CSV bulk import, image upload, PNG export |
-| CSS theme system | Upload/delete/sample themes; applied to cue renderer |
-| Media Library | File upload, take/clear, download |
-| Show profiles | CRUD, zip export/import, auto-backup, restore, download |
-| Background presets | Luma/solid presets stored on active profile |
-| Operator web UI | Slides, URL, L3, A/B controls; panic button; show-lock indicator |
-| Admin SPA | URL presets, background, L3 themes/cues, profiles, show lock |
-| Bitfocus Companion module | 111 actions, 158 variables, 45 feedbacks, 54+ presets (plus one dynamic Load preset per saved prompter script); WS + HTTP polling |
-| PIN auth | Session cookies, rate limiting, lockout, unlock-admin |
-| Security hardening | IP allowlist, security headers, show-lock arm/take |
-| Reliability | Panic toggle, reload-instance, instance-status, health dashboard |
-| Latency benchmark | API+WS path: 1 ms p95; estimated end-to-end on LAN: ~65 ms (well within 500 ms target) |
-| 167 integration tests | 14 test files covering every API surface |
-
-### Deferred (post-v1)
-
-- WAN latency testing under ngrok/tunnel (requires live hardware)
-- Slide animations and transitions
-- Presenter notes display
-- Admin UI for display assignment, port config, and IP allowlist (backend exists; UI not wired)
-
----
-
-## Running locally
-
-```bash
-npm install
-npm run dev        # starts Electron in development mode
-npm test           # run the test suite (npx vitest run)
-```
-
-A `.env.example` is provided. Copy it to `.env` and configure your operator and admin PINs before running.
+Start with [`specs/02-api-state-contract.md`](specs/02-api-state-contract.md) (HTTP API and state contract) and [`specs/11-implementation-status.md`](specs/11-implementation-status.md).
 
 ---
 
 ## API
 
-The embedded HTTP server runs on port `8080` by default. All endpoints require a session cookie obtained via:
+HTTP and WebSocket on the same port. Authenticate with a PIN to get a session cookie:
 
 ```
 POST /auth/operator   { "pin": "..." }   → operator session
 POST /auth/admin      { "pin": "..." }   → admin session
 ```
 
-Key endpoints:
+Selected endpoints:
 
 ```
-GET  /api/status                  Full application state (AppState)
-GET  /api/health                  Health check + uptime
-POST /api/mode                    Switch content mode (slides|url|l3|media-library|idle)
-POST /api/slides/load             Load a Google Slides deck
-POST /api/slides/next|prev        Navigate slides
-POST /api/slides/goto             Jump to slide by number (0-based index)
-POST /api/url                     Load a URL into the active instance
-POST /api/ab/switch               Switch active A/B instance
-POST /api/l3/take                 Take a lower third cue to program
-POST /api/l3/clear                Clear active lower third
-GET  /api/l3/cues                 List lower third cues
-POST /api/l3/cues/import          Bulk import cues from CSV
-GET  /api/presets                 List URL presets
-POST /api/background              Set live background (type+value or presetId)
-GET  /api/background/presets      List background presets
-GET  /api/profiles                List show profiles
-POST /api/profiles/:id/activate   Switch active profile
-POST /api/panic                   Toggle panic state
-POST /api/show-lock               Arm/take show lock
-GET  /api/displays                List available Electron displays
-POST /api/action                  WebSocket-style action dispatch over HTTP
-GET  /admin/health                Admin health dashboard (HTML)
+GET  /api/status                       Full application state
+GET  /api/health                       Health check
+POST /api/mode                         Switch mode: slides | url | media-library | idle
+POST /api/ab/switch                    Flip the active A/B instance
+POST /api/panic                        Panic toggle
+POST /api/show-lock                    Arm/take show lock
+GET  /api/displays                     Available displays
+
+POST /api/slides/load | next | prev | goto | reload
+POST /api/url                          Load a URL          POST /api/url/reload
+GET  /api/presets                      URL presets
+POST /api/media-library/take | clear | slideshow
+GET  /api/l3/cues                      Lower-third cue library
+POST /api/background                   Live background (luma/solid or preset)
+GET  /api/profiles                     Show profiles       POST /api/profiles/:id/activate
+
+POST /api/prompter/start | stop | toggle | rewind | speed | script
+POST /api/prompter/doc/load | refresh | take | clear      Google Doc script source
+GET  /api/packages                     Graphics packages   POST /api/packages/:id/state
+
+POST /api/action                       Any dispatcher action, e.g.
+                                       { "action_id": "lower_third_apply",
+                                         "params": { "side": "left", "name": "…", "title": "…" } }
+
+POST /api/next-slide, /api/open-presentation, …      GSC-compatible endpoints
 ```
 
-Full contract: [`specs/02-api-state-contract.md`](specs/02-api-state-contract.md)
+Full contract: [`specs/02-api-state-contract.md`](specs/02-api-state-contract.md).
 
 ---
 
 ## Bitfocus Companion
 
-The Companion module lives in `packages/companion-module-pconair/`. Install via Companion's developer module path.
+The module is in [`packages/companion-module-pconair/`](packages/companion-module-pconair/). It has **111 actions, 158 variables, 45 feedbacks and 54 presets**, plus one Load preset per saved prompter script and controls generated from each graphics package's manifest.
 
-Configure in Companion:
-- **Host** — IP of the PC On Air machine (default: `localhost`)
-- **Port** — API port (default: `8080`)
-- **Operator PIN** — optional, if PIN auth is enabled
-- **HTTP Polling Interval** — fallback poll rate if WebSocket is unavailable (default: 2000 ms)
+Install it through Companion's developer module path (point at the parent folder), or install the packaged `.tgz`. Configure:
 
-The module connects via WebSocket with automatic exponential-backoff reconnection and falls back to HTTP polling if WebSocket is unavailable.
+- **Host**: IP of the PConAir machine
+- **Port**: default `8080`
+- **Operator PIN (optional)**
+- **HTTP Polling Interval (ms)**: fallback if the WebSocket drops (default 1000)
+
+It connects over WebSocket with exponential-backoff reconnection and falls back to HTTP polling.
 
 ---
 
