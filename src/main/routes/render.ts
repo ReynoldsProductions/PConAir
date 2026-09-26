@@ -32,9 +32,11 @@ function renderPageHtml(type: RenderContentType): string {
   .fade-layer.cut { transition: none; }
   /* Layout is pinned here (not left to the loaded theme stylesheet, which only
      styles one full-width .lower-third bar) so left/right never collide —
-     !important guards against a theme CSS file also declaring position/left/right. */
-  .lower-third.l3-side-left { position: absolute !important; left: 96px !important; right: auto !important; bottom: 96px !important; width: auto !important; max-width: 820px; }
-  .lower-third.l3-side-right { position: absolute !important; right: 96px !important; left: auto !important; bottom: 96px !important; width: auto !important; max-width: 820px; text-align: right; }
+     !important guards against a theme CSS file also declaring position/left/right.
+     Themes only pad the left of their full-width bar, so the shrink-to-fit cards
+     get padding on both edges here (no !important, so a theme can still set it). */
+  .lower-third.l3-side-left { position: absolute !important; left: 96px !important; right: auto !important; bottom: 96px !important; width: auto !important; max-width: 820px; padding-left: 40px; padding-right: 40px; }
+  .lower-third.l3-side-right { position: absolute !important; right: 96px !important; left: auto !important; bottom: 96px !important; width: auto !important; max-width: 820px; text-align: right; padding-left: 40px; padding-right: 40px; }
   .lower-third .logo { height: 80px; max-width: 200px; object-fit: contain; display: block; margin-bottom: 8px; }
   .lower-third.l3-side-right .logo { margin-left: auto; }
   #url-banner { position: absolute; left: 40px; bottom: 40px; font-family: system-ui, sans-serif; font-size: 28px; color: #fff; background: rgba(0,0,0,0.6); padding: 12px 20px; border-radius: 8px; }

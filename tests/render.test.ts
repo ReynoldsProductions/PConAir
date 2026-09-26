@@ -29,6 +29,19 @@ describe('render pages and output API', () => {
     }
   });
 
+  // Themes are written for a full-width bar and only pad the left edge; the
+  // render page shrinks each side's card to its text, so without padding on
+  // both edges the text sits flush against the card's right edge.
+  it('pads both horizontal edges of the left and right lower-third cards', async () => {
+    const res = await request(app).get('/render/l3');
+    for (const side of ['left', 'right']) {
+      const rule = res.text.match(new RegExp(`\\.lower-third\\.l3-side-${side}\\s*\\{([^}]*)\\}`));
+      expect(rule, `rule for l3-side-${side}`).not.toBeNull();
+      expect(rule![1]).toMatch(/padding-left:\s*\d+px/);
+      expect(rule![1]).toMatch(/padding-right:\s*\d+px/);
+    }
+  });
+
   it('404s unknown render types', async () => {
     const res = await request(app).get('/render/nope');
     expect(res.status).toBe(404);
