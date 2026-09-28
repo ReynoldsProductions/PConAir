@@ -64,7 +64,7 @@ jobs:
           PCONAIR_BUILD_DATE: ${{ github.ref_name }}
 
       - name: Upload DMG to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         if: github.event_name == 'push'
         with:
           draft: false
@@ -141,7 +141,7 @@ jobs:
           PCONAIR_BUILD_DATE: ${{ github.ref_name }}
 
       - name: Upload ZIP to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         if: github.event_name == 'push'
         with:
           draft: false
