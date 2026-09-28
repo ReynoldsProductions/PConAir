@@ -1,0 +1,38 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      # Electron and Forge MUST move together: Forge has to understand the
+      # Electron version it is packaging, so a lone electron bump produces a
+      # broken build and a lone Forge bump produces churn. One PR, both.
+      electron-platform:
+        patterns:
+          - electron
+          - "@electron-forge/*"
+      # Everything else, batched so review is one PR rather than fifteen.
+      dev-dependencies:
+        dependency-type: development
+        exclude-patterns:
+          - electron
+          - "@electron-forge/*"
+    labels:
+      - dependencies
+
+  - package-ecosystem: npm
+    directory: /packages/companion-module-pconair
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    labels:
+      - dependencies
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies

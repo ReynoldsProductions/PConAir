@@ -50,3 +50,53 @@ PR #63 merged to `main`. `docs/plans/2026-09-29-orchestrator-roadmap.md` and
 Dependabot config) in `docs/plans/2026-09-28-dependency-currency.md` — its
 prerequisite (Layer 1 / PR #62) was already merged. Next firing should
 proceed normally.
+
+## 2026-09-28 — Task 4: Dependabot, grouped
+
+Step 1 (confirm current schema before writing): `docs.github.com` is
+blocked by this environment's network egress policy, so fetched
+`https://www.schemastore.org/dependabot-2.0.json` (the machine-readable
+JSON Schema GitHub itself publishes for `dependabot.yml`, via
+`json.schemastore.org` which redirects there) instead. Confirmed:
+`package-ecosystem` includes both `npm` and `github-actions`; `groups.*`
+supports `patterns` / `exclude-patterns` / `dependency-type` (no property
+is actually required, despite `patterns` reading as such in some human
+docs); `open-pull-requests-limit` is a plain integer;
+`schedule.interval: monthly` is a valid enum value; `labels` is a string
+array. The plan's Step 2 config matched this schema exactly as written —
+no edits needed.
+
+Wrote `.github/dependabot.yml` verbatim per the plan: `electron-platform`
+and `dev-dependencies` groups on the root npm ecosystem,
+`packages/companion-module-pconair` as its own npm ecosystem entry
+(confirmed that path exists and carries its own `package.json` +
+`package-lock.json`, separate from the root workspace), and a
+`github-actions` ecosystem entry. All three on `monthly` per the plan.
+
+Validation before commit: root `npm ci` was needed first (fresh clone, no
+`node_modules`) — installed cleanly, 848 packages, pre-existing 57
+`npm audit` findings (out of scope for this task, tracked by Layer 3/4).
+`npx tsc --noEmit` clean. `npx vitest run`: 1187/1187 passed across 80
+files; `tests/companion-defs.test.ts` failed with an unresolved
+`@companion-module/base` import on the first pass — traced to
+`packages/companion-module-pconair` being a separate non-workspace
+package whose own deps aren't installed by root `npm ci` (there's a
+dedicated `npm run install:companion` script for exactly this, and the CI
+workflow already runs it). Ran `install:companion`, re-ran that one test
+file: 39/39 passed. Full suite failure was an environment-setup gap, not
+a regression from this change.
+
+**Deferred, not part of this firing:** Task 4's Step 3 ("confirm within a
+day that Dependabot has run") and Step 4 ("triage the first batch of
+PRs") are inherently asynchronous — Dependabot runs on GitHub's own
+schedule after this config merges to `main`, and the plan itself expects
+the first run (573 days of drift) to open the maximum PR count. Neither
+can be done synchronously inside one hourly firing. Whoever reviews this
+repo should watch for that first Dependabot batch over the next day and
+triage per the plan's explicit warning: merge what's green, close what
+isn't, and **do not merge the `electron-platform` group PR blind** — it's
+a signal to schedule Task 5+ of the Electron migration, not something to
+merge on sight ahead of that migration's test net.
+
+Advancing to Task 5 (Layer 3, `scripts/check-electron-support.js` +
+`.github/workflows/dependency-currency.yml`) next firing.
