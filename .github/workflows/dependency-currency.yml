@@ -1,0 +1,26 @@
+name: Dependency currency
+
+on:
+  schedule:
+    # 09:00 UTC on the 1st of each month. Monthly, not weekly: the thing being
+    # watched moves every ~62 days, so a weekly check is eleven redundant runs
+    # for every useful one, and noise is how alarms get ignored.
+    - cron: '0 9 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  electron-support-window:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+      - name: Check the Electron support window
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/check-electron-support.js

@@ -147,3 +147,60 @@ avoid compounding the collision risk while a possible second concurrent
 session is unaccounted for. `.agent/state.json` is left exactly as the
 other firing set it (Task 5, pending) — the next firing should proceed
 normally from there.
+
+## 2026-09-28 — Task 5: Support-window check (Layer 3)
+
+Landed `scripts/check-electron-support.js` and
+`.github/workflows/dependency-currency.yml` per the plan's literal Step 1
+and Step 5 content, with one deliberate deviation: bumped
+`actions/checkout` and `actions/setup-node` from the plan's pinned `@v4`
+to `@v7`, matching what `ci.yml` and `build-release.yml` already use in
+this repo — the plan text predates those bumps, and pinning a brand-new
+workflow to an already-superseded major on day one seemed wrong to carry
+forward literally.
+
+**Verification (Steps 2–4), with a network substitution:**
+`releases.electronjs.org` is blocked by this sandbox's egress policy
+(confirmed via the proxy status endpoint — `connect_rejected`, 403 on
+CONNECT — same class of restriction the Task 4 entry recorded for
+`docs.github.com`), and the `gh` CLI is not installed in this container
+at all. Both steps' actual purpose is checking the support-window
+computation and the printed issue body, not the network/gh call path
+itself, so verification used a mocked `fetch` returning a small
+representative release index in place of the live endpoint:
+
+- Forced electron `32.3.3` in `package-lock.json` → computed "outside the
+  supported line", correct majors-behind arithmetic, printed the full
+  issue body with the table, then attempted the `gh issue list` call and
+  failed with `ENOENT` (no `gh` binary) — analogous to the plan's expected
+  "dummy token" failure, and confirms the code path reaches and attempts
+  the GitHub call rather than skipping it.
+- Forced electron `44.4.5` → `OK: Electron 44.4.5 is inside the supported
+  line (42-44).`, exit 0, no `gh` call attempted.
+- Lockfile restored after both trials; `git diff --exit-code
+  package-lock.json` passed clean.
+
+**Deliberately skipped:** Step 6 (`gh workflow run` to trigger the
+workflow for real once merged, and confirm it opens a real proof-issue
+against the actual 573-days-stale Electron 32). No `gh` access from this
+session, and `workflow_dispatch` needs the workflow present on the
+default branch before it can be invoked anyway. This is the one piece of
+Task 5 that produces the plan's actual stated proof ("this issue is the
+proof the alarm works") — it has not happened yet. Flagging for a human
+or a later firing with real GitHub access: trigger the workflow by hand
+once, confirm it opens the issue with correct numbers, and leave that
+issue open per the plan until the Electron migration lands.
+
+**Numbers:** `npm ci` (root) + `npm run install:companion` from a fresh
+container, then `npx vitest run` — 81 files / 1226 tests passed, 205.66s
+wall time (563.70s cumulative test time). `npx tsc --noEmit` — clean.
+
+**Open question for the next firing (Task 6):** Step 1 of Task 6 is
+explicitly a human decision per the plan's own text ("the cadence number
+is a human decision") — every-major vs. every-other-major (recommended)
+vs. every-third-major, sized against the show calendar. Nothing in this
+repo records that pick yet. The next firing should not default to the
+plan's "recommended" option silently on a human's behalf; it should set
+`status: blocked` with a clear note asking for the cadence decision,
+unless it finds the decision already recorded somewhere by the time it
+runs.
