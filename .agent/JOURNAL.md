@@ -41,3 +41,12 @@ vitest/tsc run this firing. Decisions needed from a human:
 Until both exist on `main`, every future hourly firing will hit the same
 wall, so it's worth resolving before the next tick rather than letting it
 spin.
+
+## 2026-09-28 — Unblocked by a human
+
+PR #63 merged to `main`. `docs/plans/2026-09-29-orchestrator-roadmap.md` and
+`specs/24-camera-mode.md` committed directly to `main` (docs-only, no PR).
+`.agent/state.json` reset to `pending`, pointing at Task 4 (Layer 2,
+Dependabot config) in `docs/plans/2026-09-28-dependency-currency.md` — its
+prerequisite (Layer 1 / PR #62) was already merged. Next firing should
+proceed normally.

@@ -1,9 +1,9 @@
 {
-  "status": "blocked",
-  "current_effort": null,
-  "current_unit": null,
+  "status": "pending",
+  "current_effort": "dependency-currency",
+  "current_unit": "Task 4: Dependabot, grouped",
   "last_commit": null,
   "resume_after": null,
   "free_reset_available": true,
-  "notes": "First-ever firing (2026-09-28). Cannot bootstrap: docs/plans/2026-09-29-orchestrator-roadmap.md, the authoritative spec this orchestrator is instructed to read and follow exactly, does not exist anywhere in the repo -- not on main, not in any branch or open PR. The scheduled prompt's own summary of that spec references two further plan docs, docs/plans/2026-09-28-dependency-currency.md and docs/plans/2026-09-28-electron-44-migration.md, which also do not exist on main -- they exist only in open, unmerged PR #63 (branch docs/electron-44-migration-plan, mergeable, docs-only, 2 files). specs/24-camera-mode.md does not exist anywhere (main or any branch) either. Since every source-of-truth file this loop needs is either missing outright or sitting unmerged, there is no task to safely infer or fabricate. Needed from a human: (1) decide whether/how to merge PR #63 so the two plan docs land on main, and (2) author and commit docs/plans/2026-09-29-orchestrator-roadmap.md itself (it is referenced only in the scheduled prompt's own paraphrase -- no such file was ever committed). Also confirm specs/24-camera-mode.md is expected to be written later (per the roadmap's own ordering, camera-mode work is gated behind the Electron migration anyway, so its absence is not itself blocking yet). Nothing else in this repo suggests a different location for these docs. No code changes made this firing; nothing to test or vitest/tsc-check. free_reset_available is untouched (true) -- this is a missing-spec problem, not a quota problem."
+  "notes": "Unblocked 2026-09-28 by a human: PR #63 merged to main (docs/plans/2026-09-28-dependency-currency.md and docs/plans/2026-09-28-electron-44-migration.md now present), and docs/plans/2026-09-29-orchestrator-roadmap.md plus specs/24-camera-mode.md committed directly to main. Next unit is Task 4 (Layer 2, Dependabot config) from docs/plans/2026-09-28-dependency-currency.md -- Layer 1/PR #62 already merged, Task 4's prerequisite is satisfied."
 }
