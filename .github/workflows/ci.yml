@@ -14,13 +14,6 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      # No test imports `electron`, and the TypeScript types ship inside the npm
-      # package (node_modules/electron/electron.d.ts, ~1MB) rather than the
-      # downloaded binary — so skipping the ~100MB binary costs nothing here and
-      # saves most of the install time. Revisit if a test ever needs to launch
-      # Electron for real.
-      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
       - uses: actions/checkout@v4
 
@@ -35,7 +28,23 @@ jobs:
             package-lock.json
             packages/companion-module-pconair/package-lock.json
 
+      # The Electron binary must be downloaded — see the "Install dependencies"
+      # note below — so cache it rather than re-fetching ~100MB every run.
+      # Keyed on the lockfile: a new Electron version gets a fresh download.
+      - name: Cache the Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/electron
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        # Do NOT set ELECTRON_SKIP_BINARY_DOWNLOAD here. It looks safe — no test
+        # file imports `electron` — but the code under test does transitively:
+        # src/main/routes/operator.ts imports `app` from 'electron', and
+        # tests/_test-server.ts mounts those routes. Without the binary there is
+        # no node_modules/electron/path.txt, and the package's index.js throws
+        # "Electron failed to install correctly" at import time, which fails
+        # collection for ~40 test files at once.
         run: npm ci
 
       - name: Install companion module dependencies
