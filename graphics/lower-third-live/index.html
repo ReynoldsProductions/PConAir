@@ -278,7 +278,11 @@
   // its own makeCard() closure (pattern lifted from
   // bundled-packages/news/render-l3.html's per-side makeCard()).
   (function(){
-    var wsUrl = 'ws://' + location.hostname + ':' + (location.port || '8080') + '/ws?graphics=1';
+    // location.host already carries the port, and only when it is non-default.
+    // Rebuilding it from hostname + (location.port || '8080') dialled :8080 on
+    // every port-80 install — location.port is '' there — and a hardcoded
+    // 'ws://' breaks the TLS tunnel. Matches src/runtime/pconair.js.
+    var wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?graphics=1';
 
     var STYLE_CLASS_BY_ANIMATION = {
       wipe: 'style-wipe',

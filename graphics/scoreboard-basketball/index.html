@@ -216,8 +216,9 @@
 
   // ── WebSocket live state (Spec 13 P2) ──
   (function(){
-    var wsPort=location.port||'8080';
-    var wsUrl='ws://'+location.hostname+':'+wsPort+'/ws?graphics=1';
+    // location.host carries the port only when non-default; rebuilding it from
+    // hostname + (location.port || '8080') dialled :8080 on port-80 installs.
+    var wsUrl=(location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws?graphics=1';
 
     function applyScoreboard(sb){
       if(!sb) return;

@@ -1338,6 +1338,11 @@ async function renderSystem() {
     appSettingsData = await api('GET', '/api/app-settings');
   } catch { appSettingsData = null; }
 
+  let serverInfoData;
+  try {
+    serverInfoData = await api('GET', '/api/server-info');
+  } catch { serverInfoData = null; }
+
   const displays = (displaysData && displaysData.displays) || [];
   const instA = (statusData && statusData.abState && statusData.abState.instanceA) || {};
   const instB = (statusData && statusData.abState && statusData.abState.instanceB) || {};
@@ -1355,7 +1360,14 @@ async function renderSystem() {
     ...displays.map(d => `<option value="${escHtml(d.id)}">${escHtml(d.name)}${d.isPrimary ? ' (primary)' : ''}</option>`),
   ].join('');
 
-  const port = location.port || '8080';
+  // The port the server is actually listening on, per GET /api/server-info —
+  // not a guess. app-settings can be overridden by PCONAIR_PORT at startup,
+  // and `location.port` is '' whenever the server is on the scheme's default
+  // port, so the old `location.port || '8080'` reported 8080 on every port-80
+  // install. That misreport sent a real debugging session down a blind alley.
+  const port = serverInfoData && serverInfoData.port != null
+    ? String(serverInfoData.port)
+    : (location.port || (location.protocol === 'https:' ? '443' : '80'));
 
   content().innerHTML = `
     <div class="section-title">System</div>
