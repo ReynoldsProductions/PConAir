@@ -126,6 +126,8 @@ Placed after `test:watch` in `scripts`.
 
 A separate script rather than chained into `postinstall`: nesting `npm ci` inside a root `npm ci` leaks `npm_config_*` into the child and is a known source of confusing failures.
 
+**A second trap, also verified the hard way:** do not set `ELECTRON_SKIP_BINARY_DOWNLOAD=1` in CI to save the ~100MB download. No *test file* imports `electron`, but the *code under test* does transitively — `src/main/routes/operator.ts` imports `app` from `electron` and `tests/_test-server.ts` mounts those routes — so without `node_modules/electron/path.txt` the package throws at import time and ~40 test files fail collection at once. Cache `~/.cache/electron` instead.
+
 - [ ] **Step 3: Confirm it fixes the load failure**
 
 ```bash
@@ -163,7 +165,7 @@ on:
     branches: [main]
 
 # A second push to the same branch cancels the first — PR iteration should not
-# queue up stale runs.
+# queue up runs against superseded commits.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -171,13 +173,6 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      # No test imports `electron`, and the TypeScript types ship inside the
-      # npm package (node_modules/electron/electron.d.ts, ~1MB), not the
-      # downloaded binary. Skipping the ~100MB binary costs nothing here and
-      # saves most of the install time. Revisit if a test ever needs to launch
-      # Electron for real.
-      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
       - uses: actions/checkout@v4
 
@@ -185,22 +180,38 @@ jobs:
         with:
           # Keep in step with build-release.yml. The Electron 44 migration
           # (docs/plans/2026-09-28-electron-44-migration.md, Task 12) moves
-          # every pin here to 24 at once.
+          # every Node pin in this repo to 24 together.
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
             packages/companion-module-pconair/package-lock.json
 
+      # The Electron binary must be downloaded — see the "Install dependencies"
+      # note below — so cache it rather than re-fetching ~100MB every run.
+      # Keyed on the lockfile: a new Electron version gets a fresh download.
+      - name: Cache the Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/electron
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        # Do NOT set ELECTRON_SKIP_BINARY_DOWNLOAD here. It looks safe — no test
+        # file imports `electron` — but the code under test does transitively:
+        # src/main/routes/operator.ts imports `app` from 'electron', and
+        # tests/_test-server.ts mounts those routes. Without the binary there is
+        # no node_modules/electron/path.txt, and the package's index.js throws
+        # "Electron failed to install correctly" at import time, which fails
+        # collection for ~40 test files at once.
         run: npm ci
 
       - name: Install companion module dependencies
-        # packages/companion-module-pconair is a separate, non-workspace
-        # package, so root `npm ci` does not install its deps and
-        # tests/companion-defs.test.ts fails to LOAD with
+        # packages/companion-module-pconair is a separate, non-workspace package
+        # with its own lockfile, so root `npm ci` does not install its deps and
+        # tests/companion-defs.test.ts fails to LOAD — not fail, load — with
         # "Failed to load url @companion-module/base".
-        run: npm run install:companion   # cd form, not --prefix — see Task 1
+        run: npm run install:companion
 
       - name: Typecheck
         run: npx tsc --noEmit
