@@ -11,7 +11,7 @@
     "validate-manifest": "node scripts/validate-manifest.js"
   },
   "dependencies": {
-    "@companion-module/base": "^1.8.0",
+    "@companion-module/base": "^2.1.3",
     "ws": "^8"
   },
   "devDependencies": {
