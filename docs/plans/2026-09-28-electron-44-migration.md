@@ -57,7 +57,7 @@ Reference counts across `src/`: `app` 158 · `session` 95 · `BrowserWindow` 72 
 
 ### The actual risk: 16 Electron-touching files, zero test coverage
 
-**No test in the suite imports `electron`.** All 1218 passing tests exercise the Express/WS/state layer, which the upgrade will not touch. The code the upgrade *will* touch has no coverage at all:
+**No test in the suite imports `electron`.** All 1226 passing tests exercise the Express/WS/state layer, which the upgrade will not touch. The code the upgrade *will* touch has no coverage at all:
 
 | File | Electron refs | Real entry points | Covered? | Task |
 |---|---|---|---|---|
@@ -146,7 +146,7 @@ These do not assert *correct* behaviour — they assert *current* behaviour: "th
 **Three layers:**
 
 1. **Unit, mocked Electron (Phase 0).** A fake `electron` module whose doubles record calls. Fast, CI-friendly, no display required. Covers window options, partition names, display selection, IPC channel names, crash/unresponsive handling, tray wiring, preload surface. This is where the net gets built.
-2. **The existing suite, unchanged.** 1218 tests over routes/state/actions. Must stay green throughout. It will not catch Electron regressions — that is layer 1's job.
+2. **The existing suite, unchanged.** 1226 tests over routes/state/actions. Must stay green throughout. It will not catch Electron regressions — that is layer 1's job.
 3. **Human smoke (Phase 2).** Real windows, real displays, real Google login, real DMG. Covers what mocks cannot: whether a window actually appears on the right monitor and whether the Google session actually survives a restart.
 
 **Why not Playwright/end-to-end GUI automation?** It needs a display in CI, a signed build and a Google test account, and would take longer to stabilise than the migration itself. The mock layer plus a written human checklist is the right cost/benefit. Revisit only if Electron upgrades become routine.
@@ -429,7 +429,7 @@ A failure about a missing mock method is fine — add it to `electron-mock.ts`. 
 npx vitest run tests/electron-chrome-windows.test.ts
 ```
 
-- [ ] **Step 5: Confirm the mock does not leak into the other 1218 tests**
+- [ ] **Step 5: Confirm the mock does not leak into the other 1226 tests**
 
 ```bash
 npx vitest run && npx tsc --noEmit
@@ -995,7 +995,7 @@ For each row in the triage table:
 
 **Stop rule:** three failed attempts at one root cause means stop and escalate to a human. Per `superpowers:systematic-debugging` Phase 4.5, that pattern means the approach is wrong, not the fix.
 
-**Phase gate:** `npx vitest run` matches the Task 10 baseline count (1218 + the Phase 0 additions, all passing) and `npx tsc --noEmit` is clean.
+**Phase gate:** `npx vitest run` matches the Task 10 baseline count (1226 + the Phase 0 additions, all passing) and `npx tsc --noEmit` is clean.
 
 ---
 

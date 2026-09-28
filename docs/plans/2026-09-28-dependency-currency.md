@@ -48,7 +48,7 @@ Sixteen consecutive majors, never more than 92 days apart. This is predictable, 
 
 | Mechanism | Status on 2026-09-28 |
 |---|---|
-| CI running the 1218 tests on pull requests | **none** |
+| CI running the 1226 tests on pull requests | **none** |
 | CI on push to `main` | **none** |
 | Any workflow at all | one — `build-release.yml`, triggered only by `v*` tags and `workflow_dispatch` |
 | Dependabot / Renovate | **not configured** |
@@ -69,7 +69,7 @@ PR #61 merged on 2026-09-28 with zero automated checks; its tests were run by ha
 | File | Layer | Responsibility |
 |---|---|---|
 | `.github/workflows/ci.yml` | 1 | Typecheck + test on every PR and every push to `main`. |
-| `package.json` (`install:companion` script) | 1 | Installs the companion sub-package deps, so CI and fresh clones can both run the suite. |
+| `package.json` (`install:companion` script) | 1 | Installs the companion sub-package deps, so CI and fresh clones can both run the suite. **Landed** — see `.github/workflows/ci.yml`. |
 | `.github/dependabot.yml` | 2 | Monthly grouped dependency PRs. Electron and the four Forge packages in one group. |
 | `.github/workflows/dependency-currency.yml` | 3 | Monthly scheduled support-window check. |
 | `scripts/check-electron-support.js` | 3 | The check itself: compares installed Electron major against the supported line and opens or updates a dated issue. |
@@ -117,10 +117,14 @@ Expected: `Failed to load url @companion-module/base`.
 - [ ] **Step 2: Add the script**
 
 ```json
-"install:companion": "npm ci --prefix packages/companion-module-pconair"
+"install:companion": "cd packages/companion-module-pconair && npm ci"
 ```
 
-Placed after `test:watch` in `scripts`. A separate script rather than chained into `postinstall`: nesting `npm ci` inside a root `npm ci` leaks `npm_config_*` into the child and is a known source of confusing failures.
+Placed after `test:watch` in `scripts`.
+
+**Use the `cd` form, not `--prefix`.** `npm ci --prefix packages/companion-module-pconair` was tried first and **silently installs nothing**: it creates the `node_modules` directory, leaves it empty, and exits 0. The suite then still fails to load `@companion-module/base` while the install step looks like it succeeded. The `cd` form installs all 22 packages. Verified both ways on 2026-09-28.
+
+A separate script rather than chained into `postinstall`: nesting `npm ci` inside a root `npm ci` leaks `npm_config_*` into the child and is a known source of confusing failures.
 
 - [ ] **Step 3: Confirm it fixes the load failure**
 
@@ -137,7 +141,7 @@ Expected: passes.
 npx vitest run && npx tsc --noEmit
 ```
 
-Expected: 80 files, 1218 tests passing (plus any Phase 0 additions).
+Expected: 81 files, 1226 tests passing (plus any Phase 0 additions).
 
 - [ ] **Step 5: Commit** — `build: add install:companion so a fresh clone can run the suite`
 
@@ -196,7 +200,7 @@ jobs:
         # package, so root `npm ci` does not install its deps and
         # tests/companion-defs.test.ts fails to LOAD with
         # "Failed to load url @companion-module/base".
-        run: npm run install:companion
+        run: npm run install:companion   # cd form, not --prefix — see Task 1
 
       - name: Typecheck
         run: npx tsc --noEmit
