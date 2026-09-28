@@ -78,7 +78,7 @@ jobs:
             First launch: right-click → Open to bypass Gatekeeper.
 
       - name: Upload macOS artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: github.event_name != 'push'
         with:
           name: macos-dmg
@@ -154,7 +154,7 @@ jobs:
             **Windows:** Extract the ZIP and run PConAir.exe.
 
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: github.event_name != 'push'
         with:
           name: windows-dist
