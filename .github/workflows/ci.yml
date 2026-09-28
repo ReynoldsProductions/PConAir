@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A second push to the same branch cancels the first — PR iteration should not
+# queue up runs against superseded commits.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      # No test imports `electron`, and the TypeScript types ship inside the npm
+      # package (node_modules/electron/electron.d.ts, ~1MB) rather than the
+      # downloaded binary — so skipping the ~100MB binary costs nothing here and
+      # saves most of the install time. Revisit if a test ever needs to launch
+      # Electron for real.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Keep in step with build-release.yml. The Electron 44 migration
+          # (docs/plans/2026-09-28-electron-44-migration.md, Task 12) moves
+          # every Node pin in this repo to 24 together.
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            packages/companion-module-pconair/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install companion module dependencies
+        # packages/companion-module-pconair is a separate, non-workspace package
+        # with its own lockfile, so root `npm ci` does not install its deps and
+        # tests/companion-defs.test.ts fails to LOAD — not fail, load — with
+        # "Failed to load url @companion-module/base".
+        run: npm run install:companion
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npx vitest run

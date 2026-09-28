@@ -8,6 +8,7 @@
     "build": "electron-forge make",
     "test": "vitest run",
     "test:watch": "vitest",
+    "install:companion": "cd packages/companion-module-pconair && npm ci",
     "typecheck": "tsc --noEmit",
     "copy-fonts": "node scripts/copy-fonts.js",
     "postinstall": "node scripts/copy-fonts.js"
