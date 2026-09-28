@@ -14,10 +14,10 @@
     "postinstall": "node scripts/copy-fonts.js"
   },
   "devDependencies": {
-    "@electron-forge/cli": "^7.4.0",
-    "@electron-forge/maker-dmg": "^7.4.0",
-    "@electron-forge/maker-zip": "^7.4.0",
-    "@electron-forge/plugin-webpack": "^7.4.0",
+    "@electron-forge/cli": "^7.11.2",
+    "@electron-forge/maker-dmg": "^7.11.2",
+    "@electron-forge/maker-zip": "^7.11.2",
+    "@electron-forge/plugin-webpack": "^7.11.2",
     "@fontsource/chakra-petch": "^5.0.0",
     "@fontsource/inter": "^5.0.0",
     "@fontsource/lora": "^5.0.0",
@@ -35,7 +35,7 @@
     "@types/supertest": "^6.0.2",
     "@types/uuid": "^9.0.7",
     "@types/ws": "^8.5.10",
-    "electron": "^32.0.0",
+    "electron": "^44.4.5",
     "jsdom": "^29.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
