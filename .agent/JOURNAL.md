@@ -100,3 +100,50 @@ merge on sight ahead of that migration's test net.
 
 Advancing to Task 5 (Layer 3, `scripts/check-electron-support.js` +
 `.github/workflows/dependency-currency.yml`) next firing.
+
+## 2026-09-28 — Duplicate concurrent firing discovered on Task 4
+
+A second orchestrator firing (`session_01VkJaCsJqqRG9HP5mGcLhvd`, this
+session) started on Task 4 independently, unaware of the firing above
+(`session_01QnEdmqM5uezpQ4EcYApTHT`) already in progress on the same unit.
+Both wrote an identical `.github/dependabot.yml`, ran the same local
+verification (`npx vitest run` 81 files/1226 tests passing once
+`install:companion` was run, `npx tsc --noEmit` clean), and each opened a
+PR intending to land it on `main`.
+
+This session pushed branch `deps/dependabot-config`, opened PR #71, waited
+~5 minutes for CI, and squash-merged it — but by the time CI finished, the
+other firing had already committed its own copy directly to `main`
+(`9617774`, merged into `main` before this session's merge). GitHub's
+squash-merge of PR #71 landed as **commit `675171a`, an empty diff** —
+there was nothing left to add. No conflict, no corruption, no duplicate
+file: `git diff 9617774 675171a` is empty. `.agent/state.json` was already
+correctly advanced to Task 5/pending by the other firing before this one
+reached that step, so this firing is **not** re-advancing it or
+re-appending a duplicate completion entry for Task 4 — see the entry above
+for the authoritative Task 4 record.
+
+Cleanup: deleted the local `deps/dependabot-config` branch. Attempted to
+delete the remote branch too; `git push origin --delete` was denied (HTTP
+403 from this session's permission layer, not a GitHub permissions issue)
+— left in place as harmless clutter (fully merged, empty diff, nothing
+points at it).
+
+**Flagging for a human, not resolving it myself:** two orchestrator
+sessions ran the same unit concurrently, which the roadmap
+(`docs/plans/2026-09-29-orchestrator-roadmap.md`, "Hard gate between
+efforts" / hourly-firing design) assumes cannot happen — the design is
+strictly one dispatched unit per firing, sequential, never overlapping.
+This time the collision was harmless (identical output, empty merge), but
+the same race with a unit that has side effects order depends on (e.g. a
+version bump, a file both sessions edit differently, or two firings
+picking *different* units and advancing state twice) could corrupt
+`state.json` or produce a genuine merge conflict. Worth checking whether
+this account has more than one cron trigger configured for this routine,
+or whether the scheduler's hourly cadence can otherwise double-fire.
+
+This firing is stopping here rather than also dispatching Task 5, to
+avoid compounding the collision risk while a possible second concurrent
+session is unaccounted for. `.agent/state.json` is left exactly as the
+other firing set it (Task 5, pending) — the next firing should proceed
+normally from there.
