@@ -1166,3 +1166,30 @@ then set `status: blocked` for the physical-hardware checklist itself,
 since nothing past drafting is agent-doable. `free_reset_available`
 untouched at `true`. Releasing `.agent/lock.json` as part of this
 firing's final commit.
+
+## 2026-09-29 — Electron migration shipped, full stop before Camera Mode
+
+Task 17 completed by a human: `docs/electron-upgrade-smoke-checklist.md`
+drafted (claiming the race with the scheduled firing), all 14 items
+tested and ticked on a manually-triggered DMG build, including the one
+named risk (Google Slides session survives restart across the Chromium
+128→152 jump).
+
+Task 18 completed: version bumped to 0.6.0 (PR #75, merged `afc791c`),
+tag `v0.6.0` pushed, release build succeeded, `v0.6.0` published live
+with `PConAir-0.6.0-arm64.dmg` and the Windows zip attached. Human
+downloaded and launched the published DMG — confirmed working.
+
+**All 18 tasks of the Electron migration are done.** Combined with the
+already-complete dependency-currency plan (Layers 1–4), this closes out
+the entire Electron effort.
+
+Per the human's explicit priority set earlier today ("get electron
+updated and run phase 18, then we can let off the gas") and the roadmap's
+"Hard gate between efforts" section, `state.json` is set to a
+**deliberate full stop** — `status: blocked` — rather than advancing into
+Camera Mode Phase 0 automatically, even though the roadmap's effort
+ordering lists it next. This is not a normal pause; it's waiting on
+whether to proceed to the next effort at all. Every firing until a human
+changes this should see `blocked`, release the lock if held, and exit
+cheaply.

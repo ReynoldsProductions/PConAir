@@ -1,9 +1,9 @@
 {
   "status": "blocked",
   "current_effort": "electron-migration",
-  "current_unit": "Task 17: Human smoke test on real hardware",
-  "last_commit": "c3de9dc",
+  "current_unit": "DONE — Electron 32 -> 44 migration fully shipped",
+  "last_commit": "afc791c",
   "resume_after": null,
   "free_reset_available": true,
-  "notes": "docs/electron-upgrade-smoke-checklist.md drafted by a human (claiming this task's agent-doable slice, to avoid a race with the next scheduled firing also trying to draft it). Human ran an initial pass against a manually-triggered DMG build (main @ 2750968, GitHub Actions run 36521626498) and reported the app tested good, tests passed. Confirming the specific Google Slides sign-in-survives-restart item before ticking boxes and unblocking Task 18 -- that's the one concrete risk the migration plan named by number (Chromium 128->152 session persistence). BLOCKED until that's confirmed one way or the other. Do not dispatch Task 18 or re-draft the checklist."
+  "notes": "Electron migration complete. Task 17: human smoke test passed in full, all 14 checklist items including Google Slides session persistence across restart (docs/electron-upgrade-smoke-checklist.md). Task 18: version bumped to 0.6.0 via PR #75 (merged as afc791c), tagged v0.6.0 and pushed, release build succeeded (GitHub Actions), v0.6.0 published live (not draft) with PConAir-0.6.0-arm64.dmg and the Windows zip attached, human downloaded and launched the published DMG -- confirmed working. All 18 tasks of docs/plans/2026-09-28-electron-44-migration.md are done. docs/plans/2026-09-28-dependency-currency.md (all 4 layers) was already done before this effort started. PER THE HUMAN'S EXPLICIT PRIORITY (2026-09-29, 'get electron updated and run phase 18, then we can let off the gas') AND docs/plans/2026-09-29-orchestrator-roadmap.md's 'Hard gate between efforts': this is a DELIBERATE FULL STOP, not a normal phase-boundary pause. Camera Mode (specs/24-camera-mode.md) is ready to start whenever a human says go, but status stays blocked until then -- do NOT advance into Camera Mode Phase 0 automatically. Every firing from here should see status blocked, release the lock if held, and exit cheaply, until a human changes this."
 }
