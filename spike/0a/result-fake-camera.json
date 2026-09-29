@@ -1,0 +1,61 @@
+{
+  "mode": "fake-camera",
+  "seconds": 20,
+  "gum": {
+    "ok": true,
+    "settings": {
+      "aspectRatio": 1.7777777777777777,
+      "deviceId": "9ee1be984a369329234d432bb9e01bd0383e7fd3fcf207bc5c8927786115dfb5",
+      "exposureMode": "manual",
+      "exposureTime": 50,
+      "focusDistance": 50,
+      "focusMode": "manual",
+      "frameRate": 20,
+      "groupId": "ba27466790789060b74953e8cd4c43413d6990729df68f6b3706e28eb457b940",
+      "height": 1080,
+      "pan": 100,
+      "resizeMode": "none",
+      "tilt": 100,
+      "width": 1920,
+      "zoom": 100
+    }
+  },
+  "frameSize": {
+    "width": 1920,
+    "height": 1080
+  },
+  "paints": 620,
+  "fullPaints": 620,
+  "firstPaintMs": 3757.389505,
+  "paintIntervalMs": {
+    "n": 619,
+    "mean": 26.346,
+    "p50": 29.846,
+    "p99": 69.829,
+    "max": 103.233,
+    "sd": 17.102
+  },
+  "emitIntervalMs": {
+    "n": 490,
+    "mean": 33.283,
+    "p50": 33.321,
+    "p99": 86.598,
+    "max": 122.195,
+    "sd": 22.072
+  },
+  "emitted": 491,
+  "heldDuplicates": 175,
+  "expectedEmits": 600,
+  "dropsVsExpected": 109,
+  "cpuPercentSumAllProcs": {
+    "n": 19,
+    "mean": 19.242,
+    "p50": 22.315,
+    "p99": 30.11,
+    "max": 30.11,
+    "sd": 9.187
+  },
+  "electron": "44.4.5",
+  "chrome": "152.0.7977.130",
+  "platform": "linux"
+}
