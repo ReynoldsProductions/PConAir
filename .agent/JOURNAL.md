@@ -1039,3 +1039,52 @@ Task 13 itself is likely a no-op per the plan ("If Task 1 found
 nothing, mark this task skipped") -- worth checking
 `docs/plans/electron-44-breaking-changes.md`'s Node section at the
 start of that unit.
+
+## 2026-09-29 — Task 13: Address the Node 24 findings from Task 1 Step 4 (skipped)
+
+Same firing as Tasks 11 and 12. Checked
+`docs/plans/electron-44-breaking-changes.md`'s "Node 20 -> 24 removals"
+section (Task 1's own output) before doing anything else: it already
+ran the plan's Step 4 grep for the five deprecated/removed Node APIs
+named in the plan (`new Buffer(`, `url.parse(`, `fs.rmdir(`,
+`process.binding`, `require('sys')`) against `src/` and found **no
+matches**, with an explicit instruction to mark Task 13 skipped per
+the plan's own rule: "If Task 1 found nothing, mark this task skipped
+with a one-line note and move on. Do not invent work."
+
+Re-ran the exact grep myself before trusting a five-day-old finding,
+since Tasks 11 and 12 landed two commits in between:
+
+```
+grep -rnE "\bnew Buffer\(|url\.parse\(|fs\.rmdir\(|process\.binding|require\('sys'\)" --include="*.ts" src/
+```
+
+Still zero matches. Sensible, since `git diff` for both Task 11
+(`901d531`) and Task 12 (`c0ff3e0`) shows they touched only
+`package.json`, `package-lock.json`, and
+`.github/workflows/build-release.yml` — never `src/` — so neither
+could have introduced one of the five patterns.
+
+The breaking-changes doc also carries its own caveat: this grep isn't
+an exhaustive Node 20→24 diff, and the real gate is a clean `npx tsc
+--noEmit` + `npx vitest run` on genuine Node 24. That gate was already
+satisfied by Task 12 this same firing (86/86 files, 1253/1253 tests,
+tsc clean, on real installed Node v24.21.0 via `nvm`) — nothing left
+to verify here.
+
+**No files changed, no commit needed for the task itself.** Handled
+directly by the orchestrating session rather than a dispatched
+subagent, since it was pure bookkeeping with no code or test surface
+to exercise. `state.json` advances to Task 14 ("Bump Electron to 44")
+with `status: pending`.
+
+**Stopping the batch here, after 3 units (Tasks 11, 12, 13) this
+firing**, even though there is apparent budget left: Task 14 is the
+Electron version bump itself, which the roadmap doc's own Hard Rule
+section names explicitly as the native-bindings-risk unit ("the
+Electron bump itself, and later the NDI sender bindings in Camera
+Phase 3") that the Batching section says to stop before dispatching,
+regardless of remaining budget, so it gets a clean freshly-started
+session rather than one already a few units deep. `free_reset_available`
+untouched at `true`. Releasing `.agent/lock.json` as part of this
+firing's final commit.
