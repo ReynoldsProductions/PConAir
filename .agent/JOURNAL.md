@@ -1088,3 +1088,81 @@ regardless of remaining budget, so it gets a clean freshly-started
 session rather than one already a few units deep. `free_reset_available`
 untouched at `true`. Releasing `.agent/lock.json` as part of this
 firing's final commit.
+
+## 2026-09-29 — Tasks 14, 15, 16: Electron bump, triage, fix (single firing)
+
+Fresh firing (no in-progress state to resume). Lock file didn't exist;
+acquired it (`.agent/lock.json`) and pushed before any other work, per
+the roadmap's lock protocol. Note: the initial `git pull` landed on a
+detached HEAD at the correct tip, but `git push origin main` from
+there pushed the stale local `main` branch ref (still 64 commits
+behind), not detached HEAD — got a non-fast-forward rejection.
+Fixed by fast-forwarding local `main` to `origin/main` and
+cherry-picking the lock commit onto it before pushing. Worth a future
+firing double-checking `git branch --show-current` isn't empty right
+after the initial pull.
+
+This container had no Node 24 available by default (system Node was
+v22.22.2); installed it via `nvm install 24` (network reachable
+through the proxy) to match the genuine-Node-24 gate Task 12 already
+established. Also had to `npm ci` and `npm run install:companion`
+from scratch (fresh container, no cached `node_modules`).
+
+**Task 14 (Bump Electron to 44)** — `npm i -D electron@^44.0.0` ->
+44.4.5. Confirmed bundled versions directly (adapted the plan's macOS
+`.app/Contents/MacOS/Electron` path for this Linux container's
+`node_modules/electron/dist/electron` binary): `chrome
+152.0.7977.130`, `node 24.21.0` — matches the plan's expected
+~152.x/~24.x. `npx tsc --noEmit`: exactly 1 failure, exactly the one
+Task 1 already predicted (`src/main/index.ts:69`, `openAsHidden` no
+longer on `Settings`). `npx vitest run`: 86/86 files, 1253/1253 tests
+— matches the Electron 32 baseline exactly (only wall-clock timing
+differs); the one test-file load failure on the first attempt
+(`tests/companion-defs.test.ts`, `@companion-module/base` unresolved)
+was confirmed to be the missing `npm run install:companion` in this
+fresh container, not an Electron-44 regression — re-ran clean after
+installing. Committed as `22631e8`.
+
+**Task 15 (Triage)** — Task 1's breaking-changes doc already contains
+a complete "Summary for Task 15 (Triage)" table (commit `1b060ec`,
+from Phase 0) naming all three `applies: yes` findings, including this
+exact one (`44.0 | app.setLoginItemSettings drops openAsHidden |
+src/main/index.ts:69 | Drop the openAsHidden: false key`) with the fix
+already spelled out. Verified it against the actual Task 14 failure
+output — exact match, nothing missing, nothing extra. No doc edit
+needed, so no commit for this task (mirrors how Task 13 was handled).
+
+**Task 16 (Fix, one root cause per commit)** — Only one root cause to
+fix. Judgment call: `src/main/index.ts` has no existing characterization
+test (it never has — the file runs `app.whenReady().then(main)` at
+module scope, so importing it in a test boots the entire app; Phase 0
+deliberately tested individual factories, not this entrypoint), so
+Task 16 Step 1 ("confirm the characterization test is red for this
+cause") had no test to run red. Rather than skip the test requirement
+or take on a full entrypoint-bootstrap test harness (well beyond "one
+root cause, no while-I'm-here"), extracted just the affected function
+into `src/main/launch-at-login.ts` — the smallest unit that isolates
+this root cause — and added `tests/launch-at-login.test.ts` using
+`tests/setup/electron-mock.ts`, satisfying CLAUDE.md's "Electron code
+requires a characterization test" rule for the new file. Added
+`isPackaged` to the mock `app` object (was missing). Fix: dropped the
+removed `openAsHidden: false` key (was already a no-op per Task 1's
+own risk note — the removed option's implicit behavior matches the
+default). `npx tsc --noEmit`: clean. `npx vitest run`: 87/87 files,
+1256/1256 tests (baseline + the 3 new tests). Phase 1 gate met.
+Committed as `c3de9dc`.
+
+**Stopping the batch here, after 3 units (Tasks 14, 15, 16) this
+firing.** The next unit, Task 17 ("Human smoke test on real
+hardware"), is both a Phase 1 -> Phase 2 boundary and explicitly
+human-gated ("Agent: none... only a human may tick the boxes") — the
+roadmap's batching rules say stop at a phase boundary so the next
+firing starts it fresh rather than buried mid-batch. `state.json`
+advances to Task 17 with `status: pending` — the next firing's agent
+work is limited to drafting `docs/electron-upgrade-smoke-checklist.md`
+(the file CLAUDE.md already references as "produced by the Electron 44
+migration" but which doesn't exist yet); it should draft that file and
+then set `status: blocked` for the physical-hardware checklist itself,
+since nothing past drafting is agent-doable. `free_reset_available`
+untouched at `true`. Releasing `.agent/lock.json` as part of this
+firing's final commit.
