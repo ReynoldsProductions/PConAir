@@ -150,6 +150,7 @@ export const electronModule = {
     handle: vi.fn((channel: string) => { electronMock.ipcChannels.push(`handle:${channel}`); }),
     on: vi.fn((channel: string) => { electronMock.ipcChannels.push(`on:${channel}`); }),
     removeHandler: vi.fn(),
+    removeAllListeners: vi.fn(),
   },
   ipcRenderer: {
     invoke: vi.fn().mockResolvedValue(undefined),
