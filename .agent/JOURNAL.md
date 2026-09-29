@@ -1244,3 +1244,43 @@ no TCC prompt exercised. Numbers are not target-representative.
 
 Not measured: macOS TCC/Screen Recording behavior, hidden/minimized/offscreen-positioned window capture, 10-min soak,
 frame content correctness. Open: rerun 0A+0B on the real Mac mini before 0D leans on any of these numbers.
+
+## 2026-09-29 — Camera Phase 0, Track 0C (NDI sender spike)
+
+Branch `spike/0c-ndi-sender` (pushed, never merges), commit `630444e`. Evaluated both libraries per the spec's order:
+
+- `stagetimerio/grandiose` — **blocked**: its install script does an anonymous GET of the full NDI SDK installer from
+  `downloads.ndi.tv`; this container's egress proxy rejects that host as org policy (403 at the proxy tunnel itself,
+  confirmed via curl — never reached NDI's own server, so whether NDI's download would itself gate on a session/email
+  is untested here). Not fought further, per the roadmap's own warning about native-binding build loops.
+- `tux-tn/grandi` (`grandi@2.0.2`) — **works**: installs in under a second via a bundled prebuilt per-platform package
+  (`libndi.so` shipped in the npm tarball, no compiler invoked), loads in plain Node, `initialize()` succeeds, reports
+  `NDI SDK LINUX 6.3.2.0`.
+
+Harness `spike/0c/{pattern,sender,finder,receiver,main}.js`: synthetic 1920x1080 BGRA moving-bars + frame-counter
+pattern sent via `grandi.send()` for 20s @ 30fps. Results in `spike/0c/result-*.json`.
+
+**Same CAVEAT as 0A/0B: this rig is NOT the target.** Headless Linux container, no camera, no real compositing load,
+no macOS, no notarized bundling, 20s runs not the 10-min soak.
+
+- 600/600 frames sent, 0 errors, 0 drops, 0 blocked sends.
+- Emit-interval jitter mean 33.326 ms, sd 1.036 ms, p99 34.728 ms (send-side pacing only, no DOM/paint in this path).
+- CPU (single Node process, 4 cores available): mean 16.0%, p99 27.7%.
+
+**Discovery/verification:** `grandi.find()` polled 15s in a separate process while the sender ran in a third — found
+nothing on every poll; a direct-by-name `grandi.receive()` in a fourth process created a handle without error but
+received zero frames in 15s. Root cause: no `avahi-daemon`/mDNS responder running in this container (NDI discovery is
+mDNS-based) — a rig limitation, not a library defect.
+
+**Explicitly NOT verified here** (need a human with real hardware, exactly as anticipated): real NDI Studio Monitor,
+real Zoom Room Custom AV NDI input, and libndi bundling/notarization inside a signed macOS `.app` (the spec's own risk
+list flags this last one specifically for 0C).
+
+Vitest: 87/87 files, 1256/1256 tests, after `npm run install:companion` (same pre-existing gap 0A/0B hit). Diff is
+entirely new files under `spike/0c/`; nothing touches `src/main/**` or Electron.
+
+**0A, 0B, and 0C are now all done.** Advancing to Track 0D (decision memo, join point) — Opus per the spec's model
+policy — to pick one pipeline and one NDI library (`grandi`, the only one that actually installed here) and rewrite
+the Pipeline section of `specs/24-camera-mode.md`. Continuing the batch in this same firing: 0D is still Phase 0, not
+a phase boundary, and involves no native bindings itself, so none of the stopping conditions apply yet (1 unit done
+so far this firing).

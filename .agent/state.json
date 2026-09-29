@@ -1,9 +1,9 @@
 {
-  "status": "in_progress",
+  "status": "pending",
   "current_effort": "camera-mode",
-  "current_unit": "Phase 0, Track 0C: NDI sender spike",
-  "last_commit": "c4ec2ea",
+  "current_unit": "Phase 0, Track 0D: decision memo (join point)",
+  "last_commit": "630444e",
   "resume_after": null,
   "free_reset_available": true,
-  "notes": "0A and 0B done (spike/* branches, caveated Linux/Xvfb/fake-camera numbers; see JOURNAL.md). Starting 0C now (grandiose + grandi, native bindings) as the first unit of a fresh firing, per roadmap rule (native-binding units start a session, never chain after one). 0C also asks for NDI Studio Monitor and Zoom Room checks that need real hardware/humans; doing what is possible in the container (install, load, send synthetic 1080p30, discovery via NDI SDK if available) and recording the rest as not-verified. 0D after 0C. Camera Phase 1 needs the unresolved deployment-topology decision (single mini vs second mini + own Q-SYS USB bridge): block rather than guess."
+  "notes": "0A, 0B, and 0C all done (spike/* branches, caveated Linux/Xvfb/fake-camera/no-mDNS numbers; see JOURNAL.md). 0C result: grandiose blocked (SDK download host rejected by container egress proxy), grandi works (bundled prebuilt libndi, installs/loads/sends cleanly). 0D is the join point: pick one pipeline (0A OSR vs 0B getDisplayMedia) and one NDI library (grandi, the only one that installed here), rewrite the Pipeline section of specs/24-camera-mode.md, per the spec's Opus model policy for 0D. Flag prominently in the memo that ALL Phase 0 numbers are non-representative (headless Linux/Xvfb/software-GL/fake-camera/no-mDNS rig) and a human must rerun the winning pipeline + grandi send on the real Mac mini + AVFoundation camera before Phase 1 relies on any number, not just the pipeline/library choice itself. Camera Phase 1 needs the unresolved deployment-topology decision (single mini vs second mini + own Q-SYS USB bridge): block rather than guess."
 }
