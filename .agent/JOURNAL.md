@@ -967,3 +967,75 @@ completion; Task 11 itself involves no native bindings, code signing, or
 notarization (that's Task 14, the actual Electron bump), so the
 roadmap's "pause before native-binding work" consideration doesn't apply
 here.
+
+## 2026-09-29 — Task 12: Node 24 in CI and an engines floor
+
+Steps 1-2 were mechanical and clean: added `"engines": { "node":
+">=24.0.0" }` to `package.json` (right after `main`), and changed both
+CI pins in `.github/workflows/build-release.yml` (macOS job line 19,
+Windows job line 96) from `node-version: '20'` to `'24'`.
+`grep -n "node-version" .github/workflows/build-release.yml` confirmed
+exactly two matches, both `'24'`. `git diff` showed only these two
+intended hunks -- nothing else touched.
+
+**Step 3 (verify locally on Node 24) -- the environment question the
+dispatch prompt flagged up front:** this container's default `node
+--version` was `v22.22.2`, not 24. Investigated rather than assuming a
+blocker, per the dispatch's own instruction to mirror how Task 11
+chased down real signal on its packaging gap:
+
+- `command -v nvm` resolved (nvm is a shell function, not a binary, so
+  this only works once it's sourced). `~/.bashrc` already has
+  `export NVM_DIR="/opt/nvm"` and sources `$NVM_DIR/nvm.sh` --
+  nvm just wasn't active in this tool's non-interactive shell because
+  `NVM_DIR` wasn't exported yet. Sourcing `/opt/nvm/nvm.sh` directly
+  made `nvm` fully functional (`nvm --version` -> `0.39.7`).
+- `nvm ls-remote --lts` reached `nodejs.org` fine through this
+  environment's proxy and listed Node 24 releases up through
+  `v24.21.0` (LTS "Krypton") -- confirming both a working installer
+  path and real network access to get one, i.e. neither of the two
+  "genuinely cannot install" conditions from the dispatch applied.
+- `nvm install 24` downloaded and installed `v24.21.0` cleanly
+  (`node-v24.21.0-linux-x64.tar.xz`, checksum verified). `nvm use 24`
+  activated it; `node --version` / `npm --version` confirmed
+  `v24.21.0` / `11.19.0`.
+
+With genuine Node 24 active (not a substitute), ran the real
+verification: `npm run install:companion` first (same pre-existing,
+plan-documented gap as Task 11 -- root `npm ci` doesn't install
+`packages/companion-module-pconair`'s deps, so `tests/companion-defs
+.test.ts` needs that script run first; it warned about an `EBADENGINE`
+mismatch for `@companion-module/base` wanting `^22.20 || ^26.5`, which
+is that sub-package's own unrelated engines field, not this repo's --
+noted, not acted on, out of scope for this task). Then:
+
+- `npx vitest run` on Node v24.21.0: **86/86 test files, 1253/1253
+  tests passing**, exact match to the Task 10/11 baseline
+  (`docs/plans/electron32-test-baseline.txt`). No Node-24-sensitive
+  failures.
+- `npx tsc --noEmit` on Node v24.21.0: clean, zero output.
+
+So the dispatch's contingency plan (fall back to Node 22 and document
+the gap) was not needed -- this sandbox *can* install and run real
+Node 24 via the pre-existing `nvm` at `/opt/nvm`, it just needed
+`NVM_DIR` exported and sourcing done explicitly rather than relying on
+an interactive-shell rc file. Worth a note for future firings in this
+same container: `export NVM_DIR="/opt/nvm" && source "$NVM_DIR/nvm.sh"
+&& nvm use 24` gets genuine Node 24 without any tarball-fetching or
+package-manager workaround.
+
+**Step 4:** committed `package.json` + `.github/workflows/build-
+release.yml` as `c0ff3e0`, with the Node 24 verification story in the
+commit body.
+
+**No open blockers.** `state.json` advances to Task 13 ("Address the
+Node 24 findings from Task 1 Step 4") with `status: pending`. Not
+continuing the batch to Task 13 in this same firing -- per the
+dispatch's scope, Task 12 only. `free_reset_available` untouched at
+`true` -- ordinary clean unit completion; Task 12 involves no native
+bindings, code signing, or notarization, so the roadmap's
+"pause before native-binding work" consideration doesn't apply here.
+Task 13 itself is likely a no-op per the plan ("If Task 1 found
+nothing, mark this task skipped") -- worth checking
+`docs/plans/electron-44-breaking-changes.md`'s Node section at the
+start of that unit.
