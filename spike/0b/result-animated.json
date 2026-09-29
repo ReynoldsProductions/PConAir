@@ -1,0 +1,41 @@
+{
+  "mode": "animated",
+  "seconds": 20,
+  "displayMedia": {
+    "ok": true,
+    "settings": {
+      "aspectRatio": 1.7777777777777777,
+      "cursor": "never",
+      "deviceId": "screen:-3:0",
+      "displaySurface": "monitor",
+      "frameRate": 30,
+      "height": 1080,
+      "logicalSurface": true,
+      "resizeMode": "crop-and-scale",
+      "width": 1920
+    }
+  },
+  "frames": 368,
+  "presentedFrames": 369,
+  "expectedFrames": 555,
+  "dropsVsExpected": 187,
+  "frameIntervalMs": {
+    "n": 367,
+    "mean": 49.952,
+    "p50": 50,
+    "p99": 66.7,
+    "max": 66.7,
+    "sd": 12.398
+  },
+  "cpuPercentSumAllProcs": {
+    "n": 20,
+    "mean": 3.88,
+    "p50": 3.994,
+    "p99": 4.495,
+    "max": 4.495,
+    "sd": 0.932
+  },
+  "electron": "44.4.5",
+  "chrome": "152.0.7977.130",
+  "platform": "linux"
+}

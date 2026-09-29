@@ -1,0 +1,41 @@
+{
+  "mode": "fake-camera",
+  "seconds": 20,
+  "displayMedia": {
+    "ok": true,
+    "settings": {
+      "aspectRatio": 1.7777777777777777,
+      "cursor": "never",
+      "deviceId": "screen:-3:0",
+      "displaySurface": "monitor",
+      "frameRate": 30,
+      "height": 1080,
+      "logicalSurface": true,
+      "resizeMode": "crop-and-scale",
+      "width": 1920
+    }
+  },
+  "frames": 369,
+  "presentedFrames": 370,
+  "expectedFrames": 555,
+  "dropsVsExpected": 186,
+  "frameIntervalMs": {
+    "n": 368,
+    "mean": 49.998,
+    "p50": 50,
+    "p99": 83.3,
+    "max": 83.4,
+    "sd": 12.646
+  },
+  "cpuPercentSumAllProcs": {
+    "n": 20,
+    "mean": 3.007,
+    "p50": 3.243,
+    "p99": 3.741,
+    "max": 3.741,
+    "sd": 0.763
+  },
+  "electron": "44.4.5",
+  "chrome": "152.0.7977.130",
+  "platform": "linux"
+}

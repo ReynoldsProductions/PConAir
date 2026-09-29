@@ -1,0 +1,26 @@
+<!doctype html><html><body style="margin:0;background:#000;overflow:hidden">
+<video id="v" autoplay muted style="position:absolute;inset:0;width:1920px;height:1080px;object-fit:cover"></video>
+<div id="l3" style="position:absolute;left:80px;bottom:120px;padding:24px 40px;background:rgba(0,40,120,.85);color:#fff;font:700 56px sans-serif">Lower Third Name</div>
+<script>
+const params = new URLSearchParams(location.search);
+const animate = params.get('animate') === '1';
+navigator.mediaDevices.getUserMedia({video:{width:1920,height:1080,frameRate:30}}).then(s=>{
+  document.getElementById('v').srcObject = s;
+  const t = s.getVideoTracks()[0].getSettings();
+  window.__gum = {ok:true, settings:t};
+  console.log('GUM_OK ' + JSON.stringify(t));
+}).catch(e=>{ window.__gum={ok:false,err:String(e)}; console.log('GUM_FAIL ' + e); });
+if (animate) { let x=0; setInterval(()=>{ x=(x+8)%400; document.getElementById('l3').style.transform='translateX('+x+'px)'; }, 33); }
+
+window.__frames = { t: [], n: 0 };
+async function capture(){
+  try {
+    const s = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30, width: 1920, height: 1080 }, audio: false });
+    const tr = s.getVideoTracks()[0]; window.__dm = { ok: true, settings: tr.getSettings() };
+    const v = document.createElement('video'); v.muted = true; v.srcObject = s; await v.play();
+    const cb = (now, meta) => { window.__frames.t.push(now); window.__frames.n = meta.presentedFrames; v.requestVideoFrameCallback(cb); };
+    v.requestVideoFrameCallback(cb);
+  } catch (e) { window.__dm = { ok: false, err: String(e) }; }
+}
+setTimeout(capture, 1500);
+</script></body></html>
