@@ -1501,3 +1501,18 @@ Dependency table row are unchanged, no pass/fail recorded. `docs/camera-getuserm
 
 Nothing to resolve from this session — this needs Tom to physically run the smoke test on the real mini. No code
 changed, `state.json` left as-is. Releasing `.agent/lock.json` as part of this firing's final commit.
+
+## 2026-09-29 (later firing) — Still blocked, rechecked: getUserMedia-vs-Zoom smoke check still not run
+
+No lock present at firing start (previous firing released cleanly). Local `main` branch ref was stale relative to
+`origin/main` (a force-update had happened upstream between this container's clone and this firing — reset the
+local branch pointer to `origin/main`; no uncommitted work existed, so this was non-destructive). Reacquired lock,
+pushed immediately, read `state.json`: `status` still `"blocked"` on the same human-only hardware step as the
+prior several firings (Phase 1 Track 1A's `getUserMedia`-while-Zoom-Rooms-holds-the-device smoke check).
+Re-read `specs/24-camera-mode.md`'s "Deployment topology" section and the Open Dependency table row directly:
+both unchanged, no pass/fail recorded. `docs/camera-getusermedia-smoke-test.html` (added in `c691836`) is still
+unrun. Track 1B remains merged and stable at `749d071`, matching `last_commit`.
+
+Nothing to resolve from this session — this still needs Tom to physically run the smoke test on the real mini
+while Zoom Rooms holds the Q-SYS camera, and record pass/fail in the spec. No code changed, `state.json` left
+as-is. Releasing `.agent/lock.json` as part of this firing's final commit.
