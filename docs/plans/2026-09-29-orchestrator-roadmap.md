@@ -277,6 +277,18 @@ progresses slower with no net time saved, and it doubles the number of
 in-flight `state.json` branches the orchestrator has to reason about after a
 crash.
 
+**This gate does not auto-open.** The Electron migration is the priority;
+Camera Mode is explicitly not (decision recorded 2026-09-29). When the
+Electron migration's Task 18 completes — tag pushed, published DMG
+downloaded and launched once — do **not** advance `state.json` into Camera
+Mode Phase 0 automatically. Instead, set `status: "blocked"` with a note
+saying the Electron migration is complete and Camera Mode is ready to start
+whenever a human says go. A firing that finds this state should keep
+checking in cheaply (per the normal `blocked` handling — read, see blocked,
+exit) rather than either starting Camera Mode unasked or disabling itself.
+This is a deliberate full stop, not a pause waiting on quota or a decision
+about *how* to proceed — it's waiting on whether to proceed at all.
+
 ---
 
 ## Known corrections applied here (vs. the three source docs as written)
