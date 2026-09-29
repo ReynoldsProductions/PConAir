@@ -1516,3 +1516,19 @@ unrun. Track 1B remains merged and stable at `749d071`, matching `last_commit`.
 Nothing to resolve from this session — this still needs Tom to physically run the smoke test on the real mini
 while Zoom Rooms holds the Q-SYS camera, and record pass/fail in the spec. No code changed, `state.json` left
 as-is. Releasing `.agent/lock.json` as part of this firing's final commit.
+
+## 2026-09-29 (21:09 UTC) — Still blocked, rechecked: getUserMedia-vs-Zoom smoke check still not run
+
+No lock present at firing start. Reacquired lock, pushed immediately, read `state.json`: `status` still
+`"blocked"` on the same human-only hardware step as the prior six firings (Phase 1 Track 1A's
+`getUserMedia`-while-Zoom-Rooms-holds-the-device smoke check). This firing's scheduled prompt still named
+"start at Phase 0" — stale relative to `state.json`, which is authoritative; actual state is Phase 0/0D long
+done and Phase 1 Track 1A blocked. Re-read `specs/24-camera-mode.md`'s "Deployment topology" section and the
+Open Dependency table row directly: both unchanged, no pass/fail recorded. `docs/camera-getusermedia-smoke-test.html`
+(added in `c691836`) is still unrun. Track 1B remains merged and stable at `749d071`, matching `last_commit`.
+
+This blocker has now persisted across 6+ firings and 4.5+ hours (since ~15:35 UTC) with no progress possible
+from this container. Sent a push notification to the user flagging this, since it's been silently re-blocking
+without anyone being pinged. Nothing to resolve from this session — this still needs Tom to physically run the
+smoke test on the real mini while Zoom Rooms holds the Q-SYS camera, and record pass/fail in the spec. No code
+changed, `state.json` left as-is. Releasing `.agent/lock.json` as part of this firing's final commit.
