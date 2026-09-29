@@ -37,6 +37,7 @@ import { bootstrapGraphicsPresets } from './graphics/bootstrap-presets';
 import { profileRuntimeStatePath } from './profiles/paths';
 import { parsePconairCli } from './cli-options';
 import { startWatchdog } from './watchdog-electron';
+import { applyLaunchAtLogin } from './launch-at-login';
 
 const cli = parsePconairCli(process.argv);
 const OPERATOR_PIN = cli.operatorPin ?? process.env.PCONAIR_OPERATOR_PIN ?? '0000';
@@ -60,13 +61,6 @@ function validatePins(operator: string, admin: string): void {
 function syncDisplaysToStore(): void {
   const store = getStore();
   store.setState({ displays: snapshotDisplays() });
-}
-
-function applyLaunchAtLogin(enabled: boolean): void {
-  // No-op in dev (electron-forge start runs an unpacked binary that isn't a
-  // stable path to register as a login item) — only meaningful in a packaged build.
-  if (!app.isPackaged) return;
-  app.setLoginItemSettings({ openAtLogin: enabled, openAsHidden: false });
 }
 
 async function main() {

@@ -124,6 +124,7 @@ export const electronModule = {
     getVersion: vi.fn(() => '0.0.0-test'),
     getName: vi.fn(() => 'PConAir'),
     getAppPath: vi.fn(() => '/tmp/pconair-test-app'),
+    isPackaged: false,
     on: vi.fn(),
     once: vi.fn(),
     whenReady: vi.fn().mockResolvedValue(undefined),
