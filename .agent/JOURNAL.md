@@ -674,3 +674,70 @@ Commit `6d332df` — new `tests/watchdog-electron.test.ts`,
 **No open blockers.** `state.json` advances to Task 8 (Prompter doc
 transport) with `status: pending`. `free_reset_available` untouched at
 `true`.
+
+## 2026-09-29 — BLOCKED: detected a live, concurrently-running second firing
+
+A separate session of this same scheduled routine independently pulled
+`.agent/state.json` at Task 5 (commit `c7810ba`, right after the
+batching-policy doc update landed) and began executing the same
+effort-ordering roadmap this session was also executing — at the same
+time. Both sessions worked through Tasks 4 onward largely unaware of each
+other, each committing locally and only discovering the collision at
+push time via `git fetch`.
+
+This session hit the collision **twice in a row**, live, not as a single
+stale overlap:
+
+1. After completing Tasks 4–8 locally and going to push, `git fetch`
+   showed `origin/main` already several commits ahead with an
+   independently-written Task 5 (tray + director window) and Task 6
+   (overlay windows + fullscreen chrome). Diffed both files
+   file-by-file: the two implementations found the *same* real-signature
+   divergences from the plan's draft and wrote materially the same fixes
+   (down to which `electron-mock.ts` methods were missing) — cosmetic
+   differences only (assertion ordering, placeholder values, whether an
+   unused `fireAction` stub was included). No genuine conflicting design
+   decision existed to adjudicate. Reconciled by treating the
+   already-pushed `origin/main` as canonical for the overlapping units,
+   discarding this session's redundant duplicate commits (kept in a
+   local, never-pushed `backup-collision-session-*` branch for the
+   record), and rebasing this session's *net-new* Task 7 and Task 8 work
+   (new files, no file-level overlap with the other firing's Task 5/6
+   changes) on top. Re-ran the full suite + typecheck against the
+   adopted base before treating either task as done.
+2. Committed the reconciled Task 7 and immediately `git fetch`ed again
+   before pushing, expecting a clear window — but the other firing had
+   *already* pushed its own Task 7 (`6d332df`) and advanced `state.json`
+   to Task 8, in the few minutes this session spent reconciling and
+   re-verifying. This is not evidence of a stale one-time race; it's
+   evidence of a live second session actively progressing through the
+   same roadmap in real time, at roughly this session's own pace.
+
+**Decision: stop here rather than reconcile a third time and keep
+racing.** Reset local `main` to `origin/main` (`02290d4` — the other
+firing's legitimate, fully-verified Task 7 completion, `state.json`
+already pending at Task 8) and set `status: "blocked"`. Rationale, in
+full in `state.json.notes`: continuing to push duplicate work against a
+live concurrent writer is pure waste (tokens spent producing commits
+that get thrown away on the next reconciliation), and the risk compounds
+the further this goes — Task 14 (the Electron version bump itself,
+touching `package.json`/`package-lock.json`) is exactly the kind of unit
+where two independent writers *could* produce a genuinely unresolvable
+conflict (divergent lockfile resolution, a half-applied bump from one
+session colliding with the other's), unlike the clean test-file
+dedup this collision happened to be. The roadmap's own "Schedule
+mechanics" section assumes hourly, non-overlapping firings coordinating
+purely through `state.json` in git; it has no provision for two firings
+live at once, so this isn't something the orchestrator design itself can
+resolve — it needs a human to find and stop whatever is causing the
+duplicate schedule (two `schedule`-skill routines pointed at this
+prompt/repo, or a manual firing overlapping the hourly cron) before
+automated progress continues safely.
+
+No code, tests, or journal content were lost — both firings converged on
+equivalent working test coverage for every task in the collision window,
+and `origin/main`'s current state is a clean, fully green (`1205/1205`,
+sole pre-existing failure unchanged, `tsc` clean) checkpoint. This
+session made no attempt to inspect or modify whatever triggers/schedules
+exist for this repo (no tool available to do so from inside the
+session) — that inspection is the human action item.
