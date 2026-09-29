@@ -159,6 +159,7 @@ export const electronModule = {
     invoke: vi.fn().mockResolvedValue(undefined),
     send: vi.fn(),
     on: vi.fn(),
+    removeListener: vi.fn(),
   },
   contextBridge: {
     exposeInMainWorld: vi.fn((key: string, api: unknown) => { electronMock.exposed[key] = api; }),
