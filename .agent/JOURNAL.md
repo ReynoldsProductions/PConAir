@@ -1532,3 +1532,27 @@ from this container. Sent a push notification to the user flagging this, since i
 without anyone being pinged. Nothing to resolve from this session — this still needs Tom to physically run the
 smoke test on the real mini while Zoom Rooms holds the Q-SYS camera, and record pass/fail in the spec. No code
 changed, `state.json` left as-is. Releasing `.agent/lock.json` as part of this firing's final commit.
+
+## 2026-09-29 (22:09 UTC) — Still blocked, rechecked: getUserMedia-vs-Zoom smoke check still not run
+
+No lock present at firing start (previous firing released cleanly). Local `main` was again stale relative to
+`origin/main` (this container's cached clone predates the last several orchestrator firings, which happened
+between clone time and this firing) -- reset the local branch pointer to `origin/main`; working tree was clean,
+no uncommitted work, so this was non-destructive. Reacquired lock, pushed immediately, read `state.json`:
+`status` still `"blocked"` on the same human-only hardware step as the prior 7+ firings (Phase 1 Track 1A's
+`getUserMedia`-while-Zoom-Rooms-holds-the-device smoke check). This firing's scheduled prompt again named
+"start at Phase 0" -- stale relative to `state.json`, which is authoritative; actual state is Phase 0/0D long
+done and Phase 1 Track 1A blocked.
+
+Re-read `specs/24-camera-mode.md`'s "Deployment topology" section and the Open Dependency table row directly
+rather than trusting the note alone: both unchanged, caveat still open, no pass/fail recorded.
+`docs/camera-getusermedia-smoke-test.html` (added in `c691836`) is still unrun -- confirmed present but no
+newer commit touches it or the spec's caveat/table row. Track 1B remains merged and stable at `749d071`,
+matching `last_commit`.
+
+This blocker has now persisted across 7+ firings and 5.5+ hours (since ~15:35 UTC). The prior firing (21:09 UTC)
+already sent a push notification flagging this exact same blocker to the user, and nothing has changed since --
+no second notification sent this firing, per the "same as yesterday, stay silent" rule. Nothing to resolve from
+this session -- this still needs Tom to physically run the smoke test on the real mini while Zoom Rooms holds
+the Q-SYS camera, and record pass/fail in the spec. No code changed, `state.json` left as-is. Releasing
+`.agent/lock.json` as part of this firing's final commit.
