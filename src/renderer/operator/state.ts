@@ -1,4 +1,4 @@
-import { makePrompterState, type AppState } from '../../shared/types';
+import { makePrompterState, makeCameraState, type AppState } from '../../shared/types';
 
 export type StateListener = (state: AppState) => void;
 
@@ -48,6 +48,7 @@ const DEFAULT_STATE: AppState = {
   },
   prompter: makePrompterState(),
   graphics: { scoreboard: null, lowerThirds: { left: null, right: null } },
+  camera: makeCameraState(),
 };
 
 export function createClientStore() {

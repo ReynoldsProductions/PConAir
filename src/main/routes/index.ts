@@ -23,6 +23,7 @@ import { createL3Router } from './l3';
 import { createActionRouter } from './action';
 import { createBackgroundRouter } from './background';
 import { createMediaLibraryRouter } from './media-library';
+import { createCameraRouter } from './camera';
 import { createProfilesRouter } from './profiles';
 import { loadProfile } from '../profiles/bootstrap';
 import { createBrandingRouter } from './branding';
@@ -283,6 +284,7 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   app.use('/api/presets', createPresetsRouter(s.store, s.auth, s.presets));
   app.use('/api/l3', createL3Router(s.auth, s.l3Cues, s.l3ThemeStore, s.l3Logos, s.l3FilesRoot, s.renderManualCue, s.renderAdHocCard));
   app.use('/api/media-library', createMediaLibraryRouter(s.store, s.auth, s.mediaLibrary, s.slideshow));
+  app.use('/api/camera', createCameraRouter(s.store, s.auth));
   app.use('/api/background', createBackgroundRouter({
     store: s.store,
     auth: s.auth,

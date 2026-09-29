@@ -1,7 +1,7 @@
 // AppState — the single source of truth for all runtime state.
 // Matches specs/02-api-state-contract.md §1.1
 
-export type Mode = 'slides' | 'url' | 'media-library' | 'idle';
+export type Mode = 'slides' | 'url' | 'media-library' | 'camera' | 'idle';
 export type ABInstance = 'A' | 'B';
 /**
  * Backdrop behind PConAir's own output windows.
@@ -414,6 +414,70 @@ export interface GraphicsState {
   lowerThirds: LowerThirdsState;
 }
 
+// ---- Camera mode (spec 24, Phase 1) ----
+
+export type CameraPermissionStatus = 'unknown' | 'granted' | 'denied' | 'restricted';
+export type CameraConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+/** Phase 3's eventual output router target; mutually exclusive, persisted. */
+export type CameraOutputMode = 'ndi' | 'local-display';
+
+/** A UVC device as enumerated by Track 1A. */
+export interface CameraDevice {
+  id: string;
+  label: string;
+}
+
+/**
+ * NDI sender config. `sourceName` follows the `PConAir — <ROOM> <ROLE>`
+ * convention (spec 24, Decisions item 2), e.g. `PConAir — SF AH Stage`.
+ * Default-generated from the show profile once that field exists;
+ * operator-editable in admin settings either way.
+ */
+export interface NdiConfig {
+  sourceName: string;
+}
+
+/**
+ * Camera mode state (spec 24, Phase 1B contract). Unlike `slides` or
+ * `mediaLibrary`, this is never null and is not cleared on a mode switch:
+ * device selection, output mode and the NDI source name must survive both
+ * switching away from camera mode and an app restart (spec 24 non-negotiable
+ * 4), so it behaves like `background`/`tunnel`/`stageTimer` rather than
+ * per-mode scratch state that only matters while that mode is active.
+ *
+ * Track 1A owns device enumeration/hotplug/persistence; Track 1C owns the
+ * operator UI (device picker, preview, output toggle, status). This shape is
+ * only the contract both read and write against.
+ */
+export interface CameraState {
+  /** Device the operator has chosen; null when none selected yet. */
+  selectedDevice: CameraDevice | null;
+  /** OS media-capture (getUserMedia) permission for the camera. */
+  permissionStatus: CameraPermissionStatus;
+  /** Live connection/hotplug status of `selectedDevice`. */
+  connectionStatus: CameraConnectionStatus;
+  /** Human-readable detail when connectionStatus === 'error'; null otherwise. */
+  lastError: string | null;
+  outputMode: CameraOutputMode;
+  /** Target display for outputMode === 'local-display'; null in ndi mode or when unset. */
+  outputDisplayId: string | null;
+  ndi: NdiConfig;
+}
+
+export function makeCameraState(): CameraState {
+  return {
+    selectedDevice: null,
+    permissionStatus: 'unknown',
+    connectionStatus: 'disconnected',
+    lastError: null,
+    // NDI is the MVP's primary output (spec 24 "MVP scope").
+    outputMode: 'ndi',
+    outputDisplayId: null,
+    ndi: { sourceName: '' },
+  };
+}
+
 export interface AppState {
   currentMode: Mode;
   currentPreset: Preset | null;
@@ -431,6 +495,7 @@ export interface AppState {
   stageTimer: StageTimerState;
   prompter: PrompterState;
   graphics: GraphicsState;
+  camera: CameraState;
 }
 
 // ---- HTTP API types ----

@@ -13,7 +13,7 @@ This document defines the canonical state model and HTTP/WebSocket API contract 
 ```typescript
 interface AppState {
   // Current mode of operation
-  currentMode: "slides" | "url" | "l3" | "media-library" | "idle";
+  currentMode: "slides" | "url" | "l3" | "media-library" | "camera" | "idle";
 
   // Active URL preset (if any)
   currentPreset: {
@@ -46,6 +46,22 @@ interface AppState {
     activeItemId: string | null;   // ID of the Media Library item currently on Program output
     activeItemName: string | null; // Human-readable name of the active item
   } | null;
+
+  // Camera mode state (spec 24). Unlike `slides`/`mediaLibrary`, this is
+  // NEVER null and is not reset when currentMode changes away from
+  // "camera" -- device selection, output mode and the NDI source name must
+  // survive both a mode switch and an app restart.
+  camera: {
+    selectedDevice: { id: string; label: string } | null; // UVC device the operator has chosen
+    permissionStatus: "unknown" | "granted" | "denied" | "restricted"; // OS getUserMedia permission
+    connectionStatus: "disconnected" | "connecting" | "connected" | "error"; // Live/hotplug status of selectedDevice
+    lastError: string | null;      // Detail when connectionStatus === "error"; null otherwise
+    outputMode: "ndi" | "local-display"; // Phase 3 output router target; mutually exclusive
+    outputDisplayId: string | null; // Target display for outputMode === "local-display"; null in ndi mode
+    ndi: {
+      sourceName: string;          // "PConAir — <ROOM> <ROLE>", e.g. "PConAir — SF AH Stage"
+    };
+  };
 
   // Background/luma key configuration
   background: {
@@ -122,6 +138,16 @@ interface AppState {
 - `activeItemId` is the unique identifier of the Media Library item on Program output.
 - `activeItemName` is the human-readable name of that item.
 - Calling the media library clear endpoint sets both fields to `null` and resets `currentMode` to `"idle"`.
+
+#### `camera`
+- **Always present, and never reset by a mode switch** — unlike `slides`/`l3`/`mediaLibrary`, `camera` is not nulled out when `currentMode` changes away from `"camera"`. Device selection, output mode and the NDI source name are config that must survive both switching modes and an app restart (spec 24 non-negotiable 4), so this field behaves like `background`: always populated, defaults below apply until an operator/Track 1A changes it.
+- `selectedDevice`: the UVC device the operator has chosen (`id`/`label`); `null` until one is selected. Track 1A owns device enumeration — this state only records the choice, it does not validate `id` against an enumerated device list.
+- `permissionStatus`: the OS `getUserMedia` permission for camera capture. One of `"unknown"` (not yet probed), `"granted"`, `"denied"`, `"restricted"`. Set by Track 1A's permission probe/prompt flow.
+- `connectionStatus`: live connection/hotplug status of `selectedDevice`. One of `"disconnected"`, `"connecting"`, `"connected"`, `"error"`.
+- `lastError`: human-readable detail when `connectionStatus === "error"`; `null` otherwise. Any transition to a non-`"error"` `connectionStatus` clears it.
+- `outputMode`: Phase 3's output router target — `"ndi"` (default; MVP's primary output) or `"local-display"`. The two are mutually exclusive.
+- `outputDisplayId`: target display id for `outputMode === "local-display"`; always `null` when `outputMode === "ndi"` (switching to `"ndi"` clears it).
+- `ndi.sourceName`: the NDI sender name, following the `PConAir — <ROOM> <ROLE>` convention (spec 24, Decisions item 2), e.g. `PConAir — SF AH Stage`. Defaults to `""` until set; Phase 1B has no show-profile room/role field yet to generate a default from, so this is operator/admin-set only for now.
 
 #### `background`
 - Always present; defines the keying color for all modes.
@@ -953,6 +979,154 @@ Load a playlist into the operator queue (sets it as the current L3 playlist).
 
 ---
 
+### 2.10 Camera Mode
+
+Spec 24 Phase 1B contract. These endpoints record camera device selection, permission/connection status and output routing config; they do not implement device enumeration (Track 1A), the operator UI (Track 1C), or the actual output router (Phase 3) — those consume this contract. `currentMode: "camera"` is set the same way as any other mode, via `POST /api/mode` (§2.2); these endpoints do not change `currentMode` themselves.
+
+**Authentication:** `GET /api/camera` and the report/select endpoints below (`device`, `permission`, `connection`, `output-mode`) require operator or admin. `POST /api/camera/ndi` requires admin (same tier as background presets and NDI is an admin-settings field per spec 24's MVP scope).
+
+#### `GET /api/camera`
+Returns the current camera state.
+
+**Request:** No body.
+
+**Response (200 OK):**
+```json
+{
+  "camera": {
+    "selectedDevice": null,
+    "permissionStatus": "unknown",
+    "connectionStatus": "disconnected",
+    "lastError": null,
+    "outputMode": "ndi",
+    "outputDisplayId": null,
+    "ndi": { "sourceName": "" }
+  }
+}
+```
+
+**Error Codes:** None expected.
+
+---
+
+#### `POST /api/camera/device`
+Select or clear the active UVC device.
+
+**Request:**
+```json
+{
+  "id": "uvc-1",                     // Device id; or null to clear the selection
+  "label": "Q-SYS USB Video Bridge"  // Required when id is set; ignored when id is null
+}
+```
+
+**Response (200 OK):**
+```json
+{ "camera": { "selectedDevice": { "id": "uvc-1", "label": "Q-SYS USB Video Bridge" }, "...": "..." } }
+```
+
+**Error Codes:**
+- `INVALID_MODE` (400): `id` is an empty/non-string value other than `null`, or `label` is missing/empty when `id` is set.
+
+**Semantics:**
+- Sending `{ "id": null }` (or omitting `id`) clears `selectedDevice` back to `null`.
+- This endpoint does not validate `id` against an enumerated device list — Track 1A owns enumeration and is expected to only ever send an id it just enumerated.
+
+---
+
+#### `POST /api/camera/permission`
+Report the OS `getUserMedia` permission for camera capture.
+
+**Request:**
+```json
+{ "status": "granted" }
+```
+`status` must be one of `"unknown"`, `"granted"`, `"denied"`, `"restricted"`.
+
+**Response (200 OK):**
+```json
+{ "camera": { "permissionStatus": "granted", "...": "..." } }
+```
+
+**Error Codes:**
+- `INVALID_MODE` (400): `status` is missing or not one of the allowed values.
+
+---
+
+#### `POST /api/camera/connection`
+Report the live connection/hotplug status of the selected device.
+
+**Request:**
+```json
+{
+  "status": "error",             // "disconnected" | "connecting" | "connected" | "error"
+  "error": "device unplugged"    // Required when status is "error"; ignored otherwise
+}
+```
+
+**Response (200 OK):**
+```json
+{ "camera": { "connectionStatus": "error", "lastError": "device unplugged", "...": "..." } }
+```
+
+**Error Codes:**
+- `INVALID_MODE` (400): `status` is missing/invalid, or `status === "error"` with no non-empty `error` message.
+
+**Semantics:**
+- Any `status` other than `"error"` clears `lastError` back to `null`, regardless of what (if anything) the request body sends for `error`.
+
+---
+
+#### `POST /api/camera/output-mode`
+Switch between NDI and local-display output (Phase 3 implements the router itself; this only records the choice).
+
+**Request:**
+```json
+{
+  "mode": "local-display",   // "ndi" | "local-display"
+  "displayId": "HDMI-1"      // Optional; only meaningful when mode is "local-display"
+}
+```
+
+**Response (200 OK):**
+```json
+{ "camera": { "outputMode": "local-display", "outputDisplayId": "HDMI-1", "...": "..." } }
+```
+
+**Error Codes:**
+- `INVALID_MODE` (400): `mode` is missing or not `"ndi"`/`"local-display"`.
+- `DISPLAY_NOT_FOUND` (404): `displayId` does not exist in `displays`.
+
+**Semantics:**
+- The two output modes are mutually exclusive in state: switching to `"ndi"` always sets `outputDisplayId` back to `null`.
+- Switching to `"local-display"` with `displayId` omitted keeps whatever `outputDisplayId` was already set; sending `null` or `""` clears it (falls back to a default display, same convention as `POST /api/url`'s `display` field).
+
+---
+
+#### `POST /api/camera/ndi`
+Set the NDI sender source name.
+
+**Authentication:** Admin only.
+
+**Request:**
+```json
+{ "sourceName": "PConAir — SF AH Stage" }
+```
+
+**Response (200 OK):**
+```json
+{ "camera": { "ndi": { "sourceName": "PConAir — SF AH Stage" }, "...": "..." } }
+```
+
+**Error Codes:**
+- `INVALID_MODE` (400): `sourceName` is missing/blank, or longer than 100 characters (trimmed).
+
+**Semantics:**
+- `sourceName` follows the `PConAir — <ROOM> <ROLE>` convention (spec 24, Decisions item 2). Whitespace is trimmed before it's stored.
+- Phase 1B has no show-profile room/role field to auto-generate this from yet; it is admin-set only until that lands (see spec 24 Phase 4C).
+
+---
+
 ## 3. WebSocket Protocol
 
 ### 3.1 Connection and State Push
@@ -1124,7 +1298,7 @@ All error responses follow a standard format:
 
 | Code | HTTP Status | Meaning |
 |------|-------------|---------|
-| `INVALID_MODE` | 400 | The specified mode is not one of: `"slides"`, `"url"`, `"l3"`, `"media-library"`, `"idle"`. |
+| `INVALID_MODE` | 400 | The specified mode is not one of: `"slides"`, `"url"`, `"l3"`, `"media-library"`, `"camera"`, `"idle"`. Reused generically by several endpoints below as the catch-all "bad request body" code, not only for `POST /api/mode`. |
 | `NO_ACTIVE_DECK` | 400 | No Slides deck is currently loaded or in scope. |
 | `SLIDE_OUT_OF_RANGE` | 400 | The requested slide index is outside the valid range [0, slideCount-1]. |
 | `INVALID_URL` | 400 | The provided URL is malformed, unreachable, or the color value is not a valid hex color. |
@@ -1239,6 +1413,9 @@ Set-Cookie: pc-on-air-session=<token>; Path=/; HttpOnly; SameSite=Strict
 | `GET /api/presets` | operator | Read preset list. |
 | `POST /api/presets` | admin | Create or update preset. |
 | `DELETE /api/presets/:id` | admin | Delete preset. |
+| `GET /api/camera` | operator | Read-only camera state. |
+| `POST /api/camera/device`, `/permission`, `/connection`, `/output-mode` | operator | Camera device/status/output-mode reporting and selection. |
+| `POST /api/camera/ndi` | admin | NDI source name (admin settings). |
 
 **Default:** Operator-level endpoints are accessible to both operator and admin sessions.
 

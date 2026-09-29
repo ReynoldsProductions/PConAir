@@ -18,6 +18,10 @@ const MODE_TAG_VARIANT: Record<Mode, 'neutral' | 'success' | 'warning' | 'critic
   slides: 'info',
   url: 'success',
   'media-library': 'strong',
+  // Contract-only entry (spec 24 Phase 1B) — Track 1C decides the real tag
+  // color and whether/where a Camera mode button appears; MODE_BUTTONS below
+  // deliberately does not list it yet.
+  camera: 'warning',
 };
 
 const MODE_BUTTONS: Array<{ mode: Mode; label: string }> = [

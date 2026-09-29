@@ -77,6 +77,18 @@
       }
     };
   }
+  function makeCameraState() {
+    return {
+      selectedDevice: null,
+      permissionStatus: "unknown",
+      connectionStatus: "disconnected",
+      lastError: null,
+      // NDI is the MVP's primary output (spec 24 "MVP scope").
+      outputMode: "ndi",
+      outputDisplayId: null,
+      ndi: { sourceName: "" }
+    };
+  }
 
   // src/renderer/operator/state.ts
   var DEFAULT_STATE = {
@@ -124,7 +136,8 @@
       configured: false
     },
     prompter: makePrompterState(),
-    graphics: { scoreboard: null, lowerThirds: { left: null, right: null } }
+    graphics: { scoreboard: null, lowerThirds: { left: null, right: null } },
+    camera: makeCameraState()
   };
   function createClientStore() {
     let state = structuredClone(DEFAULT_STATE);
@@ -267,7 +280,11 @@
     idle: "neutral",
     slides: "info",
     url: "success",
-    "media-library": "strong"
+    "media-library": "strong",
+    // Contract-only entry (spec 24 Phase 1B) — Track 1C decides the real tag
+    // color and whether/where a Camera mode button appears; MODE_BUTTONS below
+    // deliberately does not list it yet.
+    camera: "warning"
   };
   var MODE_BUTTONS = [
     { mode: "idle", label: "Idle" },

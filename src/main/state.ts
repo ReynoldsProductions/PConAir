@@ -1,5 +1,5 @@
 import type { AppState } from '../shared/types';
-import { makePrompterState } from '../shared/types';
+import { makePrompterState, makeCameraState } from '../shared/types';
 
 const INITIAL_STATE: AppState = {
   currentMode: 'idle',
@@ -62,6 +62,7 @@ const INITIAL_STATE: AppState = {
     scoreboard: null,
     lowerThirds: { left: null, right: null },
   },
+  camera: makeCameraState(),
 };
 
 type Subscriber = (patch: Partial<AppState>) => void;

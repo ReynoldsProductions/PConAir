@@ -1362,3 +1362,85 @@ approach) if it fails.
 Two secondary Phase 0 flags (real-hardware benchmark rerun, `libndi.dylib` re-signing before Phase 3B) were left
 as non-blocking per 0D's own default recommendation — not overridden, so Phase 1 proceeds without waiting on
 either. `state.json` advanced to `pending`, Phase 1 Track 1A.
+
+## 2026-09-29 — Camera Phase 1, Track 1B (state/API contract) — done
+
+Retargeted onto 1B ahead of 1A/1C per the spec's own dependency order (1B must merge first, since both other
+tracks consume its contract — `specs/24-camera-mode.md` line ~510 and the "After 1B merges, before 1A and 1C"
+hard break point). Contract-only: no device enumeration, no operator UI, no output router.
+
+**Landed:**
+- `src/shared/types.ts` — `Mode` gained `'camera'`. New `CameraState` (+ `CameraDevice`, `NdiConfig`,
+  `CameraPermissionStatus`, `CameraConnectionStatus`, `CameraOutputMode`) and `makeCameraState()`. `AppState.camera`
+  is **non-nullable** — modeled on `background`/`tunnel`/`stageTimer` rather than `slides`/`mediaLibrary`, because
+  the spec's non-negotiable 4 requires device selection, output mode and the NDI source name to survive both a
+  mode switch and an app restart, unlike per-mode scratch state that's nulled out when you leave that mode.
+- `src/main/state.ts` and `src/renderer/operator/state.ts` — both default-state constructors seed `camera` via
+  `makeCameraState()` (`AppState` is a closed interface; TS caught both call sites immediately when `camera` was
+  added as required).
+- `src/main/routes/camera.ts` (new) — `/api/camera/*`, mounted in `src/main/routes/index.ts`. Six endpoints:
+  `GET /` (state), `POST /device` (select/clear, explicit `null` required to clear — an omitted `id` 400s rather
+  than silently clearing, unlike my first draft), `POST /permission`, `POST /connection` (a non-`"error"` status
+  always clears `lastError`), `POST /output-mode` (switching to `"ndi"` always clears `outputDisplayId` — the two
+  modes are mutually exclusive in state, not just in the type), `POST /ndi` (admin-only, trims and caps
+  `sourceName` at 100 chars, matching the `UrlPreset.name` convention). All follow the existing router shape
+  (`background.ts`/`media-library.ts`): `requireOperator`/`requireAdmin` guards, `{code,message}` error envelope,
+  `INVALID_MODE` reused as the generic bad-request code, `DISPLAY_NOT_FOUND` reused for `output-mode`'s `displayId`
+  (same `s.displays.find(...)` check as `url-ops.ts`'s `lookupDisplay`).
+- `src/main/routes/api.ts` `VALID_MODES` and `src/main/action-dispatch.ts`'s `set_mode` allow-list both extended
+  with `'camera'` — two separate hardcoded arrays, both had to change or Companion's `set_mode` action and
+  `POST /api/mode` would disagree about whether `"camera"` is valid.
+- `src/renderer/operator/components/LiveControl.tsx` — `MODE_TAG_VARIANT` is a `Record<Mode, ...>`, so adding
+  `'camera'` to `Mode` broke `npm run typecheck` until a value was added; added `camera: 'warning'` with a comment
+  that Track 1C owns the real color and whether a Camera button ships. Deliberately did **not** touch
+  `MODE_BUTTONS` (no button added) or the plain-JS mode-badge coloring in `src/renderer/admin/index.html` — those
+  are cosmetic, not type-checked, and squarely Track 1C's operator-UI job.
+- `src/renderer/operator/index.js` — regenerated build artifact (esbuild bundle of `index.tsx`/`state.ts`/
+  `LiveControl.tsx`); `tests/setup/build-operator-renderer.ts` rebuilds it as Vitest's `globalSetup`, and the repo
+  checks the output in, so it's part of this commit like any other tracked generated file here.
+- `specs/02-api-state-contract.md` — the actual contract deliverable: `currentMode`/`AppState` TS block updated,
+  new `#### camera` state-semantics subsection, new `### 2.10 Camera Mode` endpoint section (six endpoints, full
+  request/response/error-code/semantics per the doc's existing format), `camera` rows added to the §5.2 protected-
+  routes table, `INVALID_MODE`'s row in the error-code table extended and annotated as the reused generic code
+  (it already was reused that way by several existing endpoints; the annotation is new, the behavior isn't).
+- `specs/24-camera-mode.md` — Phase 1 table's 1B row marked done inline (`**Done 2026-09-29:** ...`), matching how
+  0D was marked in the Phase 0 table; a "Track 1B status" paragraph added under the Phase 1 exit criteria with the
+  same what-landed summary as above, pointing at this journal entry for the full report.
+
+**Explicitly skipped (by design, not oversight):** device enumeration/hotplug/permission-prompt implementation,
+persistence to settings/profile, and the `getUserMedia`-vs-Zoom smoke check (all Track 1A); the operator UI device
+picker/preview/toggle (Track 1C); the actual output router and NDI sender (Phase 3); a show-profile room/role
+field to auto-generate the default NDI source name from (not built anywhere yet — `ndi.sourceName` defaults to
+`""` and is admin-set only until spec 24 Phase 4C's show-profile schema work lands).
+
+**One judgment call worth flagging for 1A/1C:** `POST /api/camera/device` doesn't validate `id` against any
+enumerated device list — Track 1A owns enumeration and there's no device registry in scope for 1B to check
+against. If 1A wants that validated server-side (vs. trusting the UI only shows enumerated devices), that's a
+follow-up, not something this contract already covers.
+
+**Tests (TDD, RED→GREEN):** `tests/camera.test.ts`, 28 new tests, written and confirmed failing before any
+implementation existed (all 28 failed — 27 on missing routes, one via a 404 the same batch produced — then all 28
+passed after implementation). Covers all six endpoints' success/validation/auth paths, `GET /api/status` carrying
+`camera`, `POST /api/mode` accepting `"camera"`, and that switching away from camera mode leaves `camera` state
+untouched (the one behavior that's easy to get wrong by copying `mediaLibrary`'s null-on-mode-switch pattern).
+
+**Full suite:** `npm run typecheck` clean. `npx vitest run`: **88 files, 1284/1284 tests passing** (1256 before
+this track + 28 new). `npm run install:companion` run first (same pre-existing companion-module gap earlier
+entries hit — not part of this track).
+
+**Self-review pass:** one CRITICAL-adjacent finding caught and fixed before finishing — the first draft of
+`POST /api/camera/device` treated an *omitted* `id` the same as an explicit `id: null` (both cleared the
+selection). That's a footgun: a caller that forgets the field gets a silent state change instead of a 400. Fixed
+to require explicit `null`; added a test for the omitted-field case. No other CRITICAL/HIGH findings.
+
+**Open questions for Track 1A:** the `getUserMedia`-vs-Zoom-Rooms smoke check (spec 24 "Deployment topology" §)
+is still outstanding and is 1A's first job, independent of this track. Whether `POST /api/camera/device` should
+validate against an enumerated list once 1A has one to check against (see judgment call above).
+
+**Open questions for Track 1C:** `MODE_TAG_VARIANT`'s `camera: 'warning'` and the absence of a `camera` entry in
+`MODE_BUTTONS` are both placeholders — 1C decides the real tag color, whether/where a Camera mode button appears
+in Live Control, and how the device picker/preview/output-toggle surfaces map onto `/api/camera/*`.
+
+Committed directly to `main` (no worktree needed — single-file-ownership rule per the spec's "Agent operating
+rules" wasn't in tension with anything in flight). `state.json` not touched, per this unit's constraints; the
+orchestrator advances it to Phase 1 Track 1A/1C next.

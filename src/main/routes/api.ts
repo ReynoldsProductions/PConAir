@@ -9,7 +9,7 @@ import type { AppSettings, DirectorOffice } from '../app-settings';
 import { requireOperator, requireAdmin } from './middleware';
 import { gscStatusFields } from '../services/gsc-status';
 
-const VALID_MODES: Mode[] = ['slides', 'url', 'media-library', 'idle'];
+const VALID_MODES: Mode[] = ['slides', 'url', 'media-library', 'camera', 'idle'];
 
 export interface CreateApiRouterDeps {
   store: StateStore;

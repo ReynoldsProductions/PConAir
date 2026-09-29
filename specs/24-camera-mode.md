@@ -504,7 +504,7 @@ Architecture decision → Caveats.
 | Track | Work | Model |
 |---|---|---|
 | 1A | `src/main/camera/`: device enumeration, selection, hotplug handling, permission prompts, persistence in settings. Camera mode added to the mode state machine. | Sonnet |
-| 1B | Extend `shared/types.ts` and `specs/02-api-state-contract.md`: camera state, output mode, NDI config. New endpoints under `/api/camera/*`. | Sonnet |
+| 1B | Extend `shared/types.ts` and `specs/02-api-state-contract.md`: camera state, output mode, NDI config. New endpoints under `/api/camera/*`. **Done 2026-09-29:** contract landed, see `specs/02-api-state-contract.md` §1.1/§1.2/§2.10. | Sonnet |
 | 1C | Operator UI shell for the Camera page: device picker, preview, output mode toggle, status. | Sonnet |
 
 1B is written first and merged before 1A and 1C branch off it, since both
@@ -512,6 +512,21 @@ consume the contract. 1A and 1C then run in parallel.
 
 **Exit criteria:** operator can select a camera and see live preview in the
 operator UI. No output path yet.
+
+**Track 1B status (2026-09-29):** contract-only, done. `Mode` gained
+`'camera'`; `AppState` gained a non-nullable `camera: CameraState` field
+(device selection, permission/connection status, output mode, NDI source
+name) — modeled on `background`/`tunnel`/`stageTimer` rather than
+`slides`/`mediaLibrary`, since spec's non-negotiable 4 requires device
+selection, output mode and the NDI source name to survive both a mode
+switch and an app restart. New `/api/camera/*` endpoints (device select,
+permission report, connection/hotplug report, output-mode switch, NDI
+source name) mirror the existing router conventions (`background.ts`,
+`media-library.ts`). `VALID_MODES` (api.ts) and the Companion `set_mode`
+allow-list (action-dispatch.ts) both extended. No device enumeration, no
+operator UI, no output router — those are 1A/1C/Phase 3's jobs; this track
+only shipped the shape and the read/write surface they consume. See
+`.agent/JOURNAL.md` for the full report.
 
 ### Phase 2 — Graphics compositing
 

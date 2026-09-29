@@ -320,7 +320,7 @@ export function createActionDispatcher(deps: {
       }
       case 'set_mode': {
         const mode = str(p.mode) as Mode | undefined;
-        const allowed: Mode[] = ['slides', 'url', 'media-library', 'idle'];
+        const allowed: Mode[] = ['slides', 'url', 'media-library', 'camera', 'idle'];
         if (!mode || !allowed.includes(mode)) {
           return { ok: false, status: 400, error: { code: 'INVALID_MODE', message: `mode must be one of: ${allowed.join(', ')}` } };
         }
