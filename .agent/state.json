@@ -2,7 +2,7 @@
   "status": "pending",
   "current_effort": "camera-mode",
   "current_unit": "Phase 0, Track 0C: NDI sender spike",
-  "last_commit": "ea7ceda",
+  "last_commit": "a53ca71",
   "resume_after": null,
   "free_reset_available": true,
   "notes": "0A and 0B done (spike/* branches, caveated Linux/Xvfb/fake-camera numbers; see JOURNAL.md). Next 0C (grandiose + grandi, native bindings): batch stopped BEFORE it per roadmap rule -- fresh firing should start it. 0C also asks for NDI Studio Monitor and Zoom Room checks that need real hardware/humans; do what is possible in the container (install, load, send synthetic 1080p30, discovery via NDI SDK if available) and record the rest as not-verified. 0D after 0C. Camera Phase 1 needs the unresolved deployment-topology decision (single mini vs second mini + own Q-SYS USB bridge): block rather than guess."
