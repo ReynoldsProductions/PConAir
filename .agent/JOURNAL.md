@@ -800,3 +800,50 @@ Commit `51a4c38` — new `tests/prompter-doc-transport.test.ts`,
 
 **No open blockers.** `state.json` advances to Task 9 (preload bridges)
 with `status: pending`. `free_reset_available` untouched at `true`.
+
+## 2026-09-29 — Task 9: Preload bridges
+
+New file `tests/preload-surface.test.ts`. The plan's draft assumed each
+`describe` block gets an isolated fresh module load (`vi.resetModules()`
+per test) so `Object.keys(electronMock.exposed)` would have length 1 per
+namespace. Skipped that pattern -- Task 3/4's finding (documented in
+`tests/electron-chrome-windows.test.ts`) is that per-test
+`vi.resetModules()` desyncs the mock factory's cached electron-mock
+instance from a test's re-imported binding in a multi-test file, and
+neither preload file has any module-level state that needs a fresh
+instance per test anyway (each is a one-shot `contextBridge.exposeInMainWorld`
+call at import time). Instead imported both preload files once,
+statically, at file top level, and asserted the *union* is exactly
+`{ pconairDirector, pconairSettings }` -- an equally strong "nothing
+leaks onto window" check without needing isolation.
+
+Corrected the full method lists against the real source rather than the
+plan's partial sketch: `pconairSettings` is `get`, `savePort`,
+`saveSecurity`, `restart` (not just `saveSecurity`); `pconairDirector` is
+`listOffices`, `fireAction`, `onOfficeStatus`, `onOfficeState` (not just
+`fireAction`). Went beyond a typeof-only check and asserted real
+IPC-channel wiring: `saveSecurity`/`fireAction` proxy to the expected
+`ipcRenderer.invoke` channel and payload shape (including `fireAction`'s
+`body` defaulting to `{}`), and `onOfficeStatus` registers via
+`ipcRenderer.on`, delivers a driven event to the caller's callback with
+the right argument shape, and its returned unsubscribe calls
+`ipcRenderer.removeListener` with the same listener reference.
+
+`tests/setup/electron-mock.ts`'s `ipcRenderer` mock had no
+`removeListener` -- `director-preload.ts`'s `onOfficeStatus`/`onOfficeState`
+unsubscribe functions call it, so calling the returned unsubscribe would
+have thrown. Added `removeListener: vi.fn()`.
+
+`npx tsc --noEmit` clean. Full suite `npx vitest run` — **1253/1253
+passed across all 86 files**.
+
+Commit `4431502` — new `tests/preload-surface.test.ts`,
+`tests/setup/electron-mock.ts` modified.
+
+**No open blockers, but stopping the batch here.** Task 10 is Phase 0's
+own gate task -- an explicit example of the "phase/effort boundary"
+stopping condition in the roadmap doc's Batching section. `state.json`
+advances to Task 10 with `status: pending`; the next firing should start
+it fresh rather than this session dispatching it mid-batch.
+`free_reset_available` untouched at `true`. Releasing `.agent/lock.json`
+as part of this firing's final commit.

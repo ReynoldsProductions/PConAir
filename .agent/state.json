@@ -1,9 +1,9 @@
 {
   "status": "pending",
   "current_effort": "electron-migration",
-  "current_unit": "Task 9: Preload bridges (new test file, per plan)",
-  "last_commit": "51a4c38",
+  "current_unit": "Task 10: Phase 0 gate",
+  "last_commit": "4431502",
   "resume_after": null,
   "free_reset_available": true,
-  "notes": "Task 8 (prompter doc transport characterization) completed cleanly this firing. Lock file (.agent/lock.json) acquired at start of this firing per the roadmap doc's Lock file section; will be released on this firing's final commit. Proceeding to Task 9 in the same batch (no stopping condition hit: not native bindings/signing, not a phase/effort boundary -- Task 9 is still Phase 0). Task 10 is this phase's own gate task; will re-evaluate stopping conditions before dispatching it."
+  "notes": "Tasks 8 and 9 completed cleanly this firing (2 units in this batch). Stopping the batch before Task 10: it is Phase 0's own gate task, an explicit example of the 'phase/effort boundary' stopping condition in the roadmap doc's Batching section, so the next firing should start it fresh rather than this session dispatching it mid-batch. .agent/lock.json released as part of this firing's final commit."
 }
