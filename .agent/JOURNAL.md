@@ -236,3 +236,17 @@ time-sensitive stall.
 (every-major / every-other-major / every-third-major) against the real
 show calendar and record the decision (e.g. a note in `state.json` or
 directly in a new `CLAUDE.md`) so the next firing can complete Task 6.
+
+## 2026-09-29 — Task 6 completed; dependency-currency plan done; moving to Electron migration
+
+Human picked **every other major (~4 months)** against the show calendar.
+Created `CLAUDE.md` (did not exist in this repo before) with that cadence
+decision and Task 6's characterization-test review rule, per the plan's
+Steps 2-3. No code changes beyond the new doc, so no vitest/tsc run needed
+for this unit.
+
+This completes all four layers of `docs/plans/2026-09-28-dependency-currency.md`.
+Per `docs/plans/2026-09-29-orchestrator-roadmap.md`'s effort ordering,
+`state.json` now advances to the next effort: the Electron 32→44 migration,
+starting at Task 1 (harvest the real breaking-change list) in
+`docs/plans/2026-09-28-electron-44-migration.md`.
