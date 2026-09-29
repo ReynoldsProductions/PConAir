@@ -542,3 +542,62 @@ three `describe` blocks now sharing the file) or switch this file to the
 same top-level-import/no-resetModules pattern already proven in
 `tests/window-managers.test.ts`, rather than discovering the same failure
 mode a third time mid-task.
+
+### Task 5: Tray + director window characterization tests
+
+Confirmed the predicted failure mode from Task 4's notes: reproduced the
+per-test `vi.resetModules()` + re-import pattern for the two new
+`describe` blocks (`app tray`, `director window`) exactly as the plan's
+example shows it, and it failed for all three new tests — every
+`electronMock` array read back empty/undefined even though the source
+under test unmistakably called into the mocked `electron` module. Root
+cause matches Task 3/4's finding in `tests/window-managers.test.ts`:
+past the first `vi.resetModules()` call in a file, the hoisted
+`vi.mock('electron', ...)` factory's own cached `import('./setup/
+electron-mock')` desyncs from the test's freshly re-imported binding.
+
+Converted the whole file (including the pre-existing "settings window"
+test) to the top-level-import + `beforeEach(() => electronMock.reset())`
+pattern already proven in `window-managers.test.ts`. This is safe here
+because none of `settings-window.ts` / `tray.ts` / `director-window.ts`
+need a fresh module instance per test -- each holds only a module-level
+singleton (`settingsWindow` / `tray` / `directorWindow`), and each
+describe block only ever calls its "open" function once per test run in
+this file, so no cross-test reuse-guard interference. All 4 tests pass
+with this pattern.
+
+Corrected the plan's example test bodies against real signatures:
+- `TrayDeps` (`src/main/tray.ts`) has no `store` field at all -- it's
+  `{ port, serverError, operatorPin, adminPin, onOpenSettings,
+  onOpenOperatorWindow, onOpenDirectorWindow }`. Passed a full literal
+  instead of the plan's `{ store: createStateStore() } as never`.
+- `registerDirectorIpc`'s dep (`src/main/director-window.ts`) is
+  `DirectorWindowDeps = { officeManager: OfficeManager, getOffices: () =>
+  DirectorOffice[] }`, not a state store. Built a minimal duck-typed
+  `OfficeManager` fake (`getSnapshot`/`fireAction` stubs, cast `as
+  unknown as OfficeManager`) since the IPC-registration test only checks
+  that handlers were registered, never invokes them.
+
+`tests/setup/electron-mock.ts` needed one addition: `tray.ts` calls
+`nativeImage.createFromDataURL(...)` then `.setTemplateImage(true)` on
+the result. The mock only had `createFromPath`. Added
+`createFromDataURL: vi.fn(() => ({ isEmpty: () => false,
+setTemplateImage: vi.fn() }))`.
+
+`npx tsc --noEmit` clean. Full suite `npx vitest run` — 1197/1197 passed
+across 82 of 83 files; the sole failing suite is again the pre-existing
+`tests/companion-defs.test.ts` / `packages/companion-module-pconair`
+deps gap, unchanged since Task 1 and unrelated.
+
+Commit `6112687` — `tests/electron-chrome-windows.test.ts` and
+`tests/setup/electron-mock.ts` modified.
+
+Housekeeping: this firing's `git pull` fast-forwarded local `main`
+while HEAD ended up detached (a fresh-checkout quirk of this container,
+not a repo issue); re-pointed local `main` at the new commit before
+pushing -- verified it was a clean fast-forward from `origin/main`
+first (`git merge-base --is-ancestor`), no rebase/force needed.
+
+**No open blockers.** `state.json` advances to Task 6 (Overlays and
+window chrome, same file) with `status: pending`.
+`free_reset_available` untouched at `true`.
