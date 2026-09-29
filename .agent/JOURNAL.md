@@ -1284,3 +1284,64 @@ policy — to pick one pipeline and one NDI library (`grandi`, the only one that
 the Pipeline section of `specs/24-camera-mode.md`. Continuing the batch in this same firing: 0D is still Phase 0, not
 a phase boundary, and involves no native bindings itself, so none of the stopping conditions apply yet (1 unit done
 so far this firing).
+
+## 2026-09-29 — Camera Phase 0, Track 0D (decision memo, join point) — Phase 0 complete
+
+Landed directly on `main` (not a spike branch — this is a real, permanent spec change), commit `479fd0a`, on top of
+`2928df0`. Only `specs/24-camera-mode.md` changed.
+
+**Pipeline: Candidate A (OSR)**, Candidate B (`getDisplayMedia`) kept as the documented fallback. Neither spike hit
+the ±2ms/zero-drop exit criterion on the headless rig, so the call rests on the relative comparison and architecture,
+not a pass/fail:
+- The spec's own tie-break rule favors A when neither candidate can be scored pass/fail and there's no permission
+  difference to overcome.
+- B's measured CPU lead (3-4% vs A's 19-23%) is overstated: 0B never did a CPU-side pixel readback or handed frames
+  to a sender, while 0A's number already includes a CPU bitmap per paint. A real B implementation adds a ~250 MB/s
+  readback the spike never measured, so the real gap is unknown, not the 15-20 point gap logged.
+- A's problems (jitter, duplicates, drops) trace to a naive main-thread `setTimeout` pacer and a 20fps fake camera —
+  both fixable in our own code, and the worker-thread pacer Phase 3B has to build anyway. B's problems (Screen
+  Recording TCC permission under MDM, re-prompting, needing a real/virtual display) are outside our control and each
+  one risks a black output after a routine reboot.
+- B also never captured a window in this rig — Xvfb only offered the whole screen — so window-only capture is
+  unproven either way.
+- Fallback trigger recorded in the spec: switch to B if the real-hardware rerun shows A can't hold 1080p30 even with
+  a proper pacer.
+
+**NDI library: `grandi`** (2.0.2, NDI SDK 6.3.2) — the only one that installed in Track 0C; `grandiose` stays
+recorded as the fallback if `grandi` hits a blocker later.
+
+Spec changes: architecture section rewritten with the decision, pro/con, benchmark table (real 0A/0B/0C numbers),
+and caveats; NDI sender section now names `grandi` against each stated requirement; new Decision #7 (dated
+2026-09-29); Phase 0 table's 0D row marked done with an exit-status note; two stale "Known risks" rows updated. The
+"Open dependency: camera device contention" section was deliberately left untouched — confirmed unchanged, still
+open, still says "not been made yet."
+
+**Flagged for a human (not resolved by this unit):**
+1. **Real-hardware rerun is required, not optional.** Every Phase 0 number is from headless Linux/Xvfb/software-GL/a
+   20fps fake camera/20s runs. Before any phase treats these numbers as ground truth, rerun OSR (with the pacer moved
+   off the main thread) + `grandi` send on a real Mac mini with the real Q-SYS UVC camera, full 10-minute 1080p30
+   soak.
+2. **Phase 0's own exit criterion (10-min soak, ±2ms, zero drops) is not met** — only the pipeline/library choice is.
+   0D's author recorded a recommendation that Phase 1 can proceed (it doesn't depend on pipeline numbers) but Phase 2
+   (the composite page) should wait for the real-hardware rerun to confirm A or trigger the B fallback — written into
+   the spec as a recommendation, not a hard gate, and explicitly flagged as needing human confirm-or-override.
+3. **`grandi`'s macOS signing is a real, unverified risk.** `libndi.dylib` (~30MB) is signed with NDI's own Apple
+   Developer ID (team W8U66ET244); `grandi.node` only has the automatic linker signature. Hardened runtime refuses
+   to load a library signed by a different team, so both need to be kept out of the asar and re-signed under our own
+   Developer ID (the alternative, `disable-library-validation`, should be avoided). Intel/Apple Silicon ship as
+   separate npm packages, so a universal build needs both. Not checked on real macOS in this container — Phase 3B
+   must validate a signed, notarized build before shipping.
+4. **Worker-thread send only partly checked.** Confirmed `grandi` sends 1080p frames from a plain Node worker thread;
+   not tried inside Electron's `utilityProcess` or main-process worker — Phase 3B should do that first. Two related
+   costs already flagged: one extra frame copy from OSR paint to worker, and a 3+ buffer pool needed because
+   `video()` sends are async (a buffer can't be reused until its send resolves).
+5. **NDI discovery/receive still unverified** (no mDNS in this container) — real NDI Studio Monitor and the real Zoom
+   Room Custom AV input both still need a human on the real network, same gap 0C already flagged.
+
+**Phase 0 is now fully done (0A, 0B, 0C, 0D all landed).** This is both a phase boundary (Phase 0 -> Phase 1) and the
+point where Phase 1's own prerequisite bites: `specs/24-camera-mode.md`'s "Open dependency: camera device contention"
+section (deployment topology — single mini vs. a second mini with its own Q-SYS USB bridge) is still unresolved, and
+Phase 1 Track 1A (device enumeration) explicitly needs it. Per the roadmap's phase-boundary stopping rule and the
+task's explicit instruction not to guess on this exact decision, **stopping the batch here** after 2 units this
+firing (0C, 0D). `state.json` set to `blocked` rather than advanced into Phase 1. Releasing `.agent/lock.json` as
+part of this firing's final commit. `free_reset_available` untouched at `true`.
