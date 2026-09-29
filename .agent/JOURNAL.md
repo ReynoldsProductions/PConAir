@@ -380,3 +380,85 @@ is dispatched alone next firing — **not** together with Tasks 4–9 despite
 the plan's own "dispatch all seven in parallel" heading on that section.
 `free_reset_available` untouched at `true` — ordinary clean unit
 completion, nothing time-sensitive, no native bindings/signing involved.
+
+## 2026-09-29 — Task 3: Slides + URL window managers characterization tests
+
+Created `tests/window-managers.test.ts` covering
+`createUrlWindowManager` (`src/main/url/window-manager.ts`) and
+`createSlidesWindowManager` (`src/main/slides/window-manager.ts`). Three
+tests, matching the plan's outline but corrected against the real
+signatures:
+
+- **Fixed a wrong call shape in the plan's own draft.** The draft test
+  called `mgr.loadUrl('A', 'http://...', '2')` — a 3-arg
+  `(instance, url, displayId)` shape. The real signature is
+  `loadUrl(url: string, instance: ABInstance): Promise<void>` — 2 args,
+  reversed order, no `displayId` param. Per-instance display targeting
+  isn't a `loadUrl` argument at all: it's driven through
+  `store.setState({ abState: { instanceA: { displayTarget } } })`, picked
+  up by a store subscriber that calls `applyDisplayTarget()` →
+  `win.setBounds()`. Rewrote the "explicit display target" test to
+  `initialize()` the manager (creating windowA against the profile
+  preference `'1'`), then patch `instanceA.displayTarget = '2'` via
+  `store.setState`, and assert the resulting `setBounds` call lands on
+  display 2's origin (x=1920) — same intent as the plan's test
+  (explicit target overrides profile preference), correct mechanism.
+- **Partition tests now call `initialize()`, not `loadUrl()`.**
+  `session.fromPartition()` is called once per instance inside
+  `createUrlWindow()`/`createSlidesWindow()`, both invoked from
+  `initialize()` — `loadUrl`/`loadDeck` never create a window or touch a
+  partition themselves (and are no-ops if the window doesn't exist yet).
+- **Found and fixed a second, related bug in the plan's per-test
+  `vi.resetModules()` + dynamic-`import()` boilerplate** — distinct from
+  the one Task 2 already documented. Task 2's fix (re-import
+  `electron-mock.ts` *inside* the test body, after `resetModules()`) is
+  correct for a *single-test* file. Applying that same
+  `beforeEach(() => { electronMock.reset(); vi.resetModules(); })` +
+  per-test dynamic re-import pattern across **three tests in one file**
+  produced a new failure mode: the first test passed, but the second and
+  third then failed (`electronMock.windows` empty / `partitionsRequested`
+  empty) even though each test *individually* passed in isolation
+  (`vitest run -t "<name>"`). Root cause (empirically confirmed, not
+  fully traced into Vitest internals): calling `vi.resetModules()` more
+  than once per file does not keep the `vi.mock('electron', factory)`
+  factory's own cached `await import('./setup/electron-mock')` in sync
+  with each test's fresh top-level... — i.e. per-test module-cache
+  epochs stop lining up after the first reset in a multi-test file, so
+  by the second test the mocked `electron` module and the test's own
+  `electronMock` reference are two different singleton instances again
+  (the same *symptom* Task 2 fixed, recurring for a different reason).
+  Fix used here: **drop `vi.resetModules()` entirely** for this file.
+  Neither window manager under test holds module-level mutable state
+  (all state lives inside the closure each `create*WindowManager()` call
+  returns), so there's nothing that actually requires a fresh module
+  instance per test — a single top-level `import { electronMock } from
+  './setup/electron-mock'` plus `beforeEach(() => electronMock.reset())`
+  is sufficient and avoids the whole class of epoch-desync bugs. Documented
+  this as a comment in the committed test file for Task 4's author, since
+  Task 4 also touches multiple window managers in one file
+  (`tests/window-managers.test.ts` itself, extended) and will hit the same
+  question. **Left `tests/electron-chrome-windows.test.ts` (Task 2) and
+  `tests/setup/electron-mock.ts`'s existing comment untouched** — that
+  file's single-test resetModules() pattern is not wrong, just not the
+  right default to propagate into multi-test files.
+
+**Verification:** `npx vitest run tests/window-managers.test.ts` — 3/3
+passed. Full suite `npx vitest run` — 1191/1191 tests passed across 82 of
+83 files; the sole failing suite is again the pre-existing
+`tests/companion-defs.test.ts` / `packages/companion-module-pconair`
+deps-not-installed gap (unchanged since Task 1, unrelated to this task —
+not re-verified via `git stash` this time since the file list and error
+are identical to the last two firings' confirmed runs). `npx tsc --noEmit`
+clean.
+
+Commit `b91324a` — `tests/window-managers.test.ts` created, nothing else
+touched.
+
+**No open blockers.** `state.json` advances to Task 4 (Prompter +
+media-library window managers, modifying this same test file) with
+`status: pending`. `free_reset_available` untouched at `true` — ordinary
+clean unit completion, nothing time-sensitive, no native
+bindings/signing involved. **Flagging for whoever dispatches Task 4:**
+this file's top-level-import + `beforeEach(electronMock.reset())` pattern
+(no `resetModules()`) is the one to extend, not the plan's literal
+per-test `resetModules()` boilerplate.
