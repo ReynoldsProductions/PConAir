@@ -892,3 +892,78 @@ fresh with a clean session rather than this one continuing mid-batch
 into new-phase work. This firing completed exactly 1 unit.
 `free_reset_available` untouched at `true`. Releasing
 `.agent/lock.json` as part of this firing's final commit.
+
+## 2026-09-29 — Task 11: Bump Forge first, Electron not yet
+
+Fresh session, existing checkout with `node_modules` already present from
+a prior step in this same firing. Bumped the four Forge packages per the
+plan's literal Step 1:
+
+```
+npm i -D @electron-forge/cli@^7.11.0 @electron-forge/maker-dmg@^7.11.0 \
+         @electron-forge/maker-zip@^7.11.0 @electron-forge/plugin-webpack@^7.11.0
+```
+
+Landed at `^7.11.2` for all four (satisfies `^7.11.0`). `electron` itself
+untouched at `^32.0.0` -- confirmed via `package.json` diff, which only
+touched the four Forge entries plus lockfile churn.
+
+**Step 2 (suite + typecheck on Electron 32):** first `npx vitest run`
+showed 85/86 files passing with `tests/companion-defs.test.ts` failing to
+load (`Failed to load url @companion-module/base`). This looked alarming
+at first against the Task 10 baseline's 86/86 -- but it's exactly the
+plan's own documented Out-of-Scope gap (`packages/companion-module-pconair`
+isn't an npm workspace, so root `npm i`/`npm ci` never installs its deps;
+`.github/workflows/ci.yml` works around it with a dedicated
+`npm run install:companion` step). Ran that script, re-ran the full
+suite: **86/86 files, 1253/1253 tests, exact match to
+`docs/plans/electron32-test-baseline.txt`.** `npx tsc --noEmit` clean.
+Confirms Forge 7.11 introduced no regression in either check.
+
+**Step 3 (packaging) -- the judgment call:** `npx electron-forge package
+--platform darwin --arch arm64` failed immediately with
+`ENOENT: no such file or directory, lstat './cloudflared'`, inside
+Forge's "Finalizing package" stage. Investigated rather than guessing:
+
+- `forge.config.ts` lists `./cloudflared` in `packagerConfig.extraResource`
+  -- a plain file-copy step, nothing Electron-version- or
+  Forge-version-specific about it.
+- `.gitignore` ignores `cloudflared/` entirely; it is never committed.
+- `.github/workflows/build-release.yml` has a dedicated "Download
+  cloudflared binary" step that fetches the real platform binary
+  (`cloudflared-darwin-arm64` for the macOS job) from
+  `cloudflare/cloudflared`'s GitHub releases *before* invoking
+  `electron-forge package`/`make`. This sandbox never ran that step and
+  has no such binary anywhere on disk.
+
+Concluded this is an environment/asset-provisioning gap, not a genuine
+Forge/Electron incompatibility -- the failure is identical regardless of
+Forge or Electron version, since `extraResource` copying a missing path
+is version-independent. Rather than stop at "probably an environment
+limitation," verified it directly: created a throwaway placeholder
+`./cloudflared/cloudflared-darwin-arm64` (a tiny non-functional shell
+script) and re-ran packaging. It completed cleanly end-to-end -- copying
+files, preparing native dependencies for arm64, finalizing the package,
+running the postPackage hook -- and produced a real
+`out/PConAir-darwin-arm64/PConAir.app` (with `Contents/`, `LICENSE`,
+`version`). Cross-platform packaging for darwin/arm64 from this Linux
+x86_64 container works fine at the `package` step (no code signing or
+`hdiutil` involved -- that's `maker-dmg`/`make`, not `package`, and out
+of scope for this task). This is a genuine positive confirmation, not
+just an absence-of-evidence judgment call: **Forge 7.11 does not break
+packaging on Electron 32.** Deleted the placeholder and `out/` afterward;
+nothing from this verification was committed.
+
+**Step 4:** committed `package.json` + `package-lock.json` as `901d531`,
+with the full verification story (including the cloudflared
+investigation and the placeholder-binary confirmation) in the commit
+body so a future reader doesn't have to re-derive it.
+
+**No open blockers.** `state.json` advances to Task 12 (Node 24 in CI and
+an engines floor) with `status: pending`. Not continuing the batch to
+Task 12 in this same firing -- this dispatch's scope was Task 11 only.
+`free_reset_available` untouched at `true` -- ordinary clean unit
+completion; Task 11 itself involves no native bindings, code signing, or
+notarization (that's Task 14, the actual Electron bump), so the
+roadmap's "pause before native-binding work" consideration doesn't apply
+here.
