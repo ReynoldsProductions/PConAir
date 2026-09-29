@@ -169,5 +169,8 @@ export const electronModule = {
   Menu: { buildFromTemplate: vi.fn((t: Array<{ label: string }>) => ({ items: t })) },
   dialog: { showOpenDialog: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] }) },
   shell: { openExternal: vi.fn().mockResolvedValue(undefined), showItemInFolder: vi.fn() },
-  nativeImage: { createFromPath: vi.fn(() => ({ isEmpty: () => false, resize: vi.fn(() => ({})) })) },
+  nativeImage: {
+    createFromPath: vi.fn(() => ({ isEmpty: () => false, resize: vi.fn(() => ({})) })),
+    createFromDataURL: vi.fn(() => ({ isEmpty: () => false, setTemplateImage: vi.fn() })),
+  },
 };
