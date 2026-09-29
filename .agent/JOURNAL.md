@@ -462,3 +462,83 @@ bindings/signing involved. **Flagging for whoever dispatches Task 4:**
 this file's top-level-import + `beforeEach(electronMock.reset())` pattern
 (no `resetModules()`) is the one to extend, not the plan's literal
 per-test `resetModules()` boilerplate.
+
+## 2026-09-29 — Task 4: Prompter + media-library window managers characterization tests
+
+Extended `tests/window-managers.test.ts` (not a new file) per Task 3's own
+flag: kept the existing top-level `electronMock` import +
+`beforeEach(() => electronMock.reset())` pattern for this file, did not
+introduce the plan's literal per-test `vi.resetModules()` boilerplate.
+
+Both real signatures diverged from the plan's draft tests more than in
+prior tasks:
+
+- **Prompter window manager's config is `{ getPort, getDisplayPreference?
+  }`, not `{ store }`.** There's no `store` param at all —
+  `createPrompterWindowManager` only knows its own port and an optional
+  display-preference getter. Fixed the test to construct it with
+  `getPort: () => 4000`.
+- **`open()` places the window by passing bounds straight into the
+  `BrowserWindow` constructor (`x`/`y`/`width`/`height`), not via a
+  post-construction `setBounds()` call.** `setBounds()` is only used on
+  the reuse path (window already open). So "places the prompter window on
+  the requested display" now asserts against
+  `electronMock.windows[0].options.x` (1920 for display 2's origin)
+  instead of hunting for a `setBounds` call in `.calls` — there isn't one
+  on first open.
+- **Media library window manager has no `open()` method at all.** Its
+  public surface is `{ initialize, getWindow, destroy }` — window
+  creation happens entirely inside the `store.subscribe()` callback wired
+  up by `initialize()`, gated on `currentMode === 'media-library'` and a
+  resolvable `mediaLibrary.activeItemId` looked up via
+  `media.findById()`. Also, `config.media` is a required
+  `MediaLibraryStore`, not something the plan's draft test passed at all.
+  Rather than standing up the real `createMediaLibraryStore()` (real
+  fs writes, `rootDir`, index files — real disk I/O for what should be a
+  pure characterization test), built a minimal duck-typed fake
+  implementing only the two methods the window manager actually calls
+  (`findById`, `absolutePath`), cast `as unknown as MediaLibraryStore`.
+  Rewrote "creates exactly one window and reuses it on a second open" to
+  drive this via two `store.setState({ currentMode: 'media-library',
+  mediaLibrary: { activeItemId, activeItemName, slideshow: null } })`
+  calls with the same `activeItemId`, asserting
+  `electronMock.windows` still has length 1 after the second — `ensureWindow()`
+  reuses the existing `BrowserWindow` when one exists and isn't destroyed.
+  `mgr.destroy()` in a `finally` to unsubscribe.
+
+No changes needed to `tests/setup/electron-mock.ts` — every method both
+window managers touch (`BrowserWindow` constructor + `options`, `screen.
+getAllDisplays/getPrimaryDisplay`, `webContents.on/insertCSS`) was already
+covered by the existing fake.
+
+**Verification:** `npx vitest run tests/window-managers.test.ts` — 6/6
+passed, first try (no signature-correction iteration needed beyond
+reading the two source files up front). Full suite `npx vitest run` —
+1194/1194 tests passed across 82 of 83 files; the sole failing suite is
+again the pre-existing `tests/companion-defs.test.ts` /
+`packages/companion-module-pconair` deps-not-installed gap (`@companion-
+module/base` unresolved), unchanged since Task 1 and unrelated to this
+task. `npx tsc --noEmit` clean (no output).
+
+Also note for the record: this firing's container had no `node_modules`
+at session start (fresh checkout) — ran `npm ci` before any test command,
+same as any fresh-checkout firing will need to.
+
+Commit `7cd8be0` — `tests/window-managers.test.ts` modified, nothing
+else touched.
+
+**No open blockers.** `state.json` advances to Task 5 (Tray + director
+window, modifying `tests/electron-chrome-windows.test.ts`) with `status:
+pending`. `free_reset_available` untouched at `true` — ordinary clean
+unit completion, nothing time-sensitive, no native bindings/signing
+involved. Note for whoever dispatches Task 5: that file already has a
+working single-test `resetModules()` + re-import pattern from Task 2 —
+Task 5 adds two more `describe` blocks to it, each with their own
+`beforeEach(() => { electronMock.reset(); vi.resetModules(); })`, which
+is the same multi-`resetModules()`-in-one-file shape Task 3 found breaks
+down past the first test. Worth deciding up front whether to keep Task
+2's per-test-resetModules pattern (and re-verify it actually holds with
+three `describe` blocks now sharing the file) or switch this file to the
+same top-level-import/no-resetModules pattern already proven in
+`tests/window-managers.test.ts`, rather than discovering the same failure
+mode a third time mid-task.
