@@ -103,7 +103,10 @@ export class FakeBrowserWindow {
 export function fakeSessionFor(partition: string) {
   return {
     partition,
-    cookies: { set: vi.fn().mockResolvedValue(undefined), get: vi.fn().mockResolvedValue([]) },
+    cookies: {
+      set: vi.fn().mockResolvedValue(undefined),
+      get: vi.fn().mockResolvedValue([] as Array<{ name: string; value: string }>),
+    },
     fetch: vi.fn().mockResolvedValue({
       ok: true, status: 200,
       text: () => Promise.resolve(''),
