@@ -204,3 +204,35 @@ plan's "recommended" option silently on a human's behalf; it should set
 `status: blocked` with a clear note asking for the cadence decision,
 unless it finds the decision already recorded somewhere by the time it
 runs.
+
+## 2026-09-29 — Task 6 (Layer 4): blocked, awaiting human cadence decision
+
+Checked for an existing cadence pick before doing anything else: grepped
+the repo for "cadence" / "show calendar" outside the plan doc itself, and
+checked for a `CLAUDE.md` file (Step 2 would edit one). Neither exists —
+no cadence has been recorded anywhere, and there is no `CLAUDE.md` in the
+repo at all yet.
+
+Per the plan's own text (Step 1: "the cadence number is a human decision";
+risk table: "Depends on the show calendar, which is not in the repo") and
+the previous firing's explicit note above, this is not a call the
+orchestrator should make on its own, even though the plan marks "every
+other major (~4 months)" as recommended — that recommendation is
+conditioned on the actual show calendar, which isn't available here.
+
+**Deliberately skipped:** all of Task 6, including Step 2 (the CLAUDE.md
+review-rule addition), since the task is committed as one unit at Step 3
+and splitting it doesn't have a clear justification.
+
+**No code or test changes this firing.** `state.json` set to
+`status: "blocked"` with a note spelling out exactly what decision is
+needed. `free_reset_available` left untouched at `true` — this is an
+ordinary blocked stop (no native-binding/notarization work pending, no
+known deadline), so no note recommending the free reset was added, per
+the orchestrator's guidance not to surface that option outside a
+time-sensitive stall.
+
+**Open question for a human:** pick the Electron-upgrade cadence
+(every-major / every-other-major / every-third-major) against the real
+show calendar and record the decision (e.g. a note in `state.json` or
+directly in a new `CLAUDE.md`) so the next firing can complete Task 6.
