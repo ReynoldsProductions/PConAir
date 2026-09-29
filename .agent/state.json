@@ -1,9 +1,9 @@
 {
   "status": "pending",
   "current_effort": "electron-migration",
-  "current_unit": "Task 10: Phase 0 gate",
-  "last_commit": "4431502",
+  "current_unit": "Task 11: Bump Forge first, Electron not yet",
+  "last_commit": "47afeda",
   "resume_after": null,
   "free_reset_available": true,
-  "notes": "Tasks 8 and 9 completed cleanly this firing (2 units in this batch). Stopping the batch before Task 10: it is Phase 0's own gate task, an explicit example of the 'phase/effort boundary' stopping condition in the roadmap doc's Batching section, so the next firing should start it fresh rather than this session dispatching it mid-batch. .agent/lock.json released as part of this firing's final commit."
+  "notes": "Task 10 (Phase 0 gate) completed cleanly this firing: no src/ changes during Phase 0, all 15 Audit Findings rows covered, 1253/1253 tests green, tsc clean, baseline recorded at docs/plans/electron32-test-baseline.txt. Stopping the batch before Task 11: it is the first task of Phase 1 ('The bump'), an explicit phase-boundary stopping condition in the roadmap doc's Batching section, so the next firing should start it fresh. .agent/lock.json released as part of this firing's final commit."
 }

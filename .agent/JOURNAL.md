@@ -847,3 +847,48 @@ advances to Task 10 with `status: pending`; the next firing should start
 it fresh rather than this session dispatching it mid-batch.
 `free_reset_available` untouched at `true`. Releasing `.agent/lock.json`
 as part of this firing's final commit.
+
+## 2026-09-29 — Task 10: Phase 0 gate
+
+Fresh session, fresh clone. Ran `npm install` and
+`npm run install:companion` (no `node_modules` present at checkout, as
+expected for an isolated firing).
+
+Gate steps from the plan:
+
+1. **No production code changed:** `git diff --stat a6737e8..HEAD -- src/`
+   is empty. `a6737e8` is the commit that added the migration plan
+   itself (start of Phase 0); comparing `main..HEAD` as the plan's
+   literal command would have been trivially empty here since this
+   orchestrator commits Phase 0 work directly to `main` rather than a
+   separate branch, so used the plan-introduction commit as the base
+   instead to make the check meaningful.
+2. **Audit Findings table coverage:** checked every row's real entry
+   point against the six Phase 0 test files' imports.
+   `src/main/index.ts` is the plan's own "covered indirectly" row; all
+   other 14 rows (`slides/window-manager.ts`, `settings-window.ts`,
+   `watchdog-electron.ts`, `url/window-manager.ts`,
+   `prompter/doc-transport.ts`, `director-window.ts`, `tray.ts`,
+   `prompter/window-manager.ts`, `media-library/window-manager.ts`,
+   `stagetimer/overlay.ts`, `tunnel/qr-overlay.ts`, `output-cursor.ts`,
+   `fullscreen-chrome.ts`, `settings-preload.ts`, `director-preload.ts`)
+   have a direct import and assertion in
+   `electron-chrome-windows.test.ts`, `window-managers.test.ts`,
+   `watchdog-electron.test.ts`, `prompter-doc-transport.test.ts`, or
+   `preload-surface.test.ts`. Table fully ticked.
+3. **Full green:** `npx vitest run && npx tsc --noEmit` — **1253/1253
+   tests passed across 86 files**, tsc clean.
+4. **Baseline recorded:** `docs/plans/electron32-test-baseline.txt`
+   written from the vitest summary and committed.
+
+Commit `47afeda` — new `docs/plans/electron32-test-baseline.txt`.
+
+**Phase 0 is done. No open blockers.** `state.json` advances to Task 11
+(Phase 1: bump Forge first) with `status: pending`. Stopping the batch
+here regardless: Task 11 is the first task of a new phase (Phase 1,
+"The bump"), an explicit phase-boundary stopping condition in the
+roadmap doc's Batching section, so the next firing should start it
+fresh with a clean session rather than this one continuing mid-batch
+into new-phase work. This firing completed exactly 1 unit.
+`free_reset_available` untouched at `true`. Releasing
+`.agent/lock.json` as part of this firing's final commit.
