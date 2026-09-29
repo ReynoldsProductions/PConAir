@@ -129,6 +129,21 @@ delete the remote branch too; `git push origin --delete` was denied (HTTP
 — left in place as harmless clutter (fully merged, empty diff, nothing
 points at it).
 
+## 2026-09-29 — Unblocked after the second concurrent-firing collision
+
+A human investigated: confirmed only one schedule trigger exists for this
+routine (ruling out a second routine as the cause), but could not fully
+confirm the platform-level root cause of the extra, off-cadence firings
+observed in the run history. Rather than leave the orchestrator blocked
+indefinitely on an unconfirmed root cause, added `.agent/lock.json` — a
+git-based lock every firing must acquire before touching this state file,
+with a 90-minute staleness window — documented in
+`docs/plans/2026-09-29-orchestrator-roadmap.md`'s new "Lock file" section
+and built into the routine's own prompt. A bug report was filed with
+Anthropic describing the observed firing pattern. `state.json` reset to
+`pending` at Task 8; the next firing should proceed normally, acquiring the
+lock first per the updated instructions.
+
 **Flagging for a human, not resolving it myself:** two orchestrator
 sessions ran the same unit concurrently, which the roadmap
 (`docs/plans/2026-09-29-orchestrator-roadmap.md`, "Hard gate between
