@@ -1345,3 +1345,20 @@ Phase 1 Track 1A (device enumeration) explicitly needs it. Per the roadmap's pha
 task's explicit instruction not to guess on this exact decision, **stopping the batch here** after 2 units this
 firing (0C, 0D). `state.json` set to `blocked` rather than advanced into Phase 1. Releasing `.agent/lock.json` as
 part of this firing's final commit. `free_reset_available` untouched at `true`.
+
+## 2026-09-29 — Deployment topology resolved, unblocked into Phase 1
+
+A human tested the real hardware directly: the Q-SYS USB Bridge camera feed opened in both OBS and Zoom
+simultaneously with no contention, disproving the assumed single-consumer-exclusivity risk for this specific
+bridge. Decision: **single mini**, documented in `specs/24-camera-mode.md`'s new "Deployment topology (resolved
+2026-09-29)" section, replacing the old "Open dependency" section. A second mini remains available as a fallback.
+
+One caveat carried into Phase 1 rather than closed here: OBS/Zoom use native AVFoundation capture, while PConAir's
+chosen path (`getUserMedia` in an offscreen `BrowserWindow`, per the Phase 0 architecture decision) is a different
+route through Chromium's media stack and hasn't itself been tested against Zoom holding the device concurrently.
+Track 1A must run that specific smoke check early and fall back to the second mini (not rework the capture
+approach) if it fails.
+
+Two secondary Phase 0 flags (real-hardware benchmark rerun, `libndi.dylib` re-signing before Phase 3B) were left
+as non-blocking per 0D's own default recommendation — not overridden, so Phase 1 proceeds without waiting on
+either. `state.json` advanced to `pending`, Phase 1 Track 1A.
