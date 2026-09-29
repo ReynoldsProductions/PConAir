@@ -1,0 +1,68 @@
+{
+  "library": "grandi",
+  "findSeconds": 15,
+  "polls": [
+    {
+      "atSeconds": 1,
+      "sources": []
+    },
+    {
+      "atSeconds": 2,
+      "sources": []
+    },
+    {
+      "atSeconds": 3,
+      "sources": []
+    },
+    {
+      "atSeconds": 4,
+      "sources": []
+    },
+    {
+      "atSeconds": 5,
+      "sources": []
+    },
+    {
+      "atSeconds": 6,
+      "sources": []
+    },
+    {
+      "atSeconds": 7,
+      "sources": []
+    },
+    {
+      "atSeconds": 8,
+      "sources": []
+    },
+    {
+      "atSeconds": 9,
+      "sources": []
+    },
+    {
+      "atSeconds": 10,
+      "sources": []
+    },
+    {
+      "atSeconds": 11,
+      "sources": []
+    },
+    {
+      "atSeconds": 12,
+      "sources": []
+    },
+    {
+      "atSeconds": 13,
+      "sources": []
+    },
+    {
+      "atSeconds": 14,
+      "sources": []
+    },
+    {
+      "atSeconds": 15,
+      "sources": []
+    }
+  ],
+  "anySourceEverFound": false,
+  "note": "showLocalSources:true was passed; empty results across the whole window most likely reflect no mDNS/Avahi responder in this container, not a library defect. See README.md."
+}

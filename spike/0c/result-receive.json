@@ -1,0 +1,9 @@
+{
+  "library": "grandi",
+  "receiverHandleCreated": true,
+  "framesReceived": 0,
+  "pollTimeouts": 15,
+  "firstFrames": [],
+  "counterGapsDetected": 0,
+  "note": "Receiver handle was created but zero video frames arrived in the whole window (every 1s poll timed out): no actual NDI connection was established, consistent with finder.js finding no sources. This container has no working NDI discovery/resolution path (no mDNS/Avahi responder). NOT verified: real NDI Studio Monitor, real Zoom Room Custom AV NDI input. Needs a human with real hardware."
+}

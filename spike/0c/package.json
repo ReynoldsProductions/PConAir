@@ -1,0 +1,9 @@
+{
+  "name": "spike-0c-ndi-sender",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Throwaway spike, never merges to main. See README.md.",
+  "dependencies": {
+    "grandi": "2.0.2"
+  }
+}
