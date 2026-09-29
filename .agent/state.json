@@ -2,7 +2,7 @@
   "status": "pending",
   "current_effort": "camera-mode",
   "current_unit": "Phase 0, Track 0B: getDisplayMedia self-capture spike",
-  "last_commit": "pending-after-commit",
+  "last_commit": "ea7ceda",
   "resume_after": null,
   "free_reset_available": true,
   "notes": "0A done (spike/0a-osr-pipeline, results in JOURNAL.md; measured on Linux/Xvfb/fake camera, NOT target hardware -- 0D must treat as caveated). Next: 0B, same rig and same measurements. 0C then 0D after. Camera Phase 1 still requires the unresolved deployment-topology decision (single mini vs second mini + own Q-SYS USB bridge): block rather than guess."
