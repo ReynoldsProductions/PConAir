@@ -60,8 +60,54 @@ notes
 landed, what was deliberately skipped, measured numbers, open questions —
 matching each source plan's own report-format convention.
 
+### Lock file: `.agent/lock.json`
+
+Added after a real incident (2026-09-29): two live firings ran concurrently
+against this repo and independently implemented the same tasks three times
+in a row before one of them correctly stopped rather than racing a fourth
+time. No work was lost — both firings converged on the same correct code —
+but it was pure waste, and a genuine two-writer conflict on a task with real
+side effects (e.g. Task 14, the Electron version bump itself) could corrupt
+`package-lock.json` or leave a half-applied change. The root cause of the
+concurrent firing was never fully confirmed (only one schedule trigger was
+configured, so it may be a scheduler-level double-fire, or a manual trigger
+overlapping the cron, or a batched session simply running long enough to
+still be active when the next hourly tick landed) — this lock defends
+against the *symptom* regardless of cause.
+
+Fields: `{ "session_id": <this firing's own session id or a random token>,
+"started_at": <ISO timestamp> }`.
+
+**Before doing anything else** (before even reading `state.json` for real
+work), a firing must:
+
+1. Pull latest, then read `.agent/lock.json`.
+2. **If it exists and `started_at` is less than 90 minutes ago:** another
+   firing is presumed still active. Exit immediately — do not read
+   `state.json`, do not dispatch anything, do not commit anything. This
+   should be the common case if two firings ever do land close together
+   again, and it costs almost nothing.
+3. **Otherwise** (no lock file, or one older than 90 minutes — presumed
+   dead from a crash): write a fresh `.agent/lock.json` with this firing's
+   own session id and the current timestamp, commit, and push *immediately*,
+   before starting any real work. This is the claim.
+4. Proceed with the loop below.
+5. **On every exit path** (unit completed and batch continuing, batch
+   stopped normally, paused-for-quota, blocked, or an error) — delete
+   `.agent/lock.json` (or mark it released) and commit+push that removal as
+   part of the same final commit, so the next firing doesn't wait out the
+   90-minute staleness window unnecessarily. If a firing dies without
+   reaching this step, the staleness check in step 2 is what eventually
+   unsticks things.
+
+90 minutes was chosen to comfortably cover a full 8-unit batch (observed
+per-unit time has been roughly 5–10 minutes) with margin, while still being
+short enough that a genuinely dead lock doesn't block progress for long.
+
 ### The loop (what each scheduled firing does)
 
+0. **Acquire the lock first** — see above. Do not proceed past this step
+   without either holding a fresh lock or confirming none is needed.
 1. Read `.agent/state.json`.
 2. **If `status == "paused-for-quota"` and now < `resume_after`:** exit
    immediately. This is the common case between windows and should cost
