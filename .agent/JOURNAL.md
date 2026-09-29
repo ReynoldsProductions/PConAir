@@ -1226,3 +1226,21 @@ Findings that are real mechanics:
 Deliberately skipped: real camera, macOS run, `useSharedTexture`, 10-min soak, forcing dirty-rect to full-frame.
 Open: human with a Mac mini + Q-SYS bridge should rerun `spike/0a` for real numbers before 0D relies on them.
 Vitest on branch: 1217/1217 tests pass; 1 file (`companion-defs`) fails to load only because `install:companion` wasn't run in this container.
+
+## 2026-09-29 — Camera Phase 0, Track 0B (getDisplayMedia self-capture spike)
+
+Branch `spike/0b-display-media` (pushed, never merges). `spike/0b/main.js` + `page.html`: visible 1920x1080
+window, same DOM composite as 0A, `setDisplayMediaRequestHandler` + `desktopCapturer`, frames counted via
+`requestVideoFrameCallback`. Results in `spike/0b/result-*.json`.
+
+**Same CAVEAT as 0A:** headless Linux/Xvfb/software GL/fake camera, 20 s runs, no macOS, no ScreenCaptureKit,
+no TCC prompt exercised. Numbers are not target-representative.
+
+- getDisplayMedia succeeds under Electron 44 with a main-process handler; settings report 1920x1080, requested 30 fps.
+- Only the whole Xvfb screen was offered as a source (no window source), so capture was of the monitor.
+- Delivered cadence was a steady 50 ms (20 fps): 369 frames vs ~555 expected at 30 (186 short), interval sd 12.6 ms
+  (p99 83 ms); animated overlay: 368 frames, sd 12.4 ms. CPU sum 3.0-3.9% (vs ~19-23% for OSR on the same rig).
+- The 20 fps ceiling looks like an X11/Xvfb capture limit, not evidence about ScreenCaptureKit. Unresolved.
+
+Not measured: macOS TCC/Screen Recording behavior, hidden/minimized/offscreen-positioned window capture, 10-min soak,
+frame content correctness. Open: rerun 0A+0B on the real Mac mini before 0D leans on any of these numbers.
