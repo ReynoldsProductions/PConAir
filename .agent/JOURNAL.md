@@ -1193,3 +1193,14 @@ ordering lists it next. This is not a normal pause; it's waiting on
 whether to proceed to the next effort at all. Every firing until a human
 changes this should see `blocked`, release the lock if held, and exit
 cheaply.
+
+## 2026-09-29 — Unblocked into Camera Mode
+
+A human explicitly greenlit the next effort. `state.json` advanced to
+`camera-mode`, Phase 0 Track 0A (OSR pipeline spike) — Tracks 0A/0B/0C run
+sequentially per the roadmap's override of the spec's "parallel" framing;
+0D (decision memo) waits for all three. Flagged in `state.json`'s own
+notes: Camera Phase 1 depends on an unresolved human decision (deployment
+topology / camera device contention, `specs/24-camera-mode.md`'s "Open
+dependency" section) that Phase 0 does not need — whoever reaches Phase 1
+should block rather than guess if that's still unresolved.
