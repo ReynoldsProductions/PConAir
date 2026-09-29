@@ -1,13 +1,18 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { BrowserWindow } from 'electron';
 
 // Hoisted by vitest within THIS file. The factory pulls the shared fake.
 vi.mock('electron', async () => (await import('./setup/electron-mock')).electronModule);
 
-import { electronMock } from './setup/electron-mock';
+import { electronMock, FakeBrowserWindow } from './setup/electron-mock';
 import { openSettingsWindow } from '../src/main/settings-window';
 import { createAppTray } from '../src/main/tray';
 import { openDirectorWindow, registerDirectorIpc } from '../src/main/director-window';
 import type { OfficeManager } from '../src/main/director/office-manager';
+import { hideCursorOnLoad } from '../src/main/output-cursor';
+import { applyFullscreenChrome } from '../src/main/fullscreen-chrome';
+import { showQrOverlay, hideQrOverlay } from '../src/main/tunnel/qr-overlay';
+import { createStageTimerOverlay } from '../src/main/stagetimer/overlay';
 
 // This file uses the top-level-import + `beforeEach(electronMock.reset())`
 // pattern proven in tests/window-managers.test.ts, not the per-test
@@ -70,5 +75,67 @@ describe('director window', () => {
     registerDirectorIpc({ officeManager, getOffices: () => [] });
 
     expect(electronMock.ipcChannels.length).toBeGreaterThan(0);
+  });
+});
+
+describe('output cursor', () => {
+  it('subscribes to a webContents load event to hide the cursor', () => {
+    const win = new FakeBrowserWindow({});
+    hideCursorOnLoad(win as unknown as BrowserWindow);
+
+    expect(win.recorded.calls.some((c) => c.startsWith('webContents.on:'))).toBe(true);
+  });
+});
+
+describe('fullscreen chrome', () => {
+  const originalPlatform = process.platform;
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform });
+  });
+
+  it('applies simple fullscreen on macOS', () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin' });
+    const win = new FakeBrowserWindow({});
+
+    applyFullscreenChrome(win as unknown as BrowserWindow);
+
+    expect(win.recorded.calls).toContain('setSimpleFullScreen:true');
+  });
+
+  it('is a no-op off macOS', () => {
+    Object.defineProperty(process, 'platform', { value: 'linux' });
+    const win = new FakeBrowserWindow({});
+
+    applyFullscreenChrome(win as unknown as BrowserWindow);
+
+    expect(win.recorded.calls).toHaveLength(0);
+  });
+});
+
+describe('qr overlay', () => {
+  afterEach(() => {
+    hideQrOverlay();
+  });
+
+  it('creates a frameless always-on-top overlay window', async () => {
+    await showQrOverlay('https://example.trycloudflare.com', 60_000);
+
+    expect(electronMock.windows).toHaveLength(1);
+    expect(electronMock.windows[0].options.frame).toBe(false);
+    expect(electronMock.windows[0].options.alwaysOnTop).toBe(true);
+  });
+});
+
+describe('stagetimer overlay', () => {
+  it('creates an always-on-top, non-focusable overlay window', () => {
+    const overlay = createStageTimerOverlay({ getCredentials: () => ({ roomId: null, apiKey: null }) });
+
+    overlay.show('bottom-right', 20);
+
+    expect(electronMock.windows).toHaveLength(1);
+    const opts = electronMock.windows[0].options;
+    expect(opts.alwaysOnTop).toBe(true);
+    expect(opts.focusable).toBe(false);
+    expect(opts.frame).toBe(false);
   });
 });

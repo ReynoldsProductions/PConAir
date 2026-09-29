@@ -67,6 +67,7 @@ export class FakeWebContents {
 export class FakeBrowserWindow {
   webContents: FakeWebContents;
   private rec: RecordedWindow;
+  private simpleFullScreen = false;
   constructor(options: Record<string, unknown> = {}) {
     this.rec = { options, loadedUrl: null, calls: [], destroyed: false, webContents: null as unknown as FakeWebContents };
     this.webContents = new FakeWebContents(this.rec);
@@ -89,6 +90,8 @@ export class FakeBrowserWindow {
   setBounds(b: unknown) { this.rec.calls.push(`setBounds:${JSON.stringify(b)}`); }
   getBounds() { return { x: 0, y: 0, width: 1920, height: 1080 }; }
   setFullScreen(v: boolean) { this.rec.calls.push(`setFullScreen:${v}`); }
+  isSimpleFullScreen() { return this.simpleFullScreen; }
+  setSimpleFullScreen(v: boolean) { this.rec.calls.push(`setSimpleFullScreen:${v}`); this.simpleFullScreen = v; }
   setAlwaysOnTop(v: boolean) { this.rec.calls.push(`setAlwaysOnTop:${v}`); }
   setIgnoreMouseEvents(v: boolean) { this.rec.calls.push(`setIgnoreMouseEvents:${v}`); }
   setMenuBarVisibility() { this.rec.calls.push('setMenuBarVisibility'); }
