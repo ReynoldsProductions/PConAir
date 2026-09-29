@@ -1,9 +1,9 @@
 {
   "status": "pending",
   "current_effort": "electron-migration",
-  "current_unit": "Task 8: Prompter doc transport (new test file, per plan)",
-  "last_commit": "02290d4",
+  "current_unit": "Task 9: Preload bridges (new test file, per plan)",
+  "last_commit": "51a4c38",
   "resume_after": null,
   "free_reset_available": true,
-  "notes": "Unblocked 2026-09-29 by a human. Investigated the duplicate-firing incident: only one schedule trigger existed (confirmed via RemoteTrigger list -- ruled out a second routine), and the exact platform-level cause of the extra firings was not fully confirmed. Rather than leave this permanently blocked on an unconfirmed root cause, added a mitigation that defends against the symptom regardless of cause: a git-based lock file (.agent/lock.json, documented in docs/plans/2026-09-29-orchestrator-roadmap.md's new 'Lock file' section) that every firing must acquire before touching this state file, with a 90-minute staleness window. A bug report was also filed with Anthropic about the unexplained firing frequency. Proceeding with Task 8 -- the lock file's own instructions are now in the routine's prompt and the roadmap doc, so this and all future firings will acquire it first."
+  "notes": "Task 8 (prompter doc transport characterization) completed cleanly this firing. Lock file (.agent/lock.json) acquired at start of this firing per the roadmap doc's Lock file section; will be released on this firing's final commit. Proceeding to Task 9 in the same batch (no stopping condition hit: not native bindings/signing, not a phase/effort boundary -- Task 9 is still Phase 0). Task 10 is this phase's own gate task; will re-evaluate stopping conditions before dispatching it."
 }

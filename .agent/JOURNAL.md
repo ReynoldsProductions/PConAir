@@ -756,3 +756,47 @@ sole pre-existing failure unchanged, `tsc` clean) checkpoint. This
 session made no attempt to inspect or modify whatever triggers/schedules
 exist for this repo (no tool available to do so from inside the
 session) — that inspection is the human action item.
+
+## 2026-09-29 — Task 8: Prompter doc transport
+
+New file `tests/prompter-doc-transport.test.ts`. The plan's draft assumed
+`createElectronDocTransport()` returns an object with a `.fetchDoc`
+method and that this file itself rejects a non-Google-Docs URL — neither
+holds against the real source. `createElectronDocTransport()` returns
+the `DocTransport` function directly (`(url, init) => Promise<DocResponse>`);
+URL validation (`GOOGLE_DOC_PATTERN`) lives entirely in `doc-source.ts`,
+which this adapter never touches — `doc-transport.ts` fetches whatever
+URL it is handed, unconditionally. What it actually branches on is
+whether a Google session cookie (`SID`/`SSID`/`SAPISID`) is present on
+the `persist:google-slides` partition, so the three tests characterize:
+(1) signed-in → fetch via that session's own `fetch` with
+`credentials: 'include'`, (2) no cookie → bare global `fetch`, no
+session-based fetch attempted, (3) session fetch throws → falls back to
+the bare fetch rather than propagating.
+
+Followed the top-level-import + `beforeEach(electronMock.reset())`
+pattern (Task 2/3/4 finding: per-test `vi.resetModules()` desyncs the
+mock factory's cached instance in a multi-test file) rather than the
+plan draft's `resetModules()`-per-test. Since three tests here each need
+a different `session.fromPartition` mock behavior and `electronMock.reset()`
+doesn't touch a `vi.fn`'s installed `mockImplementation`, added an
+explicit restore-to-default in `beforeEach` so each test starts from the
+same baseline before overriding what it needs.
+
+Widened `tests/setup/electron-mock.ts`'s `fakeSessionFor().cookies.get`
+mock type from an inferred `never[]` to
+`Array<{ name: string; value: string }>` so tests can resolve real
+cookie shapes without fighting the fixture's own inference — no
+behavior change (still defaults to `[]`).
+
+`npx tsc --noEmit` clean. Full suite `npx vitest run` — **1247/1247
+passed across all 85 files**, including the previously-noted
+pre-existing `tests/companion-defs.test.ts` gap (resolved this run by
+running `npm run install:companion`, which this firing had to do anyway
+since it started from a fresh clone with no `node_modules`).
+
+Commit `51a4c38` — new `tests/prompter-doc-transport.test.ts`,
+`tests/setup/electron-mock.ts` modified.
+
+**No open blockers.** `state.json` advances to Task 9 (preload bridges)
+with `status: pending`. `free_reset_available` untouched at `true`.
