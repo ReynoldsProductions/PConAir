@@ -6,6 +6,9 @@
 # Claude plan files
 .claude/plans/
 
+# Claude Code agent worktrees (machine-local, transient)
+.claude/worktrees/
+
 # Node / Electron
 node_modules/
 dist/
