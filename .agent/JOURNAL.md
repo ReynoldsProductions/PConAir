@@ -1444,3 +1444,48 @@ in Live Control, and how the device picker/preview/output-toggle surfaces map on
 Committed directly to `main` (no worktree needed — single-file-ownership rule per the spec's "Agent operating
 rules" wasn't in tension with anything in flight). `state.json` not touched, per this unit's constraints; the
 orchestrator advances it to Phase 1 Track 1A/1C next.
+
+## 2026-09-29 — Blocked before starting Track 1A: getUserMedia-vs-Zoom-Rooms smoke check needs real hardware
+
+Lock was stale (~98 min old, previous firing's session never released it — no matching "release lock" commit
+follows `5ae6d29` in history, so it likely died or ran past its own accounting; no evidence of a second live
+firing). Reacquired per the roadmap's staleness rule, pushed immediately, then read `state.json`.
+
+`state.json.status` was `"pending"` with `current_unit` naming Phase 1 Track 1A next (1B is merged at `749d071`,
+matching `last_commit`). The `current_unit` string itself had a stray `"-- in_progress"` suffix, but that's not
+the actual `status` field, and there's no corroborating evidence of started work: `src/main/camera/` doesn't
+exist, `git status` is clean, no branches beside `main`. Treated as a labeling leftover, not a real in-progress
+unit — this firing is a normal `pending` dispatch, not a crash-recovery case.
+
+Read `specs/24-camera-mode.md`'s Phase 1 / Track 1A row and the "Deployment topology" section before dispatching
+anything, per this doc's own rule. Track 1A's work is device enumeration, selection, hotplug handling, permission
+prompts and persistence under `src/main/camera/` — but the "Deployment topology" section's own caveat (resolved
+2026-09-29, the single-mini decision) is explicit and still open: *"Phase 1's device-enumeration track must
+include an early smoke check: open the Q-SYS camera via `getUserMedia` while Zoom Rooms has it open on the same
+mini, and confirm both get a live feed with no error, no device-busy failure, and no silent frame freeze on
+either side, before building anything further on the single-mini assumption. If that check fails, fall back to
+the second mini... rather than reworking the capture approach."*
+
+**This check cannot be performed from this session.** It needs a real Mac mini, the real Q-SYS USB Video Bridge,
+and a live Zoom Rooms session held open concurrently with an Electron `getUserMedia` capture — none of which
+exist in this cloud container. Unlike the Phase 0 pipeline benchmarks (which could run headless against a fake
+camera and produce directionally useful, if unverified, numbers), device-contention behavior between two OS-level
+capture consumers isn't something a software mock can answer — faking a result here would just be guessing
+dressed up as a check, which the task's own instructions rule out for exactly this kind of call. It's the same
+category of question as the deployment-topology decision itself, which a human (Tom) resolved two firings ago by
+physically testing OBS + Zoom on the hardware — this is that same test's Electron-specific counterpart, one layer
+deeper, and needs the same kind of physical verification.
+
+Building out `src/main/camera/`'s device enumeration and selection now would mean building directly on the
+single-mini assumption the spec says not to lean on yet: if the check later fails, the fallback is a second mini
+with its own USB bridge, which changes what "local device enumeration" even means for this track (likely remote
+capture instead of `navigator.mediaDevices` against a local device) — real rework risk, not a cosmetic one.
+`state.json`'s own notes from the prior firing had already flagged the *failure* branch of this exact check as a
+human decision; this entry extends that to the check itself, since this session has no way to produce a real
+answer either way.
+
+**Not dispatching Track 1A this firing.** `state.json` set to `blocked` with a note asking Tom to run the
+`getUserMedia`-while-Zoom-Rooms-holds-the-device smoke check on the real mini (same style as the OBS/Zoom test
+already recorded in "Deployment topology") and record the result in `specs/24-camera-mode.md`. No code changed.
+Releasing `.agent/lock.json` as part of this firing's final commit. `free_reset_available` untouched at `true` —
+this isn't a quota stop, and there's no deadline pressure evident here worth surfacing the reset for.
