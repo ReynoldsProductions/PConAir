@@ -1489,3 +1489,15 @@ answer either way.
 already recorded in "Deployment topology") and record the result in `specs/24-camera-mode.md`. No code changed.
 Releasing `.agent/lock.json` as part of this firing's final commit. `free_reset_available` untouched at `true` —
 this isn't a quota stop, and there's no deadline pressure evident here worth surfacing the reset for.
+
+## 2026-09-29 (19:10 UTC) — Still blocked, rechecked: getUserMedia-vs-Zoom smoke check not yet run
+
+No lock present at firing start (previous firing released cleanly). Reacquired lock, pushed immediately, read
+`state.json`: `status` still `"blocked"` on the same human-only hardware step as the prior several firings
+(Track 1A's `getUserMedia`-while-Zoom-Rooms-holds-the-device smoke check). Re-read `specs/24-camera-mode.md`'s
+"Deployment topology" section directly rather than trusting the stale note alone: the caveat and the Open
+Dependency table row are unchanged, no pass/fail recorded. `docs/camera-getusermedia-smoke-test.html` (added in
+`c691836`) is still unrun. Track 1B remains merged and stable at `749d071`, matching `last_commit`.
+
+Nothing to resolve from this session — this needs Tom to physically run the smoke test on the real mini. No code
+changed, `state.json` left as-is. Releasing `.agent/lock.json` as part of this firing's final commit.
