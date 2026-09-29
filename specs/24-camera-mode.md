@@ -1,6 +1,8 @@
 # 24 — Camera Mode + NDI Out
 
-Status: Draft spec for agent handoff. Not yet started — Phase 0 has not run.
+Status: Draft spec for agent handoff. Phase 0 spikes ran and the pipeline and NDI
+library are decided (2026-09-29). The Phase 0 soak on target hardware is
+still outstanding.
 
 Repo: `ReynoldsProductions/PConAir` — the org is "ReynoldsProductions" (with the
 trailing s), the repo is "PConAir" (singular, no trailing s). An earlier draft of
@@ -140,7 +142,7 @@ deployment topology (single mini vs. second mini + second USB bridge) before
 Phase 1 device-enumeration work is scoped, since it affects what "device
 selection" even means in that phase.
 
-## Architecture decision to resolve in Phase 0
+## Architecture decision (resolved in Phase 0, 2026-09-29)
 
 The entire feature hinges on one question: **how do composed pixels get out
 of Chromium and into an NDI sender at a steady 30 fps?**
@@ -149,56 +151,171 @@ The graphics packages are HTML/CSS/JS. That rules out compositing in a 2D
 canvas, because it would mean rewriting every package. The composite has to
 happen in the DOM, which means the pixel tap has to read a rendered DOM tree.
 
-Two candidate pipelines. Phase 0 builds both as throwaway spikes and measures
-them.
+**Decision: Candidate A (offscreen rendering) with a pacer we own, feeding
+`grandi` (`tux-tn/grandi`) as the NDI sender. Candidate B stays documented as
+the fallback.** The Phase 0 exit soak (10 minutes at 1080p30, ±2 ms, zero
+drops) has **not** been met by anything yet. It still has to be run on target
+hardware. See "Caveats" below.
 
-### Candidate A — Offscreen rendering (OSR)
+### Candidate A — Offscreen rendering (OSR) — CHOSEN
 
 Hidden `BrowserWindow` with `webPreferences.offscreen: true` hosting a
 `<video>` element (camera via `getUserMedia`) with the existing graphics
-layers stacked over it in the DOM. Frames arrive on the `paint` event.
+layers stacked over it in the DOM. Frames arrive on the `paint` event. A
+pacer holds the latest full frame and re-emits it on a 30 fps clock.
 
 - **Pro:** reuses every graphics package verbatim. No screen-recording
-  permission. Window need not be visible.
+  permission. Window need not be visible and needs no display.
 - **Con:** paint is dirty-rect and event-driven, not clock-driven. Static
   content produces no paints, so a frame pacer must hold and re-emit the last
-  full frame at 30 fps. GPU→CPU readback cost; evaluate `useSharedTexture`.
-- **Unknown to measure:** whether `getUserMedia` behaves reliably in an
-  offscreen renderer, and whether dirty-rect paints can be forced to
-  full-frame cheaply.
+  full frame at 30 fps. GPU→CPU readback cost; evaluate `useSharedTexture`
+  in Phase 5B, though NDI needs CPU-side BGRA either way.
+- **Resolved by 0A:** `getUserMedia` works in an `offscreen: true` renderer
+  under Electron 44, and camera frames paint.
+- **Still unknown:** whether a pacer off the main thread holds ±2 ms. 0A's
+  pacer was a naive `setTimeout` on the Electron main thread, and its jitter
+  is the main thing that has to improve.
 
-### Candidate B — Self-capture via `getDisplayMedia`
+### Candidate B — Self-capture via `getDisplayMedia` — FALLBACK
 
 A normal (possibly offscreen-positioned) window hosts the same DOM
 composite. The app captures its own window through
 `desktopCapturer`/`getDisplayMedia`, yielding a paced `MediaStream`. Frames
 pulled via `requestVideoFrameCallback`/WebCodecs `VideoFrame`.
 
-- **Pro:** natively paced by the capture pipeline, so no pacer needed.
-  Well-trodden path, hardware-accelerated on macOS via ScreenCaptureKit.
-- **Con:** requires Screen Recording TCC permission — an MDM profile item on
-  managed minis. Behavior with hidden/minimized windows is unreliable; the
-  window may need to exist on a real or virtual display.
+- **Pro:** hardware-accelerated capture on macOS via ScreenCaptureKit. Much
+  lower CPU on the Phase 0 rig (but see the comparability note below).
+- **Con:** requires the Screen Recording TCC permission. On a managed mini,
+  MDM PPPC profiles have historically been able to let a user *approve*
+  Screen Recording but not grant it silently. Recent macOS releases also
+  re-prompt periodically for screen capture. Both are unverified for the
+  target macOS version, and both conflict with non-negotiable 4 (survives
+  restart unattended). Capturing a hidden or minimized window is unreliable,
+  so the window may need a real or virtual display on the mini. That
+  display is one more piece of state that can go wrong. Screen capture is
+  probably also change-driven (unverified), so "no pacer needed" is not
+  safe to assume.
 
-**Decision rule:** pick whichever spike holds 1080p30 for 10 minutes with
-lower CPU and no dropped or duplicated frames under a realistic graphics
-load. If both pass, prefer A for the absent permission requirement.
+### Why A
+
+Neither spike passed the exit criterion, and on this rig neither could have.
+Both ran on the same non-representative setup: headless Linux, Xvfb,
+software GL, and Chromium's fake camera capped at 20 fps. So the call rests
+on the relative comparison and the architecture, not on a pass:
+
+1. **The spec's own tie-break favors A.** The rule was to prefer A for the
+   absent permission requirement if both passed. Phase 0 could not produce a
+   pass/fail on either candidate. So the tie-break is the only part of the
+   rule that the evidence can actually apply.
+2. **B's CPU advantage (~3-4% vs ~19-23%) is real but overstated.** 0B only
+   counted frames presented to a `<video>` element via
+   `requestVideoFrameCallback`. It never read pixels back to the CPU or
+   handed them to a sender. 0A received a CPU-side bitmap for every paint.
+   A production B would add a `VideoFrame.copyTo` readback at 1080p30
+   (~250 MB/s) plus a hop to the NDI worker. So the gap will narrow, by an
+   amount nobody has measured yet. It must be re-measured on the mini (see
+   Caveats).
+3. **A's failures are in code we own; B's are in the OS.** 0A's jitter
+   (sd 18-22 ms), duplicates and drops came from a naive main-thread
+   `setTimeout` pacer and a 20 fps fake camera. Phase 3B is already
+   required to build a worker-thread NDI send path, and the pacer belongs
+   there. B's failure modes are outside PConAir: TCC prompts, display
+   presence, and window-capture behavior. They show up as a black output
+   after a weekly reboot, which is the failure this project exists to
+   eliminate.
+4. **B's rig result did not even capture a window.** Xvfb offered only the
+   whole screen, so 0B captured the monitor. Window-only capture, which is
+   what B needs to exclude cursors, notifications and other windows, is
+   unproven.
+
+**Fallback trigger:** if the real-hardware rerun shows A cannot hold 1080p30
+within budget with a worker/high-precision pacer, switch to B. Before
+committing to B, B must itself be rerun on the mini with pixel readback
+included and TCC behavior checked under the actual MDM profile.
+
+### Phase 0 benchmark summary
+
+All runs: Electron 44.4.5 / Chromium 152 (0A/0B), Node 22 (0C), headless
+Linux container, Xvfb, software GL, Chromium fake camera at 20 fps, 20 s per
+run (not the 10-minute soak). Raw data lives in `spike/0*/result-*.json` on
+the `spike/0a-osr-pipeline`, `spike/0b-display-media` and
+`spike/0c-ndi-sender` branches.
+
+| Spike / mode | Frames (actual / expected) | Interval mean | Interval sd | Interval p99 | Drops | CPU mean | Notes |
+|---|---|---|---|---|---|---|---|
+| 0A OSR, fake camera | 491 emitted / 600 | 33.3 ms | 22.1 ms | 86.6 ms | 109 | 19.2% (sum, all procs) | 175 held duplicates; first paint 3.76 s; all 620 paints full-frame |
+| 0A OSR, animated overlay | 599 / 600 | 33.3 ms | 18.2 ms | 70.5 ms | 1 | 23.5% (sum, all procs) | 89 held duplicates; first paint 96 ms; 758/1008 paints full-frame |
+| 0B getDisplayMedia, fake camera | 369 / 555 | 50.0 ms | 12.6 ms | 83.3 ms | 186 short | 3.0% (sum, all procs) | Steady 20 fps (likely an Xvfb capture ceiling); whole-screen source only; **no CPU readback** |
+| 0B getDisplayMedia, animated overlay | 368 / 555 | 50.0 ms | 12.4 ms | 66.7 ms | 187 short | 3.9% (sum, all procs) | Same as above |
+| 0C `grandi` send, synthetic 1080p BGRA | 600 / 600 | 33.3 ms | 1.04 ms | 34.7 ms | 0 | 16.0% (one Node process) | 0 errors, 0 blocked sends; no DOM or paint in path; discovery/receive untestable here (no mDNS) |
+
+Only the 0C send path, which has no rendering in it, came in under ±2 ms.
+Both pipeline spikes are far outside it. On this rig that is expected and
+does not by itself disqualify either one.
+
+### Caveats and residual risks
+
+- **Every Phase 0 number comes from a non-representative rig.** That means
+  headless Linux, Xvfb, software GL, a fake camera at 20 fps, and 20 s runs.
+  **A human must rerun the chosen pipeline (0A, with a pacer off the main
+  thread) plus `grandi` NDI send on a real Mac mini with a real
+  AVFoundation UVC camera (the Q-SYS bridge). That run must be the full
+  10-minute 1080p30 soak.** Until then, no phase may treat these numbers as
+  ground truth. Phase 1 can proceed, because its work does not depend on
+  pixel-pipeline numbers. Phase 2's composite host page should not be built
+  until that rerun confirms A or triggers the fallback. The Phase 0 exit
+  criterion "10-minute soak at 1080p30, ±2 ms, zero drops" is **open**, not
+  met.
+- **The CPU comparison between A and B is not like-for-like** (B had no
+  readback). Re-measure both on the mini if A's CPU looks marginal.
+- **NDI discovery and receive are unverified.** They need real mDNS, NDI
+  Studio Monitor and a Zoom Room Custom AV NDI input.
+- **`libndi` bundling and notarization are unverified.** See NDI sender
+  below.
 
 ## NDI sender
 
-Do not write bindings from scratch. Evaluate, in this order:
+**Library: `grandi` (`tux-tn/grandi`, npm `grandi`, validated at 2.0.2 with
+NDI SDK 6.3.2).** Do not write bindings from scratch.
 
-- `stagetimerio/grandiose` — N-API fork of the Streampunk bindings, NDI work
-  on threads off the event loop, already shipping NDI output in a production
-  Electron desktop app.
-- `tux-tn/grandi` — TypeScript-native NDI 6 bindings, prebuilt binaries for
-  macOS/Windows/Linux, documented Electron usage.
+The spec's evaluation order put `stagetimerio/grandiose` first. In Phase 0C
+it could not be installed: its install script downloads the full NDI SDK
+from `downloads.ndi.tv` and compiles with node-gyp. That host was blocked by
+the build container's egress policy, so an unattended or CI build can't
+depend on it either. `grandi` installed from npm prebuilds, with
+`libndi` included and no compiler run. It loaded, initialized, and sent
+600/600 synthetic 1080p30 frames with no errors. It also ships prebuilds for
+Windows, so it does not foreclose Windows later. `grandiose` remains the
+fallback if `grandi` fails notarization or the worker requirement.
 
-Requirements either way: send on a worker thread, preallocated buffer pool
-(1080p BGRA is 8.3 MB/frame, ~250 MB/s at 30 fps — no per-frame allocation),
-`libndi` bundled inside the `.app` with hardened runtime intact so
-notarization passes, and an `ndi.video` link in the UI near the NDI controls
-per the SDK terms.
+Requirements, with what is known about `grandi` against each:
+
+- **Send on a worker thread.** `grandi`'s `sender.video()` is async
+  (Promise). In a 0D check it loaded and sent 1080p BGRA frames from inside
+  a Node `worker_threads` Worker (plain Node 22). That check has **not** been
+  run inside Electron, either in a main-process Worker or in a
+  `utilityProcess`. Phase 3B must confirm one of those early. Frames reach
+  the main process from OSR `paint`, so getting them to the worker costs one
+  copy into a shared buffer. Budget for that copy.
+- **Preallocated buffer pool.** 1080p BGRA is 8.3 MB/frame, ~250 MB/s at
+  30 fps, so no per-frame allocation. With async send, a buffer may be
+  referenced until its `video()` promise resolves. The pool must not recycle
+  a slot before then; size it at 3 or more. Whether `grandi` allocates
+  internally per call has not been profiled.
+- **`libndi` bundled inside the `.app` with hardened runtime intact so
+  notarization passes.** `@grandi/darwin-arm64@2.0.2` ships `grandi.node`
+  (arm64 only, linker-signed, loads `@rpath/libndi.dylib` via
+  `@loader_path`) and `libndi.dylib` (universal, ~30 MB, signed with NDI's
+  own Developer ID, team `W8U66ET244`). Under hardened runtime, library
+  validation rejects dylibs from another team. So both files must be
+  unpacked from asar and re-signed with our Developer ID. The alternative is
+  the `disable-library-validation` entitlement, which should be avoided.
+  x64 and arm64 come as separate packages, so a universal build needs both.
+  **None of this was verifiable in the Linux container.** Validate a signed,
+  notarized build with `grandi` on macOS before Phase 3B, which is a hard
+  break point under the rules above.
+- **`ndi.video` link** in the UI near the NDI controls, per the SDK terms.
+  Ship `libndi_licenses.txt` from the prebuild with the app.
 
 ## Running this on a Pro ($20/mo) plan
 
@@ -351,13 +468,18 @@ written recommendation plus benchmark numbers.
 | 0A | OSR pipeline spike: offscreen window, camera in, frame pacer, dump raw frames to disk. Measure CPU, frame interval jitter, dropped frames. | Sonnet |
 | 0B | `getDisplayMedia` self-capture spike, same measurements, same rig. | Sonnet |
 | 0C | NDI sender spike: both libraries, send a synthetic 1080p30 pattern, verify discovery and stability in NDI Studio Monitor and in a Zoom Room Custom AV NDI input. | Sonnet |
-| 0D | Decision memo: benchmark table, recommendation, risks. Rewrite the Pipeline section of `specs/24-camera-mode.md` to match. | Opus |
+| 0D | Decision memo: benchmark table, recommendation, risks. Rewrite the Pipeline section of `specs/24-camera-mode.md` to match. **Done 2026-09-29:** OSR + `grandi`, see Architecture decision. | Opus |
 
 0A, 0B and 0C run **in parallel** in separate git worktrees. 0D is the join
 point and must not start before all three report.
 
 **Exit criteria:** one pipeline chosen, one NDI library chosen, 10-minute
 soak at 1080p30 with measured frame interval within ±2 ms and zero drops.
+
+**Exit status (2026-09-29):** pipeline chosen (A, OSR). NDI library chosen
+(`grandi`). The soak is **not met**: no Phase 0 run was on target hardware.
+It needs a human rerun on the Mac mini with a real UVC camera; see
+Architecture decision → Caveats.
 
 ### Phase 1 — Camera capture and state contract
 
@@ -505,11 +627,11 @@ to 0D and 5E via `opusplan`, and anything with a clear spec drops to Haiku.
 
 | Risk | Mitigation |
 |---|---|
-| OSR pacing proves unworkable | Phase 0 decides before any real code; Candidate B is the fallback |
+| OSR pacing proves unworkable | A chosen in Phase 0 on relative evidence only. The real-hardware soak confirms it before Phase 2; Candidate B is the documented fallback |
 | Camera device contention — PConAir holding the UVC device prevents the Zoom Room from using it directly | Deployment decision, not a code one, and **not yet made** — see Open dependency above. Likely: run PConAir on a second mini fed by its own Q-SYS USB bridge |
 | Zoom Rooms PTZ control lost when the room selects a composited source | Out of scope here. PTZ moves to Q-SYS UCI or Companion. Flag in the operator SOP |
 | NDI SDK terms changed in 2025 | Video-only, internal distribution, `ndi.video` link in the UI. Read the current terms before shipping |
-| Notarization fails with bundled `libndi` | Validate the signed build in Phase 0C, not at ship time |
+| Notarization fails with bundled `libndi` | Could not be validated in 0C (Linux container). `grandi`'s `grandi.node` and NDI-team-signed `libndi.dylib` must be re-signed with our Developer ID; validate a signed, notarized build on macOS before Phase 3B, not at ship time |
 | Electron main-thread stalls hitching video | NDI send on a worker thread; no per-frame allocation |
 | 5-hour window closes mid-unit, leaving a half-finished tree | Units sized under one window; `state.json` plus commit-per-unit; recovery path for `in_progress` at startup |
 | Weekly cap exhausted with phases outstanding | Schedule heavy phases right after the weekly reset; orchestrator stops and notifies rather than idling for days |
@@ -530,3 +652,12 @@ ones.
    a Pro plan. Confirmed Pro plan, 28 Sep 2026.
 6. **Camera device contention / deployment topology:** open — see Open
    dependency above. Resolve before Phase 1 starts.
+7. **Pixel pipeline and NDI library (resolved 29 Sep 2026, Phase 0D):**
+   Candidate A (offscreen rendering, with a pacer we own) and `grandi` for
+   NDI send. Candidate B (`getDisplayMedia`) is the fallback.
+   `grandiose` was not installable without an NDI SDK download at build
+   time. Chosen on relative evidence and architecture, not on a passing
+   soak: every Phase 0 number came from a headless Linux rig with a fake
+   camera. The 10-minute 1080p30 soak on a real Mac mini with a real UVC
+   camera is still owed, and it confirms or reverses this before Phase 2.
+   See Architecture decision.
