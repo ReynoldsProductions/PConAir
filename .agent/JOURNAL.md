@@ -642,3 +642,35 @@ Commit `f214715` — `tests/electron-chrome-windows.test.ts` and
 
 **No open blockers.** `state.json` advances to Task 7 (Watchdog) with
 `status: pending`. `free_reset_available` untouched at `true`.
+
+### Task 7: Watchdog crash/unresponsive characterization tests
+
+New file `tests/watchdog-electron.test.ts`. Corrected the plan's example
+against the real `startWatchdog()` config: `WatchdogElectronOpts`
+requires a third field, `recreateProgramWindow`, that the plan's
+`as never`-cast example silently dropped -- supplied a real no-op.
+Asserted directly on all three real `webContents` subscriptions
+(`crashed`, `unresponsive`, `responsive`) rather than the plan's loose
+`hasHandler || calls.some(includes)` check, since `watchWindow()`
+always subscribes all three (plus the window's own `closed` handler).
+
+`stopWatchdog()` (the teardown `startWatchdog()` returns) calls
+`ipcMain.removeAllListeners(PONG_CHANNEL)` -- the mock had no such
+method, so every test failed at teardown until it was added to
+`tests/setup/electron-mock.ts`. Wrapped each test that starts the
+watchdog in try/finally calling `stop()`, so its real
+ping/memory-pressure `setInterval`s don't keep running past the test
+(no `vi.useFakeTimers()` needed -- the assertions here don't depend on
+either interval actually firing, and per-test `resetModules()` was
+already ruled out by Tasks 3-6's findings).
+
+`npx tsc --noEmit` clean. Full suite `npx vitest run` — 1205/1205
+passed across 83 of 84 files; sole failure is the same pre-existing
+`tests/companion-defs.test.ts` deps gap, unrelated.
+
+Commit `6d332df` — new `tests/watchdog-electron.test.ts`,
+`tests/setup/electron-mock.ts` modified.
+
+**No open blockers.** `state.json` advances to Task 8 (Prompter doc
+transport) with `status: pending`. `free_reset_available` untouched at
+`true`.
