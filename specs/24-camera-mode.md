@@ -132,15 +132,33 @@ problem by removing the app that cannot survive a reboot.
    when nothing on screen is changing. A frozen or stuttering output is worse
    than no graphics.
 
-## Open dependency: camera device contention
+## Deployment topology (resolved 2026-09-29)
 
-PConAir holding the UVC device may prevent the Zoom Room from using it
-directly at the same time. The doc's proposed mitigation — run PConAir on a
-second mini fed by its own Q-SYS USB bridge — is a hardware/deployment
-decision, not a code change, and **it has not been made yet**. Confirm the
-deployment topology (single mini vs. second mini + second USB bridge) before
-Phase 1 device-enumeration work is scoped, since it affects what "device
-selection" even means in that phase.
+**Decision: single mini.** PConAir runs on the same mini as the existing
+Zoom Room setup, sharing the Q-SYS USB Video Bridge — no second mini or
+second USB bridge for MVP.
+
+**Evidence:** the assumed risk was that the UVC device only allows one
+exclusive consumer, which would force a second mini. Tom tested this
+directly on the real hardware: the Q-SYS camera feed opened in **both OBS
+and Zoom simultaneously**, with no contention — this specific Q-SYS USB
+Bridge does not enforce single-consumer exclusivity. A second mini is
+available if this assumption turns out wrong for PConAir specifically, but
+default to single-mini unless Phase 1's own validation below says
+otherwise.
+
+**Caveat, not yet closed — first thing Phase 1 must verify:** OBS and Zoom
+both use native OS capture APIs (AVFoundation-based). PConAir's own capture
+path, per the Architecture decision below, is Chromium's `getUserMedia`
+inside an offscreen `BrowserWindow` — a different code path through
+Chromium's media stack, not guaranteed to behave identically even on the
+same hardware. **Phase 1's device-enumeration track must include an early
+smoke check**: open the Q-SYS camera via `getUserMedia` while Zoom Rooms
+has it open on the same mini, and confirm both get a live feed with no
+error, no device-busy failure, and no silent frame freeze on either side,
+before building anything further on the single-mini assumption. If that
+check fails, fall back to the second mini (confirmed available) rather
+than reworking the capture approach.
 
 ## Architecture decision (resolved in Phase 0, 2026-09-29)
 
@@ -628,7 +646,7 @@ to 0D and 5E via `opusplan`, and anything with a clear spec drops to Haiku.
 | Risk | Mitigation |
 |---|---|
 | OSR pacing proves unworkable | A chosen in Phase 0 on relative evidence only. The real-hardware soak confirms it before Phase 2; Candidate B is the documented fallback |
-| Camera device contention — PConAir holding the UVC device prevents the Zoom Room from using it directly | Deployment decision, not a code one, and **not yet made** — see Open dependency above. Likely: run PConAir on a second mini fed by its own Q-SYS USB bridge |
+| Camera device contention — PConAir holding the UVC device prevents the Zoom Room from using it directly | Resolved: single mini, per real-hardware test (OBS + Zoom concurrent access, no contention) — see "Deployment topology" above. Phase 1's `getUserMedia` smoke check is the remaining unclosed piece; second mini stays available as fallback |
 | Zoom Rooms PTZ control lost when the room selects a composited source | Out of scope here. PTZ moves to Q-SYS UCI or Companion. Flag in the operator SOP |
 | NDI SDK terms changed in 2025 | Video-only, internal distribution, `ndi.video` link in the UI. Read the current terms before shipping |
 | Notarization fails with bundled `libndi` | Could not be validated in 0C (Linux container). `grandi`'s `grandi.node` and NDI-team-signed `libndi.dylib` must be re-signed with our Developer ID; validate a signed, notarized build on macOS before Phase 3B, not at ship time |
