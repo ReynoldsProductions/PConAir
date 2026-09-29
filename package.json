@@ -3,6 +3,9 @@
   "version": "0.5.1",
   "description": "Controlled browser for live event playout",
   "main": ".webpack/main",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "start": "electron-forge start",
     "build": "electron-forge make",
