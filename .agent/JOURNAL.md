@@ -601,3 +601,44 @@ first (`git merge-base --is-ancestor`), no rebase/force needed.
 **No open blockers.** `state.json` advances to Task 6 (Overlays and
 window chrome, same file) with `status: pending`.
 `free_reset_available` untouched at `true`.
+
+### Task 6: Overlays and window chrome characterization tests
+
+Corrected the plan's example tests against real signatures, all four
+sources read up front:
+- `applyFullscreenChrome()` (`src/main/fullscreen-chrome.ts`) is a
+  darwin-only no-op elsewhere, and calls `win.setSimpleFullScreen(true)`
+  (guarded by `isSimpleFullScreen()`) -- never `setFullScreen`/
+  `setBounds` as the plan's example asserted. `FakeBrowserWindow` had
+  neither method; added both (`isSimpleFullScreen` returns an internal
+  flag, `setSimpleFullScreen` records the call and sets it). Wrote two
+  tests instead of one: applies on darwin, no-op elsewhere, stubbing
+  `process.platform` via `Object.defineProperty` per test and restoring
+  it in `afterEach` so it can't leak into other tests in the file.
+- `showQrOverlay()` (`src/main/tunnel/qr-overlay.ts`) takes
+  `(url, durationMs)`, not just `url` -- passed an explicit 60s duration
+  so the real `setTimeout(hideQrOverlay, ...)` it schedules can't fire
+  mid-test, and added `hideQrOverlay()` in `afterEach` to close the
+  window and clear the module-level singleton/timer between tests.
+- `createStageTimerOverlay()`'s config (`src/main/stagetimer/
+  overlay.ts`) is `{ getCredentials, getNotesWindowBounds? }`, not a
+  state store, and `show(position, sizePercent)` is synchronous (no
+  `.show?.()` as the plan's example called it). The overlay never calls
+  `setIgnoreMouseEvents` at all -- that's a different output window
+  entirely -- so asserted what it actually sets instead: `alwaysOnTop:
+  true`, `focusable: false`, `frame: false` in the constructor options.
+- `hideCursorOnLoad()` (`src/main/output-cursor.ts`) matched the plan's
+  example as written; no correction needed there.
+
+Extended the same top-level-import + `beforeEach(electronMock.reset())`
+file Task 5 established -- no new per-describe `resetModules()`.
+
+`npx tsc --noEmit` clean. Full suite `npx vitest run` — 1202/1202 passed
+across 82 of 83 files; sole failure is the same pre-existing
+`tests/companion-defs.test.ts` deps gap, unrelated.
+
+Commit `f214715` — `tests/electron-chrome-windows.test.ts` and
+`tests/setup/electron-mock.ts` modified.
+
+**No open blockers.** `state.json` advances to Task 7 (Watchdog) with
+`status: pending`. `free_reset_available` untouched at `true`.
