@@ -250,3 +250,58 @@ Per `docs/plans/2026-09-29-orchestrator-roadmap.md`'s effort ordering,
 `state.json` now advances to the next effort: the Electron 32→44 migration,
 starting at Task 1 (harvest the real breaking-change list) in
 `docs/plans/2026-09-28-electron-44-migration.md`.
+
+## 2026-09-29 — Task 1: breaking-change list harvested
+
+Dispatched a `general-purpose` agent (WebFetch + Write) per the plan's
+Agent Roster. `www.electronjs.org` itself was blocked by the sandbox's
+egress proxy, but the agent found and `curl`-verified the real
+`raw.githubusercontent.com/electron/electron/main/docs/breaking-changes.md`
+(HTTP 200, correct version headers from the in-development major down
+through 2.0) and used that as ground truth — it separately caught and
+discarded a differently-structured WebFetch result against the GitHub
+*blob* HTML page that didn't match the verified raw file, rather than
+trusting it. No fabrication and no need for the unverified-caveat fallback
+the dispatch prompt allowed for.
+
+Produced `docs/plans/electron-44-breaking-changes.md`: 34 changes survived
+the plan's module-surface filter (`app`, `BrowserWindow`, `session`,
+`screen`, `webContents`, `ipcMain`, `ipcRenderer`, `contextBridge`, `Tray`,
+`Menu`, `dialog`, `shell`, `nativeImage`, `net`) across majors 33–44, each
+grepped against the real PConAir source for a verdict. **3 are
+`applies: yes`**, all low-risk:
+
+- Electron 42.0 — offscreen-rendering device-scale-factor default change →
+  `src/main/l3/cue-renderer.ts:150` (already self-mitigated by an existing
+  resize guard; only a stale comment needs updating)
+- Electron 43.0 — `dialog.show*Dialog` now defaults to the Downloads
+  folder → `src/main/index.ts:391,408` (cosmetic UX regression, fix is
+  optional; a product call on whether to add the last-used-directory
+  workaround is left for a human/Task 16)
+- Electron 44.0 — `app.setLoginItemSettings` drops the `openAsHidden`
+  option → `src/main/index.ts:69` (one-line dead-key removal)
+
+The Node 20→24 removal greps (Step 4: `new Buffer(`, `url.parse(`,
+`fs.rmdir(`, `process.binding`, `require('sys')`) found nothing in `src/`.
+Per the plan's own "do not invent work" instruction, Task 13 should be
+marked **skipped** with a one-line note when it comes up, not padded with
+speculative fixes.
+
+Commit `1b060ec` — one file created
+(`docs/plans/electron-44-breaking-changes.md`), nothing under `src/`
+touched, no `npm install`.
+
+**Orchestrator verification this firing:** `node_modules` did not exist in
+this fresh checkout (first time this session installed anything), so ran
+`npm ci` before verifying. `npx tsc --noEmit` — clean. `npx vitest run` —
+1187/1187 tests passed; the one failed *suite*
+(`tests/companion-defs.test.ts`) is the plan's own documented pre-existing
+Out-of-Scope gap (`packages/companion-module-pconair` has no npm
+workspaces wiring, so its deps are never installed by root `npm ci`),
+confirmed unrelated to this task and not something Task 1's diff could
+have caused.
+
+**No open blockers.** `state.json` advances to Task 2 (Electron mock
+harness + first characterization test) with `status: pending`.
+`free_reset_available` untouched at `true` — ordinary clean unit
+completion, nothing time-sensitive.

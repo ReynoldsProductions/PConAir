@@ -1,9 +1,9 @@
 {
   "status": "pending",
   "current_effort": "electron-migration",
-  "current_unit": "Task 1: Harvest the real breaking-change list",
-  "last_commit": null,
+  "current_unit": "Task 2: Electron mock harness + first characterization test",
+  "last_commit": "1b060ec20d53639e5193b8bb5800a1ffc9dcea1c",
   "resume_after": null,
   "free_reset_available": true,
-  "notes": "Unblocked 2026-09-29 by a human: cadence decision made (every other major, ~4 months). Recorded in new CLAUDE.md along with Task 6's characterization-test review rule. Task 6 (dependency-currency Layer 4) is now complete -- that plan's Layers 1-4 are all done. Per docs/plans/2026-09-29-orchestrator-roadmap.md's effort ordering, moving to the next effort: docs/plans/2026-09-28-electron-44-migration.md, starting at Task 1 (harvest the real Electron 33-44 breaking-change list). This is a general-purpose/WebFetch task per that plan's Agent Roster -- confirm WebFetch access to electronjs.org docs before starting; if blocked by the sandbox's egress policy (as docs.github.com and releases.electronjs.org were for earlier tasks), fall back per that task's own judgment and note it, same pattern as Tasks 4 and 5."
+  "notes": "Task 1 complete: docs/plans/electron-44-breaking-changes.md harvested from the real electron/electron raw breaking-changes.md on GitHub (electronjs.org itself was egress-blocked, but the raw GitHub source was fetched and verified genuine -- no fabrication, no unverified-caveat fallback needed). 34 changes survived the module-surface filter across majors 33-44; 3 are applies:yes, all low-risk (a self-mitigated device-scale-factor change, a cosmetic dialog-default change, and a one-line dead-key removal) -- none block the migration. Node 20->24 removal greps (Task 1 Step 4) found nothing, so Task 13 should be marked skipped with a one-line note per the plan's own 'do not invent work' instruction. Verified npx tsc --noEmit clean and npx vitest run clean except for tests/companion-defs.test.ts, which is the plan's own documented pre-existing Out-of-Scope gap (packages/companion-module-pconair deps not installed by root npm ci) -- unrelated to this task, confirmed no workspaces config wires it up, would fail identically on the parent commit. Moving to Task 2 (Electron mock harness + first characterization test, tests/setup/electron-mock.ts + tests/electron-chrome-windows.test.ts) per Phase 0 of docs/plans/2026-09-28-electron-44-migration.md."
 }
