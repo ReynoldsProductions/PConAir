@@ -1,9 +1,9 @@
 {
-  "status": "in_progress",
+  "status": "pending",
   "current_effort": "camera-mode",
-  "current_unit": "Phase 0, Track 0A: OSR pipeline spike",
-  "last_commit": "afc791c",
+  "current_unit": "Phase 0, Track 0B: getDisplayMedia self-capture spike",
+  "last_commit": "pending-after-commit",
   "resume_after": null,
   "free_reset_available": true,
-  "notes": "In progress 2026-09-29: starting Phase 0 Track 0A (OSR pipeline spike) on spike/0a-osr-pipeline. Environmental constraint discovered before writing code: this orchestrator runs in a headless Linux cloud container with no /dev/video* device and no macOS host, while Camera Mode is explicitly macOS-only and the spec's key unknown is macOS-specific (getUserMedia reliability in an offscreen BrowserWindow, AVFoundation-backed capture). Plan: build the real OSR spike (offscreen BrowserWindow, DOM composite, paint-event frame pacer, raw-frame dump) and drive it with Chromium's built-in synthetic fake video capture device (--use-fake-device-for-media-stream) instead of real camera hardware, since no camera exists in this container. This validates real pipeline mechanics (does getUserMedia work at all in an OSR window, does paint fire on a fake stream, can dirty-rect be forced to full-frame, does the pacer hold interval) but explicitly CANNOT validate absolute CPU numbers or real UVC/AVFoundation camera behavior on the actual target Mac mini -- that gap will be called out plainly in the journal and must be carried into 0D's decision memo as an open caveat, not silently treated as equivalent to a real-hardware measurement."
+  "notes": "0A done (spike/0a-osr-pipeline, results in JOURNAL.md; measured on Linux/Xvfb/fake camera, NOT target hardware -- 0D must treat as caveated). Next: 0B, same rig and same measurements. 0C then 0D after. Camera Phase 1 still requires the unresolved deployment-topology decision (single mini vs second mini + own Q-SYS USB bridge): block rather than guess."
 }

@@ -1204,3 +1204,25 @@ notes: Camera Phase 1 depends on an unresolved human decision (deployment
 topology / camera device contention, `specs/24-camera-mode.md`'s "Open
 dependency" section) that Phase 0 does not need — whoever reaches Phase 1
 should block rather than guess if that's still unresolved.
+
+## 2026-09-29 — Camera Phase 0, Track 0A (OSR pipeline spike)
+
+Branch `spike/0a-osr-pipeline` (pushed, never merges). Harness: `spike/0a/main.js` + `page.html`
+(offscreen BrowserWindow 1920x1080, `<video>` from getUserMedia, DOM lower-third over it, `paint`
+handler, 30 fps setTimeout pacer re-emitting last full frame, BGRA dump of first 5 frames, CPU via
+`app.getAppMetrics`). Raw results in `spike/0a/result-*.json`.
+
+**CAVEAT (carry into 0D): rig is NOT the target.** Headless Linux container, Xvfb, software GL,
+Electron 44.4.5/Chromium 152, Chromium *fake* video device (`--use-fake-device-for-media-stream`);
+no camera exists here. 20 s runs, not the 10-min soak. Fake device delivered 20 fps, not 30.
+Absolute CPU/jitter numbers are NOT representative of a Mac mini + AVFoundation UVC camera.
+
+Findings that are real mechanics:
+- getUserMedia works in an `offscreen: true` window and video frames paint (settings 1920x1080).
+- Static video: first paint took 3.76 s, all 620 paints were full-frame; 109/600 emit slots dropped, 175 held duplicates.
+- Animated DOM overlay: first paint 96 ms, 758/1008 paints full-frame (rest dirty-rect), 1/600 drops, 89 duplicates.
+- Naive main-thread setTimeout pacer: emit interval mean 33.3 ms but sd 18-22 ms, p99 70-87 ms; CPU sum ~19-23%. Far outside the +/-2 ms exit criterion on this rig; a real pacer (worker/timer-precision) is needed, and real-hardware numbers are still unmeasured.
+
+Deliberately skipped: real camera, macOS run, `useSharedTexture`, 10-min soak, forcing dirty-rect to full-frame.
+Open: human with a Mac mini + Q-SYS bridge should rerun `spike/0a` for real numbers before 0D relies on them.
+Vitest on branch: 1217/1217 tests pass; 1 file (`companion-defs`) fails to load only because `install:companion` wasn't run in this container.
