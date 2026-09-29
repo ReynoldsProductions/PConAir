@@ -79,7 +79,42 @@ matching each source plan's own report-format convention.
    context — resuming a long conversation is itself one of the larger silent
    quota drains, per the camera plan's own observation).
 6. **Unit completes normally:** commit, append the `JOURNAL.md` entry,
-   advance `state.json` to the next unit with `status: "pending"`, exit.
+   advance `state.json` to the next unit with `status: "pending"`.
+   **Then, within the same firing, check whether to continue to the next
+   unit immediately** rather than waiting for the next hourly tick (see
+   "Batching within a firing" below). Only exit once a stopping condition
+   is hit.
+
+### Batching within a firing
+
+Early runs showed the real constraint isn't token/usage cost (it's been low)
+— it's the platform's 1-hour minimum cron interval combined with a
+one-unit-per-firing design. That combination means an idle-but-correct
+system was still bottlenecked at roughly one unit per hour of wall clock,
+independent of how fast the work itself was. Since usage isn't the scarce
+resource here, a single firing should **keep dispatching the next pending
+unit in a loop**, in the same session, until it hits one of these stopping
+conditions:
+
+- An actual rate limit (→ `paused-for-quota`, as before).
+- A condition requiring a human (→ `blocked`, as before).
+- **The next unit involves native bindings, code signing, or notarization.**
+  Stop the batch *before* starting it, even if the session has budget left —
+  these fail in long unpredictable loops and deserve a clean, freshly
+  started session, not one already several units deep. Leave `state.json`
+  `pending` at that unit; the *next* firing will pick it up as the first
+  (and, per the same rule, likely only) unit of its own batch.
+- **A phase/effort boundary is reached** (e.g. a source plan's own gate task,
+  or the hard gate between efforts in this doc). Stop and let the next
+  firing start the new phase/effort fresh, so its journal entry and any
+  gate-checking happen at the top of a session rather than buried mid-batch.
+- **A hard safety cap of 8 units in one firing**, regardless of how clean
+  things look — a backstop against a subtle loop (e.g. a unit that
+  "completes" but doesn't actually advance state), not a target to hit.
+
+This is a deliberate loosening of the original one-unit-per-firing design,
+made once real usage data showed quota headroom, not a rule to re-tighten
+without similar evidence.
 7. **Unit hits an actual rate limit mid-work:** stop at the nearest safe
    checkpoint — do not leave a half-edited file uncommitted. Record the real
    reset timestamp from the limit response as `resume_after`, set
