@@ -305,3 +305,78 @@ have caused.
 harness + first characterization test) with `status: pending`.
 `free_reset_available` untouched at `true` — ordinary clean unit
 completion, nothing time-sensitive.
+
+## 2026-09-29 — Task 2: Electron mock harness + first characterization test
+
+Wrote `tests/setup/electron-mock.ts` and `tests/electron-chrome-windows.test.ts`
+following the plan's Step 1–2 template verbatim for the mock harness itself
+(added one extra `app.getAppPath` stub the template omitted — `settings-window.ts`'s
+`resolveSettingsEntry()` fallback path calls it when the webpack-injected
+`SETTINGS_WINDOW_WEBPACK_ENTRY`/`..._PRELOAD_WEBPACK_ENTRY` consts aren't
+defined at test time, which they never are outside a real Forge build).
+Verified `openSettingsWindow()`'s real signature and `webPreferences` shape
+in `src/main/settings-window.ts` against the plan's test template before
+writing anything — matched exactly.
+
+**Found and fixed a real bug in the plan's own boilerplate**, not in the
+source under test. The plan's Step 2 template (and the "every task opens
+its test file with the same two lines" boilerplate given for Tasks 3–9)
+does:
+```ts
+vi.mock('electron', async () => (await import('./setup/electron-mock')).electronModule);
+import { electronMock } from './setup/electron-mock';
+// ...
+beforeEach(() => { electronMock.reset(); vi.resetModules(); });
+```
+Run as written, the first test fails with `expected [] to have a length of
+1 but got +0` — no exception, `openSettingsWindow()` runs fine and *does*
+create a window, but against a *different* `electronMock` instance than the
+one the test asserts against. Root cause, confirmed with isolated repro
+scripts: `vi.resetModules()` clears Vitest's module registry, which also
+invalidates the `vi.mock` factory's own cached `await import('./setup/electron-mock')`.
+The *next* dynamic import of the module under test (`settings-window.ts`,
+which imports `'electron'`) re-triggers that factory, re-evaluating
+`electron-mock.ts` fresh — a second, disconnected copy of `electronMock`/
+`electronModule`. The test file's top-level `import { electronMock } from
+'./setup/electron-mock'` was captured *before* that reset and keeps
+pointing at the stale first copy. Confirmed via `electron.BrowserWindow ===
+electronModule.BrowserWindow` flipping from `true` to `false` across a
+`resetModules()` call in a throwaway debug test (deleted, not committed).
+
+Fix applied only to the *consuming pattern*, not the shared harness's
+required interface (`electronMock`/`electronModule` names and shape are
+untouched, so Tasks 3–9 still get exactly what the plan promises them):
+call `vi.resetModules()` first, then `const { electronMock } = await
+import('./setup/electron-mock')` **inside** the test body (or a
+`beforeEach` that also does the module-under-test import in the same
+tick), so both references land in the same module-cache epoch. Documented
+this with a comment at the top of `tests/setup/electron-mock.ts` itself
+(most likely place a Task 3–9 executor will look) and inline in
+`tests/electron-chrome-windows.test.ts` as a worked example. **Flagging
+for whoever dispatches Tasks 3–9:** do not copy the plan's literal
+top-level-`electronMock`-import-plus-`beforeEach(vi.resetModules)`
+boilerplate verbatim — use the pattern in this task's committed test file
+instead.
+
+**Verification:** `npx vitest run tests/electron-chrome-windows.test.ts` —
+1/1 passed. Full suite `npx vitest run` — 1188/1188 tests passed across
+81 files; the sole failing *suite*, `tests/companion-defs.test.ts`, is the
+same pre-existing `packages/companion-module-pconair` deps-not-installed
+gap recorded after Task 1 — re-confirmed this firing by `git stash`-ing
+this task's changes and re-running that one file against the untouched
+parent commit: identical failure. `npx tsc --noEmit` clean against the
+root `tsconfig.json`; also ran `npx tsc --noEmit -p tsconfig.test.json`
+(covers `tests/**/*`, which the root config excludes) as an extra check —
+also clean, though note that config isn't wired into any npm script or CI
+workflow today, so it's not part of this task's required gate.
+
+Commit `61b1ea1` — `tests/setup/electron-mock.ts` and
+`tests/electron-chrome-windows.test.ts` created, nothing else touched.
+
+**No open blockers.** `state.json` advances to Task 3 (Slides + URL window
+managers characterization tests, `tests/window-managers.test.ts`) with
+`status: pending`. Per the roadmap's override of the source plan, Task 3
+is dispatched alone next firing — **not** together with Tasks 4–9 despite
+the plan's own "dispatch all seven in parallel" heading on that section.
+`free_reset_available` untouched at `true` — ordinary clean unit
+completion, nothing time-sensitive, no native bindings/signing involved.
