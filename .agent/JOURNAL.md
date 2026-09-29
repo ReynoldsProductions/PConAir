@@ -1556,3 +1556,23 @@ no second notification sent this firing, per the "same as yesterday, stay silent
 this session -- this still needs Tom to physically run the smoke test on the real mini while Zoom Rooms holds
 the Q-SYS camera, and record pass/fail in the spec. No code changed, `state.json` left as-is. Releasing
 `.agent/lock.json` as part of this firing's final commit.
+
+## 2026-09-29 (23:09 UTC) — Still blocked, rechecked: getUserMedia-vs-Zoom smoke check still not run
+
+No lock present at firing start (previous firing released cleanly). `main` was in sync with `origin/main` after
+fetch/checkout. `docs/plans/2026-09-29-orchestrator-roadmap.md` exists on `main` (confirmed present, unlike the
+very first 2026-09-28 firing which found it missing). Reacquired lock, pushed immediately, read `state.json`:
+`status` still `"blocked"` on the same human-only hardware step as the prior 8+ firings (Phase 1 Track 1A's
+`getUserMedia`-while-Zoom-Rooms-holds-the-device smoke check).
+
+Re-read `specs/24-camera-mode.md`'s "Deployment topology" section (line 135) and the Open Dependency table row
+(line 664) directly: both unchanged, caveat still open, no pass/fail recorded. `docs/camera-getusermedia-smoke-test.html`
+(added in `c691836`) is still unrun -- confirmed present, no newer commit touches it or the spec's caveat/table
+row. Track 1B remains merged and stable at `749d071`, matching `last_commit`.
+
+This blocker has now persisted across 8+ firings and 7.5+ hours (since ~15:35 UTC). A push notification was
+already sent at the 21:09 UTC firing and nothing has changed since -- no second notification sent this firing,
+per the "same as yesterday, stay silent" rule. Nothing to resolve from this session -- this still needs Tom to
+physically run the smoke test on the real mini while Zoom Rooms holds the Q-SYS camera, and record pass/fail in
+the spec. No code changed, `state.json` left as-is. Releasing `.agent/lock.json` as part of this firing's final
+commit.
