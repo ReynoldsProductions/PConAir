@@ -2074,3 +2074,42 @@ Rooms session). No new information since the last notification (sent at
 the "same as yesterday, stay silent" rule. No code changed, `state.json`
 left as-is. Releasing `.agent/lock.json` as part of this firing's final
 commit.
+
+## 2026-09-30 17:09 UTC -- still blocked, same smoke check, no notification
+
+No lock present at firing start. `git fetch`/`pull` again showed
+`origin/main` force-updated past local `main` (same recurring
+container-image-snapshot symptom documented in the entries above, not new
+history loss). Working tree was clean; `git checkout main` landed on a
+divergent local ref (196 vs 50 commits, no common ancestor reported), so
+`git reset --hard origin/main` moved local `main` onto `origin/main`
+(`1d5daa7`) with nothing at risk -- confirmed clean status and matching
+`HEAD`/`origin/main` afterward. Reacquired the lock (`e006784`) and pushed
+it immediately before reading `state.json`.
+
+`state.json`: `status` still `"blocked"`, `current_unit` unchanged (Phase
+1, Track 1A: device enumeration), `last_commit` still `749d071`.
+
+Re-verified against source of truth rather than the note text:
+`git log --all --oneline -- specs/24-camera-mode.md
+docs/camera-getusermedia-smoke-test.html` shows no content commits since
+`c691836` (only orchestrator status commits touch the repo in between).
+Read "Deployment topology" (specs/24-camera-mode.md:135-161) directly:
+single-mini decision still resolved, the `getUserMedia`-vs-Zoom-Rooms
+smoke-check caveat at line 150 still open, no pass/fail recorded anywhere
+in the section or the Open-dependency table (line 664). Nothing has moved
+since the 16:08 UTC firing.
+
+Note: this firing's scheduled-prompt text again says "CURRENT PRIORITY ...
+starting at Phase 0" -- same stale wording as every prior entry;
+`state.json` remains authoritative and correctly shows Phase 1 Track 1A
+blocked, not Phase 0. Treated `state.json` as authoritative, not the
+prompt text.
+
+Same human-only hardware step as the prior 32+ firings -- cannot be
+simulated from this container (no real mini, no Q-SYS bridge, no Zoom
+Rooms session). No new information since the last notification (sent at
+21:09 UTC on 2026-09-29), so no push notification sent this firing, per
+the "same as yesterday, stay silent" rule. No code changed, `state.json`
+left as-is. Releasing `.agent/lock.json` as part of this firing's final
+commit.
