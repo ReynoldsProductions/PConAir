@@ -1760,3 +1760,28 @@ Same human-only hardware step as the prior 22+ firings -- cannot be simulated fr
 mini, no Q-SYS bridge, no Zoom Rooms session). No new information since the last notification (sent at 21:09
 UTC on 2026-09-29), so no push notification sent this firing, per the "same as yesterday, stay silent" rule.
 No code changed, `state.json` left as-is. Releasing `.agent/lock.json` as part of this firing's final commit.
+
+## 2026-09-30 08:10 UTC -- still blocked, same smoke check, no notification
+
+No lock present at firing start. Local clone's `main` was on a detached/stale
+ref again; reset cleanly to `origin/main` (`git checkout -B main origin/main`,
+no destructive loss -- confirmed working tree was already clean beforehand).
+Reacquired lock (`c315b67`), pushed immediately, read `state.json`: `status`
+still `"blocked"`, `current_unit` unchanged (Phase 1 Track 1A), `last_commit`
+still `749d071`.
+
+Re-verified against source of truth rather than trusting the note text:
+`git log 749d071..HEAD -- specs/24-camera-mode.md docs/camera-getusermedia-smoke-test.html`
+shows exactly one touching commit, `c691836` (the smoke-test page itself,
+already accounted for). Read "Deployment topology"
+(specs/24-camera-mode.md:135-161) and the Known Risks row (~664) directly:
+single-mini decision still resolved, caveat at line 150 still open ("not yet
+closed -- first thing Phase 1 must verify"), no pass/fail recorded. Nothing
+has moved since the 07:15 UTC firing.
+
+Same human-only hardware step as the prior 23+ firings -- cannot be simulated
+from this container (no real mini, no Q-SYS bridge, no Zoom Rooms session).
+No new information since the last notification, so no push notification sent
+this firing, per the "same as yesterday, stay silent" rule. No code changed,
+`state.json` left as-is. Releasing `.agent/lock.json` as part of this
+firing's final commit.
