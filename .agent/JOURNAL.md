@@ -2218,3 +2218,26 @@ Rooms session). No new information since the last notification (sent at
 push notification sent this firing, per the "same as yesterday, stay
 silent" rule. No code changed, `state.json` left as-is. Releasing
 `.agent/lock.json` as part of this firing's final commit.
+
+## 2026-09-30 22:08 UTC -- still blocked, same smoke check, no notification
+
+No lock present at firing start; acquired it (`1709d38`) and pushed
+before reading `state.json`, per the lock-file procedure.
+
+`state.json`: `status` still `"blocked"`, `current_unit` unchanged
+(Phase 1, Track 1A: device enumeration), `last_commit` still `749d071`.
+Re-verified against source of truth: `git log --oneline -15` shows no
+non-orchestrator commit since the 21:10 UTC firing; read "Deployment
+topology" (`specs/24-camera-mode.md:135-161`) directly -- single-mini
+decision still resolved, the `getUserMedia`-vs-Zoom-Rooms smoke-check
+caveat still open, no pass/fail recorded in that section or the
+Open-dependency table (line 664). `docs/camera-getusermedia-smoke-test.html`
+still present, unrun. Nothing has moved since the 21:10 UTC firing.
+
+Same human-only hardware step as the prior 36+ firings -- cannot be
+simulated from this container (no real mini, no Q-SYS bridge, no Zoom
+Rooms session). No new information since the last notification (sent at
+21:09 UTC on 2026-09-29, now ~25h ago with no change in between), so no
+push notification sent this firing, per the "same as yesterday, stay
+silent" rule. No code changed, `state.json` left as-is. Releasing
+`.agent/lock.json` as part of this firing's final commit.
