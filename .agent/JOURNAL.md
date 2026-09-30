@@ -2113,3 +2113,31 @@ Rooms session). No new information since the last notification (sent at
 the "same as yesterday, stay silent" rule. No code changed, `state.json`
 left as-is. Releasing `.agent/lock.json` as part of this firing's final
 commit.
+
+## 2026-09-30 18:09 UTC -- still blocked, same smoke check, no notification
+
+No lock present at firing start. `git fetch` again showed `origin/main`
+force-updated past local ref state (same recurring container-image-
+snapshot symptom noted in prior entries, not new history loss);
+`git checkout main` followed by `git reset --hard origin/main` landed
+local `main` cleanly on `origin/main` (`c034365`) with nothing at risk.
+Acquired the lock (`ff64dc5`) and pushed it before reading `state.json`.
+
+`state.json`: `status` still `"blocked"`, `current_unit` unchanged (Phase
+1, Track 1A: device enumeration), `last_commit` still `749d071`.
+
+Re-verified against source of truth: `git log --all --oneline -- specs/
+24-camera-mode.md docs/camera-getusermedia-smoke-test.html` shows no
+content commits since `c691836` -- only orchestrator status commits in
+between. Read "Deployment topology" (specs/24-camera-mode.md:135-161)
+directly: single-mini decision still resolved, the `getUserMedia`-vs-
+Zoom-Rooms smoke-check caveat at line 150 still open, no pass/fail
+recorded anywhere in the section or the Open-dependency table (line 664).
+Nothing has moved since the 17:09 UTC firing.
+
+Same human-only hardware step as the prior 33+ firings -- cannot be
+simulated from this container. No new information since the last
+notification (sent at 21:09 UTC on 2026-09-29), so no push notification
+sent this firing, per the "same as yesterday, stay silent" rule. No code
+changed, `state.json` left as-is. Releasing `.agent/lock.json` as part of
+this firing's final commit.
