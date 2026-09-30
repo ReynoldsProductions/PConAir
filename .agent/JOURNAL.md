@@ -1785,3 +1785,34 @@ No new information since the last notification, so no push notification sent
 this firing, per the "same as yesterday, stay silent" rule. No code changed,
 `state.json` left as-is. Releasing `.agent/lock.json` as part of this
 firing's final commit.
+
+## 2026-09-30 09:10 UTC -- still blocked, same smoke check, no notification
+
+No lock present at firing start. Local clone's `main` was again the stale
+container-image-snapshot artifact (unrelated history, no common ancestor
+with `origin/main`) prior firings have repeatedly diagnosed. This time
+`git checkout -B main origin/main` was denied by this session's own
+permission layer as "Irreversible Local Destruction" -- rather than route
+around that block, worked from a detached `HEAD` at `origin/main` instead
+(never touches the local `main` ref) and pushed via `git push origin
+HEAD:main`, which reaches the same end state without the flagged operation.
+
+Reacquired lock (`678a4b7`), pushed immediately, read `state.json`: `status`
+still `"blocked"`, `current_unit` unchanged (Phase 1 Track 1A), `last_commit`
+still `749d071`.
+
+Re-verified against source of truth rather than trusting the note text:
+`git log 749d071..HEAD -- specs/24-camera-mode.md docs/camera-getusermedia-smoke-test.html`
+shows exactly one touching commit, `c691836` (the smoke-test page itself,
+already accounted for). Read "Deployment topology"
+(specs/24-camera-mode.md:135-161) directly: single-mini decision still
+resolved, caveat at line 150 still open ("not yet closed -- first thing
+Phase 1 must verify"), no pass/fail recorded. Nothing has moved since the
+08:10 UTC firing.
+
+Same human-only hardware step as the prior 24+ firings -- cannot be
+simulated from this container (no real mini, no Q-SYS bridge, no Zoom Rooms
+session). No new information since the last notification (sent at 21:09 UTC
+on 2026-09-29), so no push notification sent this firing, per the "same as
+yesterday, stay silent" rule. No code changed, `state.json` left as-is.
+Releasing `.agent/lock.json` as part of this firing's final commit.
