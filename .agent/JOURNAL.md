@@ -2849,3 +2849,33 @@ Rooms session). No new information since the last notification (sent at
 push notification sent this firing, per the "same as yesterday, stay
 silent" rule. No code changed, `state.json` left as-is. Releasing
 `.agent/lock.json` as part of this firing's final commit.
+
+## 2026-10-01 23:09 UTC -- still blocked, same smoke check, no notification
+
+No lock present at firing start (prior firing released cleanly at 22:09
+UTC). Local `main` branch ref was badly stale/diverged (`ahead 50, behind
+50` vs. `origin/main` -- long-standing checkout-drift artifact noted in
+prior entries, not a real divergence); worked from a detached HEAD at
+`origin/main`'s true tip instead of trusting the local branch pointer.
+Acquired the lock (`873f136`) and pushed via `git push origin HEAD:main`
+before reading `state.json`, per the lock-file procedure (the first
+`git push -u origin main` attempt was correctly rejected since it tried
+to push the stale local branch, not the detached commit).
+
+`state.json`: `status` still `"blocked"`, `current_unit` unchanged (Phase
+1, Track 1A: device enumeration), `last_commit` still `749d071`.
+Re-verified against source of truth directly: `specs/24-camera-mode.md`
+"Deployment topology" section still shows the `getUserMedia`-vs-Zoom-Rooms
+smoke-check caveat "not yet closed," no pass/fail recorded; Open-dependency
+table row (line 664) unchanged. `git log 17cf9f0..HEAD --
+specs/24-camera-mode.md docs/camera-getusermedia-smoke-test.html
+.agent/state.json` is empty -- no human action on the smoke check since
+the 22:09 UTC firing.
+
+Same human-only hardware step as the prior 50+ firings -- cannot be
+simulated from this container (no real mini, no Q-SYS bridge, no Zoom
+Rooms session). No new information since the last notification (sent
+2026-09-29 21:09 UTC, now ~50h ago with no change in between), so no push
+notification sent this firing, per the "same as yesterday, stay silent"
+rule. No code changed, `state.json` left as-is. Releasing
+`.agent/lock.json` as part of this firing's final commit.
