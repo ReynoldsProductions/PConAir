@@ -3297,3 +3297,29 @@ Rooms session). No new information since the last notification (sent
 push notification sent this firing, per the "same as yesterday, stay
 silent" rule. No code changed, `state.json` left as-is. Releasing
 `.agent/lock.json` as part of this firing's final commit.
+
+## 2026-10-02 15:15 UTC -- still blocked, same smoke check, no notification
+
+No lock present at firing start. `git fetch` plus `git checkout -B main
+origin/main` landed cleanly on `origin/main` (`637b0a5`) before acquiring
+the lock (`78aff88`), pushed before doing any other work, per the
+lock-file procedure.
+
+`state.json`: `status` still `"blocked"`, `current_unit` unchanged
+(Phase 1, Track 1A: device enumeration), `last_commit` still `749d071`.
+Re-verified against source of truth directly: `git diff
+637b0a5..HEAD -- specs/24-camera-mode.md
+docs/camera-getusermedia-smoke-test.html .agent/state.json` is empty.
+"Deployment topology" (`specs/24-camera-mode.md:135-161`) still lists the
+`getUserMedia` smoke-check caveat as open; the Open-dependency table row
+(line 664) is unchanged. `docs/camera-getusermedia-smoke-test.html` is
+unchanged on disk (commit `c691836`).
+
+Same human-only hardware step as the prior 50+ firings (blocked
+continuously since the 2026-10-01 12:24 UTC firing at the latest, per
+`.agent/JOURNAL.md` history -- over 24h now). Cannot be simulated from
+this container (no real mini, no Q-SYS bridge, no Zoom Rooms session). No
+new information since the last notification (sent 2026-09-29 21:09 UTC),
+so no push notification sent this firing, per the "same as yesterday,
+stay silent" rule. No code changed, `state.json` left as-is. Releasing
+`.agent/lock.json` as part of this firing's final commit.
