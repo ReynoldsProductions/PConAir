@@ -3412,3 +3412,35 @@ reported anything new either, so no push notification sent this firing,
 consistent with the "same as yesterday, stay silent" rule. No code
 changed, `state.json` left as-is. Releasing `.agent/lock.json` as part
 of this firing's final commit.
+
+## 2026-10-02 19:08 UTC firing -- still blocked, no dispatch
+
+No lock file present at startup. `main` was detached at session start
+(container checkout quirk); checked it out fresh from `origin/main`
+(`git checkout -B main origin/main`) and confirmed it matched exactly
+before doing anything else. Acquired lock, committed and pushed
+immediately (`76751b3`) before reading further state, per the roadmap's
+lock-first rule.
+
+Read `.agent/state.json`: `status` still `"blocked"`, `current_effort`
+`camera-mode`, `current_unit` unchanged (Phase 1, Track 1A: device
+enumeration), `last_commit` still `749d071`. Re-verified against source
+of truth: `specs/24-camera-mode.md`'s "Deployment topology" caveat
+(lines 135-161) still shows the `getUserMedia` smoke-check as the
+unclosed "first thing Phase 1 must verify," and the Open-dependency
+table row (line ~664) still lists it as "the remaining unclosed piece."
+`docs/camera-getusermedia-smoke-test.html` is unchanged (still at commit
+`7bb63fe`/`c691836`, no new commits touching it or the spec file since
+the prior firing).
+
+Per the roadmap's reactive loop, `status: blocked` means release the
+lock and stop without dispatching anything -- this is the same
+human-only decision (Tom running the smoke test on the real mini with
+Zoom Rooms holding the camera) that has blocked every firing since
+2026-09-29, and it cannot be resolved from this cloud container (no
+real mini, no Q-SYS bridge, no Zoom Rooms session). No new information
+since the last notification (2026-09-29 21:09 UTC) and no intervening
+firing has reported anything new either, so no push notification sent
+this firing, consistent with the "same as yesterday, stay silent" rule.
+No code changed, `state.json` left as-is. Releasing `.agent/lock.json`
+as part of this firing's final commit.
