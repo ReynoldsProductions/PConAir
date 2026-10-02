@@ -3136,3 +3136,34 @@ Rooms session). No new information since the last notification (sent
 push notification sent this firing, per the "same as yesterday, stay
 silent" rule. No code changed, `state.json` left as-is. Releasing
 `.agent/lock.json` as part of this firing's final commit.
+
+## 2026-10-02 10:09 UTC -- still blocked, same smoke check, no notification
+
+No lock present at firing start (previous firing released cleanly).
+`git fetch origin` reported another "forced update" notice for `main`
+(same shallow-clone/stale-ref artifact noted in several recent entries,
+not a real remote-side rewrite) -- confirmed by comparing trees: `git
+diff --stat` between the stale local `main` and `origin/main` showed
+only `.agent/JOURNAL.md` differing, purely by addition, so nothing was
+at risk. Reset local `main` to `origin/main`, acquired the lock
+(`ec262b8`), and pushed before reading `state.json`, per the lock-file
+procedure.
+
+`state.json`: `status` still `"blocked"`, `current_unit` unchanged
+(Phase 1, Track 1A: device enumeration), `last_commit` still `749d071`.
+Re-verified against source of truth directly: `git log
+c714bcf..HEAD -- specs/24-camera-mode.md
+docs/camera-getusermedia-smoke-test.html .agent/state.json` is empty --
+no human action on the smoke check since the 09:09 UTC firing;
+`specs/24-camera-mode.md` line 156 and the Open-dependency table row
+(line 664) still list the `getUserMedia` smoke-check caveat as the
+remaining unclosed piece. `docs/camera-getusermedia-smoke-test.html` is
+unchanged on disk (same mtime/size, commit `c691836`).
+
+Same human-only hardware step as the prior 50+ firings -- cannot be
+simulated from this container (no real mini, no Q-SYS bridge, no Zoom
+Rooms session). No new information since the last notification (sent
+2026-09-29 21:09 UTC, now ~61h ago with no change in between), so no
+push notification sent this firing, per the "same as yesterday, stay
+silent" rule. No code changed, `state.json` left as-is. Releasing
+`.agent/lock.json` as part of this firing's final commit.
