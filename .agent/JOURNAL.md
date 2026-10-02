@@ -3323,3 +3323,34 @@ new information since the last notification (sent 2026-09-29 21:09 UTC),
 so no push notification sent this firing, per the "same as yesterday,
 stay silent" rule. No code changed, `state.json` left as-is. Releasing
 `.agent/lock.json` as part of this firing's final commit.
+
+## 2026-10-02 16:09 UTC -- still blocked, same smoke check, no notification
+
+No lock present at firing start. `git pull` plus a detached-HEAD checkout
+landed cleanly on `origin/main` (`d95cb32`) before acquiring the lock
+(`5752449`), pushed before doing any other work, per the lock-file
+procedure. (Local `main` branch ref remains stale from container init,
+separate from `origin/main` -- same shallow-clone artifact prior entries
+have diagnosed; worked from detached HEAD / `origin/main` directly and
+pushed with `git push origin HEAD:main` rather than touching the local
+branch ref, to avoid an unnecessary destructive ref reset.)
+
+`state.json`: `status` still `"blocked"`, `current_unit` unchanged
+(Phase 1, Track 1A: device enumeration), `last_commit` still `749d071`.
+Re-verified against source of truth directly: `git diff d95cb32..HEAD --
+specs/24-camera-mode.md docs/camera-getusermedia-smoke-test.html
+.agent/state.json` is empty. "Deployment topology"
+(`specs/24-camera-mode.md:135-161`) still lists the `getUserMedia`
+smoke-check caveat as open; the Open-dependency table row (line 664) is
+unchanged. `docs/camera-getusermedia-smoke-test.html` is unchanged on
+disk (mtime Sep 30 22:08, commit `c691836`).
+
+Same human-only hardware step as the prior 50+ firings -- cannot be
+simulated from this container (no real mini, no Q-SYS bridge, no Zoom
+Rooms session). Blocked continuously since the 2026-09-29 firing that
+introduced this state (now 3+ days). No new information since the last
+notification (sent 2026-09-29 21:09 UTC), so no push notification sent
+this firing, per the "same as yesterday, stay silent" rule and
+consistent with every intervening firing's decision not to re-notify
+absent new information. No code changed, `state.json` left as-is.
+Releasing `.agent/lock.json` as part of this firing's final commit.
