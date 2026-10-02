@@ -3354,3 +3354,31 @@ this firing, per the "same as yesterday, stay silent" rule and
 consistent with every intervening firing's decision not to re-notify
 absent new information. No code changed, `state.json` left as-is.
 Releasing `.agent/lock.json` as part of this firing's final commit.
+
+## 2026-10-02 17:08 UTC firing -- still blocked, no dispatch
+
+No lock file present at startup (prior firing released cleanly). Pulled
+`main` (fast-forward, clean). Acquired lock, committed and pushed
+immediately (`e08d4b8`) before reading further state, per the roadmap's
+lock-first rule.
+
+Read `.agent/state.json`: `status` still `"blocked"`,
+`current_effort` `camera-mode`, `current_unit` unchanged (Phase 1,
+Track 1A: device enumeration), `last_commit` still `749d071`.
+Re-verified against source of truth: `specs/24-camera-mode.md`'s
+"Deployment topology" caveat (lines 135-161) still shows the
+`getUserMedia` smoke-check as not yet closed, and the Open-dependency
+table row (line 664) is unchanged. `docs/camera-getusermedia-smoke-test.html`
+is still present and unmodified (commit `c691836`). `git log` shows no
+commits since the last firing other than this session's own lock
+acquire/release pair.
+
+Per the roadmap's reactive loop, `status: blocked` means release the
+lock and stop without dispatching anything -- this is a human-only
+decision (Tom running the smoke test on the real mini) that cannot be
+resolved by the orchestrator. No new information since the last
+notification (2026-09-29 21:09 UTC) and no intervening firing has
+reported anything new either, so no push notification sent this firing,
+consistent with the "same as yesterday, stay silent" rule. No code
+changed, `state.json` left as-is. Releasing `.agent/lock.json` as part
+of this firing's final commit.
