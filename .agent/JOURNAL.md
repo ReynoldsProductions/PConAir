@@ -3910,3 +3910,36 @@ UTC, so no push notification sent this firing either, per the
 established "same as yesterday, stay silent" rule. No code changed,
 `state.json` left as-is. Releasing `.agent/lock.json` as part of this
 firing's final commit.
+
+## 2026-10-03 11:09 UTC firing — still blocked, no dispatch
+
+No lock file present at startup. Acquired lock (`cf8a503`), pushed
+immediately as a clean fast-forward. Note: `git fetch`/`checkout` showed
+the usual shallow-clone "detached HEAD" / "forced update" artifact on
+`origin/main`; resolved with `git checkout main && git reset --hard
+origin/main`, which landed exactly on the prior firing's head commit
+(`6837682`) — not a real history rewrite.
+
+Read `.agent/state.json`: `status: blocked`, `current_effort`
+`camera-mode`, `current_unit` still Phase 1 Track 1A (device
+enumeration), `last_commit` still `749d071`.
+
+Re-verified against source of truth rather than trusting the note:
+`specs/24-camera-mode.md`'s "Deployment topology" section still reads
+"Caveat, not yet closed — first thing Phase 1 must verify" for the
+`getUserMedia`-vs-Zoom-Rooms smoke check; the Open-dependency table row
+is unchanged. `docs/camera-getusermedia-smoke-test.html` mtime is still
+Sep 30 22:08, unchanged; no pass/fail recorded in its content.
+`git log --oneline --since=2026-09-29 origin/main | grep -v
+orchestrator` returns nothing — no commit from Tom since the block was
+set.
+
+Same human-only decision blocking every firing since 2026-09-29 (Tom
+running the smoke check on the real mini with Zoom Rooms holding the
+camera; cannot be simulated from this cloud container, which has no
+real Mac mini, no Q-SYS USB Bridge, and no Zoom Rooms session). No new
+information since the notification already sent on 2026-09-29 at 21:09
+UTC, so no push notification sent this firing either, per the
+established "same as yesterday, stay silent" rule. No code changed,
+`state.json` left as-is. Releasing `.agent/lock.json` as part of this
+firing's final commit.
