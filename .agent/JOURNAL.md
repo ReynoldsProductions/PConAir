@@ -4009,3 +4009,33 @@ UTC, so no push notification sent this firing either, per the
 established "same as yesterday, stay silent" rule. No code changed,
 `state.json` left as-is. Releasing `.agent/lock.json` as part of this
 firing's final commit.
+
+## 2026-10-03 14:09 UTC firing — still blocked, no dispatch
+
+No lock file present at startup. `git fetch`/`checkout main` showed the
+same shallow-clone "detached HEAD" / "forced update" artifact seen and
+diagnosed at prior firings (local `main` and `origin/main` share no
+merge-base within the shallow depth) — not a real history rewrite.
+Resolved with `git reset --hard origin/main`, landing exactly on the
+prior firing's head commit (`298801a`). Acquired lock (`b0ce134`),
+pushed immediately as a clean fast-forward.
+
+Read `.agent/state.json`: `status: blocked`, `current_effort`
+`camera-mode`, `current_unit` still Phase 1 Track 1A (device
+enumeration), `last_commit` still `749d071`.
+
+Re-verified against source of truth rather than trusting the note:
+`specs/24-camera-mode.md`'s "Deployment topology" section still reads
+"Caveat, not yet closed — first thing Phase 1 must verify" for the
+`getUserMedia`-vs-Zoom-Rooms smoke check; the Open-dependency table row
+is unchanged. `docs/camera-getusermedia-smoke-test.html`'s last
+touching commit is still an orchestrator blocked-status commit, not
+content from Tom. `git log --oneline --since=2026-09-29 origin/main |
+grep -v orchestrator` returns nothing — no commit from Tom since the
+block was set.
+
+Same human-only decision blocking every firing since 2026-09-29. No new
+information since the notification already sent on 2026-09-29 at 21:09
+UTC, so no push notification sent this firing either, per the
+established "same as yesterday, stay silent" rule. No code changed,
+`state.json` left as-is. Released `.agent/lock.json` (`5ab8e9d`).
