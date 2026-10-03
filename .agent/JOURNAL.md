@@ -3553,3 +3553,33 @@ anything new either, so no push notification sent this firing,
 consistent with the "same as yesterday, stay silent" rule. No code
 changed, `state.json` left as-is. Releasing `.agent/lock.json` as part
 of this firing's final commit.
+
+## 2026-10-03 00:09 UTC firing -- still blocked, no dispatch
+
+No lock file present at startup (previous firing's `c8e1238` released it
+cleanly). `git fetch` + `git status` on this fresh checkout: HEAD landed
+detached at `b1b3e41` (same fresh-checkout quirk noted in earlier
+entries); re-pointed local `main` at `origin/main` -- confirmed a clean
+fast-forward, no divergence, no second writer. Acquired lock
+(`0d7339a`), pushed immediately.
+
+Read `.agent/state.json`: `status` still `"blocked"`, `current_effort`
+`camera-mode`, `current_unit` unchanged (Phase 1, Track 1A: device
+enumeration), `last_commit` still `749d071`. Re-verified against source
+of truth: `git log` for both `specs/24-camera-mode.md` and
+`docs/camera-getusermedia-smoke-test.html` shows no commits since
+`c8e1238` (the last firing's own blocked-status commit) -- the
+"Deployment topology" section and the Open-dependency table row are
+unchanged, still no pass/fail recorded for the `getUserMedia` smoke
+check.
+
+Per the roadmap's reactive loop, `status: blocked` means release the
+lock and stop without dispatching anything -- this is the same
+human-only decision (Tom running the smoke check on the real mini with
+Zoom Rooms holding the camera) that has blocked every firing since
+2026-09-29, and it cannot be resolved from this cloud container (no
+real mini, no Q-SYS bridge, no Zoom Rooms session). No new information
+since the last firing's notification, so no push notification sent
+this firing either, consistent with the "same as yesterday, stay
+silent" rule. No code changed, `state.json` left as-is. Releasing
+`.agent/lock.json` as part of this firing's final commit.
