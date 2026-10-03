@@ -3975,3 +3975,37 @@ new information since the notification already sent on 2026-09-29 at
 established "same as yesterday, stay silent" rule. No code changed,
 `state.json` left as-is. Releasing `.agent/lock.json` as part of this
 firing's final commit.
+
+## 2026-10-03 13:09 UTC firing — still blocked, no dispatch
+
+No lock file present at startup. `git fetch`/`checkout main` again
+showed the same shallow-clone "detached HEAD" / "forced update"
+artifact (local `main` and `origin/main` share no merge-base) seen and
+diagnosed at the 11:09 and 12:11 UTC firings — not a real history
+rewrite. Resolved with `git reset --hard origin/main`, landing exactly
+on the prior firing's head commit (`f0324dc`). Acquired lock
+(`3e81e9c`), pushed immediately as a clean fast-forward.
+
+Read `.agent/state.json`: `status: blocked`, `current_effort`
+`camera-mode`, `current_unit` still Phase 1 Track 1A (device
+enumeration), `last_commit` still `749d071`.
+
+Re-verified against source of truth rather than trusting the note:
+`specs/24-camera-mode.md`'s "Deployment topology" section still reads
+"Caveat, not yet closed — first thing Phase 1 must verify" for the
+`getUserMedia`-vs-Zoom-Rooms smoke check; the Open-dependency table row
+is unchanged. `docs/camera-getusermedia-smoke-test.html` mtime is still
+Sep 30 22:08, content unchanged, no pass/fail recorded (the one later
+log entry touching this path, `d176524`, is itself a prior orchestrator
+blocked-status commit, not a content change from Tom). `git log
+--oneline --since=2026-09-29 origin/main | grep -v orchestrator`
+returns nothing — no commit from Tom since the block was set.
+
+Same human-only decision blocking every firing since 2026-09-29 (Tom
+running the smoke check on the real mini with Zoom Rooms holding the
+camera; cannot be simulated from this cloud container). No new
+information since the notification already sent on 2026-09-29 at 21:09
+UTC, so no push notification sent this firing either, per the
+established "same as yesterday, stay silent" rule. No code changed,
+`state.json` left as-is. Releasing `.agent/lock.json` as part of this
+firing's final commit.
