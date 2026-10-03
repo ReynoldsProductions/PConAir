@@ -3750,3 +3750,41 @@ no push notification sent this firing either, consistent with the
 established "same as yesterday, stay silent" rule. No code changed,
 `state.json` left as-is. Releasing `.agent/lock.json` as part of this
 firing's final commit.
+
+## 2026-10-03 05:08 UTC firing -- still blocked, no dispatch
+
+No lock file present at startup. Acquired lock (`9403c48`), pushed
+immediately, before reading `state.json`.
+
+Read `.agent/state.json`: `status` still `"blocked"`, `current_effort`
+`camera-mode`, `current_unit` unchanged (Phase 1, Track 1A: device
+enumeration), `last_commit` still `749d071`. Re-verified against source
+of truth rather than trusting the note: `specs/24-camera-mode.md`'s
+"Deployment topology" section (line ~150) still reads "Caveat, not yet
+closed" for the `getUserMedia`-vs-Zoom-Rooms smoke check, and the
+Open-dependency table row (line ~664) is unchanged. Checked
+`docs/camera-getusermedia-smoke-test.html` directly for any recorded
+pass/fail text outside its own UI/logging code -- none found, still
+just the unrun interactive harness. Checked for any non-orchestrator
+commit on `main` since 2026-09-29 (`git log --oneline --since=2026-09-29
+origin/main | grep -v orchestrator`) -- only one unrelated lock-acquire
+commit from a prior firing, nothing from Tom.
+
+Noted (not investigated further, already explained by the 04:13 UTC
+entry with direct evidence): `git fetch` again reported a "forced
+update" on `origin/main` and landed HEAD detached. Confirmed this is
+the same shallow-clone dual-boundary artifact previously diagnosed, not
+a real history rewrite -- re-pointed via plain `git checkout
+origin/main` (detached), same as the last firing.
+
+Per the roadmap's reactive loop, `status: blocked` means release the
+lock and stop without dispatching anything -- same human-only decision
+(Tom running the smoke check on the real mini with Zoom Rooms holding
+the camera) that has blocked every firing since 2026-09-29 (now 4+
+days, dozens of firings). Cannot be resolved from this cloud container
+(no real mini, no Q-SYS bridge, no Zoom Rooms session). No new
+information since the notification sent at 21:09 UTC on 2026-09-29, so
+no push notification sent this firing either, consistent with the
+established "same as yesterday, stay silent" rule. No code changed,
+`state.json` left as-is. Releasing `.agent/lock.json` as part of this
+firing's final commit.
