@@ -3583,3 +3583,36 @@ since the last firing's notification, so no push notification sent
 this firing either, consistent with the "same as yesterday, stay
 silent" rule. No code changed, `state.json` left as-is. Releasing
 `.agent/lock.json` as part of this firing's final commit.
+
+## 2026-10-03 01:09 UTC firing -- still blocked, no dispatch
+
+No lock file present at startup (previous firing's `6bef973` released it
+cleanly). Fresh checkout: `git fetch` pulled a large batch of new
+branches/tags and `main` landed detached again (same fresh-container
+quirk as prior entries) with local `main` showing as "diverged" from
+`origin/main` -- confirmed this is the shallow-clone horizon (depth 50,
+`git rev-parse --is-shallow-repository` true, no common ancestor
+findable within the window), not a real second writer or history
+rewrite; re-pointed local `main` at `origin/main` with `git checkout -B
+main origin/main`. Acquired lock (`82a51e9`), pushed immediately.
+
+Read `.agent/state.json`: `status` still `"blocked"`, `current_effort`
+`camera-mode`, `current_unit` unchanged (Phase 1, Track 1A: device
+enumeration), `last_commit` still `749d071`. Re-verified against
+source of truth: the "Deployment topology" section in
+`specs/24-camera-mode.md` still reads "Caveat, not yet closed" for the
+`getUserMedia` smoke check, and the Open-dependency table row is
+unchanged -- no commit within the shallow history window (which covers
+well past 2026-09-29) touches `specs/24-camera-mode.md` or
+`docs/camera-getusermedia-smoke-test.html`.
+
+Per the roadmap's reactive loop, `status: blocked` means release the
+lock and stop without dispatching anything -- this is the same
+human-only decision (Tom running the smoke check on the real mini with
+Zoom Rooms holding the camera) that has blocked every firing since
+2026-09-29, and it cannot be resolved from this cloud container (no
+real mini, no Q-SYS bridge, no Zoom Rooms session). No new information
+since the last firing's notification, so no push notification sent
+this firing either, consistent with the "same as yesterday, stay
+silent" rule. No code changed, `state.json` left as-is. Releasing
+`.agent/lock.json` as part of this firing's final commit.
