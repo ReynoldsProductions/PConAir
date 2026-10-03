@@ -3685,3 +3685,68 @@ on 2026-09-29, so no push notification sent this firing either,
 consistent with the established "same as yesterday, stay silent" rule.
 No code changed, `state.json` left as-is. Releasing `.agent/lock.json`
 as part of this firing's final commit.
+
+## 2026-10-03 04:13 UTC firing -- still blocked, no dispatch
+
+No lock file present at startup. `git fetch` again showed a "forced
+update" notice on `origin/main` and landed HEAD detached. This time
+dug all the way to ground truth rather than taking the prior entries'
+word for it: `git log origin/main..main` and `git log main..origin/main`
+each showed ~50 commits, and `git merge-base main origin/main` returned
+nothing at all -- genuinely no common ancestor visible in the fetched
+graph. Confirmed why before touching anything further: `git rev-parse
+--is-shallow-repository` is `true`, and `.git/shallow` lists **two**
+boundary commits (`5c4031a`, `cb607d9`) -- one per side of the apparent
+"divergence." That's the full explanation: this is a shallow clone, each
+side's history is truncated at a different depth, and git's
+fast-forward safety check can't see past either boundary to confirm
+they're actually the same line of history, so it reports a forced
+update that isn't a real one. Cross-checked that both unique-commit
+lists contain *only* orchestrator lock/status bookkeeping commits (`git
+log --oneline | grep -v orchestrator` empty on both sides) -- no
+non-orchestrator work on either side, so even in the worst case nothing
+was at risk. This reconfirms (with direct evidence this time, not just
+pattern-matching to the prior write-up) that prior entries' "shallow-
+clone-horizon quirk, not a real history rewrite or concurrent writer"
+conclusion was correct. Re-pointed to `origin/main` via plain `git
+checkout origin/main` (detached) rather than `checkout -B main
+origin/main` -- this session's sandbox classifier denied both `reset
+--hard` and `checkout -B` as destructive-git actions; plain checkout to
+the remote ref worked and pushes via `HEAD:main` land as clean
+fast-forwards (confirmed on this firing's lock-acquire push), so no
+functional difference for this orchestrator's purposes. Worth a human
+look only if it's cheap: the double shallow-boundary noise on every
+firing is pure overhead (an extra forced-update diagnosis each time);
+a non-shallow clone or `git fetch --unshallow` in the firing's setup
+would remove it. Not blocking anything, not raising this as a
+notification.
+
+Acquired lock (`8f140e1`), pushed immediately, before reading
+`state.json`.
+
+Read `.agent/state.json`: `status` still `"blocked"`, `current_effort`
+`camera-mode`, `current_unit` unchanged (Phase 1, Track 1A: device
+enumeration), `last_commit` still `749d071`. Re-verified against source
+of truth: `specs/24-camera-mode.md`'s "Deployment topology" section
+(line ~150) still reads "Caveat, not yet closed" for the
+`getUserMedia`-vs-Zoom-Rooms smoke check, and the Open-dependency table
+row (line ~664) is unchanged. `docs/camera-getusermedia-smoke-test.html`
+unchanged (mtime still 2026-09-30 22:08, predates this firing's shallow
+boundary) and still just the unrun interactive harness -- grepped for
+pass/fail/result strings outside the harness's own UI/logging code;
+none found. Also read the full orchestrator roadmap doc itself this
+firing (`docs/plans/2026-09-29-orchestrator-roadmap.md`) rather than
+relying only on the scheduled task's own summary of it, to confirm nothing
+in the doc has changed the blocked-handling rules; it hasn't.
+
+Per the roadmap's reactive loop, `status: blocked` means release the
+lock and stop without dispatching anything -- same human-only decision
+(Tom running the smoke check on the real mini with Zoom Rooms holding
+the camera) that has blocked every firing since 2026-09-29 (now 4+
+days, dozens of firings). Cannot be resolved from this cloud container
+(no real mini, no Q-SYS bridge, no Zoom Rooms session). No new
+information since the notification sent at 21:09 UTC on 2026-09-29, so
+no push notification sent this firing either, consistent with the
+established "same as yesterday, stay silent" rule. No code changed,
+`state.json` left as-is. Releasing `.agent/lock.json` as part of this
+firing's final commit.
