@@ -4333,3 +4333,55 @@ it calls plus a smoke-level boot check — see the testing section above;
 (3) same open items Track 1A already flagged (3s hotplug poll interval,
 `permissionStatus: 'restricted'` having no real signal source) are
 unchanged by this track and still open for later phases.
+
+## 2026-10-24 — Blocked before dispatching Phase 2 Track 2A: real-hardware pacer+NDI soak is still owed
+
+Lock was absent (clean exit from the previous firing); acquired fresh, pushed immediately, then read
+`state.json`. Found `status: "pending"`, `current_unit` naming Phase 2 Track 2A (composite host page) as the
+next dispatch, `last_commit` matching the tip of `main` (Phase 1 complete).
+
+This firing's own fired prompt described the state as "Phase 0, starting now" — stale relative to the repo:
+Phase 0 and Phase 1 are both already done (see prior entries and `specs/24-camera-mode.md`'s own status notes).
+Per the orchestrator roadmap, git state is authoritative over anything summarized in a stored prompt, so this
+firing worked from `state.json` and the spec, not the prompt's summary.
+
+Before dispatching Track 2A, read `specs/24-camera-mode.md` in full for Phase 2, as this doc's own rule requires
+for every unit. That reading surfaced an explicit, unambiguous gate that the *previous* firing's advance to
+"Phase 2 Track 2A / pending" missed:
+
+- **"Architecture decision" > "Caveats and residual risks":** *"Phase 2's composite host page should not be
+  built until that rerun confirms A or triggers the fallback."*
+- **Phase 0 exit criteria:** *"The soak is not met: no Phase 0 run was on target hardware. It needs a human
+  rerun on the Mac mini with a real UVC camera."*
+- **Decisions, item 7:** *"The 10-minute 1080p30 soak on a real Mac mini with a real UVC camera is still owed,
+  and it confirms or reverses this before Phase 2."*
+
+All three say the same thing: Candidate A (offscreen rendering, chosen in Phase 0D) was chosen on relative
+evidence from a non-representative rig (headless Linux, Xvfb, software GL, fake camera at 20 fps, 20 s runs —
+not the required 10-minute 1080p30 soak at real framerate on real hardware), and that soak is a named
+precondition for starting Phase 2, not a nice-to-have. Track 2A — "composite host page: camera video layer plus
+the existing L3 render layers" — *is* the OSR compositor window the spec repeatedly calls out as gated behind
+this ("distinct from Phase 2's OSR compositor window, which still must not be built before the real-hardware
+pacer soak," Track 1A's own status note).
+
+This cannot be resolved from this session: it requires a physical Mac mini, the real Q-SYS USB Video Bridge, and
+a real AVFoundation UVC camera feed held for 10 minutes at 1080p30 while measuring frame-interval jitter and
+drops, plus the same for `grandi`'s NDI send. None of that exists in this cloud container, and simulating a pass
+or fail would be a guess dressed up as a measurement — exactly the class of call the orchestrator roadmap
+prohibits ("never guess on irreversible or ambiguous calls"). It's the same category of human-only hardware
+verification as the deployment-topology OBS+Zoom test and the Track 1A getUserMedia-vs-Zoom-Rooms check that
+earlier firings correctly deferred to Tom.
+
+**Action taken:** did not dispatch Track 2A or write any Phase 2 code. Set `state.json.status` to `"blocked"`
+with a detailed note naming exactly what's needed (the real-hardware soak, who can do it, and what a pass vs.
+fail means for Candidate A vs. the Candidate B fallback) and left `current_unit` pointing at Track 2A so the
+next firing — or a human — can see exactly where this is stuck. `free_reset_available` untouched; this is not a
+quota issue.
+
+**For the human:** run the Phase 0 exit-criteria soak (Candidate A / OSR with an off-main-thread pacer, feeding
+`grandi`'s NDI send) on the production Mac mini against the real Q-SYS UVC camera, 10 minutes at 1080p30,
+targeting ±2 ms jitter and zero drops. Record the result in `specs/24-camera-mode.md` (confirming Candidate A,
+or triggering the documented Candidate B fallback) and flip `state.json.status` back to `"pending"` (or clear
+this block some other way) once done — no firing will dispatch Phase 2 work on its own until that happens.
+
+**No code changed this firing.** Lock released as part of this same commit.
