@@ -1,9 +1,9 @@
 {
-  "status": "pending",
+  "status": "in_progress",
   "current_effort": "camera-mode",
   "current_unit": "Phase 1, Track 1A: device enumeration (src/main/camera/)",
-  "last_commit": "749d071",
+  "last_commit": "aa52aaa",
   "resume_after": null,
   "free_reset_available": true,
-  "notes": "Unblocked 2026-10-24 by a human: the getUserMedia-vs-Zoom smoke check (docs/camera-getusermedia-smoke-test.html) was never run. Tom made an explicit, informed decision to accept the existing OBS+Zoom concurrent-access evidence as sufficient rather than run it separately -- see specs/24-camera-mode.md's 'Deployment topology' section, caveat now marked 'accepted as closed, 2026-10-24 -- not separately verified'. Risk being knowingly accepted: if Electron's permission/sandbox layer behaves differently from native AVFoundation capture, that surfaces as a Phase 1 bug instead of being caught in advance. Fallback if that happens is unchanged: the second mini (confirmed available), not a capture-approach rework -- do not guess at that fallback decision either if it comes up, re-block and ask. Track 1A (device enumeration) may now proceed. Automation was paused (routine disabled) from roughly 2026-10-12 to 2026-10-24 while this was pending a human call; re-enabled alongside this unblock."
+  "notes": "Dispatched Track 1A to a fresh implementation agent this firing (2026-10-24, session_017VZz5s5NZQNw7Dcvv1JLo3), per the human unblock recorded in the previous notes entry (gate accepted-closed, see specs/24-camera-mode.md Deployment topology). Agent instructed to build src/main/camera/ (device enumeration via hidden-window getUserMedia, selection, hotplug, permission prompts, settings persistence wiring into app-settings.ts/index.ts boot seeding), TDD with electron-mock per CLAUDE.md, update specs/24-camera-mode.md + JOURNAL.md, commit to main but NOT push, and not touch this file or the lock. If this firing dies before clearing in_progress, the next firing must git status/run tests and either finish cleanly from the agent's commit or reset to last_commit (aa52aaa, pre-dispatch) and restart Track 1A from scratch -- do not trust an uncommitted or unreviewed partial diff."
 }
