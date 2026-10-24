@@ -4103,3 +4103,20 @@ UTC, so no push notification sent this firing either, per the
 established "same as yesterday, stay silent" rule. No code changed,
 `state.json` left as-is. Releasing `.agent/lock.json` as part of this
 firing's final commit.
+
+## 2026-10-24 — Unblocked: OBS+Zoom evidence accepted in place of the getUserMedia smoke test
+
+The routine had been disabled (paused) since roughly 2026-10-12, since the
+`getUserMedia`-vs-Zoom smoke check was still pending a human and the test
+page had sat unused. Tom made an explicit, informed decision today to
+accept the existing OBS+Zoom concurrent-access evidence (from the original
+topology decision) as sufficient, rather than run
+`docs/camera-getusermedia-smoke-test.html` separately — a conscious
+risk-acceptance, not a guess the orchestrator made on its own.
+
+`specs/24-camera-mode.md`'s "Deployment topology" section updated: the
+caveat is now "accepted as closed, 2026-10-24 — not separately verified,"
+with the accepted risk and unchanged fallback (second mini, confirmed
+available; not a capture-approach rework) spelled out explicitly.
+`.agent/state.json` reset to `pending`, Track 1A. Routine re-enabled
+alongside this unblock.
