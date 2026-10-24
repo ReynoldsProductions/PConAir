@@ -1,9 +1,9 @@
 {
   "status": "in_progress",
   "current_effort": "camera-mode",
-  "current_unit": "Phase 1, Track 1A: device enumeration (src/main/camera/)",
-  "last_commit": "aa52aaa",
+  "current_unit": "Phase 1, Track 1C: operator UI shell for the Camera page (device picker, preview, output mode toggle, status)",
+  "last_commit": "3cd9494",
   "resume_after": null,
   "free_reset_available": true,
-  "notes": "Dispatched Track 1A to a fresh implementation agent this firing (2026-10-24, session_017VZz5s5NZQNw7Dcvv1JLo3), per the human unblock recorded in the previous notes entry (gate accepted-closed, see specs/24-camera-mode.md Deployment topology). Agent instructed to build src/main/camera/ (device enumeration via hidden-window getUserMedia, selection, hotplug, permission prompts, settings persistence wiring into app-settings.ts/index.ts boot seeding), TDD with electron-mock per CLAUDE.md, update specs/24-camera-mode.md + JOURNAL.md, commit to main but NOT push, and not touch this file or the lock. If this firing dies before clearing in_progress, the next firing must git status/run tests and either finish cleanly from the agent's commit or reset to last_commit (aa52aaa, pre-dispatch) and restart Track 1A from scratch -- do not trust an uncommitted or unreviewed partial diff."
+  "notes": "Track 1A done and pushed at 3cd9494 this firing (2026-10-24, session_017VZz5s5NZQNw7Dcvv1JLo3) -- orchestrator independently reran npm test (92 files/1339 tests green) and npm run typecheck (clean), read the specs/24-camera-mode.md Track 1A status note and .agent/JOURNAL.md entry, and skimmed the new src/main/camera/*.ts diff before pushing. Continuing to batch per the roadmap's 'Batching within a firing' rule: Track 1C is still Phase 1 (no phase boundary), no native bindings/signing/notarization, no human-only decision pending. Dispatched Track 1C to a fresh implementation agent: operator UI (src/renderer/operator/) device picker wired to GET /api/camera/devices, live preview via the browser's own getUserMedia (not the main-process probe window), output-mode toggle and status display consuming the existing /api/camera/* contract. Agent instructed to commit to main but NOT push, not touch this file or the lock. If this firing dies before clearing in_progress, the next firing must git status/run tests and either finish cleanly from the agent's commit or reset to last_commit (3cd9494, pre-1C-dispatch) and restart Track 1C from scratch."
 }
