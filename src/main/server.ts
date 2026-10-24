@@ -132,6 +132,12 @@ export interface ServerDeps {
   saveAppSettingsPatch?: RouteServices['saveAppSettingsPatch'];
   /** Opens the Director window (Electron main only); absent in tests. */
   openDirectorWindow?: RouteServices['openDirectorWindow'];
+  /** Persists camera device/output-mode/NDI choices to app-settings.json (spec 24 Phase 1A); absent in tests. */
+  saveCameraSettings?: RouteServices['saveCameraSettings'];
+  /** Track 1A's last known enumerated camera device list; absent in tests -> empty list. */
+  listCameraDevices?: RouteServices['listCameraDevices'];
+  /** Forces a fresh camera enumeration/permission probe; absent in tests -> 501. */
+  refreshCameraDevices?: RouteServices['refreshCameraDevices'];
 }
 
 function getRequestClientIp(req: express.Request, trustForwardedFor: boolean): string {
@@ -387,6 +393,9 @@ export function createServer(deps: ServerDeps) {
     getAppSettings: deps.getAppSettings,
     saveAppSettingsPatch: deps.saveAppSettingsPatch,
     openDirectorWindow: deps.openDirectorWindow,
+    saveCameraSettings: deps.saveCameraSettings,
+    listCameraDevices: deps.listCameraDevices,
+    refreshCameraDevices: deps.refreshCameraDevices,
   };
 
   const app = express();

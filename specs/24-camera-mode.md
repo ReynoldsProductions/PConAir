@@ -533,6 +533,96 @@ operator UI, no output router — those are 1A/1C/Phase 3's jobs; this track
 only shipped the shape and the read/write surface they consume. See
 `.agent/JOURNAL.md` for the full report.
 
+**Track 1A status (2026-10-24): done.** `src/main/camera/` added:
+`probe-window.ts` (a hidden `offscreen: true` `BrowserWindow` on its own
+persistent partition, `persist:pconair-camera`, with Electron's
+session-level permission gate — `setPermissionRequestHandler` and
+`setPermissionCheckHandler` — auto-granted for `media` only); `probe.ts`
+(runs `getUserMedia` + `enumerateDevices()` inside that window via
+`executeJavaScript`, returning the video-input device list and a
+`permissionStatus`, normalizing/dropping malformed results and never
+rejecting); `manager.ts` (the mode-machine reaction this track owed: starts
+the probe-and-poll cycle when `currentMode` becomes `'camera'`, stops and
+destroys the hidden window when it leaves, polls every 3s while active to
+catch hotplug, and keeps `connectionStatus`/`lastError`/`permissionStatus`
+in the store up to date — guarded against overlapping in-flight probes and
+against re-entering on its own `setState()` writes); and
+`settings-bridge.ts` (pure `AppSettings` → boot-patch mapping, kept
+Electron-free so it is unit-tested directly rather than through the
+Electron mock).
+
+Persistence: `app-settings.ts` gained `cameraDeviceId`, `cameraDeviceLabel`,
+`cameraOutputMode`, `cameraOutputDisplayId`, `cameraNdiSourceName`.
+`permissionStatus`/`connectionStatus` are deliberately **not** persisted —
+both are live/transient and are re-probed at boot by the camera manager,
+exactly like `tunnel.status` is runtime-only while `tunnel.enabled` is
+persisted. `routes/camera.ts` (1B's router) now takes optional
+`saveCameraSettings`/`listDevices`/`refreshDevices` hooks and writes through
+on `/device`, `/output-mode` and `/ndi` only — never on `/permission` or
+`/connection` — mirroring the existing `saveTunnelSettings`/
+`saveBrandingSettings` convention exactly (deps object passed down through
+`ServerDeps` → `RouteServices` → the router). It also gained
+`GET /api/camera/devices` and `POST /api/camera/devices/refresh` (501
+`NOT_IMPLEMENTED` when no hook is wired, same convention as the other
+Electron-only routes) so an operator UI has something to list and
+force-refresh against; this is new surface beyond 1B's original contract,
+additive and not a redesign of it. `index.ts` seeds `camera` from
+`app-settings.json` at boot via `cameraBootPatchFromSettings()` and creates
+the camera manager alongside the other boot-time managers, wiring its
+`listDevices`/`refreshDevices` into the server and `saveCameraSettings`
+into `saveAppSettings`.
+
+Permission design: the probe window auto-grants its own `media` permission
+request/check because nobody is at the console to click "Allow" after an
+unattended restart (non-negotiable 4). This covers only Electron's
+session-level gate — it cannot and does not bypass macOS's own TCC camera
+authorization, which stays a one-time per-machine setup step (same category
+as the Screen Recording / Microphone grants this deployment already needs
+for Zoom/Q-SYS) rather than something Electron can grant on its own. A
+denied or not-yet-granted OS permission still surfaces normally, as
+`permissionStatus: 'denied'`, through the probe script's `getUserMedia`
+rejection.
+
+Hotplug design: the spec text above suggests relaying
+`navigator.mediaDevices.ondevicechange` to main. That would need a preload
+script — none exists anywhere in this app today — plus an `ipcMain`/
+`ipcRenderer` bridge that `tests/setup/electron-mock.ts` cannot exercise
+(its `ipcMain.on`/`.handle` mocks record the channel name but discard the
+registered handler; `watchdog-electron.ts`'s pre-existing `PONG_CHANNEL`
+handler has the identical, already-accepted gap). Chose polling instead:
+the manager re-runs the same enumeration probe every 3s while camera mode
+is active. This needs no preload/IPC, is fully characterizable against the
+existing `executeJavaScript` mock seam, and stays simple enough to reason
+about under a reentrancy guard. 3s is a judgment call, not a measured
+requirement against real hardware.
+
+Deliberately not done: no real UVC hardware exercises any of this — the
+2026-10-24 "accepted as closed, not separately verified" OBS+Zoom risk
+acceptance in "Deployment topology" above already covers the
+`getUserMedia`-vs-Zoom-Rooms concern for this track, so it is not
+re-litigated here. The hidden window built here is a separate, lightweight
+probe window — never shown, never composited — distinct from Phase 2's OSR
+compositor window, which still must not be built before the real-hardware
+pacer soak. `permissionStatus: 'restricted'` is part of the Track 1B
+contract but is never produced by this probe (a `getUserMedia` rejection
+only distinguishes `NotAllowedError` from everything else); nothing in
+Track 1A sets it today. Coverage is reported qualitatively, not as a
+measured percentage: `@vitest/coverage-v8` is not installed in this
+environment, so `npm test -- --coverage` cannot run; every exported
+function and branch in each new file has a dedicated test case instead
+(55 new tests total — see `.agent/JOURNAL.md`).
+
+Open questions for Track 1C / later phases: (1) whether 3s hotplug polling
+reacts fast enough once tried against the real Q-SYS bridge, or whether an
+IPC-relayed `ondevicechange` push is worth the preload script it would
+need; (2) `permissionStatus: 'restricted'` has no real signal source yet —
+may need an explicit admin-reported path through the existing
+`/api/camera/permission` endpoint if an MDM-restricted camera ever needs
+distinguishing from a plain user denial; (3) whether
+`GET /api/camera/devices`' `{id, label}` shape is enough for the device
+picker, or whether it should carry more (e.g. which device is specifically
+the Q-SYS bridge).
+
 ### Phase 2 — Graphics compositing
 
 | Track | Work | Model |

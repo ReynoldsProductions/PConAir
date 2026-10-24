@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import type { StateStore } from '../state';
 import type { AuthManager } from '../auth';
-import type { CameraConnectionStatus, CameraOutputMode, CameraPermissionStatus } from '../../shared/types';
+import type { CameraConnectionStatus, CameraDevice, CameraOutputMode, CameraPermissionStatus } from '../../shared/types';
 import { requireOperator, requireAdmin } from './middleware';
 
 const PERMISSION_STATUSES: CameraPermissionStatus[] = ['unknown', 'granted', 'denied', 'restricted'];
@@ -12,6 +12,27 @@ const OUTPUT_MODES: CameraOutputMode[] = ['ndi', 'local-display'];
 // in the spec; 100 matches the UrlPreset `name` convention (spec 02 §2.8).
 const MAX_NDI_SOURCE_NAME_LEN = 100;
 
+export interface CameraRouterOptions {
+  /**
+   * Persists device/output-mode/NDI operator choices to app-settings.json
+   * (spec 24 non-negotiable 4: survives restart unattended); absent in tests
+   * -> in-memory only, same convention as saveTunnelSettings/
+   * saveBrandingSettings. Deliberately never called for /permission or
+   * /connection -- those are live/transient and are not persisted.
+   */
+  saveCameraSettings?: (patch: {
+    cameraDeviceId?: string | null;
+    cameraDeviceLabel?: string | null;
+    cameraOutputMode?: CameraOutputMode;
+    cameraOutputDisplayId?: string | null;
+    cameraNdiSourceName?: string;
+  }) => void;
+  /** Track 1A's last known enumerated device list (from the hidden-window probe); absent in tests -> empty list. */
+  listDevices?: () => CameraDevice[];
+  /** Forces a fresh enumeration/permission probe; absent (e.g. non-Electron tests) -> 501. */
+  refreshDevices?: () => Promise<CameraDevice[]>;
+}
+
 /**
  * `/api/camera/*` — spec 24 Phase 1B contract. Track 1A owns device
  * enumeration/hotplug/persistence and Track 1C owns the operator UI; this
@@ -19,7 +40,7 @@ const MAX_NDI_SOURCE_NAME_LEN = 100;
  * same request/response and error-code conventions as the other mode
  * routers (see `background.ts`, `media-library.ts`, `tunnel.ts`).
  */
-export function createCameraRouter(store: StateStore, auth: AuthManager): Router {
+export function createCameraRouter(store: StateStore, auth: AuthManager, opts: CameraRouterOptions = {}): Router {
   const router = Router();
   const opGuard = requireOperator(auth);
   const adminGuard = requireAdmin(auth);
@@ -27,6 +48,31 @@ export function createCameraRouter(store: StateStore, auth: AuthManager): Router
   // GET /api/camera — current camera state.
   router.get('/', opGuard, (_req: Request, res: Response) => {
     res.json({ camera: store.getState().camera });
+  });
+
+  // GET /api/camera/devices — the device list Track 1A's hidden-window probe
+  // last enumerated. Not store-backed: the list itself is runtime-only, not
+  // part of the persisted/replicated CameraState contract — see
+  // src/main/camera/manager.ts.
+  router.get('/devices', opGuard, (_req: Request, res: Response) => {
+    res.json({ devices: opts.listDevices?.() ?? [] });
+  });
+
+  // POST /api/camera/devices/refresh — force an immediate re-probe instead of
+  // waiting out the manager's poll interval (e.g. an operator's "Refresh" button).
+  router.post('/devices/refresh', opGuard, async (_req: Request, res: Response) => {
+    if (!opts.refreshDevices) {
+      res.status(501).json({
+        error: { code: 'NOT_IMPLEMENTED', message: 'Camera device enumeration not available in this environment' },
+      });
+      return;
+    }
+    try {
+      const devices = await opts.refreshDevices();
+      res.json({ devices });
+    } catch (err) {
+      res.status(500).json({ error: { code: 'PROBE_FAILED', message: String((err as Error)?.message ?? err) } });
+    }
   });
 
   // POST /api/camera/device — select or clear the active UVC device.
@@ -41,6 +87,7 @@ export function createCameraRouter(store: StateStore, auth: AuthManager): Router
     if (id === null) {
       const s = store.getState();
       store.setState({ camera: { ...s.camera, selectedDevice: null } });
+      opts.saveCameraSettings?.({ cameraDeviceId: null, cameraDeviceLabel: null });
       res.json({ camera: store.getState().camera });
       return;
     }
@@ -58,6 +105,7 @@ export function createCameraRouter(store: StateStore, auth: AuthManager): Router
 
     const s = store.getState();
     store.setState({ camera: { ...s.camera, selectedDevice: { id, label } } });
+    opts.saveCameraSettings?.({ cameraDeviceId: id, cameraDeviceLabel: label });
     res.json({ camera: store.getState().camera });
   });
 
@@ -120,6 +168,7 @@ export function createCameraRouter(store: StateStore, auth: AuthManager): Router
 
     if (mode === 'ndi') {
       store.setState({ camera: { ...s.camera, outputMode: 'ndi', outputDisplayId: null } });
+      opts.saveCameraSettings?.({ cameraOutputMode: 'ndi', cameraOutputDisplayId: null });
       res.json({ camera: store.getState().camera });
       return;
     }
@@ -141,6 +190,7 @@ export function createCameraRouter(store: StateStore, auth: AuthManager): Router
       }
     }
     store.setState({ camera: { ...s.camera, outputMode: 'local-display', outputDisplayId: nextDisplayId } });
+    opts.saveCameraSettings?.({ cameraOutputMode: 'local-display', cameraOutputDisplayId: nextDisplayId });
     res.json({ camera: store.getState().camera });
   });
 
@@ -162,6 +212,7 @@ export function createCameraRouter(store: StateStore, auth: AuthManager): Router
     }
     const s = store.getState();
     store.setState({ camera: { ...s.camera, ndi: { sourceName: trimmed } } });
+    opts.saveCameraSettings?.({ cameraNdiSourceName: trimmed });
     res.json({ camera: store.getState().camera });
   });
 

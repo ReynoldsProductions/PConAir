@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
 import { createStateStore } from '../src/main/state';
@@ -371,6 +371,198 @@ describe('POST /api/camera/ndi', () => {
       .send({ sourceName: 'x'.repeat(101) });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('INVALID_MODE');
+  });
+});
+
+describe('GET /api/camera/devices and POST /api/camera/devices/refresh', () => {
+  let app: Express;
+  let cookies: { operator: string; admin: string };
+  let srv: ReturnType<typeof makeHttpServer>['server'];
+
+  afterEach(() => srv?.close());
+
+  it('returns an empty list when no listDevices hook is configured', async () => {
+    const made = makeHttpServer();
+    srv = made.server;
+    await srv.listen();
+    app = srv.app;
+    cookies = await getCookies(app);
+
+    const res = await request(app).get('/api/camera/devices').set('Cookie', cookies.operator);
+    expect(res.status).toBe(200);
+    expect(res.body.devices).toEqual([]);
+  });
+
+  it('returns the configured device list', async () => {
+    const store = createStateStore();
+    const server = createFullServer({
+      store,
+      operatorPin: 'test1234',
+      adminPin: 'adminpass8',
+      operatorSessionMs: 60000,
+      adminSessionMs: 60000,
+      port: 0,
+      listCameraDevices: () => [{ id: 'uvc-1', label: 'Q-SYS USB Video Bridge' }],
+    });
+    srv = server;
+    await srv.listen();
+    app = srv.app;
+    cookies = await getCookies(app);
+
+    const res = await request(app).get('/api/camera/devices').set('Cookie', cookies.operator);
+    expect(res.status).toBe(200);
+    expect(res.body.devices).toEqual([{ id: 'uvc-1', label: 'Q-SYS USB Video Bridge' }]);
+  });
+
+  it('returns 401 without auth', async () => {
+    const made = makeHttpServer();
+    srv = made.server;
+    await srv.listen();
+    app = srv.app;
+    const res = await request(app).get('/api/camera/devices');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 501 NOT_IMPLEMENTED for refresh when no refreshDevices hook is configured', async () => {
+    const made = makeHttpServer();
+    srv = made.server;
+    await srv.listen();
+    app = srv.app;
+    cookies = await getCookies(app);
+
+    const res = await request(app).post('/api/camera/devices/refresh').set('Cookie', cookies.operator);
+    expect(res.status).toBe(501);
+    expect(res.body.error.code).toBe('NOT_IMPLEMENTED');
+  });
+
+  it('forces a refresh through the configured hook and returns the result', async () => {
+    const store = createStateStore();
+    const refreshDevices = async () => [{ id: 'uvc-2', label: 'Forced Refresh' }];
+    const server = createFullServer({
+      store,
+      operatorPin: 'test1234',
+      adminPin: 'adminpass8',
+      operatorSessionMs: 60000,
+      adminSessionMs: 60000,
+      port: 0,
+      refreshCameraDevices: refreshDevices,
+    });
+    srv = server;
+    await srv.listen();
+    app = srv.app;
+    cookies = await getCookies(app);
+
+    const res = await request(app).post('/api/camera/devices/refresh').set('Cookie', cookies.operator);
+    expect(res.status).toBe(200);
+    expect(res.body.devices).toEqual([{ id: 'uvc-2', label: 'Forced Refresh' }]);
+  });
+
+  it('returns 500 PROBE_FAILED when the refresh hook rejects', async () => {
+    const store = createStateStore();
+    const server = createFullServer({
+      store,
+      operatorPin: 'test1234',
+      adminPin: 'adminpass8',
+      operatorSessionMs: 60000,
+      adminSessionMs: 60000,
+      port: 0,
+      refreshCameraDevices: async () => {
+        throw new Error('probe exploded');
+      },
+    });
+    srv = server;
+    await srv.listen();
+    app = srv.app;
+    cookies = await getCookies(app);
+
+    const res = await request(app).post('/api/camera/devices/refresh').set('Cookie', cookies.operator);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('PROBE_FAILED');
+  });
+});
+
+describe('camera settings persistence (spec 24 Phase 1A)', () => {
+  let app: Express;
+  let cookies: { operator: string; admin: string };
+  let srv: ReturnType<typeof makeHttpServer>['server'];
+  let saveCameraSettings: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    saveCameraSettings = vi.fn();
+    const store = createStateStore();
+    srv = createFullServer({
+      store,
+      operatorPin: 'test1234',
+      adminPin: 'adminpass8',
+      operatorSessionMs: 60000,
+      adminSessionMs: 60000,
+      port: 0,
+      saveCameraSettings,
+    });
+    await srv.listen();
+    app = srv.app;
+    cookies = await getCookies(app);
+  });
+
+  afterEach(() => srv.close());
+
+  it('persists a device selection', async () => {
+    await request(app)
+      .post('/api/camera/device')
+      .set('Cookie', cookies.operator)
+      .send({ id: 'uvc-1', label: 'Q-SYS USB Video Bridge' });
+    expect(saveCameraSettings).toHaveBeenCalledWith({ cameraDeviceId: 'uvc-1', cameraDeviceLabel: 'Q-SYS USB Video Bridge' });
+  });
+
+  it('persists clearing the device selection', async () => {
+    await request(app).post('/api/camera/device').set('Cookie', cookies.operator).send({ id: null });
+    expect(saveCameraSettings).toHaveBeenCalledWith({ cameraDeviceId: null, cameraDeviceLabel: null });
+  });
+
+  it('persists an output-mode switch to local-display', async () => {
+    const store = createStateStore();
+    store.setState({ displays: [{ id: 'HDMI-1', name: 'HDMI-1', isPrimary: true }] });
+    // Re-point at a server built on this store so the display lookup succeeds.
+    await srv.close();
+    saveCameraSettings = vi.fn();
+    srv = createFullServer({
+      store,
+      operatorPin: 'test1234',
+      adminPin: 'adminpass8',
+      operatorSessionMs: 60000,
+      adminSessionMs: 60000,
+      port: 0,
+      saveCameraSettings,
+    });
+    await srv.listen();
+    app = srv.app;
+    cookies = await getCookies(app);
+
+    await request(app)
+      .post('/api/camera/output-mode')
+      .set('Cookie', cookies.operator)
+      .send({ mode: 'local-display', displayId: 'HDMI-1' });
+    expect(saveCameraSettings).toHaveBeenCalledWith({ cameraOutputMode: 'local-display', cameraOutputDisplayId: 'HDMI-1' });
+  });
+
+  it('persists an output-mode switch to ndi', async () => {
+    await request(app).post('/api/camera/output-mode').set('Cookie', cookies.operator).send({ mode: 'ndi' });
+    expect(saveCameraSettings).toHaveBeenCalledWith({ cameraOutputMode: 'ndi', cameraOutputDisplayId: null });
+  });
+
+  it('persists the NDI source name', async () => {
+    await request(app).post('/api/camera/ndi').set('Cookie', cookies.admin).send({ sourceName: 'PConAir — SF AH Stage' });
+    expect(saveCameraSettings).toHaveBeenCalledWith({ cameraNdiSourceName: 'PConAir — SF AH Stage' });
+  });
+
+  it('never persists a /permission report', async () => {
+    await request(app).post('/api/camera/permission').set('Cookie', cookies.operator).send({ status: 'granted' });
+    expect(saveCameraSettings).not.toHaveBeenCalled();
+  });
+
+  it('never persists a /connection report', async () => {
+    await request(app).post('/api/camera/connection').set('Cookie', cookies.operator).send({ status: 'connected' });
+    expect(saveCameraSettings).not.toHaveBeenCalled();
   });
 });
 

@@ -38,6 +38,8 @@ import { profileRuntimeStatePath } from './profiles/paths';
 import { parsePconairCli } from './cli-options';
 import { startWatchdog } from './watchdog-electron';
 import { applyLaunchAtLogin } from './launch-at-login';
+import { createCameraManager } from './camera/manager';
+import { cameraBootPatchFromSettings } from './camera/settings-bridge';
 
 const cli = parsePconairCli(process.argv);
 const OPERATOR_PIN = cli.operatorPin ?? process.env.PCONAIR_OPERATOR_PIN ?? '0000';
@@ -231,6 +233,18 @@ async function main() {
     const s = loadAppSettings(settingsFile);
     tunnelManager.start({ token: s.tunnelToken, domain: s.tunnelDomain });
   };
+  // Camera mode (spec 24 Phase 1A): restore the operator's persisted choices
+  // on boot. permissionStatus/connectionStatus are deliberately NOT seeded
+  // here -- they are live/transient and the camera manager below re-probes
+  // them, exactly like tunnel.status is runtime-only while tunnel.enabled is
+  // seeded from settings just below.
+  store.setState({
+    camera: { ...store.getState().camera, ...cameraBootPatchFromSettings(appSettings) },
+  });
+  const cameraManager = createCameraManager({ store });
+  cameraManager.initialize();
+  app.on('before-quit', () => cameraManager.destroy());
+
   store.setState({
     tunnel: {
       ...store.getState().tunnel,
@@ -335,6 +349,11 @@ async function main() {
       return next;
     },
     openDirectorWindow: () => openDirectorWindow(),
+    saveCameraSettings: (patch) => {
+      saveAppSettings(settingsFile, patch);
+    },
+    listCameraDevices: () => cameraManager.listDevices(),
+    refreshCameraDevices: () => cameraManager.refreshDevices(),
   });
   transportEngineRef = server.transportEngine ?? null;
   let serverError: string | null = null;

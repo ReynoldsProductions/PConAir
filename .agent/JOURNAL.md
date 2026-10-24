@@ -4120,3 +4120,78 @@ with the accepted risk and unchanged fallback (second mini, confirmed
 available; not a capture-approach rework) spelled out explicitly.
 `.agent/state.json` reset to `pending`, Track 1A. Routine re-enabled
 alongside this unblock.
+
+## 2026-10-24 — Track 1A: camera device enumeration, hotplug polling, permission + persistence
+
+Implemented as a fresh-session agent dispatched this firing (see state.json
+notes). Built `src/main/camera/` (`probe-window.ts`, `probe.ts`,
+`manager.ts`, `settings-bridge.ts`): a hidden `offscreen: true`
+`BrowserWindow` on its own persistent partition does the only thing the
+main process can't — `navigator.mediaDevices.getUserMedia`/
+`enumerateDevices()` via `executeJavaScript` — and the manager starts/stops
+that probe-and-poll cycle as `currentMode` enters/leaves `'camera'`,
+keeping `connectionStatus`/`lastError`/`permissionStatus` current in the
+store. Persistence: `app-settings.ts` gained `cameraDeviceId`/
+`cameraDeviceLabel`/`cameraOutputMode`/`cameraOutputDisplayId`/
+`cameraNdiSourceName`; `index.ts` seeds the store from them at boot and
+wires `routes/camera.ts`'s new optional `saveCameraSettings` hook so
+`/device`, `/output-mode` and `/ndi` write through (never `/permission` or
+`/connection` — those stay live-only). Also added `GET /api/camera/devices`
+and `POST /api/camera/devices/refresh` to `routes/camera.ts` so Track 1C
+has something to read/force-refresh against — additive to 1B's contract,
+not a redesign.
+
+Two deliberate deviations from the spec text, both documented in
+`specs/24-camera-mode.md`'s new Track 1A status note: (1) hotplug detection
+polls the enumeration probe every 3s instead of relaying
+`navigator.mediaDevices.ondevicechange` over IPC — a preload-script bridge
+doesn't exist anywhere in this app yet and `tests/setup/electron-mock.ts`
+can't exercise a registered `ipcMain` handler's body (same gap
+`watchdog-electron.ts`'s `PONG_CHANNEL` handler already has, pre-existing
+and accepted); (2) the probe window auto-grants Electron's own
+`media` permission gate (`setPermissionRequestHandler`/
+`setPermissionCheckHandler`) since nothing is at the console on an
+unattended restart — this is the Electron-side half only, not a bypass of
+macOS's own one-time TCC camera grant.
+
+Self-review caught two issues before calling this done, both fixed with a
+regression test: (a) the `probe` config seam could reject and go unhandled
+off `void runOnce()` in the poll timer — added a catch that reports
+`connectionStatus: 'error'` instead, plus a test asserting no
+`unhandledRejection` fires; (b) `refreshDevices()` called outside an active
+camera-mode cycle (e.g. a device-picker preview before switching modes)
+left the hidden window running indefinitely — now torn down right after a
+standalone refresh, left alone when it coincides with an active polling
+cycle.
+
+Numbers: 55 new tests (5 `camera-probe-window.test.ts`, 6
+`camera-probe.test.ts`, 19 `camera-manager.test.ts`, 5
+`camera-settings-bridge.test.ts`, 13 added to `camera.test.ts`, 7 added to
+`app-settings.test.ts`). Every new `src/main/camera/*` file that imports
+`electron` (directly or via `BrowserWindow`) has a dedicated
+electron-mock-based test, per CLAUDE.md; `settings-bridge.ts` imports
+nothing from `electron` and is tested directly without the mock. Coverage
+is reported qualitatively, not as a percentage — `@vitest/coverage-v8`
+isn't installed in this environment, so `npm test -- --coverage` can't
+run; every exported function and branch in each new file has its own test
+case instead. `index.ts`'s few lines of boot-wiring glue (seeding the
+store, instantiating the manager, passing its hooks into `createServer`)
+are not separately tested — `index.ts` is never imported by any existing
+test (it is Electron's entrypoint, run only via `app.whenReady().then(main)`),
+and no modification to it in this codebase's history has added one; the
+logic that could actually be wrong (the `AppSettings` → store-patch
+mapping) is extracted into `settings-bridge.ts` and tested there instead.
+Full suite: 92 files / 1337 tests green (`npm test`), `npm run typecheck`
+clean. `tests/companion-defs.test.ts` initially failed on a fresh checkout
+because `packages/companion-module-pconair`'s own `npm ci` had never been
+run in this container (`npm run install:companion`) — unrelated
+pre-existing environment gap, not a regression; fixed and reconfirmed
+green.
+
+Open questions for Track 1C / later phases: whether the 3s hotplug poll
+interval is responsive enough against the real Q-SYS bridge or worth
+replacing with an IPC-relayed `ondevicechange` push later;
+`permissionStatus: 'restricted'` has no real signal source from this probe
+and may need an explicit admin-reported path if MDM-restricted ever needs
+distinguishing from a plain denial; whether `GET /api/camera/devices`'
+`{id, label}` shape is enough for the device picker UI.

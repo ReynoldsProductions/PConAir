@@ -154,6 +154,12 @@ export interface RouteServices {
   getBackupSettings?: () => { operationMode: import('../app-settings').AppSettings['operationMode']; backupIps: string[]; port: number };
   /** Opens the Director window (Electron main only); absent in tests. */
   openDirectorWindow?: () => void;
+  /** Persists camera device/output-mode/NDI choices to app-settings.json (spec 24 Phase 1A); absent in tests. */
+  saveCameraSettings?: import('./camera').CameraRouterOptions['saveCameraSettings'];
+  /** Track 1A's last known enumerated camera device list; absent in tests -> empty list. */
+  listCameraDevices?: import('./camera').CameraRouterOptions['listDevices'];
+  /** Forces a fresh camera enumeration/permission probe; absent in tests -> 501. */
+  refreshCameraDevices?: import('./camera').CameraRouterOptions['refreshDevices'];
 }
 
 // Renderer windows (operator, admin, remote) are loaded through this app's
@@ -284,7 +290,11 @@ export function mountRoutes(app: Express, s: RouteServices): void {
   app.use('/api/presets', createPresetsRouter(s.store, s.auth, s.presets));
   app.use('/api/l3', createL3Router(s.auth, s.l3Cues, s.l3ThemeStore, s.l3Logos, s.l3FilesRoot, s.renderManualCue, s.renderAdHocCard));
   app.use('/api/media-library', createMediaLibraryRouter(s.store, s.auth, s.mediaLibrary, s.slideshow));
-  app.use('/api/camera', createCameraRouter(s.store, s.auth));
+  app.use('/api/camera', createCameraRouter(s.store, s.auth, {
+    saveCameraSettings: s.saveCameraSettings,
+    listDevices: s.listCameraDevices,
+    refreshDevices: s.refreshCameraDevices,
+  }));
   app.use('/api/background', createBackgroundRouter({
     store: s.store,
     auth: s.auth,

@@ -148,3 +148,52 @@ describe('launchAtLogin', () => {
     expect(loadAppSettings(file).launchAtLogin).toBe(false);
   });
 });
+
+describe('camera settings (spec 24 Phase 1A)', () => {
+  it('defaults to no device selected and ndi output', () => {
+    const s = loadAppSettings(file);
+    expect(s.cameraDeviceId).toBeNull();
+    expect(s.cameraDeviceLabel).toBeNull();
+    expect(s.cameraOutputMode).toBe('ndi');
+    expect(s.cameraOutputDisplayId).toBeNull();
+    expect(s.cameraNdiSourceName).toBe('');
+  });
+
+  it('round-trips a selected device id and label', () => {
+    saveAppSettings(file, { cameraDeviceId: 'uvc-1', cameraDeviceLabel: 'Q-SYS USB Video Bridge' });
+    const s = loadAppSettings(file);
+    expect(s.cameraDeviceId).toBe('uvc-1');
+    expect(s.cameraDeviceLabel).toBe('Q-SYS USB Video Bridge');
+  });
+
+  it('round-trips clearing the device selection back to null', () => {
+    saveAppSettings(file, { cameraDeviceId: 'uvc-1', cameraDeviceLabel: 'Q-SYS' });
+    saveAppSettings(file, { cameraDeviceId: null, cameraDeviceLabel: null });
+    const s = loadAppSettings(file);
+    expect(s.cameraDeviceId).toBeNull();
+    expect(s.cameraDeviceLabel).toBeNull();
+  });
+
+  it('round-trips local-display output mode and a display id', () => {
+    saveAppSettings(file, { cameraOutputMode: 'local-display', cameraOutputDisplayId: 'HDMI-1' });
+    const s = loadAppSettings(file);
+    expect(s.cameraOutputMode).toBe('local-display');
+    expect(s.cameraOutputDisplayId).toBe('HDMI-1');
+  });
+
+  it('falls back to the current cameraOutputMode for an invalid value in the patch', () => {
+    saveAppSettings(file, { cameraOutputMode: 'local-display' });
+    const result = saveAppSettings(file, { cameraOutputMode: 'virtual-cam' as never });
+    expect(result.cameraOutputMode).toBe('local-display');
+  });
+
+  it('falls back to the default cameraOutputMode for an invalid stored value', () => {
+    fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, cameraOutputMode: 'virtual-cam' }));
+    expect(loadAppSettings(file).cameraOutputMode).toBe('ndi');
+  });
+
+  it('round-trips the NDI source name', () => {
+    saveAppSettings(file, { cameraNdiSourceName: 'PConAir — SF AH Stage' });
+    expect(loadAppSettings(file).cameraNdiSourceName).toBe('PConAir — SF AH Stage');
+  });
+});

@@ -114,6 +114,7 @@ export function fakeSessionFor(partition: string) {
     }),
     clearStorageData: vi.fn().mockResolvedValue(undefined),
     setPermissionRequestHandler: vi.fn(),
+    setPermissionCheckHandler: vi.fn(),
     webRequest: { onBeforeSendHeaders: vi.fn(), onHeadersReceived: vi.fn() },
   };
 }

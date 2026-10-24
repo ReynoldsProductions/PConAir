@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import type { CameraOutputMode } from '../shared/types';
 
 /**
  * App-level settings that must be known before the Express server starts
@@ -45,6 +46,20 @@ export interface AppSettings {
   director: DirectorSettings;
   /** Start PConAir automatically at OS login/boot (via app.setLoginItemSettings). */
   launchAtLogin: boolean;
+  // Camera mode (spec 24 Phase 1A). `permissionStatus`/`connectionStatus` are
+  // deliberately NOT here -- those are live/transient and re-probed at boot
+  // by `src/main/camera/manager.ts`, exactly like `tunnel.status` is
+  // runtime-only while `tunnel.enabled` is persisted below.
+  /** Selected UVC device id; null = none chosen yet. */
+  cameraDeviceId: string | null;
+  /** Human-readable label for cameraDeviceId, shown in the UI without re-enumerating. */
+  cameraDeviceLabel: string | null;
+  /** NDI vs. local-display output; mutually exclusive. */
+  cameraOutputMode: CameraOutputMode;
+  /** Target display id when cameraOutputMode === 'local-display'; null otherwise/unset. */
+  cameraOutputDisplayId: string | null;
+  /** NDI sender source name ("PConAir — <ROOM> <ROLE>", spec 24 Decisions item 2). */
+  cameraNdiSourceName: string;
 }
 
 export interface DirectorOffice {
@@ -80,6 +95,13 @@ export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
   backupIps: [],
   director: { offices: [] },
   launchAtLogin: false,
+  cameraDeviceId: null,
+  cameraDeviceLabel: null,
+  // NDI is the MVP's primary output (spec 24 "MVP scope"), mirroring
+  // makeCameraState()'s default in shared/types.ts.
+  cameraOutputMode: 'ndi',
+  cameraOutputDisplayId: null,
+  cameraNdiSourceName: '',
 });
 
 export function appSettingsPath(userDataDir: string): string {
@@ -96,9 +118,14 @@ function strOrNull(v: unknown): string | null {
 
 const OVERLAY_POSITIONS = new Set(['bottom-left', 'bottom-right', 'top-left', 'top-right']);
 const OPERATION_MODES = new Set(['primary', 'backup', 'standalone']);
+const CAMERA_OUTPUT_MODES = new Set(['ndi', 'local-display']);
 
 function isValidOperationMode(v: unknown): v is AppSettings['operationMode'] {
   return typeof v === 'string' && OPERATION_MODES.has(v);
+}
+
+function isValidCameraOutputMode(v: unknown): v is CameraOutputMode {
+  return typeof v === 'string' && CAMERA_OUTPUT_MODES.has(v);
 }
 
 function isStringArray(v: unknown): v is string[] {
@@ -183,6 +210,14 @@ export function loadAppSettings(filePath: string): AppSettings {
     backupIps: isStringArray(obj.backupIps) ? obj.backupIps : DEFAULT_APP_SETTINGS.backupIps,
     director: isValidDirectorSettings(obj.director) ? obj.director : DEFAULT_APP_SETTINGS.director,
     launchAtLogin: obj.launchAtLogin === true,
+    cameraDeviceId: strOrNull(obj.cameraDeviceId),
+    cameraDeviceLabel: strOrNull(obj.cameraDeviceLabel),
+    cameraOutputMode: isValidCameraOutputMode(obj.cameraOutputMode)
+      ? obj.cameraOutputMode
+      : DEFAULT_APP_SETTINGS.cameraOutputMode,
+    cameraOutputDisplayId: strOrNull(obj.cameraOutputDisplayId),
+    cameraNdiSourceName:
+      typeof obj.cameraNdiSourceName === 'string' ? obj.cameraNdiSourceName : DEFAULT_APP_SETTINGS.cameraNdiSourceName,
   };
 }
 
@@ -207,6 +242,9 @@ export function saveAppSettings(filePath: string, patch: AppSettingsPatch): AppS
       : current.operationMode,
     backupIps: isStringArray(patch.backupIps) ? patch.backupIps : current.backupIps,
     director: isValidDirectorSettings(patch.director) ? patch.director : current.director,
+    cameraOutputMode: isValidCameraOutputMode(patch.cameraOutputMode)
+      ? patch.cameraOutputMode
+      : current.cameraOutputMode,
   };
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const tmp = `${filePath}.tmp`;

@@ -61,6 +61,9 @@ export interface FullServerTestOpts {
     logoDataUrl?: string | null;
     side?: 'left' | 'right' | null;
   }) => Promise<Buffer>;
+  saveCameraSettings?: import('../src/main/routes/index').RouteServices['saveCameraSettings'];
+  listCameraDevices?: import('../src/main/routes/index').RouteServices['listCameraDevices'];
+  refreshCameraDevices?: import('../src/main/routes/index').RouteServices['refreshCameraDevices'];
 }
 
 export function createFullServer(opts: FullServerTestOpts) {
@@ -173,6 +176,9 @@ export function createFullServer(opts: FullServerTestOpts) {
     scriptDocsStore: scriptDocs,
     fetchDoc: opts.fetchDoc,
     renderAdHocCard: opts.renderAdHocCard,
+    saveCameraSettings: opts.saveCameraSettings,
+    listCameraDevices: opts.listCameraDevices,
+    refreshCameraDevices: opts.refreshCameraDevices,
   });
   transportEngineRef = server.transportEngine ?? null;
 
