@@ -860,6 +860,7 @@ input[type="radio"] {
         <div class="nav-group">
           <div class="nav-group-label">Show Control</div>
           <a href="#" class="nav-item" data-target="url">URL Mode</a>
+          <a href="#" class="nav-item" data-target="camera">Camera</a>
           <a href="#" class="nav-item" data-target="lower-third-live">Lower Thirds</a>
           <a href="#" class="nav-item" data-target="l3">Manage Lower Thirds</a>
           <a href="#" class="nav-item" data-target="media">Media Library</a>
@@ -954,6 +955,11 @@ input[type="radio"] {
             <div class="panel-title">URL Presets</div>
             <div id="url-presets-list" class="field-hint">Loading…</div>
           </div>
+        </section>
+
+        <section data-tab="camera" hidden>
+          <h1 class="page-title">Camera</h1>
+          <div id="camera-panel-root"></div>
         </section>
 
         <section data-tab="l3" hidden>

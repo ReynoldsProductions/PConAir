@@ -18,9 +18,6 @@ const MODE_TAG_VARIANT: Record<Mode, 'neutral' | 'success' | 'warning' | 'critic
   slides: 'info',
   url: 'success',
   'media-library': 'strong',
-  // Contract-only entry (spec 24 Phase 1B) — Track 1C decides the real tag
-  // color and whether/where a Camera mode button appears; MODE_BUTTONS below
-  // deliberately does not list it yet.
   camera: 'warning',
 };
 
@@ -29,6 +26,10 @@ const MODE_BUTTONS: Array<{ mode: Mode; label: string }> = [
   { mode: 'slides', label: 'Slides' },
   { mode: 'url', label: 'URL' },
   { mode: 'media-library', label: 'Media Library' },
+  // Track 1C (spec 24 Phase 1): device picker/preview/output toggle live on
+  // the "Camera" nav tab (see index.html/CameraPanel.tsx); this button only
+  // switches the live `currentMode`, same as every other mode button here.
+  { mode: 'camera', label: 'Camera' },
 ];
 
 export interface StatusHeaderProps {

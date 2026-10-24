@@ -4,6 +4,7 @@ import { createClientStore } from './state';
 import type { AppState, WsServerMessage, Mode, ABInstance } from '../../shared/types';
 import * as api from './api';
 import { StatusHeader, LiveControlPanels } from './components/LiveControl';
+import { CameraPanel } from './components/CameraPanel';
 
 const store = createClientStore();
 
@@ -32,8 +33,16 @@ const ReactDOM = ReactDOMBase as typeof ReactDOMBase & {
 // `setWsStatus()` (WS connection status isn't part of `AppState`).
 const statusHeaderRoot = ReactDOM.createRoot(document.getElementById('status-header-root')!);
 const liveControlPanelsRoot = ReactDOM.createRoot(document.getElementById('live-control-panels-root')!);
+const cameraPanelRoot = ReactDOM.createRoot(document.getElementById('camera-panel-root')!);
 
 let wsConnected = false;
+
+// Which nav tab is currently visible (see the `.nav-item` click handler in
+// bindEvents()). Only the Camera panel needs this today — its live preview
+// must stop the moment the operator navigates away (see CameraPanel.tsx),
+// and tab switching is plain DOM, not a store update, so it's tracked here
+// and fed back into renderReactRoots() explicitly.
+let activeTab = 'dashboard';
 
 async function handlePanicClick(): Promise<void> {
   try {
@@ -65,6 +74,9 @@ function renderReactRoots(state: AppState): void {
   );
   liveControlPanelsRoot.render(
     <LiveControlPanels state={state} onSwitchAB={handleSwitchAB} onSetMode={handleSetMode} />
+  );
+  cameraPanelRoot.render(
+    <CameraPanel state={state} active={activeTab === 'camera'} onError={showError} />
   );
 }
 
@@ -976,6 +988,10 @@ function bindEvents(): void {
       if (target) {
         const section = document.querySelector<HTMLElement>(`section[data-tab="${target}"]`);
         if (section) section.hidden = false;
+        // Drives CameraPanel's `active` prop — re-render so its preview
+        // effect starts/stops exactly when this tab becomes visible/hidden.
+        activeTab = target;
+        renderReactRoots(store.getState());
       }
       if (target === 'notes') {
         startNotesPolling();

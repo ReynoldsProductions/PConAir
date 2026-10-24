@@ -135,14 +135,27 @@ describe('operator renderer boot (real DOM smoke test)', () => {
     // regenerates this file from the current `.tsx` source before any test
     // file runs, so it reflects the current source, not a stale artifact.
     expect(fs.existsSync(BUNDLE_PATH)).toBe(true);
+    // Catches an uncaught render/effect error React can't always get back
+    // to the top-level `loadGlobalScript` call for (its own async recovery
+    // path dispatches a `window` `error` event, or rejects a promise,
+    // rather than rethrowing synchronously) — a real regression check, not
+    // just a debugging aid.
+    const caughtErrors: unknown[] = [];
+    window.addEventListener('error', (e) => { caughtErrors.push((e as ErrorEvent).error ?? e); });
+    process.on('unhandledRejection', (err) => { caughtErrors.push(err); });
     expect(() => loadGlobalScript(BUNDLE_PATH)).not.toThrow();
 
-    // React 18's `createRoot` schedules the initial commit through its
-    // scheduler rather than flushing synchronously within the script that
-    // called `.render()` — give it a couple of task/microtask turns to
-    // actually commit to the DOM before asserting on rendered content.
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // React 18's `createRoot` schedules each root's initial commit through
+    // its own scheduler work rather than flushing synchronously within the
+    // script that called `.render()`. With three roots now rendered
+    // together (status header, Live Control, Camera panel — see
+    // `renderReactRoots()` in index.tsx), two bare `setTimeout(0)` turns
+    // reliably flush the first two but not reliably the third; wait across
+    // several turns so every root's commit has actually landed before any
+    // content assertion below.
+    for (let i = 0; i < 10; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
 
     // ── Assert the two Slate-based regions actually rendered content ───
     const statusHeaderRoot = document.getElementById('status-header-root')!;
@@ -157,5 +170,33 @@ describe('operator renderer boot (real DOM smoke test)', () => {
     expect(statusHeaderRoot.textContent).toContain('IDLE');
     expect(statusHeaderRoot.textContent).toContain('PANIC');
     expect(liveControlPanelsRoot.textContent).toContain('Idle');
+
+    // ── Camera panel (spec 24 Phase 1 Track 1C) ────────────────────────
+    // camera-panel-root is a third permanent React root, always rendered
+    // (like the two above) regardless of which nav tab is visible — assert
+    // it has real content even before the Camera tab is ever opened.
+    const cameraPanelRoot = document.getElementById('camera-panel-root')!;
+    expect(cameraPanelRoot).not.toBeNull();
+    expect(cameraPanelRoot.textContent).toContain('Camera device');
+
+    // Clicking the Camera nav tab must not throw even though this stubbed
+    // `fetch` returns `{}` for every request (no `devices`/`displays`
+    // array) and jsdom has no `navigator.mediaDevices` at all — the panel
+    // must tolerate both without crashing, since no device is selected by
+    // default (makeCameraState()) so the live-preview effect never calls
+    // into `navigator.mediaDevices` in this boot path.
+    const cameraNavItem = document.querySelector<HTMLElement>('.nav-item[data-target="camera"]')!;
+    expect(cameraNavItem).not.toBeNull();
+    expect(() => cameraNavItem.click()).not.toThrow();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const cameraSection = document.querySelector<HTMLElement>('section[data-tab="camera"]')!;
+    expect(cameraSection.hidden).toBe(false);
+    expect(cameraPanelRoot.textContent).toContain('No cameras found');
+    expect(cameraPanelRoot.textContent).toContain('Unknown (not probed yet)');
+    expect(cameraPanelRoot.textContent).toContain('Disconnected');
+
+    expect(caughtErrors).toEqual([]);
   });
 });

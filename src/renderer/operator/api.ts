@@ -1,3 +1,5 @@
+import type { CameraDevice, CameraOutputMode, CameraState } from '../../shared/types';
+
 const fetchDefaults: RequestInit = { credentials: 'include' };
 
 export async function apiGet<T>(path: string): Promise<T> {
@@ -233,3 +235,26 @@ export interface UrlPresetItem {
 
 export const fetchPresets = () =>
   apiGet<{ presets: UrlPresetItem[] }>('/api/presets');
+
+// ── Camera mode (spec 24, Phase 1 Track 1C) ────────────────────────
+//
+// `cameraListDevices` reads Track 1A's last-known probe list without
+// forcing a re-probe; `cameraRefreshDevices` is the "e.g. a refresh button,
+// and/or on mount" force-rescan the spec calls for. The Camera panel always
+// uses the latter to populate its picker (a plain GET can come back empty
+// before the main-process probe has ever run — e.g. before camera mode has
+// been entered once), and exposes the former too for parity with the
+// router's two read/force-refresh endpoints.
+
+export const cameraListDevices = () =>
+  apiGet<{ devices: CameraDevice[] }>('/api/camera/devices');
+
+export const cameraRefreshDevices = () =>
+  apiPost<{ devices: CameraDevice[] }>('/api/camera/devices/refresh');
+
+/** `null` clears the selection (mirrors `/api/camera/device`'s `{id: null}` contract). */
+export const cameraSelectDevice = (device: CameraDevice | null) =>
+  apiPost<{ camera: CameraState }>('/api/camera/device', device ? { id: device.id, label: device.label } : { id: null });
+
+export const cameraSetOutputMode = (mode: CameraOutputMode, displayId?: string | null) =>
+  apiPost<{ camera: CameraState }>('/api/camera/output-mode', displayId !== undefined ? { mode, displayId } : { mode });

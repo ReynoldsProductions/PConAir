@@ -4195,3 +4195,141 @@ replacing with an IPC-relayed `ondevicechange` push later;
 and may need an explicit admin-reported path if MDM-restricted ever needs
 distinguishing from a plain denial; whether `GET /api/camera/devices`'
 `{id, label}` shape is enough for the device picker UI.
+
+## 2026-10-24 — Track 1C: Camera mode operator UI shell
+
+Implemented as a fresh-session agent dispatched this firing. Added a
+"Camera" nav tab (`src/renderer/operator/index.html`) rendering a new
+`CameraPanel` React component — a third permanent root
+(`camera-panel-root`) alongside `StatusHeader`/`LiveControlPanels`,
+mounted and re-rendered the same way from `renderReactRoots()` in
+`index.tsx`. `LiveControlPanels`' mode-button grid gained a "Camera"
+button (`MODE_BUTTONS` in `components/LiveControl.tsx`) that only flips
+`currentMode`; the device picker, preview, output toggle and status all
+live on the tab, not the mode grid, matching how Slides/URL/Media Library
+already split "mode button" from "mode's own settings tab". `api.ts`
+gained `cameraListDevices`/`cameraRefreshDevices`/`cameraSelectDevice`/
+`cameraSetOutputMode`, matching the file's existing thin-wrapper naming.
+
+**Device-id vs. label matching decision.** Track 1A's `GET /api/camera/
+devices` list comes from the main-process probe window; the live preview
+has to open the camera from the *operator browser tab's own*
+`getUserMedia`/`enumerateDevices()`, and nothing guarantees the two
+processes assign a physical UVC device the same `deviceId` (Track 1A's
+own open question #3). New `src/renderer/operator/camera-logic.ts`
+(pure, no React/DOM/Electron imports — unit-tested directly under the
+suite's default `environment: 'node'`) makes the only assumption needed
+explicit in one place: `matchBrowserDeviceId()` matches by device
+**label** — exact, then trim+case-insensitive — and returns `null` rather
+than guessing when no browser device shares that label. `CameraPanel.tsx`
+treats `null` as a hard stop: it shows an explicit "could not match…"
+error and never falls back to opening some other camera and showing it as
+if it were the one selected. The preview flow first calls
+`enumerateDevices()` (device labels are blank without a tab-local
+permission grant); if unmatched, it opens *some* camera purely to obtain
+that grant and real labels, immediately stops it (never displayed), then
+retries the match before opening the real target device by `deviceId`.
+
+**Self-review findings, fixed before calling this done:**
+- *MediaStream leak on tab switch / race with a new selection* — the
+  preview effect is gated on a `active` prop (true only while the Camera
+  nav tab is the visible one; tab switching is plain DOM, not a store
+  update, so `index.tsx` now tracks `activeTab` and re-renders the three
+  React roots on every nav click so `CameraPanel` sees the flip). Its
+  cleanup always stops whatever `MediaStream` it opened, on every
+  dependency change and on unmount. A `requestIdRef` counter guards the
+  race between an in-flight `getUserMedia`/`enumerateDevices` chain and a
+  newer device selection or tab-close landing mid-await: a stale
+  resolution is detected after every `await` and stops its own
+  just-opened tracks instead of touching the ref.
+- *Kiosk/unattended permission-prompt UX* — the preview only ever starts
+  from an explicit operator action (opening the Camera tab with a device
+  already selected), never at boot, unlike Track 1A's own always-on
+  hidden probe window — there's nobody at an unattended display to click
+  "Allow".
+- *XSS* — all dynamic text (device labels, NDI source name, error text)
+  is plain JSX text content, never built into an HTML string; followed
+  the same convention as the rest of `index.tsx`'s React islands.
+- *Malformed/empty API responses* — `cameraRefreshDevices`/
+  `cameraListDevices`/`listDisplays` results are defensively coalesced to
+  `[]` before being stored in state; found this the hard way when
+  `tests/operator-renderer-boot.test.ts`'s stub `fetch` (which returns
+  `{}` for every request) made an un-guarded `.map`/`.length` throw.
+- *React scheduler timing, not a real bug but worth recording*: with a
+  third root rendered alongside the existing two, the boot-smoke test's
+  original two bare `setTimeout(0)` ticks reliably flushed the first two
+  roots' initial commit but not reliably the third — needed a few more
+  scheduler turns. Widened the wait in `operator-renderer-boot.test.ts`
+  rather than guessing a fixed single timeout; also added a `window`
+  `error`/`unhandledRejection` capture there, asserted empty, as a real
+  regression check for exactly the "error swallowed, root silently
+  empty" class of bug this took a while to pin down (static markup, no
+  hooks, still rendered nothing until given enough ticks).
+
+**Testing, honestly, given the renderer-testing gap.** No React-Testing-
+Library-style component suite exists in this repo
+(`tests/operator-renderer-boot.test.ts`'s header explains why), so this
+track followed the same split Track 1A used for its own Electron-free
+logic: `camera-logic.ts` (the device/label matching, error
+classification/messages, display-option building, output-mode display-
+picker gating) is pure and gets 30 direct Vitest cases in new
+`tests/camera-panel-logic.test.ts`, covering exact/loose/no-match,
+audio-only devices excluded, blank/duplicate labels, every
+`DOMException` name this code branches on plus a non-Error throw, every
+permission/connection status value, and the NDI-source/display-option
+edge cases (blank, whitespace-only, primary-flagged). `CameraPanel.tsx`
+itself — the `getUserMedia` wiring, effect gating, JSX — has **no direct
+rendering test**; it's only exercised indirectly through the extended
+`tests/operator-renderer-boot.test.ts` boot-smoke test (real compiled
+bundle, real DOM, asserts the Camera tab's static content renders, that
+clicking into it doesn't throw against a stub `fetch` with no
+`navigator.mediaDevices` at all, and that no window `error` or
+unhandled rejection occurred). That boot test still can't exercise the
+`getUserMedia` preview/race-guard logic itself (jsdom has no
+`navigator.mediaDevices`, and the default `CameraState` has no device
+selected, so the preview effect's main branch never runs in that test) —
+the race-guard and preview-error-path correctness in `CameraPanel.tsx`
+rests on code review and the pure-function tests of the pieces it calls,
+not on an exercised end-to-end test of the effect itself. Flagging this
+honestly rather than claiming more coverage than exists: if this gap
+matters enough to close, the options are a real browser-driven E2E test
+(Playwright is not in this repo today) or a lightweight
+`navigator.mediaDevices` fake Track 1A-style for jsdom — neither was
+built here, per the task's explicit instruction not to add new testing
+infrastructure for this track.
+
+**Numbers:** 1 new test file (`tests/camera-panel-logic.test.ts`, 30
+tests), `tests/operator-renderer-boot.test.ts` extended (same 1 test,
+more assertions). Full suite: **93 files / 1369 tests green** (`npm
+test`), `npm run typecheck` clean. `npx tsc --noEmit` was also run
+standalone against the new/changed files specifically during development
+and stayed clean throughout.
+
+**Deliberately out of scope:** no pixel pipeline, no output routing — the
+preview is the operator browser tab's own `getUserMedia`, never fed by or
+feeding Track 1A's hidden probe window or Phase 2/3's eventual OSR
+compositor/output router. No admin-side NDI-source-name editor (rendered
+read-only here, admin-only to edit per `routes/camera.ts`'s own
+comment). No new testing framework/dependency added, per the task's
+explicit instruction.
+
+**Phase 1 exit criteria met:** with Track 1A (device enumeration/hotplug/
+permission/persistence) and this track (device picker + live preview in
+the operator UI) both done, an operator can select a camera and see a
+live preview in the operator UI — the exit criteria text verbatim. No
+output path exists yet, which the same exit-criteria text calls out of
+scope for this phase. Noted in `specs/24-camera-mode.md` under Phase 1;
+deliberately did not touch anything about Phase 2 starting.
+
+**Open questions for Phase 2/3 or a human:** (1) the label-based device
+match is a practical assumption about UVC device naming being stable
+across the main process and a browser tab on the same machine, not a
+spec guarantee — if it ever proves wrong against real hardware, the
+visible failure mode is an explicit "could not match" error on the
+Camera tab, not a silently wrong preview, but it hasn't been exercised
+against real multi-camera hardware; (2) the `CameraPanel.tsx` rendering/
+effect logic itself has no direct automated test, only the pure helpers
+it calls plus a smoke-level boot check — see the testing section above;
+(3) same open items Track 1A already flagged (3s hotplug poll interval,
+`permissionStatus: 'restricted'` having no real signal source) are
+unchanged by this track and still open for later phases.

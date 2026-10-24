@@ -43,7 +43,7 @@
   });
 
   // src/renderer/operator/index.tsx
-  var React2 = __toESM(require_react_global_shim());
+  var React3 = __toESM(require_react_global_shim());
   var ReactDOMBase = __toESM(require_react_dom_global_shim());
 
   // src/shared/types.ts
@@ -272,6 +272,10 @@
   }
   var fetchSlidesNotes = () => apiGet("/api/slides/notes");
   var fetchPresets = () => apiGet("/api/presets");
+  var cameraListDevices = () => apiGet("/api/camera/devices");
+  var cameraRefreshDevices = () => apiPost("/api/camera/devices/refresh");
+  var cameraSelectDevice = (device) => apiPost("/api/camera/device", device ? { id: device.id, label: device.label } : { id: null });
+  var cameraSetOutputMode = (mode, displayId) => apiPost("/api/camera/output-mode", displayId !== void 0 ? { mode, displayId } : { mode });
 
   // src/renderer/operator/components/LiveControl.tsx
   var React = __toESM(require_react_global_shim());
@@ -281,16 +285,17 @@
     slides: "info",
     url: "success",
     "media-library": "strong",
-    // Contract-only entry (spec 24 Phase 1B) — Track 1C decides the real tag
-    // color and whether/where a Camera mode button appears; MODE_BUTTONS below
-    // deliberately does not list it yet.
     camera: "warning"
   };
   var MODE_BUTTONS = [
     { mode: "idle", label: "Idle" },
     { mode: "slides", label: "Slides" },
     { mode: "url", label: "URL" },
-    { mode: "media-library", label: "Media Library" }
+    { mode: "media-library", label: "Media Library" },
+    // Track 1C (spec 24 Phase 1): device picker/preview/output toggle live on
+    // the "Camera" nav tab (see index.html/CameraPanel.tsx); this button only
+    // switches the live `currentMode`, same as every other mode button here.
+    { mode: "camera", label: "Camera" }
   ];
   function StatusHeader({ state, wsConnected: wsConnected2, onPanic }) {
     const panicActive = state.reliability.panicActive;
@@ -353,12 +358,270 @@
     )))));
   }
 
+  // src/renderer/operator/components/CameraPanel.tsx
+  var React2 = __toESM(require_react_global_shim());
+  var import_react = __toESM(require_react_global_shim());
+
+  // src/renderer/operator/camera-logic.ts
+  function matchBrowserDeviceId(targetLabel, browserDevices) {
+    const videoInputs = browserDevices.filter((d) => d.kind === "videoinput" && d.label.length > 0);
+    if (videoInputs.length === 0 || targetLabel.length === 0) return null;
+    const exact = videoInputs.find((d) => d.label === targetLabel);
+    if (exact) return exact.deviceId;
+    const normalizedTarget = targetLabel.trim().toLowerCase();
+    const loose = videoInputs.find((d) => d.label.trim().toLowerCase() === normalizedTarget);
+    return loose ? loose.deviceId : null;
+  }
+  function classifyPreviewError(err) {
+    const name = err?.name;
+    if (name === "NotAllowedError" || name === "SecurityError") return "permission-denied";
+    if (name === "NotFoundError" || name === "OverconstrainedError" || name === "DevicesNotFoundError") return "not-found";
+    if (name === "NotReadableError" || name === "TrackStartError") return "in-use";
+    return "unknown";
+  }
+  function describePreviewError(kind) {
+    switch (kind) {
+      case "permission-denied":
+        return "Camera permission was denied in this browser tab. Allow camera access for this page and try again.";
+      case "not-found":
+        return "The matched camera could not be opened \u2014 it may have been unplugged or is no longer present.";
+      case "in-use":
+        return "The camera could not be opened \u2014 it may already be in use by another application.";
+      case "unknown":
+      default:
+        return "Could not start the camera preview.";
+    }
+  }
+  function describeUnmatchedDeviceError(label) {
+    return `Could not match "${label}" to a camera available in this browser tab. The device picker list comes from the app's own probe and may not share names with this browser \u2014 try Refresh, or check this device in your OS camera privacy settings.`;
+  }
+  function describePermissionStatus(status) {
+    switch (status) {
+      case "granted":
+        return "Granted";
+      case "denied":
+        return "Denied";
+      case "restricted":
+        return "Restricted (OS/MDM policy)";
+      case "unknown":
+      default:
+        return "Unknown (not probed yet)";
+    }
+  }
+  function describeConnectionStatus(status, lastError) {
+    switch (status) {
+      case "connected":
+        return "Connected";
+      case "connecting":
+        return "Connecting\u2026";
+      case "error":
+        return lastError ? `Error \u2014 ${lastError}` : "Error";
+      case "disconnected":
+      default:
+        return "Disconnected";
+    }
+  }
+  function describeNdiSource(ndi) {
+    const trimmed = ndi.sourceName.trim();
+    return trimmed.length > 0 ? trimmed : "(not set \u2014 admin only)";
+  }
+  function buildDisplayOptions(displays) {
+    return [
+      { value: "", label: "Primary display (default)" },
+      ...displays.map((d) => ({ value: d.id, label: d.isPrimary ? `${d.name} (primary)` : d.name }))
+    ];
+  }
+  function showsDisplayPicker(mode) {
+    return mode === "local-display";
+  }
+
+  // src/renderer/operator/components/CameraPanel.tsx
+  function CameraPanel({ state, active, onError }) {
+    const camera = state.camera;
+    const [mainDevices, setMainDevices] = (0, import_react.useState)([]);
+    const [devicesLoading, setDevicesLoading] = (0, import_react.useState)(false);
+    const [displays, setDisplays] = (0, import_react.useState)([]);
+    const [previewError, setPreviewError] = (0, import_react.useState)(null);
+    const videoRef = (0, import_react.useRef)(null);
+    const streamRef = (0, import_react.useRef)(null);
+    const requestIdRef = (0, import_react.useRef)(0);
+    const stopPreview = (0, import_react.useCallback)(() => {
+      if (streamRef.current) {
+        for (const track of streamRef.current.getTracks()) track.stop();
+        streamRef.current = null;
+      }
+      if (videoRef.current) videoRef.current.srcObject = null;
+    }, []);
+    const refreshDevices = (0, import_react.useCallback)(async () => {
+      setDevicesLoading(true);
+      try {
+        const { devices } = await cameraRefreshDevices();
+        setMainDevices(devices ?? []);
+      } catch (e) {
+        onError(`Camera device scan failed: ${e.message}`);
+      } finally {
+        setDevicesLoading(false);
+      }
+    }, [onError]);
+    (0, import_react.useEffect)(() => {
+      if (!active) return;
+      let cancelled = false;
+      cameraListDevices().then(({ devices }) => {
+        if (!cancelled && devices && devices.length > 0) setMainDevices(devices);
+      }).catch(() => {
+      });
+      void refreshDevices();
+      listDisplays().then(({ displays: d }) => {
+        if (!cancelled) setDisplays(d ?? []);
+      }).catch(() => {
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [active]);
+    const selectedLabel = camera.selectedDevice?.label ?? null;
+    (0, import_react.useEffect)(() => {
+      if (!active || !selectedLabel) {
+        stopPreview();
+        setPreviewError(null);
+        return;
+      }
+      const myRequestId = ++requestIdRef.current;
+      async function run() {
+        try {
+          let devices = await navigator.mediaDevices.enumerateDevices();
+          let matchedId = matchBrowserDeviceId(selectedLabel, devices);
+          if (!matchedId) {
+            const probeStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            for (const t of probeStream.getTracks()) t.stop();
+            if (myRequestId !== requestIdRef.current) return;
+            devices = await navigator.mediaDevices.enumerateDevices();
+            matchedId = matchBrowserDeviceId(selectedLabel, devices);
+          }
+          if (myRequestId !== requestIdRef.current) return;
+          if (!matchedId) {
+            setPreviewError(describeUnmatchedDeviceError(selectedLabel));
+            return;
+          }
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: matchedId } } });
+          if (myRequestId !== requestIdRef.current) {
+            for (const t of stream.getTracks()) t.stop();
+            return;
+          }
+          streamRef.current = stream;
+          if (videoRef.current) videoRef.current.srcObject = stream;
+          setPreviewError(null);
+        } catch (err) {
+          if (myRequestId !== requestIdRef.current) return;
+          setPreviewError(describePreviewError(classifyPreviewError(err)));
+        }
+      }
+      void run();
+      return () => {
+        stopPreview();
+      };
+    }, [active, selectedLabel, stopPreview]);
+    const handleSelectDevice = (0, import_react.useCallback)(
+      async (id) => {
+        try {
+          if (!id) {
+            await cameraSelectDevice(null);
+            return;
+          }
+          const device = mainDevices.find((d) => d.id === id);
+          if (!device) return;
+          await cameraSelectDevice(device);
+        } catch (e) {
+          onError(e.message);
+        }
+      },
+      [mainDevices, onError]
+    );
+    const handleOutputModeChange = (0, import_react.useCallback)(
+      async (mode) => {
+        try {
+          await cameraSetOutputMode(mode);
+        } catch (e) {
+          onError(e.message);
+        }
+      },
+      [onError]
+    );
+    const handleDisplayChange = (0, import_react.useCallback)(
+      async (displayId) => {
+        try {
+          await cameraSetOutputMode("local-display", displayId || null);
+        } catch (e) {
+          onError(e.message);
+        }
+      },
+      [onError]
+    );
+    const displayOptions = buildDisplayOptions(displays);
+    return /* @__PURE__ */ React2.createElement(React2.Fragment, null, /* @__PURE__ */ React2.createElement("div", { className: "panel" }, /* @__PURE__ */ React2.createElement("div", { className: "panel-title" }, "Camera device"), /* @__PURE__ */ React2.createElement("p", { className: "field-hint", style: { marginBottom: 12 } }, "This list comes from the app's own camera probe, not your browser. The preview below opens independently in this browser tab and is matched to your pick by device name \u2014 if a device you expect isn't previewing correctly, try Refresh below."), /* @__PURE__ */ React2.createElement("div", { className: "form-group" }, /* @__PURE__ */ React2.createElement("label", { htmlFor: "camera-device-select" }, "Camera"), /* @__PURE__ */ React2.createElement("div", { className: "ml-l3-select-wrap" }, /* @__PURE__ */ React2.createElement(
+      "select",
+      {
+        id: "camera-device-select",
+        className: "select-input",
+        value: camera.selectedDevice?.id ?? "",
+        onChange: (e) => void handleSelectDevice(e.target.value)
+      },
+      /* @__PURE__ */ React2.createElement("option", { value: "" }, "\u2014 None selected \u2014"),
+      mainDevices.map((d) => /* @__PURE__ */ React2.createElement("option", { key: d.id, value: d.id }, d.label))
+    ), /* @__PURE__ */ React2.createElement(
+      "button",
+      {
+        type: "button",
+        className: "btn btn-secondary",
+        onClick: () => void refreshDevices(),
+        disabled: devicesLoading
+      },
+      devicesLoading ? "Scanning\u2026" : "Refresh"
+    )), mainDevices.length === 0 && !devicesLoading && /* @__PURE__ */ React2.createElement("p", { className: "field-hint", style: { marginTop: 8 } }, "No cameras found. Plug one in and click Refresh."))), /* @__PURE__ */ React2.createElement("div", { className: "panel" }, /* @__PURE__ */ React2.createElement("div", { className: "panel-title" }, "Live preview"), !camera.selectedDevice ? /* @__PURE__ */ React2.createElement("p", { className: "field-hint" }, "Select a camera above to preview it.") : /* @__PURE__ */ React2.createElement(React2.Fragment, null, /* @__PURE__ */ React2.createElement(
+      "video",
+      {
+        ref: videoRef,
+        autoPlay: true,
+        muted: true,
+        playsInline: true,
+        style: { width: "100%", maxWidth: 480, borderRadius: 8, background: "#000", display: "block" }
+      }
+    ), previewError && /* @__PURE__ */ React2.createElement("p", { className: "field-hint", style: { color: "#c0392b", marginTop: 8 } }, previewError))), /* @__PURE__ */ React2.createElement("div", { className: "panel" }, /* @__PURE__ */ React2.createElement("div", { className: "panel-title" }, "Output"), /* @__PURE__ */ React2.createElement("div", { className: "btn-row" }, /* @__PURE__ */ React2.createElement(
+      "button",
+      {
+        type: "button",
+        className: camera.outputMode === "ndi" ? "btn btn-primary" : "btn btn-secondary",
+        onClick: () => void handleOutputModeChange("ndi")
+      },
+      "NDI"
+    ), /* @__PURE__ */ React2.createElement(
+      "button",
+      {
+        type: "button",
+        className: camera.outputMode === "local-display" ? "btn btn-primary" : "btn btn-secondary",
+        onClick: () => void handleOutputModeChange("local-display")
+      },
+      "Local display"
+    )), showsDisplayPicker(camera.outputMode) && /* @__PURE__ */ React2.createElement("div", { className: "form-group", style: { marginTop: 12 } }, /* @__PURE__ */ React2.createElement("label", { htmlFor: "camera-display-select" }, "Target display"), /* @__PURE__ */ React2.createElement(
+      "select",
+      {
+        id: "camera-display-select",
+        className: "select-input",
+        value: camera.outputDisplayId ?? "",
+        onChange: (e) => void handleDisplayChange(e.target.value)
+      },
+      displayOptions.map((o) => /* @__PURE__ */ React2.createElement("option", { key: o.value || "primary", value: o.value }, o.label))
+    )), /* @__PURE__ */ React2.createElement("p", { className: "field-hint", style: { marginTop: 12 } }, "NDI source name: ", /* @__PURE__ */ React2.createElement("strong", null, describeNdiSource(camera.ndi)), " (admin-only setting)")), /* @__PURE__ */ React2.createElement("div", { className: "panel" }, /* @__PURE__ */ React2.createElement("div", { className: "panel-title" }, "Status"), /* @__PURE__ */ React2.createElement("p", { className: "field-hint" }, "OS permission: ", describePermissionStatus(camera.permissionStatus)), /* @__PURE__ */ React2.createElement("p", { className: "field-hint" }, "Connection: ", describeConnectionStatus(camera.connectionStatus, camera.lastError))));
+  }
+
   // src/renderer/operator/index.tsx
   var store = createClientStore();
   var ReactDOM = ReactDOMBase;
   var statusHeaderRoot = ReactDOM.createRoot(document.getElementById("status-header-root"));
   var liveControlPanelsRoot = ReactDOM.createRoot(document.getElementById("live-control-panels-root"));
+  var cameraPanelRoot = ReactDOM.createRoot(document.getElementById("camera-panel-root"));
   var wsConnected = false;
+  var activeTab = "dashboard";
   async function handlePanicClick() {
     try {
       await panicAction("toggle");
@@ -382,10 +645,13 @@
   }
   function renderReactRoots(state) {
     statusHeaderRoot.render(
-      /* @__PURE__ */ React2.createElement(StatusHeader, { state, wsConnected, onPanic: handlePanicClick })
+      /* @__PURE__ */ React3.createElement(StatusHeader, { state, wsConnected, onPanic: handlePanicClick })
     );
     liveControlPanelsRoot.render(
-      /* @__PURE__ */ React2.createElement(LiveControlPanels, { state, onSwitchAB: handleSwitchAB, onSetMode: handleSetMode })
+      /* @__PURE__ */ React3.createElement(LiveControlPanels, { state, onSwitchAB: handleSwitchAB, onSetMode: handleSetMode })
+    );
+    cameraPanelRoot.render(
+      /* @__PURE__ */ React3.createElement(CameraPanel, { state, active: activeTab === "camera", onError: showError })
     );
   }
   var KBD_PRESETS = {
@@ -1148,6 +1414,8 @@
         if (target) {
           const section = document.querySelector(`section[data-tab="${target}"]`);
           if (section) section.hidden = false;
+          activeTab = target;
+          renderReactRoots(store.getState());
         }
         if (target === "notes") {
           startNotesPolling();

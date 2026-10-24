@@ -623,6 +623,49 @@ distinguishing from a plain user denial; (3) whether
 picker, or whether it should carry more (e.g. which device is specifically
 the Q-SYS bridge).
 
+**Track 1C status (2026-10-24): done.** Operator UI shell added: a "Camera"
+nav tab (`src/renderer/operator/index.html`) mounting a new
+`CameraPanel` React component (`src/renderer/operator/components/
+CameraPanel.tsx`, a third permanent root alongside `StatusHeader`/
+`LiveControlPanels`), plus a "Camera" button in the Live Control mode grid
+(`LiveControlPanels`' `MODE_BUTTONS`) that only flips `currentMode` — the
+device picker, preview, output toggle and status all live on the tab, not
+the mode grid. `src/renderer/operator/api.ts` gained `cameraListDevices`/
+`cameraRefreshDevices`/`cameraSelectDevice`/`cameraSetOutputMode`,
+matching the file's existing thin-wrapper naming convention.
+
+**Device-id vs. label matching (open question #3 above, resolved for this
+track's purposes, not closed for good):** `GET /api/camera/devices`'
+`{id, label}` comes from Track 1A's main-process probe window; the live
+preview has to open the camera from the *operator browser tab's own*
+`getUserMedia`/`enumerateDevices()`, and nothing guarantees the two
+processes assign the same physical UVC device the same `deviceId`. The
+panel matches by device **label** instead (`matchBrowserDeviceId` in the
+new `src/renderer/operator/camera-logic.ts`) — exact match, falling back
+to a trim+case-insensitive comparison — and if no browser device shares
+the picked label, the panel shows an explicit "could not match" error
+rather than silently previewing some other camera. This is a practical
+assumption (UVC device labels are usually stable across processes on one
+machine), not a spec guarantee; if it ever proves wrong in the field, the
+mismatch at least surfaces as a visible error rather than a wrong-camera
+preview.
+
+**Out of scope, deliberately:** no pixel pipeline, no output routing — the
+preview is the operator browser tab's own `getUserMedia`, entirely
+separate from Track 1A's hidden probe window and from Phase 2/3's eventual
+OSR compositor/output router. The NDI source name is rendered read-only
+(admin-only to edit per `routes/camera.ts`'s comment); this track adds no
+admin-side editor for it. See `.agent/JOURNAL.md` for the full report,
+including the renderer-testing-gap discussion and test numbers.
+
+**Phase 1 exit criteria are now met:** Track 1A's device enumeration/
+hotplug/permission/persistence (main process) plus Track 1C's device
+picker and live preview (operator UI) together let an operator select a
+camera and see a live preview in the operator UI, per the exit criteria
+text above. No output path exists yet (NDI/local-display send is Phase
+2/3's job) — explicitly out of scope per that same text, not a gap in this
+phase's own completion.
+
 ### Phase 2 — Graphics compositing
 
 | Track | Work | Model |
