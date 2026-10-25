@@ -4634,3 +4634,24 @@ against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode
 block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 2026-10-25 — 19:09 UTC firing: still blocked, no dispatch — 22 hours unresolved
+
+Lock was absent (clean exit from the 18:09 UTC firing); acquired fresh (session_018GReRw74hxtjfxJTokpdUw)
+and pushed cleanly -- note the initial push attempt via `git push -u origin main` was rejected because this
+container's local `main` branch ref is a stale pointer from container setup (unrelated to this effort,
+pointing at an old pre-Camera-Mode commit) while `HEAD` is detached at the real tip; re-pushed correctly
+with `git push origin HEAD:main`. Read `state.json`: `status` still `"blocked"`, `current_unit` still
+Phase 2 Track 2A, `last_commit` still `4c5689b`. Checked `specs/24-camera-mode.md`'s git history since
+`4c5689b` (`git log --oneline 4c5689b..HEAD -- specs/24-camera-mode.md`): zero commits touch that file --
+no human has recorded a real-hardware soak result since the block was set. Nothing has changed since the
+18:09 UTC firing's check, and the 09:08 UTC firing already sent the push notification for this block, so
+this firing sent none (22nd consecutive no-op firing on the same unresolved human-only decision, roughly 22
+hours).
+
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code. Still
+waiting on: a human running the real-hardware 10-minute 1080p30 pacer+NDI soak on the production Mac mini
+against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode.md`, and clearing this
+block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
