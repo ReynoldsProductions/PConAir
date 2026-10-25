@@ -4704,3 +4704,35 @@ against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode
 block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 2026-10-25 — 22:09 UTC firing: still blocked, no dispatch — 25 hours unresolved
+
+Lock was absent (clean exit from the 21:09 UTC firing); acquired fresh (session_01L1ambfe7gEGF1s5CUrYmiw)
+and pushed cleanly. Note on this container's checkout: `git pull` landed HEAD in a detached state tracking
+origin/main correctly; the local `main` branch ref present in the container image was stale (b2bcb78, a
+leftover from camera-mode Phase 1 unblock, ~49 commits behind origin and sharing no shallow-visible
+history with it). Running `git checkout main` moved onto that stale ref and showed an unrelated, outdated
+state.json (Phase 1 Track 1A, status pending) -- this was a dead end, not the real repo state. Recovered
+with `git checkout -B main origin/main` to make local `main` match origin exactly, as prior firings have
+also had to do. `git fetch --unshallow` again confirmed the earlier "forced update" message is just the
+shallow-clone artifact, not a real history rewrite.
+
+Read the real `state.json`: `status` still `"blocked"`, `current_unit` still Phase 2 Track 2A, `last_commit`
+still `4c5689b`. Checked `specs/24-camera-mode.md`'s git history since `4c5689b`
+(`git log --oneline 4c5689b..HEAD -- specs/24-camera-mode.md`, after unshallowing): zero commits touch that
+file -- no human has recorded a real-hardware soak result since the block was set. Nothing has changed
+since the 21:09 UTC firing's check, and the 09:08 UTC firing already sent the push notification for this
+block, so this firing sent none (25th consecutive no-op firing on the same unresolved human-only decision,
+roughly 25 hours).
+
+Note: this firing's stored scheduled-task prompt still describes Camera Mode as starting at Phase 0 and
+references the Electron 44 migration as the prior effort, same staleness noted in the 21:09 UTC entry.
+`state.json` and the roadmap doc were treated as authoritative, per the roadmap's own instruction to read
+`state.json` fresh each firing.
+
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code. Still
+waiting on: a human running the real-hardware 10-minute 1080p30 pacer+NDI soak on the production Mac mini
+against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode.md`, and clearing this
+block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
