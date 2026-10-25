@@ -4487,3 +4487,28 @@ dispatch; took no other action and wrote no code. Still waiting on: a human runn
 the result in `specs/24-camera-mode.md`, and clearing this block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 2026-10-25 — 09:08 UTC firing: still blocked, no dispatch — 12 hours unresolved, notifying the human
+
+Lock was absent (clean exit from the 08:08 UTC firing); hit the same detached-HEAD/local-`main`-drift snag as
+the 06:12 and 07:09 UTC firings on acquire (fixed the same way: force-moved local `main` to `origin/main`'s tip,
+re-applied the lock commit on top, pushed clean -- no history rewritten on `origin/main`; this is now the third
+time this has recurred, worth a human's attention on the container setup if it keeps happening, but still not a
+blocker in its own right). Read `state.json`: `status` still `"blocked"`, `current_unit` still Phase 2 Track 2A,
+`last_commit` still `4c5689b`. Checked `specs/24-camera-mode.md`'s git history since `4c5689b`: zero commits
+touch that file -- no human has recorded a real-hardware soak result since the block was set. Nothing has
+changed since the 08:08 UTC firing's check.
+
+Also reviewed the full block history this firing: the block was first set at `14bc3f7` (2026-10-24, ~21:09 UTC)
+and every hourly firing since has re-confirmed it unchanged -- this is the twelfth consecutive no-op firing on
+the same unresolved human-only decision, roughly 12 hours. Checked whether a push notification had ever gone
+out for *this* block (distinct from the much earlier, unrelated 2026-09-29 Electron-migration notification
+referenced in older entries): it had not. Since this is exactly the kind of stuck-for-a-long-time,
+needs-a-human-now situation the notification system exists for, and nothing has told the human yet, this firing
+sent one summarizing what's needed: run the real-hardware 10-minute 1080p30 pacer+NDI soak (Candidate A, the
+OSR pipeline with an off-main-thread pacer, feeding `grandi`'s NDI send) on the production Mac mini against the
+real Q-SYS UVC camera, record pass/fail in `specs/24-camera-mode.md`, and clear `state.json`'s block.
+
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code.
+
+**No code changed this firing. Lock released as part of this same commit.**
