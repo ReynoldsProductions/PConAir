@@ -4438,6 +4438,26 @@ this block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
 
+## 2026-10-25 — 07:09 UTC firing: still blocked, no dispatch
+
+Lock was absent (clean exit from the 06:12 UTC firing); acquired fresh. Hit the same local
+`main`/detached-HEAD push snag as the 06:12 firing (the git identity this session starts in leaves
+`main` behind `origin/main`, so a commit made without first checking out and fast-forwarding `main`
+lands on a detached HEAD and the push is rejected non-fast-forward); fixed the same way — checked out
+`main`, `git reset --hard origin/main`, re-applied the lock commit on top, pushed clean. No history
+rewritten on `origin/main`; this is now the second firing in a row to hit it, worth a human's attention
+if it keeps recurring, but not itself a blocker. Read `state.json`: `status` still `"blocked"`,
+`current_unit` still Phase 2 Track 2A, `last_commit` still `4c5689b`. Checked `specs/24-camera-mode.md`'s
+git history since `4c5689b` (via `git log --oneline 4c5689b..HEAD -- specs/24-camera-mode.md`): zero
+commits touch that file -- every commit in that range is an orchestrator lock-acquire/release commit.
+No human has recorded a real-hardware soak result since the block was set. Nothing has changed since the
+06:12 UTC firing's check. Per the roadmap, `blocked` means stop and do not dispatch; took no other action
+and wrote no code. Still waiting on: a human running the real-hardware 10-minute 1080p30 pacer+NDI soak on
+the production Mac mini against the real Q-SYS UVC camera, recording the result in
+`specs/24-camera-mode.md`, and clearing this block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
+
 ## 2026-10-25 — 06:12 UTC firing: still blocked, no dispatch
 
 Lock was absent (clean exit from the 05:08 UTC firing); acquired fresh and pushed immediately (hit a
