@@ -4424,3 +4424,16 @@ Mac mini against the real Q-SYS UVC camera, recording the result in `specs/24-ca
 this block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 2026-10-25 — 04:08 UTC firing: still blocked, no dispatch
+
+Lock was absent (clean exit from the 03:08 UTC firing); acquired fresh and pushed immediately. Read
+`state.json`: `status` still `"blocked"`, `current_unit` still Phase 2 Track 2A, `last_commit` still `4c5689b`.
+Checked `specs/24-camera-mode.md`'s git history: last touched at `4c5689b`, matching `state.json` exactly — no
+human has recorded a real-hardware soak result since the block was set. Nothing has changed since the 03:08 UTC
+firing's check. Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no
+code. Still waiting on: a human running the real-hardware 10-minute 1080p30 pacer+NDI soak on the production
+Mac mini against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode.md`, and clearing
+this block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
