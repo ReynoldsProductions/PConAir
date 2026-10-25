@@ -4736,3 +4736,32 @@ against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode
 block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 2026-10-25 — 23:09 UTC firing: still blocked, no dispatch — 26 hours unresolved
+
+Lock was absent (clean exit from the 22:09 UTC firing); acquired fresh (session_01CNYYmKLfjJwswU9ZwUcSBY)
+and pushed cleanly. Same shallow-clone artifact as every prior firing today: this container's local `main`
+ref was stale (`b2bcb78`, the Phase 1 unblock commit, ~55 commits behind) while `HEAD` was correctly
+detached at `origin/main`'s real tip. Ran `git fetch --unshallow`, confirmed `merge-base b2bcb78
+origin/main` equals `b2bcb78` itself (a clean fast-forward, no real history rewrite), then ran
+`git checkout -B main origin/main` to repoint local `main` at the real tip before proceeding.
+
+Read `state.json`: `status` still `"blocked"`, `current_unit` still Phase 2 Track 2A, `last_commit` still
+`4c5689b`. Checked `specs/24-camera-mode.md`'s git history since `4c5689b`
+(`git log --oneline 4c5689b..HEAD -- specs/24-camera-mode.md`): zero commits touch that file -- no human
+has recorded a real-hardware soak result since the block was set (~21:09 UTC 2026-10-24). Nothing has
+changed since the 22:09 UTC firing's check, and the 09:08 UTC firing already sent the push notification for
+this block, so this firing sent none (26th consecutive no-op firing on the same unresolved human-only
+decision, roughly 26 hours).
+
+Note: this firing's stored scheduled-task prompt again described Camera Mode as starting at Phase 0 and
+referenced the Electron 44 migration as the prior effort -- both stale relative to actual repo state, same
+as noted in the 21:09 and 22:09 UTC entries. `state.json` and the roadmap doc were treated as authoritative,
+per the roadmap's own instruction to read `state.json` fresh each firing.
+
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code. Still
+waiting on: a human running the real-hardware 10-minute 1080p30 pacer+NDI soak on the production Mac mini
+against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode.md`, and clearing this
+block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
