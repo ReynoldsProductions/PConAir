@@ -4853,3 +4853,33 @@ against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode
 block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 2026-10-26 — 03:10 UTC firing: still blocked, no dispatch — 30 hours unresolved
+
+Lock was absent (clean exit from the 02:09 UTC firing); acquired fresh (session_01LTLGbop1cTdcPidCNDLL7t)
+and pushed as its own commit before reading `state.json`, per roadmap step 0.
+
+Checkout again came up with local `main` reporting "99 and 50 different commits" diverged from
+`origin/main` after the initial shallow fetch, with the local tip sitting on `b2bcb78` ("orchestrator:
+unblock Camera Phase 1 -- accept OBS+Zoom evidence over getUserMedia test") -- investigated this
+thoroughly before trusting it, since on its face it looked like it could be an unauthorized bypass of a
+human-only gate. After `git fetch --unshallow`, `merge-base main origin/main` resolved to `b2bcb78` itself:
+local `main` was 0 commits ahead and 68 behind `origin/main`, i.e. not diverged at all -- purely the
+shallow-clone boundary, same false alarm prior entries have logged. `b2bcb78` is a genuine ancestor of
+`origin/main` and is a legitimate recorded human decision (authored by `tom`, Phase 1's device-contention
+call), already superseded by the current, unrelated Phase 2 block. Fast-forwarded local `main` to
+`origin/main`'s real tip before proceeding.
+
+Read `state.json`: `status` still `"blocked"`, `current_unit` still Phase 2 Track 2A, `last_commit` still
+`4c5689b`. Checked `specs/24-camera-mode.md`'s git history since `4c5689b`: zero commits touch that file --
+no human has recorded a real-hardware soak result since the block was set (~21:09 UTC 2026-10-24). Nothing
+has changed since the 02:09 UTC firing's check. The 09:08 UTC firing already sent the push notification for
+this block and nothing new has emerged since, so this firing sent none (30th consecutive no-op firing on
+the same unresolved human-only decision, roughly 30 hours).
+
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code. Still
+waiting on: a human running the real-hardware 10-minute 1080p30 pacer+NDI soak on the production Mac mini
+against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode.md`, and clearing this
+block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
