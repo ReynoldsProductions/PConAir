@@ -1,5 +1,18 @@
 # Orchestrator journal
 
+## 2026-10-26 — 13:19 UTC firing: still blocked, no dispatch — 42 hours unresolved
+
+Lock was absent; acquired fresh (session_01UkDaAS8yTUWMnqivUcFAGs) and pushed before further work, per
+roadmap step 0. Same recurring shallow-clone boundary artifact as every prior firing — `git fetch` +
+`git checkout main && git reset --hard origin/main` realigned cleanly; not a real divergence.
+
+Read `state.json`: `status` still `"blocked"`, `current_unit` still Phase 2 Track 2A, `last_commit` still
+`4c5689b` (outside this shallow window, as expected). Checked `specs/24-camera-mode.md` directly: no real
+content changes since the block was set, and the soak criterion is still explicitly "not met" (line 503) /
+"open" (line 290). No non-orchestrator commits on `main` since the block. This is the 40th consecutive
+hourly re-confirmation, ~42 hours unresolved. No push notification sent — nothing has changed since the
+09:08 UTC (2026-10-24) firing's notification. Released lock, no dispatch, per roadmap step 2.
+
 ## 2026-10-26 — 06:09 UTC firing: still blocked, no dispatch — 33 hours unresolved
 
 Lock was absent (clean exit from the 05:09 UTC firing); acquired fresh (session_01Y755SiR85ExyVy2aPDTyjc)
