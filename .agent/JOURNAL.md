@@ -5193,3 +5193,33 @@ against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode
 block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 15:09 UTC firing (2026-10-26) -- re-confirmed BLOCKED, 42nd consecutive no-op
+
+Lock was absent (clean exit from the 14:09 UTC firing); acquired fresh (session_01Xg4UXvZJuJGfjLp8KF8GXu)
+and pushed as its own commit (`70ed4da`) before reading `state.json`, per roadmap step 0. `git pull`
+again showed the recurring "forced update" ref-listing artifact on `main`; `git checkout main && git reset
+--hard origin/main` landed cleanly at `origin/main`'s tip with a clean working tree, confirming no real
+divergence.
+
+Read `state.json`: `status` still `"blocked"`, `current_effort` still `camera-mode`, `current_unit` still
+Phase 2 Track 2A, `last_commit` still `4c5689b`. Re-read `specs/24-camera-mode.md` directly rather than via
+commit range (same shallow-clone caveat as every prior firing): the soak criterion is still explicitly
+"open" (line 290) / "not met" (line 503) -- no Phase 0 run recorded on target hardware. Also confirmed the
+"Camera device contention / deployment topology" question the orchestrator prompt calls out for Phase 1 is
+still listed as "open" (line 824) -- consistent with the spec, and moot anyway since this firing never got
+past the existing Phase 2 block. No human has recorded a real-hardware soak result since the block was set
+(first block commit `14bc3f7`, 2026-10-24 19:16 UTC). Nothing has changed since the 14:09 UTC firing's
+check.
+
+No push notification sent this firing -- nothing has changed since the last one, and the block was already
+notified when first set. Per the routine's own guidance, a notification already delivered should not repeat
+for an unchanged condition (42nd consecutive no-op firing on the same unresolved human-only decision,
+roughly 44 hours).
+
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code. Still
+waiting on: a human running the real-hardware 10-minute 1080p30 pacer+NDI soak on the production Mac mini
+against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode.md`, and clearing this
+block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
