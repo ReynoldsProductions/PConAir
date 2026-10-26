@@ -1,5 +1,35 @@
 # Orchestrator journal
 
+## 2026-10-26 — 16:08 UTC firing: still blocked, no dispatch — 43rd consecutive no-op, ~45 hours unresolved
+
+Lock was absent (clean exit from the 15:09 UTC firing); acquired fresh (session_01DApigRAfUGUUJKTJPNvP9R).
+First commit attempt landed in a detached HEAD on a stale local `main` (`b2bcb78`, ahead 99 / behind 50 of
+`origin/main`) — the same recurring shallow-clone/ref-listing artifact every prior firing has logged, not a
+real divergence. Discarded that detached commit, ran `git checkout -B main origin/main` to realign cleanly
+at `origin/main`'s tip (`8af8d76`), and redid the lock commit/push from there.
+
+Read `state.json`: `status` still `"blocked"`, `current_effort` still `camera-mode`, `current_unit` still
+Phase 2 Track 2A, `last_commit` still `4c5689b`. Re-read `specs/24-camera-mode.md` directly: soak criterion
+still explicitly "open" (line ~290) / "not met" (line ~503); device-contention question still "open"
+(~line 824), moot since Phase 1 isn't reached. No non-orchestrator commits on `main` since the block was
+set (first block commit `14bc3f7`, 2026-10-24 19:16 UTC). Nothing has changed since the 15:09 UTC firing's
+check.
+
+Note: the scheduled task's own stored prompt text this firing received still describes Camera Mode as
+starting fresh at Phase 0 (with Tracks 0A/0B/0C/0D framing and the device-contention question "not yet
+decided"), and still frames the Electron migration as the active/prior effort — both stale relative to
+actual repo state (Electron migration shipped as v0.6.0; Camera Mode is well past Phase 0 and blocked in
+Phase 2). Per the roadmap's own instruction, `state.json` and the roadmap/spec docs were treated as
+authoritative over the stored prompt text.
+
+No push notification sent — nothing has changed since the block was first notified (09:08 UTC, 2026-10-24).
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code. Still
+waiting on: a human running the real-hardware 10-minute 1080p30 pacer+NDI soak on the production Mac mini
+against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode.md`, and clearing this
+block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
+
 ## 2026-10-26 — 13:19 UTC firing: still blocked, no dispatch — 42 hours unresolved
 
 Lock was absent; acquired fresh (session_01UkDaAS8yTUWMnqivUcFAGs) and pushed before further work, per
