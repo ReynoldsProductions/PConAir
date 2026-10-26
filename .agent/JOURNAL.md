@@ -5163,3 +5163,33 @@ against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode
 block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 14:09 UTC firing (2026-10-26) -- re-confirmed BLOCKED, 41st consecutive no-op
+
+Lock was absent (clean exit from the 13:19 UTC firing); acquired fresh (session_01SEQFpxXL4PvFLdbdhP1yTx)
+and pushed as its own commit before reading `state.json`, per roadmap step 0. `git fetch origin` showed a
+large batch of unrelated feature/dependabot branches and tags newly visible plus a "forced update" marker
+on `main`, but `HEAD...origin/main` diffed at `0  0` -- confirmed purely a shallow-clone/ref-listing
+artifact, not a real divergence, same as every prior firing has logged. Checked out `main` cleanly at
+`origin/main`'s tip (`d0b3fa7`).
+
+Read `state.json`: `status` still `"blocked"`, `current_unit` still Phase 2 Track 2A, `last_commit` still
+`4c5689b`. Checked `specs/24-camera-mode.md`'s git history: only commit touching it since the last check is
+`36bffa2` ("Acquire orchestrator lock for 13:09 UTC firing"), an orchestrator lock commit with no real
+content change. Confirmed no non-lock/non-orchestrator commits on `main` at all in the recent log (15 most
+recent commits are all lock-acquire/release pairs). Re-read the spec's soak-criterion language directly
+(lines 290, 503): still explicitly "open" / "not met", no Phase 0 run recorded on target hardware. No
+human has recorded a real-hardware soak result since the block was set (first block commit 14bc3f7,
+2026-10-24 19:16 UTC). Nothing has changed since the 13:19 UTC firing's check.
+
+No push notification sent this firing -- nothing has changed since the last one, and the block was already
+notified. Per the routine's own guidance, a notification already delivered should not repeat for an
+unchanged condition (41st consecutive no-op firing on the same unresolved human-only decision, roughly
+43 hours).
+
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code. Still
+waiting on: a human running the real-hardware 10-minute 1080p30 pacer+NDI soak on the production Mac mini
+against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode.md`, and clearing this
+block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
