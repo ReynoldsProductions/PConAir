@@ -5423,3 +5423,45 @@ this journal entry and the state.json timestamp update. Still waiting on: a huma
 result in `specs/24-camera-mode.md`, and clearing this block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 21:09 UTC firing (2026-10-26, session_018ypbJXDprZas7L9kKbQnWc) -- re-confirmed BLOCKED, 48th consecutive no-op
+
+Pulled latest; found no `.agent/lock.json` (previous firing released cleanly). Acquired a fresh lock and
+pushed it as its own commit before reading `state.json`, per roadmap step 0.
+
+This firing's initial container clone was shallow (`git rev-parse --is-shallow-repository` true,
+`.git/shallow` pinned at `dfe381a`) -- the routine artifact several prior firings have hit, not a repeat of
+the 20:10 UTC disjoint-history anomaly. Before concluding anything, checked carefully: `git cat-file -t
+4c5689b` initially failed ("not a valid object"), which momentarily looked like it could corroborate the
+20:10 UTC tampering concern. Ran `git fetch --depth=200 origin main` to deepen the clone (the same step
+prior firings use) and both `4c5689b` and `14bc3f7` resolved cleanly as real commits on `origin/main`'s
+ancestry -- confirming this was the known shallow-clone artifact, not a new anomaly. No sign of tampering
+or a disjoint local `main` this firing.
+
+Read `state.json`: `status` still `"blocked"`, `current_effort` still `camera-mode`, `current_unit` still
+Phase 2 Track 2A, `last_commit` still `4c5689b`. Verified directly: `git log --oneline 4c5689b..HEAD --
+specs/24-camera-mode.md` returned empty (zero commits have touched the spec since the block was set).
+Re-read `specs/24-camera-mode.md` directly: the soak criterion is still explicitly "open" (line 290) / "not
+met" (line 503). The stale Decisions-item-6-vs-risk-table label first noted at 18:10 UTC (line 824 vs. line
+802) is unchanged and still has no bearing on the actual Phase 2 blocker.
+
+No human has recorded a real-hardware soak result since the block was set (first block commit `14bc3f7`,
+2026-10-24 19:16 UTC). Nothing substantive has changed since the 20:10 UTC firing's check, aside from
+positively ruling out a repeat of that firing's disjoint-history anomaly.
+
+Note (unchanged from every prior firing): this firing's own stored scheduled-task prompt still frames
+Camera Mode as starting fresh at Phase 0 with Tracks 0A-0D and the device-contention decision undecided,
+and still names the Electron migration as the active/prior effort -- stale relative to actual repo state.
+`state.json` and the spec were treated as authoritative, per the roadmap's own instruction.
+
+No push notification sent this firing: the block condition is unchanged, the 20:10 UTC anomaly did not
+recur, and a shallow-clone artifact that resolved cleanly on deepening is not noteworthy enough to repeat a
+notification for. This is the 48th consecutive no-op firing on the same unresolved human-only decision,
+roughly 50 hours unresolved.
+
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code besides
+this journal entry and the state.json timestamp update. Still waiting on: a human running the real-hardware
+10-minute 1080p30 pacer+NDI soak on the production Mac mini against the real Q-SYS UVC camera, recording the
+result in `specs/24-camera-mode.md`, and clearing this block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
