@@ -5293,3 +5293,50 @@ against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode
 block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 18:10 UTC firing (2026-10-26) -- re-confirmed BLOCKED, 45th consecutive no-op
+
+Lock was absent (clean exit from the 17:09 UTC firing); acquired fresh (session_01DY9iNFXYB48A6vi4UXZ9Cw)
+and pushed as its own commit (`31e91a2`) before reading `state.json`, per roadmap step 0. `git pull` showed
+the same recurring "forced update" ref-listing artifact on `main`; `git checkout -B main origin/main` landed
+cleanly at `origin/main`'s tip with a clean working tree, confirming no real divergence.
+
+Read `state.json`: `status` still `"blocked"`, `current_effort` still `camera-mode`, `current_unit` still
+Phase 2 Track 2A, `last_commit` still `4c5689b`. Ran `git fetch --depth=200 origin main` (same shallow-window
+caveat as every prior firing) then verified directly: `git log --oneline 4c5689b..HEAD -- specs/24-camera-mode.md`
+returned empty (zero commits touched the spec since the block was set), and `git log --oneline 4c5689b..HEAD`
+(93 commits) is entirely orchestrator lock-acquire/release pairs -- no other commits at all. Re-read
+`specs/24-camera-mode.md` directly: the soak criterion is still explicitly "open" (line 290) / "not met"
+(line 503).
+
+New this firing (informational only, does not change the block): spotted a small internal inconsistency in
+the spec -- the numbered "Decisions" list still marks item 6 (camera device contention / deployment
+topology) "open" (line 824), but the risk table a few lines above it (line 802) already records that same
+question "Resolved: single mini, per real-hardware test (OBS + Zoom concurrent access, no contention)"
+dated 2026-10-24. This looks like a stale label left over in the numbered list rather than a live open
+question -- Phase 1 (which depends on it) is already behind us at Phase 2, so the decision was evidently
+made. Not acting on it (editing someone else's spec prose on a guess is exactly the kind of irreversible,
+ambiguous call this routine should not make unprompted); flagging it here for whichever human next touches
+the spec to tidy up, nothing more. It has no bearing on the actual Phase 2 blocker, which is the OSR/pacer
+hardware soak, not device contention.
+
+No human has recorded a real-hardware soak result since the block was set (first block commit `14bc3f7`,
+2026-10-24 19:16 UTC). Nothing substantive has changed since the 17:09 UTC firing's check.
+
+Note (unchanged from every prior firing): the scheduled task's own stored prompt text this firing received
+still frames Camera Mode as starting fresh at Phase 0 with Tracks 0A-0D and the device-contention decision
+undecided, and still names the Electron migration as the active/prior effort -- all stale relative to actual
+repo state. `state.json` and the spec were treated as authoritative, per the roadmap's own instruction to
+read `state.json` fresh each firing.
+
+No push notification sent this firing -- nothing has changed since the last one, and the block was already
+notified when first set (09:08 UTC, 2026-10-24). Per the routine's own guidance, a notification already
+delivered should not repeat for an unchanged condition (45th consecutive no-op firing on the same unresolved
+human-only decision, roughly 47 hours).
+
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code. Still
+waiting on: a human running the real-hardware 10-minute 1080p30 pacer+NDI soak on the production Mac mini
+against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode.md`, and clearing this
+block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
