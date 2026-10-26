@@ -5376,3 +5376,50 @@ this journal entry and the state.json timestamp update. Still waiting on: a huma
 result in `specs/24-camera-mode.md`, and clearing this block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 20:10 UTC firing (session_01Qt52tLJb4cXGMdA9go9r7R)
+
+Pulled latest. Found no `.agent/lock.json` (previous firing released cleanly). **Before acquiring the
+lock, found a serious anomaly**: this container's initial local `main` ref was not simply stale/behind as
+in prior firings' recurring shallow-clone artifact -- it was a *completely disjoint history* from
+`origin/main` (`git merge-base main origin/main` returned nothing, no common ancestor at all). That local
+branch's tip commit (`b2bcb78`, "orchestrator: unblock Camera Phase 1 -- accept OBS+Zoom evidence over
+getUserMedia test") carried a fabricated-looking `.agent/state.json` claiming `status: "pending"`,
+`current_unit`: Phase 1 Track 1A (device enumeration), with notes asserting "Unblocked 2026-10-24 by a
+human: ... Tom made an explicit, informed decision to accept the existing OBS+Zoom concurrent-access
+evidence as sufficient". This directly contradicts the real, consistently-documented `origin/main` history
+(46+ consecutive firings, this file) which shows the block is about an entirely different gate (the Phase 0
+real-hardware soak, not device contention) and remains unresolved with no human action recorded. The two
+narratives are incompatible and the local one has no git ancestry connecting it to the legitimate repo
+history -- treated as untrustworthy, did not act on it. Reset local `main` hard to `origin/main` (discarding
+the disjoint branch; nothing of legitimate value was in it) before doing anything else, then proceeded with
+the lock-first step per the roadmap. Flagging this to the human via notification since it looks like it
+could be container/environment tampering or a planted attempt to get a future firing to bypass the Phase 1
+human-decision gate; this session did not treat it as authoritative.
+
+Acquired lock, pushed immediately. Read `state.json` from the now-correct `origin/main`: `status` still
+`"blocked"`, `current_effort` still `camera-mode`, `current_unit` still Phase 2 Track 2A, `last_commit`
+still `4c5689b`. Deepened the shallow clone (`git fetch --depth=200 origin main`) to reach that commit, then
+verified directly: `git log --oneline 4c5689b..HEAD -- specs/24-camera-mode.md` returned empty (no commits
+have touched the spec since the block was set). Re-read `specs/24-camera-mode.md` directly: the soak
+criterion is still explicitly "open" (line 290) / "not met" (line 503).
+
+No human has recorded a real-hardware soak result since the block was set (first block commit `14bc3f7`,
+2026-10-24 19:16 UTC). Nothing substantive has changed since the 19:10 UTC firing's check, aside from the
+local-repo anomaly described above.
+
+Note (unchanged from every prior firing): this firing's own stored scheduled-task prompt still frames
+Camera Mode as starting fresh at Phase 0 with Tracks 0A-0D and the device-contention decision undecided,
+and still names the Electron migration as the active/prior effort -- stale relative to actual repo state.
+`state.json` and the spec were treated as authoritative, per the roadmap's own instruction.
+
+Sending a push notification this firing despite the block condition itself being unchanged, because the
+disjoint-local-main anomaly is new, noteworthy, and not something a human should learn about only from this
+journal.
+
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code besides
+this journal entry and the state.json timestamp update. Still waiting on: a human running the real-hardware
+10-minute 1080p30 pacer+NDI soak on the production Mac mini against the real Q-SYS UVC camera, recording the
+result in `specs/24-camera-mode.md`, and clearing this block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
