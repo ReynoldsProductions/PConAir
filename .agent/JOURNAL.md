@@ -4962,3 +4962,29 @@ against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode
 block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 2026-10-26 — 07:17 UTC firing: still blocked, no dispatch — 34 hours unresolved
+
+Lock was absent (clean exit from the 06:09 UTC firing); acquired fresh (session_01FqJJqr6KdHdDKP8oVKRWTs)
+and pushed as its own commit before reading `state.json`, per roadmap step 0. Checkout again came up with
+local `main` reporting a large divergence from `origin/main` after the initial shallow fetch (local tip on
+the stale `b2bcb78` shallow-clone boundary, same recurring artifact noted in every prior firing's entry
+above). Re-verified the same way: `git fetch --unshallow`, confirmed `merge-base main origin/main` resolves
+to `b2bcb78` itself (a real ancestor, not a divergence), then fast-forwarded local `main` to `origin/main`'s
+real tip before proceeding.
+
+Read `state.json`: `status` still `"blocked"`, `current_unit` still Phase 2 Track 2A, `last_commit` still
+`4c5689b`. Checked `specs/24-camera-mode.md`'s git history since `4c5689b`: zero commits touch that file --
+no human has recorded a real-hardware soak result since the block was set (~21:09 UTC 2026-10-24). Confirmed
+no non-lock/non-orchestrator commits landed since the 06:09 UTC firing's check. Nothing has changed.
+
+The 09:08 UTC firing (2026-10-24) already sent the push notification for this block and nothing new has
+emerged since, so this firing sent none (34th consecutive no-op firing on the same unresolved human-only
+decision, roughly 34 hours).
+
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code. Still
+waiting on: a human running the real-hardware 10-minute 1080p30 pacer+NDI soak on the production Mac mini
+against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode.md`, and clearing this
+block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
