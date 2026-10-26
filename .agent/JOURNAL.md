@@ -5083,3 +5083,37 @@ against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode
 block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 11:18 UTC firing (2026-10-26) -- re-confirmed BLOCKED, 38th consecutive no-op
+
+Lock was absent (clean exit from the 10:09 UTC firing); acquired fresh (session_01SCbVKWncfVuVakF6xybEKj)
+and pushed as its own commit before reading `state.json`, per roadmap step 0. Initial fetch again showed
+local `main` reporting no common ancestor with `origin/main`, plus a spurious "forced update" marker on the
+ref (the same recurring shallow-clone artifact every prior firing has logged, not a real history rewrite):
+`git fetch --unshallow` resolved it -- `merge-base main origin/main` landed on `b2bcb78`, and local `main`
+had exactly zero unique commits beyond that point, confirming it was purely stale/behind, not diverged.
+Fast-forwarded local `main` to `origin/main`'s real tip (`c1ccc89`) before proceeding.
+
+Note: the scheduled task's own stored prompt text this firing received still describes Camera Mode as
+starting fresh at Phase 0 with the device-contention question open, and references the Electron migration
+as the prior effort -- both stale relative to actual repo state, same as noted in every prior entry.
+`state.json` and the roadmap doc were treated as authoritative, per the roadmap's own instruction to read
+`state.json` fresh each firing.
+
+Read `state.json`: `status` still `"blocked"`, `current_unit` still Phase 2 Track 2A, `last_commit` still
+`4c5689b`. Checked `specs/24-camera-mode.md`'s git history since `4c5689b`: zero commits touch that file.
+Checked for any non-lock/non-orchestrator commits since `4c5689b`: none. Re-read the spec's soak-criterion
+language directly: still explicitly "not met" / "open", no Phase 0 run recorded on target hardware. No
+human has recorded a real-hardware soak result since the block was set (first block commit 14bc3f7,
+2026-10-24 19:16 UTC). Nothing has changed since the 10:09 UTC firing's check.
+
+The 09:08 UTC firing (2026-10-24) already sent the push notification for this block and nothing new has
+emerged since, so this firing sent none (38th consecutive no-op firing on the same unresolved human-only
+decision, roughly 40 hours).
+
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code. Still
+waiting on: a human running the real-hardware 10-minute 1080p30 pacer+NDI soak on the production Mac mini
+against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode.md`, and clearing this
+block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
