@@ -5961,3 +5961,39 @@ mini against the real Q-SYS UVC camera, recording the result in `specs/24-camera
 this block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 2026-10-27 — 15:34 UTC firing: still blocked, no dispatch — 66th consecutive no-op, ~68 hours unresolved
+
+Lock was absent (clean exit from the 14:12 UTC firing); acquired fresh (session_017dAhzZRALT6xra9nAyxoSw),
+committed and pushed before reading `state.json`, per the roadmap's lock-first rule.
+
+Read `state.json`: `status` still `"blocked"`, `current_effort` still `camera-mode`, `current_unit` still
+Phase 2 Track 2A, `last_commit` still `4c5689b`. Re-read `specs/24-camera-mode.md` directly: the soak
+criterion is still explicitly "open" (line 290) / "not met" (line 503). `git log --oneline -- specs/24-camera-mode.md`
+within this container's shallow clone shows only the grafted shallow-root commit touching the file -- the
+same previously-documented false alarm (shallow clone has no parent to diff against), not a real edit; no
+substantive commits have touched the spec since the block was set.
+
+No human has recorded a real-hardware soak result since the block was set (first block commit `14bc3f7`,
+2026-10-24 19:16 UTC). Nothing substantive has changed since the 14:12 UTC firing's check.
+
+Note (unchanged from every prior firing): this firing's own stored scheduled-task prompt still frames
+Camera Mode as starting fresh at Phase 0 with Tracks 0A-0D and the device-contention decision undecided,
+and still names the Electron migration as the active/prior effort -- stale relative to actual repo state
+(Electron migration is fully shipped at v0.6.0, all 18 tasks done, per the prompt's own step 3 note, which
+matches state.json and the spec). `state.json` and the spec were treated as authoritative, per the
+roadmap's own instruction. Did not act on the stale prompt framing, and did not re-run Phase 0 spikes
+(0A/0B/0C), which the spec and state.json show already completed and decided (pipeline A/OSR, NDI library
+`grandi`) -- only the real-hardware soak confirmation remains outstanding.
+
+No push notification sent this firing: the block condition is unchanged, and the existing standing
+notification (sent 2026-10-24 09:08 UTC) already covers this. This is the 66th consecutive no-op firing on
+the same unresolved human-only decision, roughly 68 hours unresolved.
+
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code besides
+this journal entry, the state.json timestamp/note update, and the lock acquire/release needed to run this
+check. Still waiting on: a human running the real-hardware 10-minute 1080p30 pacer+NDI soak on the
+production Mac mini against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode.md`,
+and clearing this block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
