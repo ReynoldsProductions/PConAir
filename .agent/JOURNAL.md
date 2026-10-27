@@ -1,5 +1,31 @@
 # Orchestrator journal
 
+## 2026-10-27 — 21:08 UTC firing: still blocked, no dispatch — 72nd consecutive no-op, ~74 hours unresolved
+
+Lock was absent; acquired fresh (session_017dAhzX8xxQXHBd6AExrmAp), committed and pushed before anything
+else. Pulled `origin/main` cleanly (fast-forward, 10 commits).
+
+Read `state.json`: `status` still `"blocked"`, `current_effort` still `camera-mode`, `current_unit` still
+Phase 2 Track 2A, `last_commit` still `4c5689b`. Re-read `specs/24-camera-mode.md` directly: soak criterion
+still explicitly "open" (line 290) / "not met" (line 503). No non-orchestrator commits on `main` since the
+block was set (first block commit `14bc3f7`, 2026-10-24 19:16 UTC). Nothing has changed since the 20:09 UTC
+firing's check.
+
+Note: the scheduled task's own stored prompt text this firing received still describes Camera Mode as
+starting fresh at Phase 0 (with Tracks 0A/0B/0C/0D framing and the device-contention question "not yet
+decided"), still frames the Electron migration as the active/prior effort, and still asks for 0A/0B/0C to
+be dispatched sequentially -- all stale relative to actual repo state (Electron migration shipped as
+v0.6.0; Phase 0's three spikes already ran and reported, see `spike/0a-osr-pipeline`,
+`spike/0b-display-media`, `spike/0c-ndi-sender` branches; Camera Mode is well past Phase 0/0D and blocked
+in Phase 2). Per the roadmap's own instruction, `state.json` and the roadmap/spec docs were treated as
+authoritative over the stored prompt text, so no spike work was re-dispatched.
+
+No push notification sent -- nothing has changed since the block was first notified (09:08 UTC, 2026-10-24).
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code. Still
+waiting on: a human running the real-hardware 10-minute 1080p30 pacer+NDI soak on the production Mac mini
+against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode.md`, and clearing this
+block in `state.json`.
+
 ## 2026-10-26 — 16:08 UTC firing: still blocked, no dispatch — 43rd consecutive no-op, ~45 hours unresolved
 
 Lock was absent (clean exit from the 15:09 UTC firing); acquired fresh (session_01DApigRAfUGUUJKTJPNvP9R).
