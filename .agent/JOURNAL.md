@@ -5652,3 +5652,23 @@ this journal entry and the state.json timestamp update. Still waiting on: a huma
 result in `specs/24-camera-mode.md`, and clearing this block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 2026-10-27 — 05:09 UTC firing: still blocked, no dispatch — 56th consecutive no-op, ~58 hours unresolved
+
+Lock was absent (clean exit from the 04:09 UTC firing); acquired fresh (session_017dAhzaMW784bMyqyNq9FKm),
+committed and pushed before reading state.json, per the roadmap's hard gate.
+
+Read `state.json`: `status` still `"blocked"`, `current_effort` still `camera-mode`, `current_unit` still
+Phase 2 Track 2A, `last_commit` still `4c5689b`. Re-read `specs/24-camera-mode.md` directly: soak criterion
+still explicitly "open" (line 290) / "not met" (line 503). No non-orchestrator commits on `main` since the
+block was set (first block commit `14bc3f7`, 2026-10-24 19:16 UTC). Nothing has changed since the 04:09 UTC
+firing's check.
+
+Note: the scheduled task's own stored prompt text this firing received still describes Camera Mode as
+starting fresh at Phase 0 (with Tracks 0A/0B/0C/0D framing and the device-contention question "not yet
+decided"), and still frames the Electron migration as the active/prior effort — both stale relative to
+`state.json`/the spec, which remain authoritative per the roadmap. Did not act on the stale prompt framing.
+
+No push notification sent: condition is unchanged from the standing notification already sent
+2026-10-24 09:08 UTC, consistent with every firing since. Released lock, no dispatch, per orchestrator
+roadmap step 2 (status blocked).
