@@ -5997,3 +5997,12 @@ production Mac mini against the real Q-SYS UVC camera, recording the result in `
 and clearing this block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 16:22 UTC firing (2026-10-27)
+
+- Lock acquired (session_017dAhzW28R6xTcmQNupGjjL), pulled latest main — up to date.
+- state.json status: blocked (unchanged). Per orchestrator roadmap step 2: status blocked → release lock, stop, do not dispatch.
+- Re-verified the block condition directly rather than trusting the note alone: `specs/24-camera-mode.md` still shows the soak criterion "open" (line 290) / "not met" (line 503). No commits to the spec or state.json since the block was set (first block commit 14bc3f7, 2026-10-24 19:16 UTC).
+- Note: the scheduled task's own stored prompt text is stale — it frames Camera Mode as starting fresh at Phase 0 and names the Electron migration as the active effort. Both are wrong per CLAUDE.md (Electron migration fully shipped) and per state.json (camera-mode is at Phase 2, blocked). Per roadmap, state.json and the spec are authoritative over the stored prompt text, so no Phase 0 work was dispatched.
+- This is the 67th consecutive hourly firing re-confirming the same block (~69 hours unresolved). No push notification sent — condition is unchanged from the standing notification already sent (2026-10-24 09:08 UTC); nothing new to alert on.
+- No dispatch. Released lock, committed, pushed.
