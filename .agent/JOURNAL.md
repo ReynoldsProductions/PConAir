@@ -5855,3 +5855,43 @@ mini against the real Q-SYS UVC camera, recording the result in `specs/24-camera
 this block in `state.json`.
 
 **No code changed this firing. Lock released as part of this same commit.**
+
+## 2026-10-27 — 12:20 UTC firing: still blocked, no dispatch — 63rd consecutive no-op, ~65 hours unresolved
+
+Lock was absent (clean exit from the prior firing); acquired fresh (session_017dAhzZ6koykrdFqkvCR4jP),
+committed and pushed before reading state.json, per the roadmap's lock-first rule.
+
+Read `state.json`: `status` still `"blocked"`, `current_effort` still `camera-mode`, `current_unit` still
+Phase 2 Track 2A, `last_commit` still `4c5689b`. Verified directly: `git log --oneline` against
+`specs/24-camera-mode.md` and `docs/plans/2026-09-28-dependency-currency.md` since the lock-acquire commit
+returned empty -- zero commits have touched the spec since the block was set. Re-read
+`specs/24-camera-mode.md` directly: the soak criterion is still explicitly "open" (line 290) / "not met"
+(line 503).
+
+No human has recorded a real-hardware soak result since the block was set (first block commit `14bc3f7`,
+2026-10-24 19:16 UTC). Nothing substantive has changed since the 11:16 UTC firing's check.
+
+Note (unchanged from every prior firing): this firing's own stored scheduled-task prompt still frames
+Camera Mode as starting fresh at Phase 0 with Tracks 0A-0D and the device-contention decision undecided,
+and still names the Electron migration as the active/prior effort -- stale relative to actual repo state.
+`state.json` and the spec were treated as authoritative, per the roadmap's own instruction. Did not act on
+the stale prompt framing.
+
+Also noted: this container's clone of the repo is shallow (`.git/shallow` present); the resulting grafted
+root commit (`93c5413`, titled "Acquire orchestrator lock for 11:18 UTC firing") appears to carry the
+entire tree as "added" in a diff, which looks alarming at a glance but is just the ordinary shallow-clone
+artifact (no parent to diff against) -- not evidence of a history rewrite. Confirmed via `.git/shallow`
+before concluding this; flagged here only so a future firing doesn't re-investigate the same false alarm.
+
+No push notification sent this firing: the block condition is unchanged, and the existing notification
+(sent at 09:08 UTC on 2026-10-24, reaffirmed as the standing notification by every firing since) already
+covers this. This is the 63rd consecutive no-op firing on the same unresolved human-only decision, roughly
+65 hours unresolved.
+
+Per the roadmap, `blocked` means stop and do not dispatch; took no other action and wrote no code besides
+this journal entry, the state.json timestamp update, and the lock acquire/release needed to run this check.
+Still waiting on: a human running the real-hardware 10-minute 1080p30 pacer+NDI soak on the production Mac
+mini against the real Q-SYS UVC camera, recording the result in `specs/24-camera-mode.md`, and clearing
+this block in `state.json`.
+
+**No code changed this firing. Lock released as part of this same commit.**
