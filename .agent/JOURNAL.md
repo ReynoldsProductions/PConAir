@@ -1,5 +1,28 @@
 # Orchestrator journal
 
+## 2026-10-28 — 11:13 UTC firing: still blocked, no dispatch — 85th consecutive no-op, ~88 hours unresolved
+
+Lock was absent; acquired fresh (session_017dAhzaVHR81uRt4aXMbZdS), committed and pushed before anything
+else (local checkout started with HEAD detached at `origin/main`'s prior tip; checked out `main` and
+fast-forwarded to `origin/main` before touching the lock). Pulled `origin/main` cleanly — fast-forward only,
+37 refs newly visible (unrelated feature/spike/dependabot branches and release tags), no new commits on
+`main` itself since the 10:09 UTC firing's own commit (`fd18378`).
+
+Read `state.json`: `status` still `"blocked"`, `current_effort` still `camera-mode`, `current_unit` still
+Phase 2 Track 2A. Re-read `specs/24-camera-mode.md` directly: soak criterion still explicitly "open"
+(line 290) / "not met" (line 503). No non-orchestrator commits on `main` since `fd18378`. Nothing has
+changed since the 10:09 UTC firing's check.
+
+What's needed from a human is unchanged: physically run the real-hardware 10-minute 1080p30 soak (Candidate
+A / OSR pipeline, off-main-thread pacer, feeding `grandi`'s NDI send) on the production Mac mini against the
+real Q-SYS UVC camera, per the Phase 0 exit criteria in `specs/24-camera-mode.md`, and record the result
+there (pass → unblock Phase 2 as-is; fail → trigger the Candidate B / `getDisplayMedia` fallback already
+documented in the spec).
+
+No push notification sent this firing — condition is unchanged from the standing notification sent
+2026-10-24 09:08 UTC, consistent with every firing since. Released lock, no dispatch, per orchestrator
+roadmap step 2 (status blocked).
+
 ## 2026-10-28 — 10:09 UTC firing: still blocked, no dispatch — 84th consecutive no-op, ~87 hours unresolved
 
 Lock was absent; acquired fresh (session_017dAhzXa2qUwQEv634c2nFs), committed and pushed before anything
