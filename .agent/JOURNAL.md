@@ -6814,3 +6814,34 @@ No push notification sent -- condition is unchanged from the standing notificati
 sent 2026-10-24 09:08 UTC, consistent with every firing since.
 
 Released lock, committed, pushed. No code change this firing.
+
+## 13:38 UTC firing (session_017dAhzYptKQX3Q51kT9m7xM)
+
+Lock acquired (f1dc846, on top of real origin/main tip 5a9c986). Read state.json:
+status=blocked, current_effort=camera-mode, current_unit=Phase 2 Track 2A.
+
+Note: this container's local `main` again started pointing at a disjoint,
+previously-cached history (50 commits with no common ancestor vs. origin/main,
+same recurring shallow-clone/caching artifact flagged by many prior firings).
+Diffed both chains: the local-only side was pure orchestrator lock/journal
+bookkeeping (firings up to 15:34 UTC under the old pre-reset numbering), no code
+divergence. Reset local main to origin/main's real tip
+(`git checkout -B main origin/main`) before acquiring the lock. No work lost.
+
+Verified nothing new since the 12:14 UTC firing / Tom's 12:20 UTC interactive
+instruction: specs/24-camera-mode.md still shows the Phase 0 exit soak criterion
+as "open" (line 290) / "not met" (line 503); `git log` over specs/24-camera-mode.md
+and .agent/state.json since 5a9c986 shows only this firing's own lock-acquire
+commit. No human has updated state.json or the spec to record a real-hardware
+soak result.
+
+Per Tom's explicit 2026-10-29 ~12:20 UTC instruction (recorded in state.json):
+hold, dispatch nothing, and do not send another elapsed-time reminder
+notification -- only break silence if something new surfaces. Nothing new
+surfaced this firing, so no push notification sent.
+
+Per roadmap step 2 (status blocked): release lock, stop, no dispatch. This
+remains a pending human decision (the real-hardware soak), now additionally
+gated on Tom's own explicit hold instruction. No code changed this firing besides
+this journal entry, the state.json timestamp note, and the lock acquire/release.
+Lock released as part of this same commit.
