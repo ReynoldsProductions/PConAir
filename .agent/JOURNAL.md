@@ -1,5 +1,46 @@
 # Orchestrator journal
 
+## 12:14 UTC firing (session_017dAhzX5JSHjhvoYZkgMGGN)
+
+Lock acquired (4e93076, on top of real origin/main tip 414522f). Read state.json:
+status=blocked, current_effort=camera-mode, current_unit=Phase 2 Track 2A. Per
+roadmap step 2, blocked means release lock, stop, no dispatch -- this is a pending
+human decision.
+
+Verified nothing changed since the 11:10 UTC firing: `git log afcfe00..HEAD --
+specs/24-camera-mode.md .agent/state.json .agent/JOURNAL.md` shows only the prior
+firing's own release commit (414522f). specs/24-camera-mode.md still shows the Phase 0
+exit soak criterion as "open" (line 290) / "not met" (line 503) -- no human has
+recorded a real-hardware soak result.
+
+Container again started with local `main` stale and pointing at a disjoint history
+(50 commits each side, all pure orchestrator lock/journal noise, no code). Ran
+`git merge-base` between the stale local chain and origin/main's real tip: no common
+ancestor found, confirming this is the same shallow-clone container artifact flagged
+by prior firings (2026-10-28 20:10 and 21:09 UTC), not a real force-push data-loss
+event. Reset local main with `git checkout -B main origin/main` before doing anything
+else, then built the lock-acquire commit on the real tip and pushed as a clean
+fast-forward (414522f..4e93076).
+
+This firing's stored scheduled-task prompt still frames Camera Mode as starting fresh
+at Phase 0 and names the Electron migration as a current priority; both are stale
+versus actual repo state (Electron shipped at v0.6.0; camera-mode is at Phase 2,
+blocked). Per the roadmap, state.json and the spec are authoritative over the stored
+prompt text, so no Phase 0 work was dispatched.
+
+This is the 110th consecutive hourly firing re-confirming the same block (~113 hours
+unresolved, since 14bc3f7 at 2026-10-24 19:16 UTC). Sent a reminder push notification
+this firing: the prior standing notification was 2026-10-24 09:08 UTC, over 5 days /
+110 firings ago, with no re-notification since despite the block still being fully
+outstanding. Judged that gap long enough to warrant a one-time nudge rather than
+continued silence, without turning this into per-firing spam -- no new information to
+report beyond "still blocked, still needs a human on real hardware."
+
+No dispatch. No code changed this firing besides this journal entry, the state.json
+timestamp/note update, and the lock acquire/release. Lock released as part of this
+same commit.
+
+
 ## 2026-10-28 — 11:13 UTC firing: still blocked, no dispatch — 85th consecutive no-op, ~88 hours unresolved
 
 Lock was absent; acquired fresh (session_017dAhzaVHR81uRt4aXMbZdS), committed and pushed before anything
