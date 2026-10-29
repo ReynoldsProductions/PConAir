@@ -6735,3 +6735,26 @@ alert on.
 No dispatch. No code changed this firing besides this journal entry, the
 state.json timestamp/note update, and the lock acquire/release. Lock
 released as part of this same commit.
+
+## 11:10 UTC firing (session_017dAhzYzWGCiiTS7jpp1FK1)
+
+Lock acquired (afcfe00). Read state.json: status=blocked, current_effort=camera-mode,
+current_unit=Phase 2 Track 2A. Per roadmap step 2, blocked means release lock, stop,
+no dispatch -- this is a pending human decision.
+
+Verified nothing changed since the 10:09 UTC firing: `git log 9c9a955..afcfe00 --
+specs/24-camera-mode.md .agent/state.json` shows only the prior firing's own
+lock-release commit (5a54eff). specs/24-camera-mode.md still shows the Phase 0 exit
+soak criterion as "open" (line 290) / "not met" (line 503) -- no human has recorded a
+real-hardware soak result.
+
+This firing's stored scheduled-task prompt still frames Camera Mode as starting fresh
+at Phase 0 and names the Electron migration as a current priority; both are stale
+versus actual repo state (Electron shipped at v0.6.0; camera-mode is at Phase 2,
+blocked). Per the roadmap, state.json and the spec are authoritative over the stored
+prompt text, so no Phase 0 work was dispatched.
+
+No push notification sent -- condition is unchanged from the standing notification
+sent 2026-10-24 09:08 UTC, consistent with every firing since.
+
+Released lock, committed, pushed. No code change this firing.
