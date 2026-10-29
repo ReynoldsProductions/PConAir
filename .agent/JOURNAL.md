@@ -7008,3 +7008,36 @@ he explicitly asked to stop elapsed-time re-notifications on this same block.
 
 Per roadmap step 2 (status blocked): no dispatch. Released lock as part of this
 same commit. No code changed.
+
+## 19:10 UTC firing (session_017dAhzXprZXFPQjuviAaQVG)
+
+Pulled latest; local checkout was in a detached-HEAD state at startup (same
+recurring artifact prior firings have hit, no divergence this time). Ran
+`git checkout main && git reset --hard origin/main` and set the upstream
+tracking branch; working tree was clean, nothing lost. No lock file present;
+acquired fresh (bd85a7a), committed and pushed before reading state.json, per
+the roadmap's lock-first rule.
+
+Read state.json: `status` still `"blocked"`, still Tom's 2026-10-29 ~12:20 UTC
+hold ("Hold and do nothing else until I report this test is passed. Until then
+we pause."). Checked `git log 1c49f62..bd85a7a -- specs/24-camera-mode.md
+.agent/state.json`: empty -- no commits touched either file between the 18:10
+UTC firing and this one's own lock acquire. Diffed specs/24-camera-mode.md
+against 5a9c986 (the commit at the time of Tom's hold instruction): empty --
+byte-for-byte unchanged. Re-grepped the file directly: the soak criterion is
+still "open" (line 290) / "not met" (line 503). No human has recorded a
+real-hardware soak result.
+
+This firing's own stored scheduled-task prompt again framed Camera Mode as
+starting fresh at Phase 0 with the Electron migration as a current priority --
+stale vs. actual repo state (Electron shipped v0.6.0; Phase 0 spikes done;
+camera-mode is actually at Phase 2, blocked, per this file and the spec).
+state.json and the spec are authoritative per the roadmap, so no Phase 0 work
+was dispatched.
+
+Per Tom's instruction, no reminder notification sent -- nothing new to report,
+and he explicitly asked to stop elapsed-time re-notifications on this same
+block.
+
+Per roadmap step 2 (status blocked): no dispatch. Released lock as part of
+this same commit. No code changed.
