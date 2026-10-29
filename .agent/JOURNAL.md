@@ -6615,3 +6615,43 @@ alert on.
 No dispatch. No code changed this firing besides this journal entry, the
 state.json timestamp/note update, and the lock acquire/release. Lock
 released as part of this same commit.
+
+## 2026-10-29 08:14 UTC firing
+
+Lock acquired cleanly (no held/stale lock found). Container started with
+local `main` stale/detached (same recurring container-state artifact as
+every prior firing); the lock-acquire commit (`ca50bdc`) built cleanly on
+top of `origin/main`'s real tip (`c6d7a4d`), so local `main` was
+force-moved onto it and pushed as a plain fast-forward (`c6d7a4d..ca50bdc`)
+-- no work lost, no cherry-pick needed.
+
+`state.json` status: blocked (unchanged). Per orchestrator roadmap step 2:
+status blocked -> release lock, stop, do not dispatch anything.
+
+Re-verified the block condition directly: `specs/24-camera-mode.md` still
+shows the soak criterion "open" (line 290) / "not met" (line 503). No
+commits touched either `specs/24-camera-mode.md` or `.agent/state.json`
+since the prior firing's commit (`c6d7a4d`) besides this firing's own lock
+acquire (`ca50bdc`).
+
+Note (unchanged from every prior firing): this firing's own stored
+scheduled-task prompt still frames Camera Mode as starting fresh at Phase 0
+with Tracks 0A-0D and the device-contention decision undecided, and still
+names the Electron migration as the active/prior effort -- stale relative
+to actual repo state (Electron migration fully shipped at v0.6.0, per
+CLAUDE.md; camera-mode is actually at Phase 2, blocked, per state.json and
+the spec). Per the roadmap, state.json and the spec are authoritative over
+the stored prompt text, so no Phase 0 work was dispatched and no Phase 0
+spikes were re-run (0A/0B/0C are already completed and decided per the
+spec: pipeline A/OSR, NDI library grandi -- only the real-hardware soak
+confirmation remains outstanding).
+
+This is the 106th consecutive hourly firing re-confirming the same block
+(~109 hours unresolved, since 14bc3f7 at 2026-10-24 19:16 UTC). No push
+notification sent this firing -- the block condition is unchanged from the
+standing notification already sent (2026-10-24 09:08 UTC); nothing new to
+alert on.
+
+No dispatch. No code changed this firing besides this journal entry, the
+state.json timestamp/note update, and the lock acquire/release. Lock
+released as part of this same commit.
