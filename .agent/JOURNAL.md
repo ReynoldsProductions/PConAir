@@ -1,5 +1,20 @@
 # Orchestrator journal
 
+## 2026-10-29 ~12:20 UTC -- direct instruction from Tom (not a scheduled firing)
+
+Tom asked why nothing had changed in 5 days; answered with the block detail, the
+exact soak-test procedure needed, and the PR backlog (just #81, an unrelated
+dependabot bump). He then said: "Hold and do nothing else until I report this test
+is passed. Until then we pause."
+
+Recorded this verbatim in state.json's notes as a standing instruction for every
+future firing: stay blocked, dispatch nothing, and stop sending elapsed-time
+reminder notifications about this same block -- only resume or re-notify once Tom
+reports the real-hardware soak result himself (or a human edit to state.json/the
+spec shows it). No code changed. No lock acquired for this edit since it happens
+inside an interactive session, not a scheduled firing.
+
+
 ## 12:14 UTC firing (session_017dAhzX5JSHjhvoYZkgMGGN)
 
 Lock acquired (4e93076, on top of real origin/main tip 414522f). Read state.json:
