@@ -1,5 +1,31 @@
 # Orchestrator journal
 
+## 20:11 UTC firing (session_017dAhzWzgsQB9X14gV7ZAPw)
+
+Lock acquired (a1c6cf0, on top of real origin/main tip bb04067). Read state.json:
+status=blocked, current_effort=camera-mode, current_unit=Phase 2 Track 2A. Per
+roadmap step 2, blocked means release lock, stop, no dispatch -- pending human
+decision.
+
+Verified nothing changed since the 19:10 UTC firing: `git log 5a9c986..bb04067 --
+specs/24-camera-mode.md .agent/state.json` shows only orchestrator lock/journal
+commits, and `git diff 5a9c986 bb04067 -- specs/24-camera-mode.md` is empty. Soak
+criterion still "open" (line 290) / "not met" (line 503). No human update since
+Tom's 12:20 UTC hold instruction.
+
+Container again started with local main detached from HEAD (same recurring
+artifact flagged by prior firings); reset to origin/main's real tip before
+acquiring the lock, no work lost.
+
+This firing's stored scheduled-task prompt again framed Camera Mode as starting
+fresh at Phase 0 with the Electron migration as current priority -- stale vs.
+actual repo state (Electron shipped v0.6.0; camera-mode is at Phase 2, blocked).
+state.json and the spec are authoritative, so no Phase 0 work was dispatched.
+
+Per Tom's instruction, no reminder notification sent (nothing new to report).
+Released lock, no dispatch.
+
+
 ## 2026-10-29 ~12:20 UTC -- direct instruction from Tom (not a scheduled firing)
 
 Tom asked why nothing had changed in 5 days; answered with the block detail, the
