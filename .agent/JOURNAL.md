@@ -6345,3 +6345,16 @@ and clearing this block in `state.json`.
 - Note (unchanged from every prior firing): this firing's own stored scheduled-task prompt still frames Camera Mode as starting fresh at Phase 0 with Tracks 0A-0D and the device-contention decision undecided, and still names the Electron migration as the active/prior effort -- stale relative to actual repo state (Electron migration fully shipped at v0.6.0, per CLAUDE.md and the prompt's own step 3 note; camera-mode is actually at Phase 2, blocked, per state.json and the spec). Per the roadmap, state.json and the spec are authoritative over the stored prompt text, so no Phase 0 work was dispatched and no Phase 0 spikes were re-run (0A/0B/0C are already completed and decided per the spec: pipeline A/OSR, NDI library grandi -- only the real-hardware soak confirmation remains outstanding).
 - This is the 98th consecutive hourly firing re-confirming the same block (~101 hours unresolved, since 14bc3f7 at 2026-10-24 19:16 UTC). No push notification sent this firing -- the block condition is unchanged from the standing notification already sent (2026-10-24 09:08 UTC); nothing new to alert on.
 - No dispatch. No code changed this firing besides this journal entry, the state.json timestamp/note update, and the lock acquire/release. Lock released as part of this same commit.
+
+## 01:09 UTC firing (session_017dAhzW4W31pVZrNm9ghVQx)
+
+Lock acquired (86ad455). Read state.json: status=blocked, camera-mode Phase 2
+Track 2A, blocked on human real-hardware soak test (unchanged since
+2026-10-24 19:16 UTC, 99th consecutive confirming firing). Re-verified
+specs/24-camera-mode.md directly: soak criterion still "open"/"not met"
+(lines 290, 503). No spec or state.json change since last firing besides
+lock churn. Per roadmap step 2, released lock without dispatching anything.
+No push notification sent -- condition unchanged from standing notification
+(2026-10-24 09:08 UTC). Stored scheduled-task prompt still stale (frames
+camera-mode as starting at Phase 0 with Electron migration as co-priority);
+disregarded per roadmap precedence of state.json/spec over stored prompt text.
