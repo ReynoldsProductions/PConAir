@@ -6879,3 +6879,34 @@ remains a pending human decision (the real-hardware soak), gated on Tom's own
 explicit hold instruction. No code changed this firing besides this journal
 entry, the state.json note, and the lock acquire/release. Lock released as part
 of this same commit.
+
+## 15:22 UTC firing (session_017dAhzZvcdnECPkLCTmjboc)
+
+Lock acquired (66b9c06, on top of real origin/main tip 164969b). Read state.json:
+status=blocked, current_effort=camera-mode, current_unit=Phase 2 Track 2A.
+
+Verified nothing new since the 14:16 UTC firing / Tom's 12:20 UTC interactive hold
+instruction: `git log 5a9c986..HEAD -- specs/24-camera-mode.md .agent/state.json`
+shows only orchestrator lock-acquire/journal commits. specs/24-camera-mode.md still
+shows the Phase 0 exit soak criterion as "open" (line 290) / "not met" (line 503).
+No human has updated state.json or the spec to record a real-hardware soak result.
+
+This firing's own stored scheduled-task prompt again framed Camera Mode as starting
+fresh at Phase 0 (Tracks 0A-0D, with the device-contention decision cast as unresolved)
+and named the Electron migration as a current priority alongside it -- both stale
+versus actual repo state: Electron migration shipped at v0.6.0 (CLAUDE.md), and Phase 0
+is already complete (spike/0a-osr-pipeline, spike/0b-display-media, spike/0c-ndi-sender
+branches plus the NDI-library decision recorded in the spec on 2026-09-29); camera-mode
+is actually at Phase 2, blocked on the real-hardware soak. Per the orchestrator roadmap,
+state.json and the spec are authoritative over the stored scheduled-task prompt text, so
+no Phase 0 work was dispatched and no camera-mode work was dispatched either.
+
+Per Tom's explicit 2026-10-29 ~12:20 UTC instruction (recorded in state.json above):
+hold, dispatch nothing, and do not send another elapsed-time reminder notification --
+only break silence if something new surfaces. Nothing new surfaced this firing, so no
+push notification sent.
+
+Per roadmap step 2 (status blocked): release lock, stop, no dispatch. This remains a
+pending human decision (the real-hardware soak), gated on Tom's own explicit hold
+instruction. No code changed this firing besides this journal entry, the state.json
+note, and the lock acquire/release. Lock released as part of this same commit.
