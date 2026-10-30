@@ -7281,3 +7281,47 @@ remains a pending human decision (the real-hardware soak), gated on Tom's
 own explicit hold instruction. No code changed this firing besides this
 journal entry, the state.json note, and the lock acquire/release. Lock
 released as part of this same commit.
+
+## 2026-10-30 03:09 UTC firing
+
+Pulled latest, checked `.agent/lock.json`: absent (previous firing released
+it cleanly). Acquired the lock with this session's id and pushed
+immediately.
+
+Local repo this firing started HEAD-detached with local `main` diverged
+50/50 from `origin/main` (same recurring shallow-clone artifact seen by
+every prior firing today -- confirmed via `git rev-parse
+--is-shallow-repository` = true and `.git/shallow`). Working tree was
+clean, no local-only commits. Reset with `git checkout -B main
+origin/main` before acquiring the lock; no work lost.
+
+Read state.json: `status` still `"blocked"`, still Tom's 2026-10-29 ~12:20
+UTC hold ("Hold and do nothing else until I report this test is passed.
+Until then we pause."). Checked `git log 958749d..HEAD`: empty except this
+firing's own lock-acquire commit -- no human edits landed between the
+02:09 UTC firing and this one. Re-read specs/24-camera-mode.md directly:
+the soak criterion is still "open" (line 290) / "not met" (line 503).
+Checked ReadNotifications: no queued notifications from Tom or anyone
+else. No human has recorded a real-hardware soak result.
+
+This firing's own stored scheduled-task prompt again framed Camera Mode as
+starting fresh at Phase 0 (Tracks 0A-0D, device-contention decision
+undecided) and named the Electron migration as a current priority -- both
+stale vs. actual repo state: Electron migration shipped at v0.6.0 (all 18
+tasks done, per CLAUDE.md), and Phase 0 (0A/0B/0C spikes + the 0D decision
+memo) is already complete; camera-mode is actually at Phase 2, Track 2A,
+blocked on the real-hardware soak. Per the orchestrator roadmap, state.json
+and the spec are authoritative over the stored scheduled-task prompt text,
+so no Phase 0 work was dispatched and no camera-mode work was dispatched
+either.
+
+Per Tom's explicit 2026-10-29 ~12:20 UTC instruction (recorded in
+state.json): hold, dispatch nothing, and do not send another elapsed-time
+reminder notification -- only break silence if something new surfaces.
+Nothing new surfaced this firing, so no push notification was sent.
+
+Per roadmap step 2 (status blocked): release lock, stop, no dispatch. This
+remains a pending human decision (the real-hardware soak), gated on Tom's
+own explicit hold instruction. No code changed this firing besides this
+journal entry, the state.json note, and the lock acquire/release. Lock
+released as part of this same commit.
