@@ -7550,3 +7550,27 @@ notification sent. Per roadmap step 2 (status blocked): release lock,
 stop, no dispatch.
 
 Lock released in this same commit.
+
+## 12:18 UTC firing (session_017dAhzXTtkBVY7vmrARr4m2)
+
+Same pattern as every firing since Tom's 2026-10-29 ~12:20 UTC hold.
+Local `main` again started detached/stale vs origin/main (recurring
+shallow-depth-50 clone-boundary artifact -- `git fetch` reported a
+"forced update" on origin/main; confirmed via `git merge-base` /
+`git rev-list --count` that both tips hit the shallow graft boundary
+at 50 commits with no real shared history gap, not an actual history
+rewrite). Reset with `git checkout -B main origin/main`, no work
+lost, then acquired the lock (5865c9d) and pushed immediately.
+
+`git log 94f2971..HEAD` shows no commits besides this firing's own
+lock-acquire -- no human edits to the spec or state.json since the
+11:12 UTC firing. Direct re-read of specs/24-camera-mode.md: soak
+criterion still "open" (line 290) / "not met" (line 503), unchanged.
+ReadNotifications: no queued notifications. No human has recorded a
+real-hardware soak result.
+
+Per Tom's instruction, nothing new surfaced, so no reminder
+notification sent. Per roadmap step 2 (status blocked): release lock,
+stop, no dispatch.
+
+Lock released in this same commit.
