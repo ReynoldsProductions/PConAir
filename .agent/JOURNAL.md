@@ -7434,3 +7434,33 @@ notification sent. Per roadmap step 2 (status blocked): release lock,
 stop, no dispatch.
 
 Lock released in this same commit.
+
+## 08:10 UTC firing (session_017dAhzWZjCh1TCS3JoZEJo3)
+
+Same pattern as every firing since Tom's 2026-10-29 ~12:20 UTC hold.
+Local `main` again started HEAD-detached / diverged from `origin/main`
+(recurring shallow-clone artifact; git pull also reported a forced
+update on origin/main fetch, consistent with the same underlying
+artifact rather than any real history rewrite -- origin/main's tip
+commit matched the expected prior firing's commit). Reset with
+`git checkout -B main origin/main`, no work lost, then acquired the
+lock (e2187ab) and pushed immediately.
+
+`git log efcbeb2..HEAD -- specs/24-camera-mode.md .agent/state.json`
+shows only this firing's own lock commit plus the prior firing's
+timestamp-only re-confirmation commit (8761111) -- no human edits to
+the spec or state.json since the 07:11 UTC firing. Direct re-read of
+specs/24-camera-mode.md: soak criterion still "open" (line 290) /
+"not met" (line 503), unchanged. ReadNotifications: no queued
+notifications. No human has recorded a real-hardware soak result.
+This firing's own stored scheduled-task prompt again framed Camera
+Mode as starting fresh at Phase 0 and named the Electron migration as
+current priority -- stale vs. actual repo state (Electron shipped
+v0.6.0; Phase 0 complete; camera-mode is at Phase 2, blocked);
+state.json/spec are authoritative, so nothing was dispatched.
+
+Per Tom's instruction, nothing new surfaced, so no reminder
+notification sent. Per roadmap step 2 (status blocked): release lock,
+stop, no dispatch.
+
+Lock released in this same commit.
