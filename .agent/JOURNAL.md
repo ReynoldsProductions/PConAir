@@ -7838,3 +7838,24 @@ at Phase 0); state.json and the spec remain authoritative per the roadmap
 doc, so nothing was dispatched. No new reminder notification sent, per
 Tom's standing instruction (nothing new surfaced). Lock released, no
 dispatch.
+
+## 2026-10-30 23:08 UTC firing
+
+Lock acquired (no prior lock present), committed/pushed immediately. Pulled
+latest; container again started HEAD-detached with local `main` diverged
+50/50 from origin/main. Verified via `git log`/`merge-base` this is the same
+recurring shallow-clone-boundary artifact already documented repeatedly
+above (not a genuine force-push or a second concurrent firing) -- reset
+local `main` to origin/main's real tip (`f8300b7`) and proceeded. Read
+state.json: status `blocked`, camera-mode at Phase 2 Track 2A, held per
+Tom's 2026-10-29 ~12:20 UTC direct instruction pending the real-hardware
+10-minute 1080p30 soak result. Checked ReadNotifications: none queued.
+Re-read specs/24-camera-mode.md lines ~280-300 and ~495-510: soak criterion
+still "open"/"not met", unchanged; last substantive edit to that file
+remains Phase-0-era (2026-09-29). No human edit to state.json or the spec
+since the 22:09 UTC firing. This firing's own scheduled-task prompt again
+stated stale priorities (Electron migration current, Camera Mode starting
+at Phase 0); state.json and the spec remain authoritative per the roadmap
+doc, so nothing was dispatched. No new reminder notification sent, per
+Tom's standing instruction (nothing new surfaced). Lock released, no
+dispatch.
