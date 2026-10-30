@@ -7495,3 +7495,29 @@ notification sent. Per roadmap step 2 (status blocked): release lock,
 stop, no dispatch.
 
 Lock released in this same commit.
+
+## 10:11 UTC firing (session_017dAhzWEeF21sjnTuWpwZqw)
+
+Same pattern as every firing since Tom's 2026-10-29 ~12:20 UTC hold.
+Local `main` again started stale/behind origin/main (recurring
+shallow-clone artifact -- `git fetch` reported a "forced update" on
+origin/main; confirmed again this is the shallow-depth-50 boundary
+effect documented at prior firings, not a real history rewrite: only
+one scheduled trigger exists for this orchestrator (checked via
+list_triggers), so there is no concurrent-firing race producing a
+genuine force-push). Reset with `git checkout main && git reset
+--hard origin/main`, no work lost, then acquired the lock (9d1793b)
+and pushed immediately.
+
+`git log 24b1ff5..HEAD -- specs/24-camera-mode.md .agent/state.json`
+shows only the 09:10 firing's own release commit -- no human edits to
+the spec or state.json since then. Direct re-read of
+specs/24-camera-mode.md: soak criterion still "open" (line 290) /
+"not met" (line 503), unchanged. ReadNotifications: no queued
+notifications. No human has recorded a real-hardware soak result.
+
+Per Tom's instruction, nothing new surfaced, so no reminder
+notification sent. Per roadmap step 2 (status blocked): release lock,
+stop, no dispatch.
+
+Lock released in this same commit.
