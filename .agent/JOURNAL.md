@@ -7325,3 +7325,27 @@ remains a pending human decision (the real-hardware soak), gated on Tom's
 own explicit hold instruction. No code changed this firing besides this
 journal entry, the state.json note, and the lock acquire/release. Lock
 released as part of this same commit.
+
+## 04:09 UTC firing (2026-10-30)
+
+Same pattern as every firing since Tom's 2026-10-29 ~12:20 UTC hold.
+Local `main` again started HEAD-detached / diverged from `origin/main`
+(recurring shallow-clone artifact; confirmed shallow repo, no shared
+ancestor). Reset with `git checkout -B main origin/main`, no work lost,
+then acquired the lock (f0f9e9b) and pushed immediately.
+
+`git log 92e86d1..HEAD -- specs/24-camera-mode.md .agent/state.json`
+empty (besides this firing's own lock commit) -- no human edits since
+the 03:09 UTC firing. Direct re-read of specs/24-camera-mode.md: soak
+criterion still "open" (line 290) / "not met" (line 503), unchanged.
+ReadNotifications: no queued notifications. No human has recorded a
+real-hardware soak result. This firing's own stored scheduled-task
+prompt again framed Camera Mode as starting fresh at Phase 0 and named
+the Electron migration as current priority -- stale vs. actual repo
+state (Electron shipped v0.6.0; Phase 0 complete; camera-mode is at
+Phase 2, blocked); state.json/spec are authoritative, so nothing was
+dispatched.
+
+Per Tom's instruction, nothing new surfaced, so no reminder
+notification sent. Per roadmap step 2 (status blocked): release lock,
+stop, no dispatch. Lock released in this same commit.
