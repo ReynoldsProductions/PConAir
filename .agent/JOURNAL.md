@@ -7783,3 +7783,17 @@ notification sent. Per roadmap step 2 (status blocked): release
 lock, stop, no dispatch.
 
 Lock released in this same commit.
+
+## 2026-10-30 20:09 UTC firing
+
+Lock acquired (no prior lock present). Read state.json: status `blocked`,
+camera-mode at Phase 2 Track 2A, held per Tom's 2026-10-29 ~12:20 UTC direct
+instruction pending the real-hardware 10-minute 1080p30 soak result. Checked
+ReadNotifications: none queued. Re-read specs/24-camera-mode.md lines
+~280-300 and ~495-510: soak criterion still "open"/"not met", unchanged.
+No human edit to state.json or the spec since the 19:08 UTC firing. This
+firing's own scheduled-task prompt again stated stale priorities (Electron
+migration current, Camera Mode starting at Phase 0); state.json and the spec
+remain authoritative per the roadmap doc, so nothing was dispatched.
+No new reminder notification sent, per Tom's standing instruction. Lock
+released, no dispatch.
