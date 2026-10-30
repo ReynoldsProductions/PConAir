@@ -7349,3 +7349,36 @@ dispatched.
 Per Tom's instruction, nothing new surfaced, so no reminder
 notification sent. Per roadmap step 2 (status blocked): release lock,
 stop, no dispatch. Lock released in this same commit.
+
+## 05:09 UTC firing (2026-10-30)
+
+Same pattern as every firing since Tom's 2026-10-29 ~12:20 UTC hold.
+Local `main` again started HEAD-detached / diverged from `origin/main`
+(recurring shallow-clone artifact). Reset with `git checkout main &&
+git reset --hard origin/main`, no work lost, then acquired the lock
+(dee9bc0) and pushed immediately.
+
+`git log cca2740..HEAD -- specs/24-camera-mode.md .agent/state.json`
+empty (besides this firing's own lock commit) -- no human edits since
+the 04:09 UTC firing. Direct re-read of specs/24-camera-mode.md: soak
+criterion still "open" (line 290) / "not met" (line 503), unchanged.
+ReadNotifications: no queued notifications. No human has recorded a
+real-hardware soak result. This firing's own stored scheduled-task
+prompt again framed Camera Mode as starting fresh at Phase 0 and named
+the Electron migration as current priority -- stale vs. actual repo
+state (Electron shipped v0.6.0; Phase 0 complete; camera-mode is at
+Phase 2, blocked); state.json/spec are authoritative, so nothing was
+dispatched.
+
+Per Tom's instruction, nothing new surfaced, so no reminder
+notification sent. Per roadmap step 2 (status blocked): release lock,
+stop, no dispatch.
+
+Housekeeping: state.json's `notes` field had accumulated ~110
+substantively-identical hourly re-confirmation paragraphs, growing
+unboundedly. Trimmed it to the durable hold instruction, the durable
+"what's needed" note, and this firing's own re-confirmation; the full
+firing-by-firing history remains here in JOURNAL.md. This is a
+bookkeeping change only -- it does not alter or clear the block.
+
+Lock released in this same commit.
