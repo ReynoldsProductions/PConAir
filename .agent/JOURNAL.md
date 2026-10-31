@@ -8052,3 +8052,27 @@ Phase 0, framing 0A/0B/0C/0D as not-yet-run); state.json and the spec
 remain authoritative per the roadmap doc, so nothing was dispatched. No
 new reminder notification sent, per Tom's standing instruction (nothing
 new surfaced). Lock released, no dispatch.
+
+## 2026-10-31 10:08 UTC firing
+
+Lock acquired (no prior lock present), committed/pushed immediately on top
+of origin/main's tip (`65dc157`, clean checkout via fetch+checkout main+pull,
+no detached-HEAD artifact carried forward -- an initial lock-acquire commit
+was made while HEAD was accidentally detached at a stale local commit and
+the push was rejected non-fast-forward; corrected by checking out main,
+fast-forwarding to origin/main, and re-doing the lock commit cleanly on
+top of it; the orphaned detached commit was abandoned, nothing lost).
+Read state.json: status `blocked`, camera-mode at Phase 2 Track 2A, held
+per Tom's 2026-10-29 ~12:20 UTC direct instruction pending the
+real-hardware 10-minute 1080p30 soak result. Checked ReadNotifications:
+none queued. Confirmed via `git log -1 -- specs/24-camera-mode.md` and
+`git log -3 -- .agent/state.json` that neither the spec nor state.json
+has been touched by a human since the 09:08 UTC firing (spec unchanged
+since 2026-10-30 09:10 UTC repo-restructure commit; state.json's last
+substantive change predates that). This firing's own scheduled-task
+prompt again stated stale priorities (Electron migration current, Camera
+Mode starting fresh at Phase 0, framing 0A/0B/0C/0D as not-yet-run and
+not naming the Phase 2 block or Tom's hold at all); state.json and the
+spec remain authoritative per the roadmap doc, so nothing was dispatched.
+No new reminder notification sent, per Tom's standing instruction
+(nothing new surfaced). Lock released, no dispatch.
