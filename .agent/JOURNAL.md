@@ -7992,3 +7992,25 @@ Mode starting fresh at Phase 0, framing 0A/0B/0C/0D as not-yet-run);
 state.json and the spec remain authoritative per the roadmap doc, so
 nothing was dispatched. No new reminder notification sent, per Tom's
 standing instruction (nothing new surfaced). Lock released, no dispatch.
+
+## 2026-10-31 07:08 UTC firing
+
+Lock acquired (no prior lock present), committed/pushed immediately on top
+of origin/main's tip (`dbbd5fa`, clean checkout via fetch+checkout main+pull,
+no detached-HEAD artifact carried forward). Read state.json: status
+`blocked`, camera-mode at Phase 2 Track 2A, held per Tom's 2026-10-29
+~12:20 UTC direct instruction pending the real-hardware 10-minute 1080p30
+soak result. Checked ReadNotifications: none queued. Re-read
+specs/24-camera-mode.md lines ~280-300 and ~495-510: soak criterion still
+"open"/"not met", unchanged. Noticed the file's last-touching commit date
+(Oct 30 06:11 UTC) looked newer than the "Phase-0-era 2026-09-29" claim in
+prior entries, so diffed that commit directly: it was a prior firing's own
+repo-restructure/journal commit (bulk new-file add from a history
+squash), not a content edit -- the spec text itself is byte-identical to
+the 2026-09-29 wording. No new commits and no human edit to state.json or
+the spec since the 06:08 UTC firing. This firing's own scheduled-task
+prompt again stated stale priorities (Electron migration current, Camera
+Mode starting fresh at Phase 0, framing 0A/0B/0C/0D as not-yet-run);
+state.json and the spec remain authoritative per the roadmap doc, so
+nothing was dispatched. No new reminder notification sent, per Tom's
+standing instruction (nothing new surfaced). Lock released, no dispatch.
