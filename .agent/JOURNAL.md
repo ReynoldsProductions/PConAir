@@ -7915,3 +7915,23 @@ priorities (Electron migration current, Camera Mode starting at Phase 0);
 state.json and the spec remain authoritative per the roadmap doc, so
 nothing was dispatched. No new reminder notification sent, per Tom's
 standing instruction (nothing new surfaced). Lock released, no dispatch.
+
+## 2026-10-31 03:08 UTC firing
+
+Lock acquired (no prior lock present), committed/pushed immediately.
+Container started HEAD-detached one commit ahead of origin/main (an
+orphaned lock-acquire commit made before `main` was checked out); checked
+out `main`, fast-forwarded to origin/main's tip (`c453005`), and redid the
+lock acquisition cleanly from there (orphaned commit left dangling,
+harmless). Read state.json: status `blocked`, camera-mode at Phase 2 Track
+2A, held per Tom's 2026-10-29 ~12:20 UTC direct instruction pending the
+real-hardware 10-minute 1080p30 soak result. Checked ReadNotifications:
+none queued. Re-read specs/24-camera-mode.md lines ~280-300 and ~495-510:
+soak criterion still "open"/"not met", unchanged; last substantive edit to
+that file remains Phase-0-era (2026-09-29). No new commits and no human
+edit to state.json or the spec since the 02:09 UTC firing. This firing's
+own scheduled-task prompt again stated stale priorities (Electron
+migration current, Camera Mode starting at Phase 0); state.json and the
+spec remain authoritative per the roadmap doc, so nothing was dispatched.
+No new reminder notification sent, per Tom's standing instruction (nothing
+new surfaced). Lock released, no dispatch.
