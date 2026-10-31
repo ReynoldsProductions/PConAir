@@ -8185,3 +8185,22 @@ starting fresh at Phase 0); state.json and the spec remain authoritative per
 the roadmap doc, so nothing was dispatched. No new reminder notification
 sent, per Tom's standing instruction (nothing new surfaced). Lock released,
 no dispatch.
+
+## 17:08 UTC firing (session_017dAhzaTynKBizVpKqCQrHs)
+
+Lock acquired (91061a8, on top of origin/main tip be31e4e). Read state.json:
+status=blocked, current_effort=camera-mode, current_unit=Phase 2 Track 2A.
+Per roadmap step 2, blocked means release lock, stop, no dispatch -- pending
+human decision.
+
+Verified nothing changed since the 16:08 UTC firing: `git log --format='%H
+%ci %an %s' -8 -- .agent/state.json specs/24-camera-mode.md` shows only the
+orchestrator's own prior lock/journal commits, no human edits. Re-read
+specs/24-camera-mode.md lines ~280-300 and ~495-510: soak criterion still
+"open" (line 290) / "not met" (line 503), unchanged. ReadNotifications
+returned nothing queued. This firing's own stored scheduled-task prompt
+again stated stale priorities (Electron migration current, Camera Mode
+starting fresh at Phase 0); state.json and the spec remain authoritative per
+the roadmap doc, so nothing was dispatched. No new reminder notification
+sent, per Tom's standing instruction (nothing new surfaced). Lock released,
+no dispatch.
