@@ -8417,3 +8417,19 @@ history, not uncommitted work.
 
 Per Tom's instruction, nothing new surfaced, so no reminder notification was
 sent. Releasing lock.
+
+## 07:09 UTC firing (2026-11-01)
+
+Still BLOCKED. Confirmed no human edits to state.json/spec since the 06:08 UTC
+firing; Tom's 2026-10-29 hold instruction remains in force (resume only on his
+direct report of the real-hardware soak result). Soak criterion in
+specs/24-camera-mode.md still "open"/"not met". No queued notifications. No
+dispatch.
+
+Housekeeping: origin/main was force-updated again since this session's clone,
+leaving local `main` diverged 50/50 from origin/main. Reset local `main` to
+origin/main (clean working tree, no uncommitted work at risk) and reapplied
+the lock-acquisition commit on top before pushing.
+
+Per Tom's instruction, nothing new surfaced, so no reminder notification was
+sent. Releasing lock.
