@@ -8799,3 +8799,29 @@ sent. Releasing lock.
   judgment call regardless of Tom's no-reminder instruction, so continuing
   to hold silently.
 - No dispatch. Released lock, committed, pushed.
+
+## 23:09 UTC firing (2026-11-01, session_017dAhzYXxLzD4ydP2N3HMbN)
+- Pulled latest; .agent/lock.json absent at origin/main tip (814ad9d).
+  Container's local `main` branch ref was stale (pointed at an old commit,
+  "ahead 50, behind 50" vs origin/main) while HEAD was correctly detached
+  at origin/main's tip -- same benign container-startup drift documented in
+  prior firings. This time it actually caused a failed push: `git push
+  origin main` pushed the stale local branch ref instead of HEAD, and was
+  rejected as non-fast-forward. Fixed by pushing `git push origin HEAD:main`
+  explicitly, which succeeded. Lock written and pushed before any other work.
+- Read .agent/state.json: status blocked, current_effort camera-mode,
+  current_unit Phase 2 Track 2A. Per the reactive loop, blocked means stop
+  and do not dispatch.
+- Independently re-verified: `git log --since=2026-10-29T12:20:00Z --
+  .agent/state.json specs/24-camera-mode.md` shows only orchestrator-authored
+  commits since Tom's hold instruction -- zero human edits. Re-read the
+  spec's soak criterion directly: still "open" (line ~290) / "not met"
+  (line ~503). ReadNotifications returned no queued notifications.
+- Nothing new surfaced since the 22:09 UTC firing. Per Tom's explicit
+  instruction not to re-notify on a timer basis, no push notification was
+  sent this firing. Block has now run ~3 days 11 hours since Tom's 2026-10-29
+  hold (and since 2026-09-29 for the underlying soak criterion) -- not yet
+  at the "weeks" threshold a prior firing flagged as worth a fresh human
+  judgment call regardless of Tom's no-reminder instruction, so continuing
+  to hold silently.
+- No dispatch. Released lock, committed, pushed.
