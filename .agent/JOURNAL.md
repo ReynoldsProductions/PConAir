@@ -8465,3 +8465,18 @@ risk) before acquiring the lock.
 
 Per Tom's instruction, nothing new surfaced, so no reminder notification was
 sent. Releasing lock.
+
+## 10:09 UTC firing (session_017dAhzXfQHqkvbqZnxjH2ds)
+
+Still BLOCKED. Confirmed no human edits to state.json/spec/JOURNAL.md since the
+09:09 UTC firing; Tom's 2026-10-29 hold instruction remains in force (resume
+only on his direct report of the real-hardware soak result). Soak criterion
+in specs/24-camera-mode.md still "open"/"not met" (lines 290, 503). No queued
+notifications. No dispatch.
+
+Housekeeping: local main was already at origin/main's tip at container start
+this time -- no force-push divergence to fix. Lock acquired and pushed as a
+clean fast-forward.
+
+Per Tom's instruction, nothing new surfaced, so no reminder notification was
+sent. Releasing lock.
