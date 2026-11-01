@@ -8639,7 +8639,38 @@ sent. Releasing lock.
   on a timer basis, no push notification was sent this firing.
 - No dispatch. Released lock, committed, pushed.
 
-## 18:11 UTC firing (2026-11-01, session_017dAhzWBKZfnYcq6TwqqfNK)
+## 19:09 UTC firing (2026-11-01, session_017dAhzYPJwNXYrcNP78YmEY)
+
+- Pulled latest; .agent/lock.json absent at origin/main tip (77b5e39).
+  Container again started HEAD-detached with local main stale behind
+  origin/main's actual tip at session start (same benign container-startup
+  drift documented in prior firings); checked out main and reset to
+  origin/main before doing anything else, then wrote a fresh lock and
+  pushed it immediately.
+- Read .agent/state.json: status blocked, current_effort camera-mode,
+  current_unit Phase 2 Track 2A. Per the reactive loop, blocked means stop
+  and do not dispatch -- no attempt made to resolve this firing's own
+  judgment.
+- Independently re-verified rather than trusting the accumulated note:
+  `git log --since=2026-10-29T12:20:00Z -- state.json
+  specs/24-camera-mode.md` shows 25 commits since Tom's hold instruction,
+  every one authored by `Claude <noreply@anthropic.com>` (this orchestrator)
+  -- zero human edits. Re-read the spec's soak criterion directly: still
+  "open"/"not met" at the same line numbers (~290, ~503). ReadNotifications
+  returned no queued notifications.
+- This firing's own stored scheduled-task prompt again framed Camera Mode
+  as starting fresh at Phase 0 with the Electron migration as current
+  priority -- stale vs. actual repo state (Electron shipped v0.6.0; Phase 0
+  complete; camera-mode is at Phase 2, blocked on the human soak). state.json
+  and the spec remain authoritative, so nothing was dispatched.
+- Nothing new surfaced since the 18:11 UTC firing. Per Tom's explicit
+  instruction not to re-notify on a timer basis, no push notification was
+  sent this firing. Block has now run ~3 days since Tom's 2026-10-29 hold
+  (and since 2026-09-29 for the underlying soak criterion) -- not yet at
+  the "weeks" threshold a prior firing flagged as worth a fresh human
+  judgment call regardless of Tom's no-reminder instruction, so continuing
+  to hold silently.
+- No dispatch. Released lock, committed, pushed.
 
 - Pulled latest; .agent/lock.json absent at origin/main tip (2a21068).
   Container again started HEAD-detached with local main stale behind
