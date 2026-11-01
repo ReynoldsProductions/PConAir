@@ -8480,3 +8480,22 @@ clean fast-forward.
 
 Per Tom's instruction, nothing new surfaced, so no reminder notification was
 sent. Releasing lock.
+
+## 11:09 UTC firing (session_017dAhzZyBRXN533kKaqAkex)
+
+Still BLOCKED. Confirmed no human edits to state.json/spec/JOURNAL.md since the
+10:09 UTC firing; Tom's 2026-10-29 hold instruction remains in force (resume
+only on his direct report of the real-hardware soak result). Soak criterion
+in specs/24-camera-mode.md still "open"/"not met" (lines 290, 503). No queued
+notifications. No dispatch.
+
+Housekeeping: container started with local `main` detached at an old commit
+(4d33667, the 01:08 UTC firing); origin/main had simply moved on to 8d20871
+(10:09 UTC firing) through normal fast-forward pushes from intervening
+firings -- not a history rewrite, just this container's clone being stale.
+Checked out `main` and reset to origin/main (clean working tree, no
+uncommitted work at risk) before acquiring the lock, which then pushed as a
+clean fast-forward.
+
+Per Tom's instruction, nothing new surfaced, so no reminder notification was
+sent. Releasing lock.
