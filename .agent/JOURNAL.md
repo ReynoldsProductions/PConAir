@@ -8521,3 +8521,11 @@ acquiring the lock, which then pushed as a clean fast-forward.
 
 Per Tom's instruction, nothing new surfaced, so no reminder notification was
 sent. Releasing lock.
+
+## 13:08 UTC firing (2026-11-01)
+
+- Pulled latest; local main was stale (detached HEAD at container start, behind origin/main by several firings) -- this is normal fast-forward drift, not a history rewrite. Fetched origin/main, acquired lock on top of it (c158dd4), pushed cleanly.
+- Read state.json: status blocked, current_unit Phase 2 Track 2A, blocked on the real-hardware 10-minute 1080p30 soak per specs/24-camera-mode.md (lines ~280-290, ~503-507) AND Tom's explicit 2026-10-29 ~12:20 UTC direct-chat instruction to hold and do nothing until he reports the soak result himself.
+- Checked for anything new: ReadNotifications empty. git log on state.json/JOURNAL.md/specs/24-camera-mode.md since the 12:11 UTC firing shows only this orchestrator's own prior commits -- no human edit. Spec still shows the soak as open/not met.
+- Nothing new surfaced, so per Tom's explicit instruction not to re-notify on a timer, no push notification was sent this firing.
+- No dispatch. Released lock, committed, pushed.
