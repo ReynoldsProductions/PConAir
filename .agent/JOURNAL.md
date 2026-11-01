@@ -8449,3 +8449,19 @@ risk) and reapplied the lock-acquisition commit on top before pushing.
 
 Per Tom's instruction, nothing new surfaced, so no reminder notification was
 sent. Releasing lock.
+
+## 09:09 UTC firing (session_017dAhzYjYc2G6R4jHJLYGge)
+
+Still BLOCKED. Confirmed no human edits to state.json/spec since the 08:09 UTC
+firing; Tom's 2026-10-29 hold instruction remains in force (resume only on his
+direct report of the real-hardware soak result). Soak criterion in
+specs/24-camera-mode.md still "open"/"not met" (lines 290, 503). No queued
+notifications. No dispatch.
+
+Housekeeping: container started with local `main` in detached HEAD, diverged
+50/50 from origin/main (origin had been force-updated again). Checked out
+`main` and reset to origin/main (clean working tree, no uncommitted work at
+risk) before acquiring the lock.
+
+Per Tom's instruction, nothing new surfaced, so no reminder notification was
+sent. Releasing lock.
