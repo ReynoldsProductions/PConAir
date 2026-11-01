@@ -8377,3 +8377,14 @@ starting fresh at Phase 0); state.json and the spec remain authoritative per
 the roadmap doc, so nothing was dispatched. No new reminder notification
 sent, per Tom's standing instruction (nothing new surfaced). Lock released,
 no dispatch.
+
+## 04:08 UTC firing (2026-11-01)
+
+- Lock: none present at startup (released cleanly by 03:08 firing); acquired fresh lock with this session's id at 04:09:51Z, committed and pushed before any other work (per spec step 0).
+- Local git state: container started with local `main` 50 commits behind and showing an unrelated-history divergence from `origin/main` (same recurring artifact noted in prior firings' journal entries). Diffed `.agent/state.json` between the two tips to confirm the only difference was the prior firing's own no-op re-confirmation paragraph -- no real divergent work existed. Checked out `main`, hard-reset to `origin/main`'s tip (`61c3c2a`), then redid the lock commit on top. No repo content lost or altered.
+- Read `.agent/state.json`: status `blocked`, effort `camera-mode`, unit "Phase 2, Track 2A: composite host page...". Block reason: Phase 0 exit criterion (10-minute 1080p30 real-hardware soak, Candidate A/OSR pipeline, on the production Mac mini against the real Q-SYS UVC camera) is not met -- confirmed still "open"/"not met" in specs/24-camera-mode.md (lines 290, 503). Compounded by an explicit direct human hold instruction from Tom (2026-10-29 ~12:20 UTC): do nothing until he reports the soak result himself.
+- Checked for anything new since the 03:08 UTC firing: `git log` on `.agent/state.json`, `.agent/JOURNAL.md`, `specs/24-camera-mode.md` shows no human commits since Phase-0-era spec edits -- only this orchestrator's own prior lock/journal commits. `ReadNotifications` returned no queued notifications.
+- This firing's own stored scheduled-task prompt again described Camera Mode as starting fresh at Phase 0 (Tracks 0A/0B/0C/0D) and named the Electron 44 migration as the current priority. Both are stale relative to the actual repo state: Electron migration shipped (v0.6.0, per CLAUDE.md and state.json history), Phase 0 is already complete, and camera-mode is already at Phase 2, blocked on the items above. Per the roadmap doc, `.agent/state.json` and the spec are authoritative over a scheduled task's stored prompt text, so nothing from Phase 0 was dispatched and no spike branches were touched.
+- Per Tom's explicit instruction, no reminder notification was sent on this routine elapsed-time basis, since nothing new surfaced. No units dispatched. Status remains `blocked`.
+- Updated `.agent/state.json` notes with this firing's confirmation (prior boilerplate/trim notice and Tom's instruction text preserved verbatim).
+- Released the lock. Committing and pushing now.
