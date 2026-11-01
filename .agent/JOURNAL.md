@@ -8582,3 +8582,32 @@ sent. Releasing lock.
 - Nothing new surfaced, so per Tom's explicit instruction not to re-notify on
   a timer basis, no push notification was sent this firing.
 - No dispatch. Released lock, committed, pushed.
+
+## 16:10 UTC firing (2026-11-01) (session_017dAhzYBs7DoWS95TjDthb7)
+
+- Container started HEAD-detached with local `main` stale at an old commit
+  (`4d33667`, several firings behind origin/main's tip `d93d03b`); confirmed
+  via merge-base/ancestry check this was the normal fast-forward drift this
+  environment's container startup produces, not a history rewrite (every
+  commit message on both sides matched 1:1, same content). Reset local main
+  to origin/main's tip.
+- No lock file was present. Wrote .agent/lock.json, committed, pushed
+  cleanly as a fast-forward.
+- Read state.json: status blocked, current_unit Phase 2 Track 2A, blocked on
+  (1) the real-hardware 10-minute 1080p30 soak per specs/24-camera-mode.md
+  (lines ~286-290, ~500-503) and (2) Tom's explicit 2026-10-29 ~12:20 UTC
+  direct-chat instruction to hold and do nothing until he reports the soak
+  result himself.
+- Checked for anything new since the 15:09 UTC firing: ReadNotifications
+  returned no queued notifications; no commits exist on origin/main between
+  d93d03b and this firing's own lock commit -- no human edit to
+  state.json/specs/24-camera-mode.md/JOURNAL.md. Re-read the spec's soak
+  criterion directly: still "open"/"not met" at the same line numbers.
+- This firing's own stored scheduled-task prompt again framed Camera Mode as
+  starting fresh at Phase 0 and named the Electron migration as current
+  priority -- stale vs. actual repo state (Electron shipped v0.6.0; Phase 0
+  complete; camera-mode is at Phase 2, blocked on the human soak). state.json
+  and the spec remain authoritative, so nothing was dispatched.
+- Nothing new surfaced, so per Tom's explicit instruction not to re-notify on
+  a timer basis, no push notification was sent this firing.
+- No dispatch. Released lock, committed, pushed.
