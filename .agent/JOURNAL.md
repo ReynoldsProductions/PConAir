@@ -8611,3 +8611,30 @@ sent. Releasing lock.
 - Nothing new surfaced, so per Tom's explicit instruction not to re-notify on
   a timer basis, no push notification was sent this firing.
 - No dispatch. Released lock, committed, pushed.
+
+## 17:09 UTC firing (2026-11-01)
+
+- Pulled latest; .agent/lock.json absent at origin/main tip (517350a).
+  Container again started HEAD-detached with local main stale behind
+  origin/main's actual tip at session start (same benign container-startup
+  drift documented in prior firings, not a history rewrite); reset local
+  main to origin/main before doing anything else, then wrote a fresh lock
+  and pushed it immediately.
+- Read .agent/state.json: status blocked, current_effort camera-mode,
+  current_unit Phase 2 Track 2A. Per the reactive loop, blocked means stop
+  and do not dispatch -- no attempt made to resolve this firing's own
+  judgment.
+- Checked for anything new since the 16:10 UTC firing: ReadNotifications
+  returned no queued notifications; no commits exist on origin/main between
+  517350a and this firing's own lock commit -- no human edit to
+  state.json/specs/24-camera-mode.md/JOURNAL.md. Re-read the spec's soak
+  criterion directly: still "open"/"not met" at the same line numbers
+  (~290, ~503).
+- This firing's own stored scheduled-task prompt again framed Camera Mode
+  as starting fresh at Phase 0 and named the Electron migration as current
+  priority -- stale vs. actual repo state (Electron shipped v0.6.0; Phase 0
+  complete; camera-mode is at Phase 2, blocked on the human soak). state.json
+  and the spec remain authoritative, so nothing was dispatched.
+- Nothing new surfaced, so per Tom's explicit instruction not to re-notify
+  on a timer basis, no push notification was sent this firing.
+- No dispatch. Released lock, committed, pushed.
