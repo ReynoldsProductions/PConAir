@@ -8499,3 +8499,25 @@ clean fast-forward.
 
 Per Tom's instruction, nothing new surfaced, so no reminder notification was
 sent. Releasing lock.
+
+## 12:11 UTC firing (session_017dAhzXcxwQSzx3Waenjc4a)
+
+Still BLOCKED. Confirmed no human edits to state.json/spec/JOURNAL.md since
+the 11:09 UTC firing; Tom's 2026-10-29 hold instruction remains in force
+(resume only on his direct report of the real-hardware soak result). Soak
+criterion in specs/24-camera-mode.md still "open"/"not met" (lines 290, 503).
+No queued notifications.
+
+Note: this firing's own stored scheduled-task prompt again framed Camera Mode
+as starting fresh at Phase 0 and named the Electron migration as current
+priority -- stale vs. actual repo state (Electron shipped v0.6.0; Phase 0
+complete; camera-mode is at Phase 2, blocked on the human soak). state.json
+and the spec remain authoritative, so nothing was dispatched.
+
+Housekeeping: container started with local `main` in detached HEAD at an old
+commit; origin/main had moved on via normal firings since. Reset local main
+to origin/main (clean working tree, no uncommitted work at risk) before
+acquiring the lock, which then pushed as a clean fast-forward.
+
+Per Tom's instruction, nothing new surfaced, so no reminder notification was
+sent. Releasing lock.
