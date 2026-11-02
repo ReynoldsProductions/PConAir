@@ -9285,3 +9285,8 @@ progress (Phase 2, Track 2A pending behind the hold).
 Per Tom's explicit instruction, no reminder notification is sent on an
 elapsed-time basis -- only if something new surfaces. Nothing new
 surfaced this firing. No lock held, no dispatch, pushed.
+
+## 14:25 UTC firing (2026-11-02)
+- Pulled latest; found local clone's `main` had diverged from `origin/main` (50/50 commits each) -- origin/main had moved on through the 08:23-13:22 UTC firings while this container's initial checkout was stuck on a stale 21:09-01:08 lineage. No lock file was present on origin at any point checked. Hard-reset local `main` to `origin/main` (afd995c) as the authoritative history; no uncommitted work existed to lose. This looks like a one-off stale-clone artifact in this container, not a live concurrent-firing collision (no lock file, no competing state.json), so no action beyond adopting origin's history was needed.
+- status: blocked (unchanged). Re-verified: no commits on origin/main since afd995c (this firing's own prior commit), no human edits to .agent/state.json or specs/24-camera-mode.md since Tom's 2026-10-29 hold instruction, ReadNotifications empty. Soak criterion (specs/24-camera-mode.md lines ~290, ~503) still open.
+- Per Tom's 2026-10-29 instruction: holding silently, no dispatch, no reminder notification sent (nothing new surfaced). No lock was taken (status blocked -> release immediately per protocol step 2, nothing to acquire for).
