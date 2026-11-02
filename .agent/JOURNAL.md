@@ -9375,3 +9375,13 @@ Re-confirmed BLOCKED. No lock file present at start; status in state.json was al
 - This firing's scheduled-task prompt again framed Camera Mode as starting fresh at Phase 0 with the Electron migration as current priority -- stale relative to state.json/JOURNAL.md, which record Camera Mode well past Phase 0 and now blocked at Phase 2 pending Tom's real-hardware soak. Deferred to state.json/spec as authoritative per standing practice.
 - Per Tom's 2026-10-29 instruction, nothing new surfaced this firing, so no reminder notification was sent (continuing the silent re-confirmation he asked for). Block duration is now just over 4 days past his hold instruction, still short of the multi-week threshold a prior firing flagged as worth revisiting regardless of the no-reminder instruction.
 - No dispatch. No lock to release (none was created). Updating state.json's notes timestamp and pushing.
+
+## 22:08 UTC firing (2026-11-02)
+
+Re-confirmed BLOCKED. This time followed the roadmap's lock-file section literally (prior several firings had skipped creating a lock once status was already `blocked`): wrote `.agent/lock.json`, committed and pushed it first, before reading `.agent/state.json`.
+
+- Pulled latest; HEAD came up detached and `git status` showed local main and origin/main with 50/50 diverging commits (origin had been force-updated). Checked out main and reset hard to `origin/main`'s actual tip (`041dd90`, the 21:08 UTC firing's commit) before doing anything else.
+- Checked for anything new since the 21:08 UTC firing: `git log b6a7cd3..HEAD` shows only Claude/orchestrator-authored commits (including this firing's own lock-claim commit); zero human edits to `specs/24-camera-mode.md` or `.agent/state.json`. The soak criterion is still open/not met in the spec. `ReadNotifications` returned empty.
+- This firing's scheduled-task prompt again framed Camera Mode as starting fresh at Phase 0 with the Electron migration as current priority -- stale relative to state.json/JOURNAL.md, which record Camera Mode well past Phase 0 and now blocked at Phase 2 pending Tom's real-hardware soak. Deferred to state.json/spec as authoritative per standing practice.
+- Per Tom's 2026-10-29 instruction, nothing new surfaced this firing, so no reminder notification was sent (continuing the silent re-confirmation he asked for). Block duration is now a little over 4 days past his hold instruction, still short of the multi-week threshold a prior firing flagged as worth revisiting regardless of the no-reminder instruction.
+- No dispatch. Releasing the lock created at the start of this firing and pushing.
