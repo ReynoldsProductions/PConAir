@@ -9355,3 +9355,13 @@ since Tom's hold (and since 2026-09-29 for the underlying soak criterion)
 -- still well short of the "weeks" threshold a prior firing flagged as
 worth a fresh human judgment call regardless of Tom's no-reminder
 instruction. No dispatch.
+
+## 20:09 UTC firing (2026-11-02)
+
+Re-confirmed BLOCKED. No lock file present at start; status in state.json was already `blocked`, so per the roadmap's reactive loop, nothing is dispatched and no lock is needed.
+
+- Pulled latest; local main again showed the familiar 50/50 divergence vs origin/main (shallow-clone-boundary artifact, documented repeatedly above — not a real force-push or concurrent firing). Reset local main to origin/main's tip (`b6a7cd3`, the 19:11 UTC firing's commit) and proceeded from there.
+- Checked for anything new since the 19:11 UTC firing: `git log` shows zero commits since then until this one; all recent commits are Claude/orchestrator authored. `specs/24-camera-mode.md` soak criterion (lines ~290, ~503) is still open/not met. `.agent/state.json` carries no human edit. `ReadNotifications` returned empty.
+- This firing's scheduled-task prompt again framed Camera Mode as starting fresh at Phase 0 with the Electron migration as current priority — stale relative to state.json/JOURNAL.md, which record Camera Mode well past Phase 0 and now blocked at Phase 2 pending Tom's real-hardware soak. Deferred to state.json/spec as authoritative per standing practice.
+- Per Tom's 2026-10-29 instruction, nothing new surfaced this firing, so no reminder notification was sent (continuing the silent re-confirmation he asked for). Block duration is still ~4 days past his hold instruction, short of the multi-week threshold a prior firing flagged as worth revisiting regardless of the no-reminder instruction.
+- No dispatch. No lock to release (none was created). Updating state.json's notes timestamp and pushing.
