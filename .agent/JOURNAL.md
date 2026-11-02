@@ -9328,3 +9328,30 @@ surfaced this firing. No lock held, no dispatch, pushed.
   - `ReadNotifications`: empty.
 - This firing's stored scheduled-task prompt again framed Camera Mode as starting fresh at Phase 0 with the Electron migration as current priority; treated as stale and deferred to this file / the spec as authoritative, per every prior firing's practice.
 - Nothing material changed. Per Tom's explicit instruction, no reminder notification sent on an elapsed-time basis -- only if something new surfaces, and nothing new surfaced this firing. Block has now run just over 4 days since Tom's hold (and since 2026-09-29 for the underlying soak criterion) -- still not at the "weeks" threshold a prior firing flagged as worth a fresh human judgment call regardless of Tom's no-reminder instruction. No lock held, no dispatch, pushed.
+
+## 2026-11-02 19:11 UTC firing
+
+Container started HEAD-detached with local `main` diverged 50/50 from
+origin/main -- the same recurring shallow-clone-boundary artifact
+documented repeatedly above (confirmed not a genuine force-push or a
+second concurrent firing: origin/main's tip was unchanged, at `019e788`,
+both before and after this firing's own push). Reset local `main` to
+origin/main's real tip and proceeded. Read state.json: status `blocked`,
+camera-mode at Phase 2 Track 2A, held per Tom's 2026-10-29 ~12:20 UTC
+direct instruction pending the real-hardware 10-minute 1080p30 soak
+result. Checked ReadNotifications: none queued. Re-read
+specs/24-camera-mode.md soak-criterion sections (~lines 286-290, ~500-503):
+still "open"/"not met", unchanged; `git log --since=2026-10-29 --
+specs/24-camera-mode.md .agent/state.json` confirms zero human edits since
+the hold, all commits orchestrator (Claude) commits. No human edit to
+state.json or the spec since the 18:10 UTC firing. This firing's own
+scheduled-task prompt again stated stale priorities (Electron migration
+current, Camera Mode starting at Phase 0); state.json and the spec remain
+authoritative per the roadmap doc, so nothing was dispatched. No lock
+needed (status already blocked, nothing to dispatch, no second-writer risk
+to guard against). No new reminder notification sent, per Tom's standing
+instruction (nothing new surfaced). Block has now run just over 4 days
+since Tom's hold (and since 2026-09-29 for the underlying soak criterion)
+-- still well short of the "weeks" threshold a prior firing flagged as
+worth a fresh human judgment call regardless of Tom's no-reminder
+instruction. No dispatch.
