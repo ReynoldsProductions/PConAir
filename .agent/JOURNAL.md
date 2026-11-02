@@ -9299,3 +9299,12 @@ surfaced this firing. No lock held, no dispatch, pushed.
   - Soak criterion in `specs/24-camera-mode.md` (lines ~286-290, ~500-503) still reads **open** / not met.
   - `ReadNotifications`: empty.
 - Nothing material changed. Per Tom's explicit instruction, no reminder notification sent on an elapsed-time basis -- only if something new surfaces, and nothing new surfaced this firing. No lock held, no dispatch, pushed.
+
+## 17:06 UTC firing (2026-11-02)
+- No lock file present on origin; status is `blocked`, so per protocol step 2 nothing is acquired/dispatched this firing. Pulled latest; container's local `main` had again diverged from `origin/main` (50/50 commits, unrelated root -- the same recurring shallow-clone-boundary artifact documented in prior entries, not a competing live firing: no lock file and no competing state.json). Hard-reset local `main` to `origin/main` (`a60cd58`) and proceeded.
+- Re-verified nothing new since the 15:47 UTC firing / since Tom's 2026-10-29 ~12:20 UTC hold instruction:
+  - `git log a60cd58..origin/main`: empty, no commits since the last firing.
+  - `git log --since=2026-10-29 -- specs/24-camera-mode.md .agent/state.json`: all commits since the hold are orchestrator (Claude) commits; zero human edits.
+  - Soak criterion in `specs/24-camera-mode.md` (lines ~286-290, ~500-503) still reads **open** / not met.
+  - `ReadNotifications`: empty.
+- Nothing material changed. Per Tom's explicit instruction, no reminder notification sent on an elapsed-time basis -- only if something new surfaces, and nothing new surfaced this firing. No lock held, no dispatch, pushed.
