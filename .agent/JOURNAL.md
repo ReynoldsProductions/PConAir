@@ -8856,3 +8856,33 @@ sent. Releasing lock.
   fresh human judgment call regardless of Tom's no-reminder instruction,
   so continuing to hold silently.
 - No dispatch. Released lock, committed, pushed.
+
+## 01:08 UTC firing (2026-11-02, session_017dAhzZ6FnXBJxVAVhN6deX)
+- Pulled latest; `.agent/lock.json` absent at origin/main tip (0539910).
+  `git fetch`/push showed the same benign container-startup drift as prior
+  firings (local main's cached ref was stale behind origin/main's real
+  tip -- a hung initial commit against the stale ref was abandoned
+  unpushed). `git reset --hard origin/main` resynced before any other work,
+  then wrote a fresh lock and pushed it immediately.
+- Read .agent/state.json: status blocked, current_effort camera-mode,
+  current_unit Phase 2, Track 2A. Per the reactive loop, blocked means stop
+  and do not dispatch.
+- This firing's stored scheduled-task prompt again framed Camera Mode as
+  starting fresh at Phase 0 with the Electron migration as current
+  priority -- stale vs. actual repo state (Electron shipped v0.6.0; Phase 0
+  complete; camera-mode is at Phase 2, blocked on the human soak). Treated
+  state.json and the spec as authoritative, per every prior firing's
+  practice, and did not dispatch Phase 0 work.
+- Independently re-verified: `git log --since=2026-10-29T12:20:00Z --
+  .agent/state.json specs/24-camera-mode.md` shows only `Claude`-authored
+  commits since Tom's hold instruction -- zero human edits. Re-read the
+  spec's soak criterion directly: still "open" (line ~290) / "not met"
+  (line ~503). ReadNotifications returned no queued notifications.
+- Nothing new surfaced since the 00:09 UTC firing. Per Tom's explicit
+  instruction not to re-notify on a timer basis, no push notification was
+  sent this firing. Block has now run ~3 days 13 hours since Tom's
+  2026-10-29 hold (and since 2026-09-29 for the underlying soak criterion)
+  -- not yet at the "weeks" threshold a prior firing flagged as worth a
+  fresh human judgment call regardless of Tom's no-reminder instruction,
+  so continuing to hold silently.
+- No dispatch. Released lock, committed, pushed.
