@@ -8951,3 +8951,36 @@ sent. Releasing lock.
   fresh human judgment call regardless of Tom's no-reminder instruction,
   so continuing to hold silently.
 - No dispatch. Released lock, committed, pushed.
+
+## 04:08 UTC firing (2026-11-02, session_017dAhza7Dcu4boR9viseDhi)
+- Pulled latest. Local `main` ref was stale pointing at a pre-force-push
+  commit (4d33667) with no reachable common history yet resolved -- wrote
+  the first lock attempt there, which produced a stray detached-HEAD commit
+  and a correctly-rejected non-fast-forward push. No harm done: `git fetch
+  origin main` + `git checkout main` + `git reset --hard origin/main`
+  resynced onto the real tip (a251654), discarding the stray local-only
+  commit. A fresh lock was then written, committed, and pushed cleanly on
+  top of the real tip (c359d7d). No lock file was present at origin/main's
+  tip before this, confirming the 03:08 UTC firing released cleanly.
+- Read .agent/state.json: status blocked, current_effort camera-mode,
+  current_unit Phase 2, Track 2A. Per the reactive loop, blocked means stop
+  and do not dispatch anything.
+- Independently re-verified rather than trusting the accumulated note:
+  `git log --since=2026-10-29T12:20:00Z -- .agent/state.json
+  specs/24-camera-mode.md` shows only `Claude`-authored orchestrator commits
+  since Tom's 2026-10-29 hold instruction -- zero human edits. Re-read the
+  spec's soak criterion directly: still "open" (line 290) / "not met"
+  (line 503), unchanged. ReadNotifications returned no queued notifications.
+- This firing's own stored scheduled-task prompt again framed Camera Mode
+  as starting fresh at Phase 0 with the Electron migration as current
+  priority -- stale vs. actual repo state (Electron shipped v0.6.0; Phase 0
+  complete; camera-mode is at Phase 2, blocked on the human soak). state.json
+  and the spec remain authoritative, so nothing was dispatched.
+- Nothing new surfaced since the 03:08 UTC firing. Per Tom's explicit
+  instruction not to re-notify on a timer basis, no push notification was
+  sent this firing. Block has now run ~3 days 16 hours since Tom's
+  2026-10-29 hold (and since 2026-09-29 for the underlying soak criterion)
+  -- not yet at the "weeks" threshold a prior firing flagged as worth a
+  fresh human judgment call regardless of Tom's no-reminder instruction,
+  so continuing to hold silently.
+- No dispatch. Released lock, committed, pushed.
