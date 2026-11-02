@@ -8985,6 +8985,34 @@ sent. Releasing lock.
   so continuing to hold silently.
 - No dispatch. Released lock, committed, pushed.
 
+## 06:08 UTC firing (2026-11-02, session_017dAhzYfEu573brFk8mjxZa)
+- Pulled latest. Local `main` ref was stale again (same benign
+  container-startup drift as prior firings). First lock-write attempt
+  landed on that stale ref, producing a stray detached-HEAD commit and a
+  correctly-rejected non-fast-forward push. No harm done: `git checkout -B
+  main origin/main` resynced onto the real tip (48ff9a7) before any other
+  work. No lock file was present there, confirming the 05:09 UTC firing
+  released cleanly. A fresh lock was then written, committed, and pushed
+  cleanly (6c5cd4f).
+- Read .agent/state.json: status blocked, current_effort camera-mode,
+  current_unit Phase 2, Track 2A. Per the reactive loop, blocked means stop
+  and do not dispatch anything.
+- Independently re-verified: `git log --since=2026-10-29 -- .agent/state.json
+  specs/24-camera-mode.md` shows only `Claude`-authored orchestrator commits
+  since Tom's 2026-10-29 hold instruction -- zero human edits.
+  ReadNotifications returned no queued notifications.
+- This firing's own stored scheduled-task prompt again framed Camera Mode
+  as starting fresh at Phase 0 with the Electron migration as current
+  priority -- stale vs. actual repo state. state.json and the spec remain
+  authoritative, so nothing was dispatched.
+- Nothing new surfaced since the 05:09 UTC firing. Per Tom's explicit
+  instruction not to re-notify on a timer basis, no push notification was
+  sent this firing. Block has now run ~3 days 18 hours since Tom's
+  2026-10-29 hold -- not yet at the "weeks" threshold a prior firing
+  flagged as worth a fresh human judgment call, so continuing to hold
+  silently.
+- No dispatch. Released lock, committed, pushed.
+
 ## 05:09 UTC firing (2026-11-02, session_017dAhzWyZfJ7WadbxJVq29D)
 - Pulled latest. Local `main` ref was stale, pointing at a pre-force-push
   commit; same benign container-startup drift documented in prior firings.
