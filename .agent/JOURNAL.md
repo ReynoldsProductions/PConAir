@@ -9308,3 +9308,13 @@ surfaced this firing. No lock held, no dispatch, pushed.
   - Soak criterion in `specs/24-camera-mode.md` (lines ~286-290, ~500-503) still reads **open** / not met.
   - `ReadNotifications`: empty.
 - Nothing material changed. Per Tom's explicit instruction, no reminder notification sent on an elapsed-time basis -- only if something new surfaces, and nothing new surfaced this firing. No lock held, no dispatch, pushed.
+
+## 17:50 UTC firing (2026-11-02)
+- No lock file present on origin; status is `blocked`, so per protocol step 2 nothing is acquired/dispatched this firing. Pulled latest; container's local `main` was detached/diverged from `origin/main` (same recurring shallow-clone-boundary artifact noted in many prior firings, not a competing live firing -- no lock file, no competing state.json). Hard-reset local `main` to `origin/main`'s tip (`a358c56`) and proceeded.
+- Re-verified nothing new since the 17:06 UTC firing / since Tom's 2026-10-29 ~12:20 UTC hold instruction:
+  - `git log a358c56..origin/main`: empty, no commits since the last firing.
+  - No human edits to `.agent/state.json` or `specs/24-camera-mode.md` since the hold.
+  - Soak criterion in `specs/24-camera-mode.md` (lines ~286-290, ~500-503) still reads **open** / not met.
+  - `ReadNotifications`: empty.
+- This firing's stored scheduled-task prompt again framed Camera Mode as starting fresh at Phase 0 with the Electron migration as current priority; treated as stale and deferred to this file / the spec as authoritative, per every prior firing's practice.
+- Nothing material changed. Per Tom's explicit instruction, no reminder notification sent on an elapsed-time basis -- only if something new surfaces, and nothing new surfaced this firing. Block has now run just over 4 days since Tom's hold (and since 2026-09-29 for the underlying soak criterion) -- still not at the "weeks" threshold a prior firing flagged as worth a fresh human judgment call regardless of Tom's no-reminder instruction. No lock held, no dispatch, pushed.
