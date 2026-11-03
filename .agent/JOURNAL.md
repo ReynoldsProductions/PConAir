@@ -9395,3 +9395,13 @@ Re-confirmed BLOCKED. Followed the lock-file section literally: wrote `.agent/lo
 - This firing's scheduled-task prompt again framed Camera Mode as starting fresh at Phase 0 with the Electron migration as current priority — stale relative to state.json/JOURNAL.md, which record Camera Mode well past Phase 0 and now blocked at Phase 2 pending Tom's real-hardware soak. Deferred to state.json/spec as authoritative per standing practice.
 - Per Tom's 2026-10-29 instruction, nothing new surfaced this firing, so no reminder notification was sent (continuing the silent re-confirmation he asked for). Block duration is now just over 4 days past his hold instruction, still short of the multi-week threshold a prior firing flagged as worth revisiting regardless of the no-reminder instruction.
 - No dispatch. Releasing the lock created at the start of this firing and pushing.
+
+## 00:09 UTC firing (2026-11-03)
+
+Re-confirmed BLOCKED. No lock file present at start; status in state.json was already `blocked`, so per the roadmap's reactive loop, nothing is dispatched and no lock is needed.
+
+- Pulled latest; HEAD came up detached and local `main` again showed the familiar 50/50 divergence vs origin/main (the recurring shallow-clone-boundary artifact documented repeatedly above, not a competing live firing -- no lock file present). Checked out `main` and reset hard to origin/main's actual tip (`439d9ad`, the 23:09 UTC firing's commit) and proceeded.
+- Checked for anything new since the 23:09 UTC firing: `git log 439d9ad..HEAD -- specs/24-camera-mode.md .agent/state.json` is empty -- no commits to either file since then. `git log --since=2026-10-29T12:20:00Z` over both files shows only Claude/orchestrator-authored commits since Tom's hold; zero human edits. `specs/24-camera-mode.md` soak criterion (lines ~286-290, ~500-503) still reads **open** / not met. `ReadNotifications` returned empty.
+- This firing's stored scheduled-task prompt again framed Camera Mode as starting fresh at Phase 0 with the Electron migration as current priority -- stale relative to state.json/JOURNAL.md, which record Camera Mode well past Phase 0 and now blocked at Phase 2 pending Tom's real-hardware soak. Deferred to state.json/spec as authoritative per standing practice.
+- Per Tom's 2026-10-29 instruction, nothing new surfaced this firing, so no reminder notification was sent (continuing the silent re-confirmation he asked for). Block has now run just under 5 days since Tom's hold (and since 2026-09-29 for the underlying soak criterion), still short of the multi-week threshold a prior firing flagged as worth revisiting regardless of the no-reminder instruction.
+- No dispatch. No lock to release (none was created). Pushing.
