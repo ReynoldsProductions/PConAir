@@ -9405,3 +9405,14 @@ Re-confirmed BLOCKED. No lock file present at start; status in state.json was al
 - This firing's stored scheduled-task prompt again framed Camera Mode as starting fresh at Phase 0 with the Electron migration as current priority -- stale relative to state.json/JOURNAL.md, which record Camera Mode well past Phase 0 and now blocked at Phase 2 pending Tom's real-hardware soak. Deferred to state.json/spec as authoritative per standing practice.
 - Per Tom's 2026-10-29 instruction, nothing new surfaced this firing, so no reminder notification was sent (continuing the silent re-confirmation he asked for). Block has now run just under 5 days since Tom's hold (and since 2026-09-29 for the underlying soak criterion), still short of the multi-week threshold a prior firing flagged as worth revisiting regardless of the no-reminder instruction.
 - No dispatch. No lock to release (none was created). Pushing.
+
+## 01:09 UTC firing (2026-11-03)
+
+Re-confirmed BLOCKED. Acquired and released the lock this firing (wrote it first, before reading state.json, per the lock-file section).
+
+- Pulled latest; fetch reported origin/main force-updated. The prior (01:08 UTC) firing's local lock-acquire/release commit pair (`b0f09fe`/`4d33667`) is not an ancestor of the new origin/main tip (`0d27140`) -- the tip instead is Thomas Reynolds merging 3 dependabot PRs (Node types, companion-module-base, multer bumps). This is the same recurring shallow-clone/force-push artifact noted in prior entries, not lost real work: `.agent/state.json` and `JOURNAL.md` content at the new tip are unchanged from the 00:09 UTC firing's text, and the only human commits since Tom's hold are those 3 dependency-bump merges -- nothing touching `state.json` or `specs/24-camera-mode.md`.
+- Wrote `.agent/lock.json` (this firing's session id + timestamp), committed and pushed it immediately, then read `.agent/state.json`: status `blocked`.
+- Checked for anything new since the 00:09 UTC firing: no human commits to `specs/24-camera-mode.md` or `.agent/state.json` since the hold; `specs/24-camera-mode.md` soak criterion (lines ~286-290, ~500-503) still reads **open** / not met. `ReadNotifications` returned empty.
+- This firing's stored scheduled-task prompt again framed Camera Mode as starting fresh at Phase 0 with the Electron migration as current priority -- stale relative to state.json/JOURNAL.md, which record Camera Mode well past Phase 0 and blocked at Phase 2 pending Tom's real-hardware soak. Deferred to state.json/spec as authoritative per standing practice.
+- Per Tom's 2026-10-29 instruction, nothing new surfaced, so no reminder notification was sent. Block has now run just over 4 days since Tom's hold (and since 2026-09-29 for the underlying soak criterion), still short of the multi-week threshold a prior firing flagged as worth revisiting regardless of the no-reminder instruction.
+- No dispatch. Lock released. Pushing.
